@@ -39,7 +39,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-@Ignore // Awaiting a fix in https://github.com/elastic/elasticsearch/issues/37889.
+@Ignore // https://github.com/elastic/elasticsearch/issues/38784
 public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
     private static final List<File> EXAMPLE_PLUGINS = Collections.unmodifiableList(

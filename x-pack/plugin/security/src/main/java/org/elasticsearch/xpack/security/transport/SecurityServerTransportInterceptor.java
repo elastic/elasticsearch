@@ -188,12 +188,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 case "client":
                     profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService,
                             threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
-                            securityContext));
+                            securityContext, licenseState));
                     break;
                 case "node":
                     profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService,
                             threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
-                            securityContext));
+                            securityContext, licenseState));
                     break;
                 default:
                    throw new IllegalStateException("unknown profile type: " + type);

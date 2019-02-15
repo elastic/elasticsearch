@@ -142,6 +142,16 @@ public class ReadOnlyEngine extends Engine {
         }
     }
 
+    @Override
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
+        // the value of the global checkpoint is verified when the read-only engine is opened,
+        // and it is not expected to change during the lifecycle of the engine. We could also
+        // check this value before closing the read-only engine but if something went wrong
+        // and the global checkpoint is not in-sync with the max. sequence number anymore,
+        // checking the value here again would prevent the read-only engine to be closed and
+        // reopened as an internal engine, which would be the path to fix the issue.
+    }
+
     protected final DirectoryReader wrapReader(DirectoryReader reader,
                                                     Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
         reader = ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
@@ -262,7 +272,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Closeable acquireRetentionLockForPeerRecovery() {
+    public Closeable acquireRetentionLock() {
         return () -> {};
     }
 
@@ -299,6 +309,11 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         return false;
+    }
+
+    @Override
+    public long getMinRetainedSeqNo() {
+        throw new UnsupportedOperationException();
     }
 
     @Override

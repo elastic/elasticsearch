@@ -266,6 +266,20 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * Performs the pre-closing checks on the {@link Engine}.
+     *
+     * @throws IllegalStateException if the sanity checks failed
+     */
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
+        final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
+        final long maxSeqNo = getSeqNoStats(globalCheckpoint).getMaxSeqNo();
+        if (globalCheckpoint != maxSeqNo) {
+            throw new IllegalStateException("Global checkpoint [" + globalCheckpoint
+                + "] mismatches maximum sequence number [" + maxSeqNo + "] on index shard " + shardId);
+        }
+    }
+
+    /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
      * is enabled
@@ -730,7 +744,7 @@ public abstract class Engine implements Closeable {
     /**
      * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
-    public abstract Closeable acquireRetentionLockForPeerRecovery();
+    public abstract Closeable acquireRetentionLock();
 
     /**
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
@@ -753,9 +767,16 @@ public abstract class Engine implements Closeable {
                                                                 MapperService mapperService, long startingSeqNo) throws IOException;
 
     /**
-     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
+     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its translog
      */
     public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Gets the minimum retained sequence number for this engine.
+     *
+     * @return the minimum retained sequence number
+     */
+    public abstract long getMinRetainedSeqNo();
 
     public abstract TranslogStats getTranslogStats();
 

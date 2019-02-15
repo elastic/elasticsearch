@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.ccr.repository;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -22,26 +26,27 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.CombinedRateLimiter;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRecoveryException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
@@ -51,6 +56,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -71,8 +77,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
 
 /**
@@ -92,17 +101,19 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private final String remoteClusterAlias;
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
+    private final ThreadPool threadPool;
 
     private final CounterMetric throttledTime = new CounterMetric();
-    
+
     public CcrRepository(RepositoryMetaData metadata, Client client, CcrLicenseChecker ccrLicenseChecker, Settings settings,
-            CcrSettings ccrSettings) {
+                         CcrSettings ccrSettings, ThreadPool threadPool) {
         this.metadata = metadata;
         this.ccrSettings = ccrSettings;
         assert metadata.name().startsWith(NAME_PREFIX) : "CcrRepository metadata.name() must start with: " + NAME_PREFIX;
         this.remoteClusterAlias = Strings.split(metadata.name(), NAME_PREFIX)[1];
         this.ccrLicenseChecker = ccrLicenseChecker;
         this.client = client;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -325,7 +336,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
             new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId)).actionGet(ccrSettings.getRecoveryActionTimeout());
         return new RestoreSession(repositoryName, remoteClient, sessionUUID, response.getNode(), indexShard, recoveryState,
-            response.getStoreFileMetaData(), response.getMappingVersion(), ccrSettings, throttledTime::inc);
+            response.getStoreFileMetaData(), response.getMappingVersion(), threadPool, ccrSettings, throttledTime::inc);
     }
 
     private static class RestoreSession extends FileRestoreContext implements Closeable {
@@ -337,33 +348,129 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         private final long mappingVersion;
         private final CcrSettings ccrSettings;
         private final LongConsumer throttleListener;
+        private final ThreadPool threadPool;
 
         RestoreSession(String repositoryName, Client remoteClient, String sessionUUID, DiscoveryNode node, IndexShard indexShard,
                        RecoveryState recoveryState, Store.MetadataSnapshot sourceMetaData, long mappingVersion,
-                       CcrSettings ccrSettings, LongConsumer throttleListener) {
+                       ThreadPool threadPool, CcrSettings ccrSettings, LongConsumer throttleListener) {
             super(repositoryName, indexShard, SNAPSHOT_ID, recoveryState, Math.toIntExact(ccrSettings.getChunkSize().getBytes()));
             this.remoteClient = remoteClient;
             this.sessionUUID = sessionUUID;
             this.node = node;
             this.sourceMetaData = sourceMetaData;
             this.mappingVersion = mappingVersion;
+            this.threadPool = threadPool;
             this.ccrSettings = ccrSettings;
             this.throttleListener = throttleListener;
         }
 
         void restoreFiles() throws IOException {
-            ArrayList<BlobStoreIndexShardSnapshot.FileInfo> fileInfos = new ArrayList<>();
+            ArrayList<FileInfo> fileInfos = new ArrayList<>();
             for (StoreFileMetaData fileMetaData : sourceMetaData) {
                 ByteSizeValue fileSize = new ByteSizeValue(fileMetaData.length());
-                fileInfos.add(new BlobStoreIndexShardSnapshot.FileInfo(fileMetaData.name(), fileMetaData, fileSize));
+                fileInfos.add(new FileInfo(fileMetaData.name(), fileMetaData, fileSize));
             }
             SnapshotFiles snapshotFiles = new SnapshotFiles(LATEST, fileInfos);
             restore(snapshotFiles);
         }
 
         @Override
-        protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
-            return new RestoreFileInputStream(remoteClient, sessionUUID, node, fileInfo.metadata(), ccrSettings, throttleListener);
+        protected void restoreFiles(List<FileInfo> filesToRecover, Store store) throws IOException {
+            logger.trace("[{}] starting CCR restore of {} files", shardId, filesToRecover);
+
+            try (MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger, () -> {
+            })) {
+                final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
+                final AtomicReference<Tuple<StoreFileMetaData, Exception>> error = new AtomicReference<>();
+
+                for (FileInfo fileInfo : filesToRecover) {
+                    final long fileLength = fileInfo.length();
+                    long offset = 0;
+                    while (offset < fileLength && error.get() == null) {
+                        final long requestSeqId = requestSeqIdTracker.generateSeqNo();
+                        try {
+                            requestSeqIdTracker.waitForOpsToComplete(requestSeqId - ccrSettings.getMaxConcurrentFileChunks());
+
+                            if (error.get() != null) {
+                                requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                                break;
+                            }
+
+                            final int bytesRequested = Math.toIntExact(
+                                Math.min(ccrSettings.getChunkSize().getBytes(), fileLength - offset));
+                            offset += bytesRequested;
+
+                            final GetCcrRestoreFileChunkRequest request =
+                                new GetCcrRestoreFileChunkRequest(node, sessionUUID, fileInfo.name(), bytesRequested);
+                            logger.trace("[{}] [{}] fetching chunk for file [{}], expected offset: {}, size: {}", shardId, snapshotId,
+                                fileInfo.name(), offset, bytesRequested);
+
+                            TimeValue timeout = ccrSettings.getRecoveryActionTimeout();
+                            ActionListener<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> listener =
+                                ListenerTimeouts.wrapWithTimeout(threadPool, ActionListener.wrap(
+                                    r -> threadPool.generic().execute(new AbstractRunnable() {
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
+                                            requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                                        }
+
+                                        @Override
+                                        protected void doRun() throws Exception {
+                                            final int actualChunkSize = r.getChunk().length();
+                                            logger.trace("[{}] [{}] got response for file [{}], offset: {}, length: {}", shardId,
+                                                snapshotId, fileInfo.name(), r.getOffset(), actualChunkSize);
+                                            final long nanosPaused = ccrSettings.getRateLimiter().maybePause(actualChunkSize);
+                                            throttleListener.accept(nanosPaused);
+                                            final boolean lastChunk = r.getOffset() + actualChunkSize >= fileLength;
+                                            multiFileWriter.writeFileChunk(fileInfo.metadata(), r.getOffset(), r.getChunk(), lastChunk);
+                                            requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                                        }
+                                    }),
+                                    e -> {
+                                        error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
+                                        requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                                    }
+                                    ), timeout, ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.NAME);
+                            remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request, listener);
+                        } catch (Exception e) {
+                            error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
+                            requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                        }
+                    }
+                }
+
+                try {
+                    requestSeqIdTracker.waitForOpsToComplete(requestSeqIdTracker.getMaxSeqNo());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new ElasticsearchException(e);
+                }
+                if (error.get() != null) {
+                    handleError(store, error.get().v2());
+                }
+            }
+
+            logger.trace("[{}] completed CCR restore", shardId);
+        }
+
+        private void handleError(Store store, Exception e) throws IOException {
+            final IOException corruptIndexException;
+            if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(e)) != null) {
+                try {
+                    store.markStoreCorrupted(corruptIndexException);
+                } catch (IOException ioe) {
+                    logger.warn("store cannot be marked as corrupted", e);
+                }
+                throw corruptIndexException;
+            } else {
+                ExceptionsHelper.reThrowIfNotNull(e);
+            }
+        }
+
+        @Override
+        protected InputStream fileInputStream(FileInfo fileInfo) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -372,72 +479,5 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse response =
                 remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet(ccrSettings.getRecoveryActionTimeout());
         }
-    }
-
-    private static class RestoreFileInputStream extends InputStream {
-
-        private final Client remoteClient;
-        private final String sessionUUID;
-        private final DiscoveryNode node;
-        private final StoreFileMetaData fileToRecover;
-        private final CombinedRateLimiter rateLimiter;
-        private final CcrSettings ccrSettings;
-        private final LongConsumer throttleListener;
-
-        private long pos = 0;
-
-        private RestoreFileInputStream(Client remoteClient, String sessionUUID, DiscoveryNode node, StoreFileMetaData fileToRecover,
-                                       CcrSettings ccrSettings, LongConsumer throttleListener) {
-            this.remoteClient = remoteClient;
-            this.sessionUUID = sessionUUID;
-            this.node = node;
-            this.fileToRecover = fileToRecover;
-            this.ccrSettings = ccrSettings;
-            this.rateLimiter = ccrSettings.getRateLimiter();
-            this.throttleListener = throttleListener;
-        }
-
-
-        @Override
-        public int read() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int read(byte[] bytes, int off, int len) throws IOException {
-            long remainingBytes = fileToRecover.length() - pos;
-            if (remainingBytes <= 0) {
-                return 0;
-            }
-
-            int bytesRequested = (int) Math.min(remainingBytes, len);
-
-            long nanosPaused = rateLimiter.maybePause(bytesRequested);
-            throttleListener.accept(nanosPaused);
-
-            String fileName = fileToRecover.name();
-            GetCcrRestoreFileChunkRequest request = new GetCcrRestoreFileChunkRequest(node, sessionUUID, fileName, bytesRequested);
-            GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse response =
-                remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request).actionGet(ccrSettings.getRecoveryActionTimeout());
-            BytesReference fileChunk = response.getChunk();
-
-            int bytesReceived = fileChunk.length();
-            if (bytesReceived > bytesRequested) {
-                throw new IOException("More bytes [" + bytesReceived + "] received than requested [" + bytesRequested + "]");
-            }
-
-            long leaderOffset = response.getOffset();
-            assert pos == leaderOffset : "Position [" + pos + "] should be equal to the leader file offset [" + leaderOffset + "].";
-
-            try (StreamInput streamInput = fileChunk.streamInput()) {
-                int bytesRead = streamInput.read(bytes, 0, bytesReceived);
-                assert bytesRead == bytesReceived : "Did not read the correct number of bytes";
-            }
-
-            pos += bytesReceived;
-
-            return bytesReceived;
-        }
-
     }
 }

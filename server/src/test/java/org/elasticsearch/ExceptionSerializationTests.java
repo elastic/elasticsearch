@@ -61,6 +61,8 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
+import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -812,6 +814,8 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(150, CoordinationStateRejectedException.class);
         ids.put(151, SnapshotInProgressException.class);
         ids.put(152, NoSuchRemoteClusterException.class);
+        ids.put(153, RetentionLeaseAlreadyExistsException.class);
+        ids.put(154, RetentionLeaseNotFoundException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

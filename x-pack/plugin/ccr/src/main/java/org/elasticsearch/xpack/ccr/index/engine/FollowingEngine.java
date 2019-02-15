@@ -195,4 +195,12 @@ public final class FollowingEngine extends InternalEngine {
     public long getNumberOfOptimizedIndexing() {
         return numOfOptimizedIndexing.count();
     }
+
+    @Override
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
+        // the value of the global checkpoint is not verified when the following engine is closed,
+        // allowing it to be closed even in the case where all operations have not been fetched and
+        // processed from the leader and the operations history has gaps. This way the following
+        // engine can be closed and reopened in order to bootstrap the follower index again.
+    }
 }

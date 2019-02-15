@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -27,14 +28,14 @@ public class DataFrameAnalysisConfig implements ToXContentObject, Writeable {
     private final Map<String, Object> config;
 
     public DataFrameAnalysisConfig(Map<String, Object> config) {
-        this.config = Objects.requireNonNull(config);
+        this.config = Collections.unmodifiableMap(Objects.requireNonNull(config));
         if (config.size() != 1) {
             throw ExceptionsHelper.badRequestException("A data frame analysis must specify exactly one analysis type");
         }
     }
 
     public DataFrameAnalysisConfig(DataFrameAnalysisConfig config) {
-        this.config = new HashMap<>(config.config);
+        this(new HashMap<>(config.config));
     }
 
     public DataFrameAnalysisConfig(StreamInput in) throws IOException {

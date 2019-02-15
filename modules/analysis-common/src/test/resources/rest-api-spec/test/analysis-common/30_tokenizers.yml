@@ -23,14 +23,14 @@
     - match:  { detail.tokenizer.tokens.0.token: Foo Bar! }
 
 ---
-"nGram":
+"ngram":
     - do:
         indices.analyze:
           body:
             text: good
             explain: true
             tokenizer:
-              type: nGram
+              type: ngram
               min_gram: 2
               max_gram: 2
     - length: { detail.tokenizer.tokens: 3 }
@@ -40,7 +40,7 @@
     - match:  { detail.tokenizer.tokens.2.token: od }
 
 ---
-"nGram_exception":
+"ngram_exception":
     - skip:
         version: " - 6.99.99"
         reason: only starting from version 7.x this throws an error
@@ -51,7 +51,7 @@
             text: good
             explain: true
             tokenizer:
-              type: nGram
+              type: ngram
               min_gram: 2
               max_gram: 4
 ---
@@ -133,7 +133,7 @@
             text: "foobar"
             explain: true
             tokenizer:
-              type: nGram
+              type: ngram
               min_gram: 3
               max_gram: 3
     - length: { detail.tokenizer.tokens: 4 }
@@ -162,9 +162,9 @@
           body:
             text: "foo"
             explain: true
-            tokenizer: nGram
+            tokenizer: ngram
     - length: { detail.tokenizer.tokens: 5 }
-    - match:  { detail.tokenizer.name: nGram }
+    - match:  { detail.tokenizer.name: ngram }
     - match:  { detail.tokenizer.tokens.0.token: f }
     - match:  { detail.tokenizer.tokens.1.token: fo }
     - match:  { detail.tokenizer.tokens.2.token: o }
@@ -194,7 +194,7 @@
             text: "foo"
             explain: true
             tokenizer:
-              type: edgeNGram
+              type: edge_ngram
               min_gram: 1
               max_gram: 3
     - length: { detail.tokenizer.tokens: 3 }
@@ -219,9 +219,9 @@
           body:
             text: "foo"
             explain: true
-            tokenizer: edgeNGram
+            tokenizer: edge_ngram
     - length: { detail.tokenizer.tokens: 2 }
-    - match:  { detail.tokenizer.name: edgeNGram }
+    - match:  { detail.tokenizer.name: edge_ngram }
     - match:  { detail.tokenizer.tokens.0.token: f }
     - match:  { detail.tokenizer.tokens.1.token: fo }
 

@@ -64,7 +64,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -910,12 +909,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         templateBuilder.endObject().endObject();
         Request createTemplateRequest = new Request("PUT", "/_template/test_template");
         createTemplateRequest.setJsonEntity(Strings.toString(templateBuilder));
-
-        // In 7.0, type names are no longer expected by default in put index template requests.
-        // We therefore use the deprecated typed APIs when running against the current version, but testing with a pre-7 version
-        if (isRunningAgainstOldCluster() == false && templateUsesTypes) {
-            createTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        }
         createTemplateRequest.setOptions(allowTypeRemovalWarnings());
 
         client().performRequest(createTemplateRequest);
@@ -941,11 +934,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
         client().performRequest(createSnapshot);
 
-        checkSnapshot("old_snap", count, oldClusterVersion, type);
+        checkSnapshot("old_snap", count, oldClusterVersion);
         if (false == isRunningAgainstOldCluster()) {
-            // when we takes a snapshot on the new cluster and restore it, we always expect the "_doc" type
-            // even if the template uses "doc" (which e.g. happens when the "old cluster" was before 6.6, see #setType())
-            checkSnapshot("new_snap", count, Version.CURRENT, "_doc");
+            checkSnapshot("new_snap", count, Version.CURRENT);
         }
     }
 
@@ -1040,7 +1031,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion, String expectedType)
+    private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion)
             throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
@@ -1124,12 +1115,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Check that the template was restored successfully
         Request getTemplateRequest = new Request("GET", "/_template/test_template");
-
-        // In 7.0, type names are no longer returned by default in get index template requests.
-        // We therefore use the deprecated typed APIs when running against the current version.
-        if (isRunningAgainstAncientCluster() == false) {
-            getTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        }
         getTemplateRequest.setOptions(allowTypeRemovalWarnings());
 
         Map<String, Object> getTemplateResponse = entityAsMap(client().performRequest(getTemplateRequest));
@@ -1143,7 +1128,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // We don't have the type in the response starting with 7.0, but we won't have it on old cluster after upgrade
         // either so look at the response to figure out the correct assertions
         if (isTypeInTemplateResponse(getTemplateResponse)) {
-            expectedTemplate.put("mappings", singletonMap(expectedType, singletonMap("_source", singletonMap("enabled", true))));
+            expectedTemplate.put("mappings", singletonMap(type, singletonMap("_source", singletonMap("enabled", true))));
         } else {
             expectedTemplate.put("mappings", singletonMap("_source", singletonMap("enabled", true)));
         }

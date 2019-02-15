@@ -193,6 +193,8 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
 
+    private static Locale restoreLocale;
+
     @AfterClass
     public static void resetPortCounter() {
         portGenerator.set(0);
@@ -325,6 +327,26 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static void restoreContentType() {
         Requests.CONTENT_TYPE = XContentType.SMILE;
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
+    }
+
+    @BeforeClass
+    public static void ensureSupportedLocale() {
+        if (isUnusableLocale()) {
+            // See: https://github.com/bcgit/bc-java/issues/405
+            Logger logger = LogManager.getLogger(ESTestCase.class);
+            logger.warn("Attempting to run tests in an unusable locale in a FIPS JVM. Certificate expiration validation will fail, " +
+                "switching to English");
+            restoreLocale = Locale.getDefault();
+            Locale.setDefault(Locale.ENGLISH);
+        }
+    }
+
+    @AfterClass
+    public static void restoreLocale() {
+        if (restoreLocale != null) {
+            Locale.setDefault(restoreLocale);
+            restoreLocale = null;
+        }
     }
 
     @Before
@@ -1417,6 +1439,12 @@ public abstract class ESTestCase extends LuceneTestCase {
             this.tokenizer = tokenizer;
             this.charFilter = charFilter;
         }
+    }
+
+    private static boolean isUnusableLocale() {
+        return inFipsJvm() && (Locale.getDefault().toLanguageTag().equals("th-TH")
+            || Locale.getDefault().toLanguageTag().equals("ja-JP-u-ca-japanese-x-lvariant-JP")
+            || Locale.getDefault().toLanguageTag().equals("th-TH-u-nu-thai-x-lvariant-TH"));
     }
 
     public static boolean inFipsJvm() {

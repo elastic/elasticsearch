@@ -17,7 +17,7 @@ indices and return results in tabular format.
 
 The following chapters aim to cover everything from usage, to syntax and drivers.
 Experience users or those in a hurry might want to jump directly to 
-the list of SQL <<sql-commands, commands>> and <<sql-functions-list, functions>>.
+the list of SQL <<sql-commands, commands>> and <<sql-functions, functions>>.
 
 <<sql-overview, Overview>>::
     Overview of {es-sql} and its features.

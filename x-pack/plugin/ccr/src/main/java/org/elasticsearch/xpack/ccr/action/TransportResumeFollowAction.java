@@ -243,7 +243,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         Settings leaderSettings = filter(leaderIndex.getSettings());
         Settings followerSettings = filter(followIndex.getSettings());
         if (leaderSettings.equals(followerSettings) == false) {
-            throw new IllegalArgumentException("the leader and follower index settings must be identical");
+            throw new IllegalArgumentException("the leader index setting[" + leaderSettings + "] and follower index settings [" +
+                followerSettings + "] must be identical");
         }
 
         // Validates if the current follower mapping is mergable with the leader mapping.
@@ -455,6 +456,11 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         settings.remove(IndexMetaData.SETTING_INDEX_UUID);
         settings.remove(IndexMetaData.SETTING_INDEX_PROVIDED_NAME);
         settings.remove(IndexMetaData.SETTING_CREATION_DATE);
+
+        // Follower index may be upgraded, while the leader index hasn't been upgraded, so it is expected
+        // that these settings are different:
+        settings.remove(IndexMetaData.SETTING_VERSION_UPGRADED);
+        settings.remove(IndexMetaData.SETTING_VERSION_UPGRADED_STRING);
 
         Iterator<String> iterator = settings.keys().iterator();
         while (iterator.hasNext()) {

@@ -23,9 +23,12 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.joda.time.DateTimeZone;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -216,5 +219,23 @@ public class DateUtils {
         long millis = utcMillisAtStartOfYear(year);
         millis += getTotalMillisByYearMonth(year, month);
         return millis;
+    }
+
+    /**
+     * Returns the current UTC date-time with milliseconds precision.
+     * In Java 9+ (as opposed to Java 8) the {@code Clock} implementation uses system's best clock implementation (which could mean
+     * that the precision of the clock can be milliseconds, microseconds or nanoseconds), whereas in Java 8
+     * {@code System.currentTimeMillis()} is always used. To account for these differences, this method defines a new {@code Clock}
+     * which will offer a value for {@code ZonedDateTime.now()} set to always have milliseconds precision.
+     *
+     * @return {@link ZonedDateTime} instance for the current date-time with milliseconds precision in UTC
+     */
+    public static ZonedDateTime nowWithMillisResolution() {
+        return nowWithMillisResolution(Clock.systemUTC());
+    }
+
+    public static ZonedDateTime nowWithMillisResolution(Clock clock) {
+        Clock millisResolutionClock = Clock.tick(clock, Duration.ofMillis(1));
+        return ZonedDateTime.now(millisResolutionClock);
     }
 }

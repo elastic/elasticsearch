@@ -201,6 +201,6 @@ Elastic Stack to handle the indexing part.
 
 [float]
 [[ingest-user-agent-ecs-always]]
-==== Ingest User Agent processor always uses `ecs` output format
-The deprecated `ecs` setting for the user agent ingest processor has been
-removed. https://github.com/elastic/ecs[ECS] format is now the default.
+==== Ingest User Agent processor defaults uses `ecs` output format
+https://github.com/elastic/ecs[ECS] format is now the default.
+The `ecs` setting for the user agent ingest processor now defaults to true.

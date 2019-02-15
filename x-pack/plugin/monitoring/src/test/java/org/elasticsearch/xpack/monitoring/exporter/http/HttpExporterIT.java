@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockRequest;
@@ -281,13 +282,14 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 MockRequest recordedRequest = secondWebServer.takeRequest();
                 assertThat(recordedRequest.getMethod(), equalTo("GET"));
                 assertThat(recordedRequest.getUri().getPath(), equalTo(resourcePrefix + template.v1()));
-                assertMonitorVersionQueryString(resourcePrefix, recordedRequest.getUri().getQuery());
+                assertMonitorVersionQueryString(recordedRequest.getUri().getQuery(), Collections.emptyMap());
 
                 if (missingTemplate.equals(template.v1())) {
                     recordedRequest = secondWebServer.takeRequest();
                     assertThat(recordedRequest.getMethod(), equalTo("PUT"));
                     assertThat(recordedRequest.getUri().getPath(), equalTo(resourcePrefix + template.v1()));
-                    assertMonitorVersionQueryString(resourcePrefix, recordedRequest.getUri().getQuery());
+                    final Map<String, String> parameters = Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true");
+                    assertMonitorVersionQueryString(recordedRequest.getUri().getQuery(), parameters);
                     assertThat(recordedRequest.getBody(), equalTo(template.v2()));
                 }
             }
@@ -464,7 +466,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
             assertThat(getRequest.getMethod(), equalTo("GET"));
             assertThat(getRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-            assertMonitorVersionQueryString(resourcePrefix, getRequest.getUri().getQuery());
+            assertMonitorVersionQueryString(getRequest.getUri().getQuery(), Collections.emptyMap());
             assertHeaders(getRequest, customHeaders);
 
             if (alreadyExists == false) {
@@ -472,19 +474,28 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
                 assertThat(putRequest.getMethod(), equalTo("PUT"));
                 assertThat(putRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-                assertMonitorVersionQueryString(resourcePrefix, getRequest.getUri().getQuery());
+                Map<String, String> parameters = resourcePrefix.startsWith("/_template")
+                    ? Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true")
+                    : Collections.emptyMap();
+                assertMonitorVersionQueryString(putRequest.getUri().getQuery(), parameters);
                 assertThat(putRequest.getBody(), equalTo(resource.v2()));
                 assertHeaders(putRequest, customHeaders);
             }
         }
     }
 
-    private void assertMonitorVersionQueryString(String resourcePrefix, String query) {
-        if (resourcePrefix.startsWith("/_template")) {
-            assertThat(query, equalTo(INCLUDE_TYPE_NAME_PARAMETER + "=true&" + resourceVersionQueryString()));
-        } else {
-            assertThat(query, equalTo(resourceVersionQueryString()));
-        }
+    private void assertMonitorVersionQueryString(String query, final Map<String, String> parameters) {
+        Map<String, String> expectedQueryStringMap = new HashMap<>();
+        RestUtils.decodeQueryString(query, 0, expectedQueryStringMap);
+
+        Map<String, String> resourceVersionQueryStringMap = new HashMap<>();
+        RestUtils.decodeQueryString(resourceVersionQueryString(), 0, resourceVersionQueryStringMap);
+
+        Map<String, String> actualQueryStringMap = new HashMap<>();
+        actualQueryStringMap.putAll(resourceVersionQueryStringMap);
+        actualQueryStringMap.putAll(parameters);
+
+        assertEquals(expectedQueryStringMap, actualQueryStringMap);
     }
 
     private void assertMonitorWatches(final MockWebServer webServer,

@@ -187,7 +187,9 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         String ignoredIndex = "tasks";
         createIndex(firstIndex, Settings.EMPTY);
         createIndex(secondIndex, Settings.EMPTY);
-        createIndex(ignoredIndex, Settings.EMPTY);
+        if (randomBoolean()) {
+            createIndex(ignoredIndex, Settings.EMPTY);
+        }
         ClusterHealthRequest request = new ClusterHealthRequest(firstIndex, secondIndex);
         request.timeout("5s");
         request.level(ClusterHealthRequest.Level.INDICES);

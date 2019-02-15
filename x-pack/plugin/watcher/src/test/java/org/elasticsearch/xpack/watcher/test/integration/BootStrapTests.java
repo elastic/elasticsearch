@@ -29,9 +29,10 @@ import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateReque
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -52,7 +53,6 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
@@ -75,7 +75,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                 .get();
 
         // valid watch record:
-        DateTime now = DateTime.now(UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid("_id", now);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         ExecutableCondition condition = InternalAlwaysCondition.INSTANCE;
@@ -198,7 +198,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
         stopWatcher();
 
-        DateTime now = DateTime.now(UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         final int numRecords = scaledRandomIntBetween(numWatches, 128);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < numRecords; i++) {
@@ -244,7 +244,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
         stopWatcher();
 
-        DateTime now = DateTime.now(UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         final int numRecords = scaledRandomIntBetween(2, 12);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < numRecords; i++) {
@@ -310,7 +310,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             // we rarely create an .watches alias in the base class
             assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
         }
-        DateTime triggeredTime = new DateTime(2015, 11, 5, 0, 0, 0, 0, DateTimeZone.UTC);
+        LocalDateTime localDateTime = LocalDateTime.of(2015, 11, 5, 0, 0, 0, 0);
+        ZonedDateTime triggeredTime =  ZonedDateTime.of(localDateTime,ZoneOffset.UTC);
         final String watchRecordIndex = HistoryStoreField.getHistoryIndexNameForTime(triggeredTime);
 
         logger.info("Stopping watcher");

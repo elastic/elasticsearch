@@ -73,8 +73,10 @@ final class TransportHandshaker {
             final Version minCompatVersion = version.minimumCompatibilityVersion();
             handshakeRequestSender.sendRequest(node, channel, requestId, minCompatVersion);
 
-            threadPool.schedule(timeout, ThreadPool.Names.GENERIC,
-                () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")));
+            threadPool.schedule(
+                () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),
+                timeout,
+                ThreadPool.Names.GENERIC);
             success = true;
         } catch (Exception e) {
             handler.handleLocalException(new ConnectTransportException(node, "failure to send " + HANDSHAKE_ACTION_NAME, e));

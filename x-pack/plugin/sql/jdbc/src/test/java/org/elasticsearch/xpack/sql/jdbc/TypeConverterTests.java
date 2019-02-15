@@ -10,16 +10,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.ReadableDateTime;
 
 import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 import static org.hamcrest.Matchers.instanceOf;
 
 
 public class TypeConverterTests extends ESTestCase {
-
 
     public void testFloatAsNative() throws Exception {
         assertThat(convertAsNative(42.0f, EsType.FLOAT), instanceOf(Float.class));
@@ -40,9 +41,9 @@ public class TypeConverterTests extends ESTestCase {
     }
 
     public void testTimestampAsNative() throws Exception {
-        DateTime now = DateTime.now();
-        assertThat(convertAsNative(now, EsType.DATE), instanceOf(Timestamp.class));
-        assertEquals(now.getMillis(), ((Timestamp) convertAsNative(now, EsType.DATE)).getTime());
+        ZonedDateTime now = ZonedDateTime.now(Clock.tick(Clock.system(ZoneId.of("Z")), Duration.ofMillis(1)));
+        assertThat(convertAsNative(now, EsType.DATETIME), instanceOf(Timestamp.class));
+        assertEquals(now.toInstant().toEpochMilli(), ((Timestamp) convertAsNative(now, EsType.DATETIME)).getTime());
     }
 
     private Object convertAsNative(Object value, EsType type) throws Exception {
@@ -50,11 +51,7 @@ public class TypeConverterTests extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.field("value");
-        if (value instanceof ReadableDateTime) {
-            builder.value(((ReadableDateTime) value).getMillis());
-        } else {
-            builder.value(value);
-        }
+        builder.value(value);
         builder.endObject();
         builder.close();
         Object copy = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2().get("value");

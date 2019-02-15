@@ -34,11 +34,6 @@ public class HipChatService extends NotificationService<HipChatAccount> {
     static final Setting<Integer> SETTING_DEFAULT_PORT =
             Setting.intSetting("xpack.notification.hipchat.port", 443, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
-    private static final Setting.AffixSetting<String> SETTING_AUTH_TOKEN =
-            Setting.affixKeySetting("xpack.notification.hipchat.account.", "auth_token",
-                    (key) -> Setting.simpleString(key, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered,
-                            Setting.Property.Deprecated));
-
     private static final Setting.AffixSetting<SecureString> SETTING_AUTH_TOKEN_SECURE =
             Setting.affixKeySetting("xpack.notification.hipchat.account.", "secure_auth_token",
                     (key) -> SecureSetting.secureString(key, null));
@@ -75,7 +70,6 @@ public class HipChatService extends NotificationService<HipChatAccount> {
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_HOST, (s) -> {});
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_PORT, (s) -> {});
-        clusterSettings.addAffixUpdateConsumer(SETTING_AUTH_TOKEN, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_PROFILE, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_ROOM, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_HOST, (s, o) -> {}, (s, o) -> {});
@@ -101,7 +95,7 @@ public class HipChatService extends NotificationService<HipChatAccount> {
     }
 
     private static List<Setting<?>> getDynamicSettings() {
-        return Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_AUTH_TOKEN, SETTING_PROFILE, SETTING_ROOM, SETTING_MESSAGE_DEFAULTS,
+        return Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_PROFILE, SETTING_ROOM, SETTING_MESSAGE_DEFAULTS,
                 SETTING_DEFAULT_HOST, SETTING_DEFAULT_PORT, SETTING_HOST, SETTING_PORT);
     }
 

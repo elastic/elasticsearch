@@ -357,11 +357,11 @@ public final class InternalSqlScriptUtils {
             return ((JodaCompatibleZonedDateTime) dateTime).getZonedDateTime();
         }
         if (dateTime instanceof ZonedDateTime) {
-            return (ZonedDateTime) dateTime;
+            return dateTime;
         }
         if (false == lenient) {
             if (dateTime instanceof Number) {
-                return DateUtils.of(((Number) dateTime).longValue());
+                return DateUtils.asDateTime(((Number) dateTime).longValue());
             }
     
             throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);

@@ -199,12 +199,10 @@ You can use the following mapping for the example index above:
 PUT my_ip_locations
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "geoip": {
-          "properties": {
-            "location": { "type": "geo_point" }
-          }
+    "properties": {
+      "geoip": {
+        "properties": {
+          "location": { "type": "geo_point" }
         }
       }
     }

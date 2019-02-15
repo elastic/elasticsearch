@@ -2,6 +2,7 @@
 setup:
   - do:
         indices.create:
+          include_type_name: true
           index: test_index
           body:
               mappings:
@@ -22,6 +23,7 @@ setup:
 
   - do:
         indices.create:
+          include_type_name: true
           index: test_index_2
           body:
               mappings:
@@ -45,6 +47,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         fields: "*"
 
   - match: {test_index.mappings.test_type.t1.full_name:     t1     }
@@ -58,6 +61,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         index: test_index
         fields: "t*"
 
@@ -70,6 +74,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         index: test_index
         fields: "*t1"
   - match:  {test_index.mappings.test_type.t1.full_name:        t1       }
@@ -82,6 +87,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         index: test_index
         fields: "obj.i_*"
   - match:  {test_index.mappings.test_type.obj\.i_t1.full_name: obj.i_t1 }
@@ -93,6 +99,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         index: _all
         type: _all
         fields: "t*"
@@ -108,6 +115,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         index: '*'
         type: '*'
         fields: "t*"
@@ -123,6 +131,7 @@ setup:
 
   - do:
       indices.get_field_mapping:
+        include_type_name: true
         index: 'test_index,test_index_2'
         type: 'test_type,test_type_2'
         fields: "t*"

@@ -3,7 +3,6 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
@@ -38,13 +37,11 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     2
         body:   { "user": "blort" }
   - do:
@@ -89,13 +86,11 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     2
         body:   { "user": "foo" }
   - do:
@@ -118,7 +113,6 @@
   - do:
       get:
         index:   new_twitter
-        type:    _doc
         id:      1
         routing: kimchy
   - match: { _routing: kimchy }
@@ -126,7 +120,6 @@
   - do:
       get:
         index:   new_twitter
-        type:    _doc
         id:      2
         routing: foo
   - match: { _routing: foo }
@@ -136,13 +129,11 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     2
         body:   { "user": "foo" }
   - do:
@@ -192,13 +183,11 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     2
         body:   { "user": "foo" }
   - do:
@@ -227,7 +216,6 @@
   - do:
       index:
         index:        twitter
-        type:         _doc
         id:           1
         version:      1
         version_type: external
@@ -235,7 +223,6 @@
   - do:
       index:
         index:        new_twitter
-        type:         _doc
         id:           1
         version:      1
         version_type: external
@@ -273,13 +260,11 @@
   - do:
       index:
         index:        twitter
-        type:         _doc
         id:           1
         body:         { "user": "kimchy" }
   - do:
       index:
         index:        new_twitter
-        type:         _doc
         id:           1
         body:         { "user": "kimchy" }
   - do:
@@ -314,13 +299,11 @@
   - do:
       index:
         index:        twitter
-        type:         _doc
         id:           1
         body:         { "user": "kimchy" }
   - do:
       index:
         index:        twitter
-        type:         _doc
         id:           2
         body:         { "user": "another" }
   - do:
@@ -366,32 +349,27 @@
   - do:
       index:
         index:  index1
-        type:   _doc
         id:     1
         body:   { "lang": "en", "id": 123 }
   - do:
       index:
         index:  index1
-        type:   _doc
         id:     2
         body:   { "lang": "en", "id": 456 }
   - do:
       index:
         index:  index1
-        type:   _doc
         id:     3
         body:   { "lang": "fr", "id": 789 }
   # Destination index
   - do:
       index:
         index:  index2
-        type:   _doc
         id:     fr_789
         body:   { "lang": "fr", "id": 789 }
   - do:
       index:
         index:  index2
-        type:   _doc
         id:     en_123
         body:   { "lang": "en", "id": 123 }
   - do:
@@ -444,7 +422,6 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:

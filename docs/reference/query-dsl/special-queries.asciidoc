@@ -23,7 +23,7 @@ A query that allows to modify the score of a sub-query with a script.
 This query finds queries that are stored as documents that match with
 the specified document.
 
-<<query-dsl-feature-query,`feature` query>>::
+<<query-dsl-rank-feature-query,`rank_feature` query>>::
 
 A query that computes scores based on the values of numeric features and is
 able to efficiently skip non-competitive hits.
@@ -40,6 +40,6 @@ include::script-score-query.asciidoc[]
 
 include::percolate-query.asciidoc[]
 
-include::feature-query.asciidoc[]
+include::rank-feature-query.asciidoc[]
 
 include::wrapper-query.asciidoc[]

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.service;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -45,8 +43,6 @@ import java.util.Collections;
 import java.util.Map;
 
 public class ClusterService extends AbstractLifecycleComponent {
-    private static final Logger logger = LogManager.getLogger(ClusterService.class);
-
     private final MasterService masterService;
 
     private final ClusterApplierService clusterApplierService;
@@ -78,7 +74,6 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, MasterService masterService,
         ClusterApplierService clusterApplierService) {
-        super(settings);
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.masterService = masterService;

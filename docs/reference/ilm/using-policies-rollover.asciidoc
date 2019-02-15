@@ -123,6 +123,7 @@ When the rollover is performed, the newly-created index is set as the write
 index for the rolled over alias. Documents sent to the alias are indexed into
 the new index, enabling indexing to continue uninterrupted.
 
+[[skipping-rollover]]
 === Skipping Rollover
 
 The `index.lifecycle.indexing_complete` setting indicates to {ilm} whether this

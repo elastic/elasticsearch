@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -33,9 +34,12 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -67,25 +71,28 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Migrates job and datafeed configurations from the clusterstate to
- * index documents.
+ * index documents for closed or unallocated tasks.
  *
  * There are 3 steps to the migration process
  * 1. Read config from the clusterstate
+ *     - Find all job and datafeed configs that do not have an associated persistent
+ *       task or the persistent task is unallocated
  *     - If a job or datafeed is added after this call it will be added to the index
  *     - If deleted then it's possible the config will be copied before it is deleted.
  *       Mitigate against this by filtering out jobs marked as deleting
  * 2. Copy the config to the index
  *     - The index operation could fail, don't delete from clusterstate in this case
- * 3. Remove config from the clusterstate
+ * 3. Remove config from the clusterstate and update persistent task parameters
  *     - Before this happens config is duplicated in index and clusterstate, all ops
- *       must prefer to use the index config at this stage
+ *       must prefer to use the clusterstate config at this stage
  *     - If the clusterstate update fails then the config will remain duplicated
  *       and the migration process should try again
+ *     - Job and datafeed tasks opened prior to v6.6.0 need to be updated with new
+ *       parameters
  *
  * If there was an error in step 3 and the config is in both the clusterstate and
- * index then when the migrator retries it must not overwrite an existing job config
- * document as once the index document is present all update operations will function
- * on that rather than the clusterstate.
+ * index. At this point the clusterstate config is preferred and all update
+ * operations will function on that rather than the index.
  *
  * The number of configs indexed in each bulk operation is limited by {@link #MAX_BULK_WRITE_SIZE}
  * pairs of datafeeds and jobs are migrated together.
@@ -130,7 +137,7 @@ public class MlConfigMigrator {
      * @param clusterState The current clusterstate
      * @param listener     The success listener
      */
-    public void migrateConfigsWithoutTasks(ClusterState clusterState, ActionListener<Boolean> listener) {
+    public void migrateConfigs(ClusterState clusterState, ActionListener<Boolean> listener) {
         if (migrationInProgress.compareAndSet(false, true) == false) {
             listener.onResponse(Boolean.FALSE);
             return;
@@ -183,8 +190,8 @@ public class MlConfigMigrator {
         for (JobsAndDatafeeds batch : batches) {
             voidChainTaskExecutor.add(chainedListener -> writeConfigToIndex(batch.datafeedConfigs, batch.jobs, ActionListener.wrap(
                 failedDocumentIds -> {
-                    List<String> successfulJobWrites = filterFailedJobConfigWrites(failedDocumentIds, batch.jobs);
-                    List<String> successfulDatafeedWrites =
+                    List<Job> successfulJobWrites = filterFailedJobConfigWrites(failedDocumentIds, batch.jobs);
+                    List<DatafeedConfig> successfulDatafeedWrites =
                         filterFailedDatafeedConfigWrites(failedDocumentIds, batch.datafeedConfigs);
                     removeFromClusterState(successfulJobWrites, successfulDatafeedWrites, chainedListener);
                 },
@@ -215,24 +222,33 @@ public class MlConfigMigrator {
         );
     }
 
-    private void removeFromClusterState(List<String> jobsToRemoveIds, List<String> datafeedsToRemoveIds,
+    private void removeFromClusterState(List<Job> jobsToRemove, List<DatafeedConfig> datafeedsToRemove,
                                         ActionListener<Void> listener) {
-        if (jobsToRemoveIds.isEmpty() && datafeedsToRemoveIds.isEmpty()) {
+        if (jobsToRemove.isEmpty() && datafeedsToRemove.isEmpty()) {
             listener.onResponse(null);
             return;
         }
+
+        Map<String, Job> jobsMap = jobsToRemove.stream().collect(Collectors.toMap(Job::getId, Function.identity()));
+        Map<String, DatafeedConfig> datafeedMap =
+                datafeedsToRemove.stream().collect(Collectors.toMap(DatafeedConfig::getId, Function.identity()));
 
         AtomicReference<RemovalResult> removedConfigs = new AtomicReference<>();
 
         clusterService.submitStateUpdateTask("remove-migrated-ml-configs", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                RemovalResult removed = removeJobsAndDatafeeds(jobsToRemoveIds, datafeedsToRemoveIds,
+                RemovalResult removed = removeJobsAndDatafeeds(jobsToRemove, datafeedsToRemove,
                         MlMetadata.getMlMetadata(currentState));
                 removedConfigs.set(removed);
+
+                PersistentTasksCustomMetaData updatedTasks = rewritePersistentTaskParams(jobsMap, datafeedMap,
+                        currentState.metaData().custom(PersistentTasksCustomMetaData.TYPE), currentState.nodes());
+
                 ClusterState.Builder newState = ClusterState.builder(currentState);
                 newState.metaData(MetaData.builder(currentState.getMetaData())
                         .putCustom(MlMetadata.TYPE, removed.mlMetadata)
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, updatedTasks)
                         .build());
                 return newState.build();
             }
@@ -255,6 +271,82 @@ public class MlConfigMigrator {
                 listener.onResponse(null);
             }
         });
+    }
+
+    /**
+     * Find any unallocated datafeed and job tasks and update their persistent
+     * task parameters if they have missing fields that were added in v6.6. If
+     * a task exists with a missing field it must have been created in an earlier
+     * version and survived an elasticsearch upgrade.
+     *
+     * If there are no unallocated tasks the {@code currentTasks} argument is returned.
+     *
+     * @param jobs          Job configs
+     * @param datafeeds     Datafeed configs
+     * @param currentTasks  The persistent tasks
+     * @param nodes         The nodes in the cluster
+     * @return  The updated tasks
+     */
+    public static PersistentTasksCustomMetaData rewritePersistentTaskParams(Map<String, Job> jobs, Map<String, DatafeedConfig> datafeeds,
+                                                                            PersistentTasksCustomMetaData currentTasks,
+                                                                            DiscoveryNodes nodes) {
+
+        Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedJobTasks = MlTasks.unallocatedJobTasks(currentTasks, nodes);
+        Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedDatafeedsTasks =
+                MlTasks.unallocatedDatafeedTasks(currentTasks, nodes);
+
+        if (unallocatedJobTasks.isEmpty() && unallocatedDatafeedsTasks.isEmpty()) {
+            return currentTasks;
+        }
+
+        PersistentTasksCustomMetaData.Builder taskBuilder = PersistentTasksCustomMetaData.builder(currentTasks);
+
+        for (PersistentTasksCustomMetaData.PersistentTask jobTask : unallocatedJobTasks) {
+            OpenJobAction.JobParams originalParams = (OpenJobAction.JobParams) jobTask.getParams();
+            if (originalParams.getJob() == null) {
+                Job job = jobs.get(originalParams.getJobId());
+                if (job != null) {
+                    logger.debug("updating persistent task params for job [{}]", originalParams.getJobId());
+
+                    // copy and update the job parameters
+                    OpenJobAction.JobParams updatedParams = new OpenJobAction.JobParams(originalParams.getJobId());
+                    updatedParams.setTimeout(originalParams.getTimeout());
+                    updatedParams.setJob(job);
+
+                    // replace with the updated params
+                    taskBuilder.removeTask(jobTask.getId());
+                    taskBuilder.addTask(jobTask.getId(), jobTask.getTaskName(), updatedParams, jobTask.getAssignment());
+                } else {
+                    logger.error("cannot find job for task [{}]", jobTask.getId());
+                }
+            }
+        }
+
+        for (PersistentTasksCustomMetaData.PersistentTask datafeedTask : unallocatedDatafeedsTasks) {
+            StartDatafeedAction.DatafeedParams originalParams = (StartDatafeedAction.DatafeedParams) datafeedTask.getParams();
+
+            if (originalParams.getJobId() == null) {
+                DatafeedConfig datafeedConfig = datafeeds.get(originalParams.getDatafeedId());
+                if (datafeedConfig != null) {
+                    logger.debug("Updating persistent task params for datafeed [{}]", originalParams.getDatafeedId());
+
+                    StartDatafeedAction.DatafeedParams updatedParams =
+                            new StartDatafeedAction.DatafeedParams(originalParams.getDatafeedId(), originalParams.getStartTime());
+                    updatedParams.setTimeout(originalParams.getTimeout());
+                    updatedParams.setEndTime(originalParams.getEndTime());
+                    updatedParams.setJobId(datafeedConfig.getJobId());
+                    updatedParams.setDatafeedIndices(datafeedConfig.getIndices());
+
+                    // replace with the updated params
+                    taskBuilder.removeTask(datafeedTask.getId());
+                    taskBuilder.addTask(datafeedTask.getId(), datafeedTask.getTaskName(), updatedParams, datafeedTask.getAssignment());
+                } else {
+                    logger.error("cannot find datafeed for task [{}]", datafeedTask.getId());
+                }
+            }
+        }
+
+        return taskBuilder.build();
     }
 
     static class RemovalResult {
@@ -281,20 +373,20 @@ public class MlConfigMigrator {
      * @return Structure tracking which jobs and datafeeds were actually removed
      * and the new MlMetadata
      */
-    static RemovalResult removeJobsAndDatafeeds(List<String> jobsToRemove, List<String> datafeedsToRemove, MlMetadata mlMetadata) {
+    static RemovalResult removeJobsAndDatafeeds(List<Job> jobsToRemove, List<DatafeedConfig> datafeedsToRemove, MlMetadata mlMetadata) {
         Map<String, Job> currentJobs = new HashMap<>(mlMetadata.getJobs());
         List<String> removedJobIds = new ArrayList<>();
-        for (String jobId : jobsToRemove) {
-            if (currentJobs.remove(jobId) != null) {
-                removedJobIds.add(jobId);
+        for (Job job : jobsToRemove) {
+            if (currentJobs.remove(job.getId()) != null) {
+                removedJobIds.add(job.getId());
             }
         }
 
         Map<String, DatafeedConfig> currentDatafeeds = new HashMap<>(mlMetadata.getDatafeeds());
         List<String> removedDatafeedIds = new ArrayList<>();
-        for (String datafeedId : datafeedsToRemove) {
-            if (currentDatafeeds.remove(datafeedId) != null) {
-                removedDatafeedIds.add(datafeedId);
+        for (DatafeedConfig datafeed : datafeedsToRemove) {
+            if (currentDatafeeds.remove(datafeed.getId()) != null) {
+                removedDatafeedIds.add(datafeed.getId());
             }
         }
 
@@ -347,7 +439,7 @@ public class MlConfigMigrator {
 
         logger.debug("taking a snapshot of ml_metadata");
         String documentId = "ml-config";
-        IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.jobStateIndexName(),
+        IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
                 ElasticsearchMappings.DOC_TYPE, documentId)
                 .setOpType(DocWriteRequest.OpType.CREATE);
 
@@ -364,14 +456,26 @@ public class MlConfigMigrator {
             return;
         }
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest.request(),
-                ActionListener.<IndexResponse>wrap(
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterService.state(), ActionListener.wrap(
+            r -> {
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest.request(),
+                    ActionListener.<IndexResponse>wrap(
                         indexResponse -> {
                             listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
                         },
-                        listener::onFailure),
-                client::index
-        );
+                        e -> {
+                            if (e instanceof VersionConflictEngineException) {
+                                // the snapshot already exists
+                                listener.onResponse(Boolean.TRUE);
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }),
+                    client::index
+                );
+            },
+            listener::onFailure
+        ));
     }
 
     private void createConfigIndex(ActionListener<Boolean> listener) {
@@ -402,7 +506,8 @@ public class MlConfigMigrator {
     public static Job updateJobForMigration(Job job) {
         Job.Builder builder = new Job.Builder(job);
         Map<String, Object> custom = job.getCustomSettings() == null ? new HashMap<>() : new HashMap<>(job.getCustomSettings());
-        custom.put(MIGRATED_FROM_VERSION, job.getJobVersion());
+        String version = job.getJobVersion() != null ? job.getJobVersion().toString() : null;
+        custom.put(MIGRATED_FROM_VERSION, version);
         builder.setCustomSettings(custom);
         // Increase the model memory limit for 6.1 - 6.3 jobs
         Version jobVersion = job.getJobVersion();
@@ -440,15 +545,18 @@ public class MlConfigMigrator {
     }
 
     /**
-     * Find the configurations for all closed jobs in the cluster state.
-     * Closed jobs are those that do not have an associated persistent task.
+     * Find the configurations for all closed jobs and the jobs that
+     * do not have an allocation in the cluster state.
+     * Closed jobs are those that do not have an associated persistent task,
+     * unallocated jobs have a task but no executing node
      *
      * @param clusterState The cluster state
      * @return The closed job configurations
       */
-    public static List<Job> closedJobConfigs(ClusterState clusterState) {
+    public static List<Job> closedOrUnallocatedJobs(ClusterState clusterState) {
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
         Set<String> openJobIds = MlTasks.openJobIds(persistentTasks);
+        openJobIds.removeAll(MlTasks.unallocatedJobIds(persistentTasks, clusterState.nodes()));
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         return mlMetadata.getJobs().values().stream()
@@ -457,15 +565,18 @@ public class MlConfigMigrator {
     }
 
     /**
-     * Find the configurations for stopped datafeeds in the cluster state.
-     * Stopped datafeeds are those that do not have an associated persistent task.
+     * Find the configurations for stopped datafeeds and datafeeds that do
+     * not have an allocation in the cluster state.
+     * Stopped datafeeds are those that do not have an associated persistent task,
+     * unallocated datafeeds have a task but no executing node.
      *
      * @param clusterState The cluster state
      * @return The closed job configurations
      */
-    public static List<DatafeedConfig> stoppedDatafeedConfigs(ClusterState clusterState) {
+    public static List<DatafeedConfig> stopppedOrUnallocatedDatafeeds(ClusterState clusterState) {
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
         Set<String> startedDatafeedIds = MlTasks.startedDatafeedIds(persistentTasks);
+        startedDatafeedIds.removeAll(MlTasks.unallocatedDatafeedIds(persistentTasks, clusterState.nodes()));
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         return mlMetadata.getDatafeeds().values().stream()
@@ -488,8 +599,8 @@ public class MlConfigMigrator {
     }
 
     public static List<JobsAndDatafeeds> splitInBatches(ClusterState clusterState) {
-        Collection<DatafeedConfig> stoppedDatafeeds = stoppedDatafeedConfigs(clusterState);
-        Map<String, Job> eligibleJobs = nonDeletingJobs(closedJobConfigs(clusterState)).stream()
+        Collection<DatafeedConfig> stoppedDatafeeds = stopppedOrUnallocatedDatafeeds(clusterState);
+        Map<String, Job> eligibleJobs = nonDeletingJobs(closedOrUnallocatedJobs(clusterState)).stream()
             .map(MlConfigMigrator::updateJobForMigration)
             .collect(Collectors.toMap(Job::getId, Function.identity(), (a, b) -> a));
 
@@ -571,17 +682,15 @@ public class MlConfigMigrator {
         return failedDocumentIds;
     }
 
-    static List<String> filterFailedJobConfigWrites(Set<String> failedDocumentIds, List<Job> jobs) {
+    static List<Job> filterFailedJobConfigWrites(Set<String> failedDocumentIds, List<Job> jobs) {
         return jobs.stream()
-                .map(Job::getId)
-                .filter(id -> failedDocumentIds.contains(Job.documentId(id)) == false)
+                .filter(job -> failedDocumentIds.contains(Job.documentId(job.getId())) == false)
                 .collect(Collectors.toList());
     }
 
-    static List<String> filterFailedDatafeedConfigWrites(Set<String> failedDocumentIds, Collection<DatafeedConfig> datafeeds) {
+    static List<DatafeedConfig> filterFailedDatafeedConfigWrites(Set<String> failedDocumentIds, Collection<DatafeedConfig> datafeeds) {
         return datafeeds.stream()
-                .map(DatafeedConfig::getId)
-                .filter(id -> failedDocumentIds.contains(DatafeedConfig.documentId(id)) == false)
+                .filter(datafeed -> failedDocumentIds.contains(DatafeedConfig.documentId(datafeed.getId())) == false)
                 .collect(Collectors.toList());
     }
 }

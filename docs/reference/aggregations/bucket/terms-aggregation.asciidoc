@@ -10,20 +10,18 @@ A multi-bucket value source based aggregation where buckets are dynamically buil
 PUT /products
 {
     "mappings": {
-        "product": {
-            "properties": {
-                "genre": {
-                    "type": "keyword"
-                },
-                "product": {
-                    "type": "keyword"
-                }
+        "properties": {
+            "genre": {
+                "type": "keyword"
+            },
+            "product": {
+                "type": "keyword"
             }
         }
     }
 }
 
-POST /products/product/_bulk?refresh
+POST /products/_bulk?refresh
 {"index":{"_id":0}}
 {"genre": "rock", "product": "Product A"}
 {"index":{"_id":1}}

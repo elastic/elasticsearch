@@ -332,7 +332,9 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
     private static void shutDownAllClusters() {
-        logger.info("Shutting down all test clusters", new RuntimeException());
+        if (logger.isDebugEnabled()) {
+            logger.debug("Shutting down all test clusters", new RuntimeException());
+        }
         synchronized (runningClusters) {
             runningClusters.forEach(each -> each.stop(true));
             runningClusters.clear();

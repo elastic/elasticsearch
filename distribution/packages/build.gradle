@@ -72,7 +72,7 @@ void addProcessFilesTask(String type, boolean oss) {
       MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
     }
 
-    into('config') {
+    into('etc/elasticsearch') {
       with configFiles(type, oss)
     }
     MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
@@ -83,6 +83,9 @@ void addProcessFilesTask(String type, boolean oss) {
       mkdir "${packagingFiles}/var/log/elasticsearch"
       mkdir "${packagingFiles}/var/lib/elasticsearch"
       mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
+
+      // bare empty dir for /etc/elasticsearch
+      mkdir "${packagingFiles}/elasticsearch"
     }
   }
 }
@@ -98,8 +101,9 @@ Closure commonPackageConfig(String type, boolean oss) {
   return {
     dependsOn "process${oss ? 'Oss' : ''}${type.capitalize()}Files"
     packageName "elasticsearch${oss ? '-oss' : ''}"
+    arch (type == 'deb' ? 'amd64' : 'X86_64')
     // Follow elasticsearch's file naming convention
-    archiveName "${packageName}-${project.version}.${type}"
+    archiveName "${packageName}-${project.version}-${archString}.${type}"
 
     String prefix = "${oss ? 'oss-' : ''}${type}"
     destinationDir = file("${prefix}/build/distributions")
@@ -173,19 +177,28 @@ Closure commonPackageConfig(String type, boolean oss) {
       configurationFile '/etc/elasticsearch/users'
       configurationFile '/etc/elasticsearch/users_roles'
     }
-    into('/etc/elasticsearch') {
-      dirMode 0750
+   from("${packagingFiles}") {
+     dirMode 02750
+     into('/etc')
+     permissionGroup 'elasticsearch'
+     includeEmptyDirs true
+     createDirectoryEntry true
+     include("elasticsearch") // empty dir, just to add directory entry
+   }
+   from("${packagingFiles}/etc/elasticsearch") {
+     into('/etc/elasticsearch')
+      dirMode 02750
       fileMode 0660
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/config"
     }
     String envFile = expansionsForDistribution(type, false)['path.env']
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
+      permissionGroup 'elasticsearch'
       fileMode 0660
       from "${packagingFiles}/env/elasticsearch"
     }
@@ -229,8 +242,8 @@ Closure commonPackageConfig(String type, boolean oss) {
       }
     }
     copyEmptyDir('/var/run/elasticsearch', 'elasticsearch', 'elasticsearch', 0755)
-    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 0750)
-    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 0750)
+    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
+    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
     copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
 
     // the oss package conflicts with the default distribution and vice versa
@@ -321,7 +334,6 @@ Closure commonRpmConfig(boolean oss) {
     packager 'Elasticsearch'
     version = project.version.replace('-', '_')
     release = '1'
-    arch 'NOARCH'
     os 'LINUX'
     distribution 'Elasticsearch'
     vendor 'Elasticsearch'

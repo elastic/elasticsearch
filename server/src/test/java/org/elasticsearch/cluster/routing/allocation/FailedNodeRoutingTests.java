@@ -111,7 +111,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
                 .remove(clusterState.routingTable().index("test2").shard(0).primaryShard().currentNodeId())
         )
                 .build();
-        clusterState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
         routingNodes = clusterState.getRoutingNodes();
 
         for (RoutingNode routingNode : routingNodes) {

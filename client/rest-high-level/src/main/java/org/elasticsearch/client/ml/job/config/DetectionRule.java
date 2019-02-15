@@ -38,7 +38,7 @@ public class DetectionRule implements ToXContentObject {
     public static final ParseField CONDITIONS_FIELD = new ParseField("conditions");
 
     public static final ObjectParser<Builder, Void> PARSER =
-        new ObjectParser<>(DETECTION_RULE_FIELD.getPreferredName(), true, Builder::new);;
+        new ObjectParser<>(DETECTION_RULE_FIELD.getPreferredName(), true, Builder::new);
 
     static {
         PARSER.declareStringArray(Builder::setActions, ACTIONS_FIELD);

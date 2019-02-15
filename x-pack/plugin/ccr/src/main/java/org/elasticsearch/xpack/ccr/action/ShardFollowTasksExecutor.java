@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -29,8 +30,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
@@ -45,7 +46,9 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
@@ -57,6 +60,7 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.extractLeaderShardHistoryUUIDs;
@@ -69,16 +73,20 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IndexScopedSettings indexScopedSettings;
+    private volatile TimeValue waitForMetadataTimeOut;
 
     public ShardFollowTasksExecutor(Client client,
                                     ThreadPool threadPool,
                                     ClusterService clusterService,
-                                    IndexScopedSettings indexScopedSettings) {
+                                    SettingsModule settingsModule) {
         super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.indexScopedSettings = indexScopedSettings;
+        this.indexScopedSettings = settingsModule.getIndexScopedSettings();
+        this.waitForMetadataTimeOut = CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.get(settingsModule.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT,
+            newVal -> this.waitForMetadataTimeOut = newVal);
     }
 
     @Override
@@ -95,50 +103,44 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                  Map<String, String> headers) {
         ShardFollowTask params = taskInProgress.getParams();
         Client followerClient = wrapClient(client, params.getHeaders());
-        BiConsumer<TimeValue, Runnable> scheduler = (delay, command) -> {
-            try {
-                threadPool.schedule(delay, Ccr.CCR_THREAD_POOL_NAME, command);
-            } catch (EsRejectedExecutionException e) {
-                if (e.isExecutorShutdown()) {
-                    logger.debug("couldn't schedule command, executor is shutting down", e);
-                } else {
-                    throw e;
-                }
-            }
-        };
+        BiConsumer<TimeValue, Runnable> scheduler = (delay, command) ->
+            threadPool.scheduleUnlessShuttingDown(delay, Ccr.CCR_THREAD_POOL_NAME, command);
 
         final String recordedLeaderShardHistoryUUID = getLeaderShardHistoryUUID(params);
         return new ShardFollowNodeTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers, params,
             scheduler, System::nanoTime) {
 
             @Override
-            protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {
-                Index leaderIndex = params.getLeaderShardId().getIndex();
-                Index followIndex = params.getFollowShardId().getIndex();
+            protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
+                final Index followerIndex = params.getFollowShardId().getIndex();
+                final Index leaderIndex = params.getLeaderShardId().getIndex();
+                final Supplier<TimeValue> timeout = () -> isStopped() ? TimeValue.MINUS_ONE : waitForMetadataTimeOut;
 
-                ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
-                CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
-                    IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
-                    if (indexMetaData.getMappings().isEmpty()) {
-                        assert indexMetaData.getMappingVersion() == 1;
-                        handler.accept(indexMetaData.getMappingVersion());
-                        return;
-                    }
-
-                    assert indexMetaData.getMappings().size() == 1 : "expected exactly one mapping, but got [" +
-                        indexMetaData.getMappings().size() + "]";
-                    MappingMetaData mappingMetaData = indexMetaData.getMappings().iterator().next().value;
-
-                    PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followIndex.getName(), mappingMetaData);
-                    followerClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(
-                        putMappingResponse -> handler.accept(indexMetaData.getMappingVersion()),
-                        errorHandler));
-                };
+                final Client remoteClient;
                 try {
-                    remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
-                } catch (Exception e) {
+                    remoteClient = remoteClient(params);
+                } catch (NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
+                    return;
                 }
+
+                CcrRequests.getIndexMetadata(remoteClient, leaderIndex, minRequiredMappingVersion, 0L, timeout, ActionListener.wrap(
+                    indexMetaData -> {
+                        if (indexMetaData.getMappings().isEmpty()) {
+                            assert indexMetaData.getMappingVersion() == 1;
+                            handler.accept(indexMetaData.getMappingVersion());
+                            return;
+                        }
+                        assert indexMetaData.getMappings().size() == 1 : "expected exactly one mapping, but got [" +
+                            indexMetaData.getMappings().size() + "]";
+                        MappingMetaData mappingMetaData = indexMetaData.getMappings().iterator().next().value;
+                        PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
+                        followerClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(
+                            putMappingResponse -> handler.accept(indexMetaData.getMappingVersion()),
+                            errorHandler));
+                    },
+                    errorHandler
+                ));
             }
 
             @Override
@@ -181,7 +183,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 };
                 try {
                     remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
-                } catch (Exception e) {
+                } catch (NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }
             }
@@ -239,7 +241,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 request.setPollTimeout(params.getReadPollTimeout());
                 try {
                     remoteClient(params).execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
-                } catch (Exception e) {
+                } catch (NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }
             }
@@ -278,7 +280,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             if (ShardFollowNodeTask.shouldRetry(params.getRemoteCluster(), e)) {
                 logger.debug(new ParameterizedMessage("failed to fetch follow shard global {} checkpoint and max sequence number",
                     shardFollowNodeTask), e);
-                threadPool.schedule(params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME, () -> nodeOperation(task, params, state));
+                threadPool.schedule(() -> nodeOperation(task, params, state), params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME);
             } else {
                 shardFollowNodeTask.markAsFailed(e);
             }
@@ -311,9 +313,21 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             if (filteredShardStats.isPresent()) {
                 final ShardStats shardStats = filteredShardStats.get();
                 final CommitStats commitStats = shardStats.getCommitStats();
-                final String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
-
+                if (commitStats == null) {
+                    // If commitStats is null then AlreadyClosedException has been thrown: TransportIndicesStatsAction#shardOperation(...)
+                    // AlreadyClosedException will be retried byShardFollowNodeTask.shouldRetry(...)
+                    errorHandler.accept(new AlreadyClosedException(shardId + " commit_stats are missing"));
+                    return;
+                }
                 final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
+                if (seqNoStats == null) {
+                    // If seqNoStats is null then AlreadyClosedException has been thrown at TransportIndicesStatsAction#shardOperation(...)
+                    // AlreadyClosedException will be retried byShardFollowNodeTask.shouldRetry(...)
+                    errorHandler.accept(new AlreadyClosedException(shardId + " seq_no_stats are missing"));
+                    return;
+                }
+
+                final String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
                 final long globalCheckpoint = seqNoStats.getGlobalCheckpoint();
                 final long maxSeqNo = seqNoStats.getMaxSeqNo();
                 handler.accept(historyUUID, globalCheckpoint, maxSeqNo);

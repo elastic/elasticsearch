@@ -50,14 +50,16 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
             int i = 0;
             final Collection<String> indices = (Collection<String>) constructorObjects[i++];
             final Collection<String> privileges = (Collection<String>) constructorObjects[i++];
+            final boolean allowRestrictedIndices = (Boolean) constructorObjects[i++];
             final FieldSecurity fields = (FieldSecurity) constructorObjects[i++];
             final String query = (String) constructorObjects[i];
-            return new IndicesPrivileges(indices, privileges, fields, query);
+            return new IndicesPrivileges(indices, privileges, allowRestrictedIndices, fields, query);
         });
 
     static {
         PARSER.declareStringArray(constructorArg(), NAMES);
         PARSER.declareStringArray(constructorArg(), PRIVILEGES);
+        PARSER.declareBoolean(constructorArg(), ALLOW_RESTRICTED_INDICES);
         PARSER.declareObject(optionalConstructorArg(), FieldSecurity::parse, FIELD_PERMISSIONS);
         PARSER.declareStringOrNull(optionalConstructorArg(), QUERY);
     }
@@ -66,9 +68,9 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
     // missing query means all documents, i.e. no restrictions
     private final @Nullable String query;
 
-    private IndicesPrivileges(Collection<String> indices, Collection<String> privileges, @Nullable FieldSecurity fieldSecurity,
-                              @Nullable String query) {
-        super(indices, privileges);
+    private IndicesPrivileges(Collection<String> indices, Collection<String> privileges, boolean allowRestrictedIndices,
+                              @Nullable FieldSecurity fieldSecurity, @Nullable String query) {
+        super(indices, privileges, allowRestrictedIndices);
         this.fieldSecurity = fieldSecurity;
         this.query = query;
     }
@@ -118,13 +120,14 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
         IndicesPrivileges that = (IndicesPrivileges) o;
         return indices.equals(that.indices)
             && privileges.equals(that.privileges)
+            && allowRestrictedIndices == that.allowRestrictedIndices
             && Objects.equals(this.fieldSecurity, that.fieldSecurity)
             && Objects.equals(query, that.query);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indices, privileges, fieldSecurity, query);
+        return Objects.hash(indices, privileges, allowRestrictedIndices, fieldSecurity, query);
     }
 
     @Override
@@ -141,6 +144,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
         builder.startObject();
         builder.field(NAMES.getPreferredName(), indices);
         builder.field(PRIVILEGES.getPreferredName(), privileges);
+        builder.field(ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
         if (fieldSecurity != null) {
             builder.field(FIELD_PERMISSIONS.getPreferredName(), fieldSecurity, params);
         }
@@ -170,6 +174,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
         Collection<String> deniedFields = null;
         private @Nullable
         String query = null;
+        boolean allowRestrictedIndices = false;
 
         public Builder() {
         }
@@ -223,6 +228,11 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
             return this;
         }
 
+        public Builder allowRestrictedIndices(boolean allow) {
+            this.allowRestrictedIndices = allow;
+            return this;
+        }
+
         public IndicesPrivileges build() {
             final FieldSecurity fieldSecurity;
             if (grantedFields == null && deniedFields == null) {
@@ -230,7 +240,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
             } else {
                 fieldSecurity = new FieldSecurity(grantedFields, deniedFields);
             }
-            return new IndicesPrivileges(indices, privileges, fieldSecurity, query);
+            return new IndicesPrivileges(indices, privileges, allowRestrictedIndices, fieldSecurity, query);
         }
     }
 

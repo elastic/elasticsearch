@@ -8,7 +8,6 @@
   - do:
       index:
         index:   foo
-        type:    bar
         id:      doc1
         body:    { "bar": 1 }
 

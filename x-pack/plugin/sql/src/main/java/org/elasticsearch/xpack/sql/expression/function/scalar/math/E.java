@@ -11,10 +11,9 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.script.Params;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 public class E extends MathFunction {
 
@@ -37,11 +36,6 @@ public class E extends MathFunction {
     @Override
     public Object fold() {
         return Math.E;
-    }
-
-    @Override
-    protected String functionArgs() {
-        return StringUtils.EMPTY;
     }
 
     @Override

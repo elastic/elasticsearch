@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
@@ -15,7 +16,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import static org.elasticsearch.xpack.sql.expression.Expressions.typeMustBeString;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -42,7 +42,7 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = typeMustBeString(left(), functionName(), ParamOrdinal.FIRST);
+        TypeResolution resolution = typeMustBeString(left(), sourceText(), ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }

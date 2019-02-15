@@ -11,10 +11,9 @@ setup:
         index: airline-data
         body:
           mappings:
-            response:
-              properties:
-                time:
-                  type: date
+            properties:
+              time:
+                type: date
 
 ---
 "Test old and mixed cluster datafeeds":

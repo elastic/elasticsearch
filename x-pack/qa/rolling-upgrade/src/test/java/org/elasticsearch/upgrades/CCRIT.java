@@ -89,6 +89,7 @@ public class CCRIT extends AbstractUpgradeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37231")
     public void testAutoFollowing() throws Exception {
         assumeTrue("CCR became available in 6.5, but test relies on a fix that was shipped with 6.6.0",
             UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_6_0));

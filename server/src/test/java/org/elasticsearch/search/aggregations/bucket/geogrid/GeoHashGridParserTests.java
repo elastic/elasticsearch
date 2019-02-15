@@ -38,7 +38,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoGridAggregationBuilder.parse("geohash_grid", stParser));
+        assertNotNull(GeoHashGridAggregationBuilder.parse("geohash_grid", stParser));
     }
 
     public void testParseValidFromStrings() throws Exception {
@@ -48,7 +48,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoGridAggregationBuilder.parse("geohash_grid", stParser));
+        assertNotNull(GeoHashGridAggregationBuilder.parse("geohash_grid", stParser));
     }
 
     public void testParseDistanceUnitPrecision() throws Exception {
@@ -63,7 +63,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        GeoGridAggregationBuilder builder = GeoGridAggregationBuilder.parse("geohash_grid", stParser);
+        GeoGridAggregationBuilder builder = GeoHashGridAggregationBuilder.parse("geohash_grid", stParser);
         assertNotNull(builder);
         assertThat(builder.precision(), greaterThanOrEqualTo(0));
         assertThat(builder.precision(), lessThanOrEqualTo(12));
@@ -75,7 +75,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException ex = expectThrows(XContentParseException.class,
-                () -> GeoGridAggregationBuilder.parse("geohash_grid", stParser));
+                () -> GeoHashGridAggregationBuilder.parse("geohash_grid", stParser));
         assertThat(ex.getMessage(), containsString("[geohash_grid] failed to parse field [precision]"));
         assertThat(ex.getCause(), instanceOf(NumberFormatException.class));
         assertEquals("For input string: \"10kg\"", ex.getCause().getMessage());
@@ -87,7 +87,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException ex = expectThrows(XContentParseException.class,
-                () -> GeoGridAggregationBuilder.parse("geohash_grid", stParser));
+                () -> GeoHashGridAggregationBuilder.parse("geohash_grid", stParser));
         assertThat(ex.getMessage(), containsString("[geohash_grid] failed to parse field [precision]"));
         assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
         assertEquals("precision too high [1cm]", ex.getCause().getMessage());
@@ -98,7 +98,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException e = expectThrows(XContentParseException.class,
-                () -> GeoGridAggregationBuilder.parse("geohash_grid", stParser));
+                () -> GeoHashGridAggregationBuilder.parse("geohash_grid", stParser));
         assertThat(ExceptionsHelper.detailedMessage(e),
                 containsString("[geohash_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
     }
@@ -108,7 +108,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         try {
-            GeoGridAggregationBuilder.parse("geohash_grid", stParser);
+            GeoHashGridAggregationBuilder.parse("geohash_grid", stParser);
             fail();
         } catch (XContentParseException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));

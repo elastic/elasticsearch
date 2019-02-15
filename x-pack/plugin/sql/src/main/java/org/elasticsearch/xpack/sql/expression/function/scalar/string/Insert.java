@@ -46,22 +46,22 @@ public class Insert extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, sourceText(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
         
-        TypeResolution startResolution = Expressions.typeMustBeNumeric(start, functionName(), ParamOrdinal.SECOND);
+        TypeResolution startResolution = Expressions.typeMustBeNumeric(start, sourceText(), ParamOrdinal.SECOND);
         if (startResolution.unresolved()) {
             return startResolution;
         }
         
-        TypeResolution lengthResolution = Expressions.typeMustBeNumeric(length, functionName(), ParamOrdinal.THIRD);
+        TypeResolution lengthResolution = Expressions.typeMustBeNumeric(length, sourceText(), ParamOrdinal.THIRD);
         if (lengthResolution.unresolved()) {
             return lengthResolution;
         }
         
-        return Expressions.typeMustBeString(replacement, functionName(), ParamOrdinal.FOURTH);
+        return Expressions.typeMustBeString(replacement, sourceText(), ParamOrdinal.FOURTH);
     }
 
     @Override

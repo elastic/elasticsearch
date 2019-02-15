@@ -6,13 +6,12 @@
 package org.elasticsearch.xpack.core.scheduler;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -199,8 +198,8 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArg
  * @author Refactoring from CronTrigger to CronExpression by Aaron Craven
  */
 public class Cron implements ToXContentFragment {
-    protected static final TimeZone UTC = DateTimeZone.UTC.toTimeZone();
-    protected static final DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss");
+    protected static final TimeZone UTC = TimeZone.getTimeZone(ZoneOffset.UTC);
+    protected static final DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     private static final int SECOND = 0;
     private static final int MINUTE = 1;
@@ -1214,7 +1213,7 @@ public class Cron implements ToXContentFragment {
 
     private static int skipWhiteSpace(int i, String s) {
         for (; i < s.length() && (s.charAt(i) == ' ' || s.charAt(i) == '\t'); i++) {
-            ;
+            // intentionally empty
         }
 
         return i;
@@ -1222,7 +1221,7 @@ public class Cron implements ToXContentFragment {
 
     private static int findNextWhiteSpace(int i, String s) {
         for (; i < s.length() && (s.charAt(i) != ' ' || s.charAt(i) != '\t'); i++) {
-            ;
+            // intentionally empty
         }
 
         return i;

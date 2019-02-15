@@ -16,9 +16,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowFunctionsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowSchemasContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowTablesContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysCatalogsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysColumnsContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTableTypesContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTablesContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTypesContext;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
@@ -29,9 +27,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.ShowColumns;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowFunctions;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowSchemas;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
-import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysCatalogs;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumns;
-import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTableTypes;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -145,11 +141,6 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     }
 
     @Override
-    public Object visitSysCatalogs(SysCatalogsContext ctx) {
-        return new SysCatalogs(source(ctx));
-    }
-
-    @Override
     public SysTables visitSysTables(SysTablesContext ctx) {
         List<IndexType> types = new ArrayList<>();
         boolean legacyTableType = false;
@@ -198,10 +189,5 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         }
 
         return new SysTypes(source(ctx), Integer.valueOf(type));
-    }
-
-    @Override
-    public Object visitSysTableTypes(SysTableTypesContext ctx) {
-        return new SysTableTypes(source(ctx));
     }
 }

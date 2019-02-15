@@ -104,6 +104,7 @@ public class Shell {
     private Result runScriptIgnoreExitCode(String[] command) {
         ProcessBuilder builder = new ProcessBuilder();
         builder.command(command);
+        System.err.println(String.join(" ", command));
 
         if (workingDirectory != null) {
             setWorkingDirectory(builder, workingDirectory);

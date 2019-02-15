@@ -350,6 +350,8 @@ def sh_install_deps(config,
 if [ -z "\\\$JAVA_HOME" ]; then
   export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
 fi
+export SYSTEM_JAVA_HOME=\\\$JAVA_HOME
+unset JAVA_HOME
 JAVA
     ensure tar
     ensure curl
@@ -365,9 +367,6 @@ JAVA
       /tmp/bats/install.sh /usr
       rm -rf /tmp/bats
     }
-
-    echo "export SYSTEM_JAVA_HOME=$JAVA_HOME" >> /etc/profile.d/java_home.sh
-    echo 'unset JAVA_HOME' >> /etc/profile.d/java_home.sh
 
     cat \<\<VARS > /etc/profile.d/elasticsearch_vars.sh
 export ZIP=/elasticsearch/distribution/zip/build/distributions

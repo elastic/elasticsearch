@@ -25,9 +25,9 @@ import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,7 +38,6 @@ import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.install;
 import static org.elasticsearch.packaging.util.Packages.remove;
-import static org.elasticsearch.packaging.util.Packages.runInstallCommand;
 import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
@@ -58,23 +57,6 @@ public abstract class PackageTestCase extends PackagingTestCase {
     @Before
     public void onlyCompatibleDistributions() {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
-    }
-
-    public void test05InstallFailsWhenJavaMissing() {
-        final Shell sh = new Shell();
-        final Result javaHomeOutput = sh.run("echo $JAVA_HOME");
-
-        final Path javaHome = Paths.get(javaHomeOutput.stdout.trim());
-        final Path originalJavaPath = javaHome.resolve("bin").resolve("java");
-        final Path relocatedJavaPath = javaHome.resolve("bin").resolve("java.relocated");
-        try {
-            mv(originalJavaPath, relocatedJavaPath);
-            final Result installResult = runInstallCommand(distribution());
-            assertThat(installResult.exitCode, is(1));
-            assertThat(installResult.stderr, containsString("could not find java; set JAVA_HOME"));
-        } finally {
-            mv(relocatedJavaPath, originalJavaPath);
-        }
     }
 
     public void test10InstallPackage() {
@@ -104,6 +86,41 @@ public abstract class PackageTestCase extends PackagingTestCase {
         startElasticsearch();
         runElasticsearchTests();
         verifyPackageInstallation(installation, distribution()); // check startup script didn't change permissions
+    }
+
+    public void assertRunsWithJavaHome() throws IOException {
+        Shell sh = new Shell();
+
+        String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+        try {
+            Files.write(installation.envFile, ("export JAVA_HOME=" + systemJavaHome).getBytes(StandardCharsets.UTF_8));
+
+            startElasticsearch();
+            runElasticsearchTests();
+        } finally {
+            Files.delete(installation.envFile);
+        }
+
+        Path log = installation.logs.resolve("elasticsearch.log");
+        assertThat(new String(Files.readAllBytes(log), StandardCharsets.UTF_8), containsString(systemJavaHome));
+    }
+
+    public void test41JavaHomeOverride() throws IOException {
+        assumeThat(installation, is(notNullValue()));
+
+        assertRunsWithJavaHome();
+    }
+
+    public void test42BundledJdkRemoved() throws IOException {
+        assumeThat(installation, is(notNullValue()));
+
+        Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            assertRunsWithJavaHome();
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
     }
 
     public void test50Remove() {

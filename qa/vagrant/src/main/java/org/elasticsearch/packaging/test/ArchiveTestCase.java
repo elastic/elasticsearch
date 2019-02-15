@@ -30,6 +30,7 @@ import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -46,6 +47,7 @@ import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.cp;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.mkdir;
+import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -77,14 +79,14 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         assertThat(r.stdout, isEmptyString());
     }
 
-    public void test30OverrideJava() {
+    public void test30NoJava() {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
         final Shell sh = new Shell();
 
         Platforms.onWindows(() -> {
-            // on windows, removing java from PATH and removing JAVA_HOME is less involved than changing the permissions of the java
+            // on windows, moving bundled java and removing JAVA_HOME is less involved than changing the permissions of the java
             // executable. we also don't check permissions in the windows scripts anyway
             final String originalPath = sh.run("$Env:PATH").stdout.trim();
             final String newPath = Arrays.stream(originalPath.split(";"))
@@ -102,19 +104,22 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             );
 
             assertThat(runResult.exitCode, is(1));
-            assertThat(runResult.stderr, containsString("could not find java; set JAVA_HOME"));
+            assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME or bundled"));
         });
 
         Platforms.onLinux(() -> {
-            final String javaPath = sh.run("command -v java").stdout.trim();
+            final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
 
             try {
-                sh.run("chmod -x '" + javaPath + "'");
+                mv(installation.bundledJdk, relocatedJdk);
                 final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString());
+                System.err.println("CODE: " + runResult.exitCode);
+                System.err.println("STDOUT: " + runResult.stdout);
+                System.err.println("STDERR: " + runResult.stderr);
                 assertThat(runResult.exitCode, is(1));
-                assertThat(runResult.stderr, containsString("could not find java; set JAVA_HOME"));
+                assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME or bundled"));
             } finally {
-                sh.run("chmod +x '" + javaPath + "'");
+                mv(relocatedJdk, installation.bundledJdk);
             }
         });
     }
@@ -167,6 +172,45 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         ServerUtils.runElasticsearchTests();
 
         Archives.stopElasticsearch(installation);
+    }
+
+    public void assertRunsWithJavaHome() throws IOException {
+        Shell sh = new Shell();
+
+        Platforms.onLinux(() -> {
+            String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+        });
+        Platforms.onWindows(() -> {
+            final String systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+        });
+
+        Archives.runElasticsearch(installation, sh);
+        ServerUtils.runElasticsearchTests();
+        Archives.stopElasticsearch(installation);
+
+        String systemJavaHome = sh.getEnv().get("JAVA_HOME");
+        Path log = installation.logs.resolve("elasticsearch.log");
+        assertThat(new String(Files.readAllBytes(log), StandardCharsets.UTF_8), containsString(systemJavaHome));
+    }
+
+    public void test51JavaHomeOverride() throws IOException {
+        assumeThat(installation, is(notNullValue()));
+
+        assertRunsWithJavaHome();
+    }
+
+    public void test52BundledJdkRemoved() throws IOException {
+        assumeThat(installation, is(notNullValue()));
+
+        Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            assertRunsWithJavaHome();
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
     }
 
     public void test60AutoCreateKeystore() {

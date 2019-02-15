@@ -135,7 +135,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
     public void test13InstallMissingJava() throws IOException {
         Result result = runWithoutJava(serviceScript + " install");
         assertThat(result.exitCode, equalTo(1));
-        assertThat(result.stderr, containsString("could not find java; set JAVA_HOME"));
+        assertThat(result.stderr, containsString("could not find java in JAVA_HOME or bundled"));
     }
 
     public void test14RemoveNotInstalled() {

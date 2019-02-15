@@ -94,11 +94,10 @@ Numeric literals that contain a decimal point are always interpreted as being of
 [float]
 ==== Generic Literals
 
-When dealing with arbitrary type literal, one creates the object by casting, typically, the string representation to the desired type. This can be achieved through the dedicated <<sql-operators-cast, cast operator>> and <<sql-functions-type-conversion, functions>>:
+When dealing with arbitrary type literal, one creates the object by casting, typically, the string representation to the desired type. This can be achieved through the dedicated <<sql-functions-type-conversion, functions>>:
 
 [source, sql]
 ----
-123::LONG                                   -- cast 123 to a LONG
 CAST('1969-05-13T12:34:56' AS TIMESTAMP)    -- cast the given string to datetime
 CONVERT('10.0.0.1', IP)                     -- cast '10.0.0.1' to an IP    
 ----

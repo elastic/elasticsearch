@@ -398,7 +398,7 @@ public class ElasticsearchMappings {
         .startObject(DataFrameAnalyticsConfig.DEST.getPreferredName())
             .field(TYPE, KEYWORD)
         .endObject()
-        .startObject(DataFrameAnalyticsConfig.FIELDS.getPreferredName())
+        .startObject(DataFrameAnalyticsConfig.ANALYSES_FIELDS.getPreferredName())
             .field(ENABLED, false)
         .endObject()
         .startObject(DataFrameAnalyticsConfig.ANALYSES.getPreferredName())

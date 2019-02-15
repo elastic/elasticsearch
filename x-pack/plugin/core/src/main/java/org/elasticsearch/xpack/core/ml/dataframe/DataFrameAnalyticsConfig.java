@@ -67,7 +67,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public static final ParseField ANALYSES = new ParseField("analyses");
     public static final ParseField CONFIG_TYPE = new ParseField("config_type");
     public static final ParseField QUERY = new ParseField("query");
-    public static final ParseField FIELDS = new ParseField("fields");
+    public static final ParseField ANALYSES_FIELDS = new ParseField("analyses_fields");
     public static final ParseField HEADERS = new ParseField("headers");
 
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
@@ -82,7 +82,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         parser.declareString(Builder::setDest, DEST);
         parser.declareObjectArray(Builder::setAnalyses, DataFrameAnalysisConfig.parser(), ANALYSES);
         parser.declareObject((builder, query) -> builder.setQuery(query, ignoreUnknownFields), (p, c) -> p.mapOrdered(), QUERY);
-        parser.declareField(Builder::setFields, (p, c) -> FetchSourceContext.fromXContent(p), FIELDS, OBJECT_ARRAY_BOOLEAN_OR_STRING);
+        parser.declareField(Builder::setAnalysesFields,
+            (p, c) -> FetchSourceContext.fromXContent(p),
+            ANALYSES_FIELDS,
+            OBJECT_ARRAY_BOOLEAN_OR_STRING);
         if (ignoreUnknownFields) {
             // Headers are not parsed by the strict (config) parser, so headers supplied in the _body_ of a REST request will be rejected.
             // (For config, headers are explicitly transferred from the auth headers by code in the put data frame actions.)
@@ -97,11 +100,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final List<DataFrameAnalysisConfig> analyses;
     private final Map<String, Object> query;
     private final CachedSupplier<QueryBuilder> querySupplier;
-    private final FetchSourceContext fields;
+    private final FetchSourceContext analysesFields;
     private final Map<String, String> headers;
 
     public DataFrameAnalyticsConfig(String id, String source, String dest, List<DataFrameAnalysisConfig> analyses,
-                                    Map<String, Object> query, Map<String, String> headers, FetchSourceContext fields) {
+                                    Map<String, Object> query, Map<String, String> headers, FetchSourceContext analysesFields) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
         this.source = ExceptionsHelper.requireNonNull(source, SOURCE);
         this.dest = ExceptionsHelper.requireNonNull(dest, DEST);
@@ -115,7 +118,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         }
         this.query = Collections.unmodifiableMap(query);
         this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
-        this.fields = fields;
+        this.analysesFields = analysesFields;
         this.headers = Collections.unmodifiableMap(headers);
     }
 
@@ -126,7 +129,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         analyses = in.readList(DataFrameAnalysisConfig::new);
         this.query = in.readMap();
         this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
-        this.fields = in.readOptionalWriteable(FetchSourceContext::new);
+        this.analysesFields = in.readOptionalWriteable(FetchSourceContext::new);
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
     }
 
@@ -156,8 +159,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         return querySupplier.get();
     }
 
-    public FetchSourceContext getFields() {
-        return fields;
+    public FetchSourceContext getAnalysesFields() {
+        return analysesFields;
     }
 
     /**
@@ -189,8 +192,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
         }
         builder.field(QUERY.getPreferredName(), query);
-        if (fields != null) {
-            builder.field(FIELDS.getPreferredName(), fields);
+        if (analysesFields != null) {
+            builder.field(ANALYSES_FIELDS.getPreferredName(), analysesFields);
         }
         if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(HEADERS.getPreferredName(), headers);
@@ -206,7 +209,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         out.writeString(dest);
         out.writeList(analyses);
         out.writeMap(query);
-        out.writeOptionalWriteable(fields);
+        out.writeOptionalWriteable(analysesFields);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 
@@ -222,12 +225,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             && Objects.equals(analyses, other.analyses)
             && Objects.equals(query, other.query)
             && Objects.equals(headers, other.headers)
-            && Objects.equals(fields, other.fields);
+            && Objects.equals(analysesFields, other.analysesFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, analyses, query, headers, fields);
+        return Objects.hash(id, source, dest, analyses, query, headers, analysesFields);
     }
 
     public static String documentId(String id) {
@@ -241,7 +244,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private String dest;
         private List<DataFrameAnalysisConfig> analyses;
         private Map<String, Object> query = Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap());
-        private FetchSourceContext fields;
+        private FetchSourceContext analysesFields;
         private Map<String, String> headers = Collections.emptyMap();
 
         public String getId() {
@@ -257,8 +260,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             this.analyses = new ArrayList<>(config.analyses);
             this.query = new LinkedHashMap<>(config.query);
             this.headers = new HashMap<>(config.headers);
-            if (config.fields != null) {
-               this.fields = new FetchSourceContext(true, config.fields.includes(), config.fields.excludes());
+            if (config.analysesFields != null) {
+               this.analysesFields = new FetchSourceContext(true, config.analysesFields.includes(), config.analysesFields.excludes());
             }
         }
 
@@ -301,8 +304,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setFields(FetchSourceContext fields) {
-            this.fields = fields;
+        public Builder setAnalysesFields(FetchSourceContext fields) {
+            this.analysesFields = fields;
             return this;
         }
 
@@ -312,7 +315,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         }
 
         public DataFrameAnalyticsConfig build() {
-            return new DataFrameAnalyticsConfig(id, source, dest, analyses, query, headers, fields);
+            return new DataFrameAnalyticsConfig(id, source, dest, analyses, query, headers, analysesFields);
         }
     }
 }

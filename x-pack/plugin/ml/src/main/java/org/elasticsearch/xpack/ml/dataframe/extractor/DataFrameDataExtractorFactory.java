@@ -99,7 +99,7 @@ public class DataFrameDataExtractorFactory {
     public static void create(Client client,
                               DataFrameAnalyticsConfig config,
                               ActionListener<DataFrameDataExtractorFactory> listener) {
-        validateIndexAndExtractFields(client, config.getHeaders(), config.getDest(), config.getFields(), ActionListener.wrap(
+        validateIndexAndExtractFields(client, config.getHeaders(), config.getDest(), config.getAnalysesFields(), ActionListener.wrap(
             extractedFields -> listener.onResponse(
                 new DataFrameDataExtractorFactory(client, config.getId(), config.getDest(), extractedFields, config.getHeaders())),
             listener::onFailure
@@ -116,7 +116,7 @@ public class DataFrameDataExtractorFactory {
     public static void validateConfigAndSourceIndex(Client client,
                                                     DataFrameAnalyticsConfig config,
                                                     ActionListener<Boolean> listener) {
-        validateIndexAndExtractFields(client, config.getHeaders(), config.getSource(), config.getFields(), ActionListener.wrap(
+        validateIndexAndExtractFields(client, config.getHeaders(), config.getSource(), config.getAnalysesFields(), ActionListener.wrap(
             fields -> {
                 config.getParsedQuery(); // validate query is acceptable
                 listener.onResponse(true);

@@ -37,14 +37,14 @@
             "dest": "index-dest",
             "analyses": [{"outlier_detection":{}}],
             "query": {"term" : { "user" : "Kimchy" }},
-            "fields": [ "obj1.*", "obj2.*" ]
+            "analyses_fields": [ "obj1.*", "obj2.*" ]
           }
   - match: { id: "simple-outlier-detection-with-query" }
   - match: { source: "index-source" }
   - match: { dest: "index-dest" }
   - match: { analyses: [{"outlier_detection":{}}] }
   - match: { query: {"term" : { "user" : "Kimchy"} } }
-  - match: { fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
+  - match: { analyses_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
 
 ---
 "Test put config with security headers in the body":

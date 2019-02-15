@@ -89,7 +89,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                     Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10))), true);
         }
         if (randomBoolean()) {
-            builder.setFields(new FetchSourceContext(true,
+            builder.setAnalysesFields(new FetchSourceContext(true,
                 generateRandomStringArray(10, 10, false, false),
                 generateRandomStringArray(10, 10, false, false)));
         }

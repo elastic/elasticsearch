@@ -146,9 +146,32 @@ public class SettingsFilterTests extends ESTestCase {
         if (useLegacyLdapBindPassword) {
             deprecatedSettings.add(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD);
         }
-        assertSettingDeprecationsAndWarnings(deprecatedSettings.toArray(new Setting<?>[0]), "SSL configuration [xpack.http.ssl] relies " +
-            "upon fallback to another configuration for [key configuration, trust configuration, supported protocols], " +
-            "which is deprecated.");
+        if (inFipsJvm()) {
+            assertSettingDeprecationsAndWarnings(deprecatedSettings.toArray(new Setting<?>[0]),
+                "[xpack.ssl.truststore.secure_password] " +
+                    "setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes " +
+                    "documentation for the next major version.",
+                "SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [supported protocols], " +
+                    "which is deprecated.",
+                "[xpack.ssl.supported_protocols] setting was deprecated in Elasticsearch and will be removed in a future release! See " +
+                    "the breaking changes documentation for the next major version.",
+                "[bind_password] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking " +
+                    "changes documentation for the next major version.",
+                "[xpack.ssl.keystore.secure_password] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                    "See the breaking changes documentation for the next major version.",
+                "[xpack.ssl.keystore.algorithm] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                    "See the breaking changes documentation for the next major version.",
+                "[xpack.ssl.keystore.secure_key_password] setting was deprecated in Elasticsearch and will be removed in a " +
+                    "future release! See the breaking changes documentation for the next major version.",
+                "[xpack.ssl.cipher_suites] setting was deprecated in Elasticsearch and will be removed in a future release! See the " +
+                    "breaking changes documentation for the next major version.",
+                "[xpack.ssl.truststore.algorithm] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                    "See the breaking changes documentation for the next major version.");
+        } else {
+            assertSettingDeprecationsAndWarnings(deprecatedSettings.toArray(new Setting<?>[0]), "SSL configuration [xpack.http.ssl] " +
+                "relies upon fallback to another configuration for [key configuration, trust configuration, supported protocols], " +
+                "which is deprecated.");
+        }
     }
 
     private void configureUnfilteredSetting(String settingName, String value) {

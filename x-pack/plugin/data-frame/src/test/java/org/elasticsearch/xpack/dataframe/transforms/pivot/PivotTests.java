@@ -42,9 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.dataframe.transforms.pivot.SingleGroupSource.Type.TERMS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PivotTests extends ESTestCase {
@@ -161,21 +159,11 @@ public class PivotTests extends ESTestCase {
     }
 
     private PivotConfig getValidPivotConfig() throws IOException {
-        List<GroupConfig> sources = asList(
-                new GroupConfig("terms", TERMS, new TermsGroupSource("terms")),
-                new GroupConfig("terms", TERMS, new TermsGroupSource("terms"))
-                );
-
-        return new PivotConfig(sources, getValidAggregationConfig());
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig());
     }
 
     private PivotConfig getValidPivotConfig(AggregationConfig aggregationConfig) throws IOException {
-        List<GroupConfig> sources = asList(
-                new GroupConfig("terms", TERMS, new TermsGroupSource("terms")),
-                new GroupConfig("terms", TERMS, new TermsGroupSource("terms"))
-                );
-
-        return new PivotConfig(sources, aggregationConfig);
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(), aggregationConfig);
     }
 
     private AggregationConfig getValidAggregationConfig() throws IOException {

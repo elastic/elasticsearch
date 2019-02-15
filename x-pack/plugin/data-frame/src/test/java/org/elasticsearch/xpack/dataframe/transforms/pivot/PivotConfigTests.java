@@ -13,29 +13,15 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.dataframe.transforms.AbstractSerializingDataFrameTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<PivotConfig> {
 
     public static PivotConfig randomPivotConfig() {
-        List<GroupConfig> groups = new ArrayList<>();
-
-        for (int i = 0; i < randomIntBetween(1, 10); ++i) {
-            groups.add(GroupConfigTests.randomGroupConfig());
-        }
-
-        return new PivotConfig(groups, AggregationConfigTests.randomAggregationConfig());
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomAggregationConfig());
     }
 
     public static PivotConfig randomInvalidPivotConfig() {
-        List<GroupConfig> groups = new ArrayList<>();
-
-        for (int i = 0; i < randomIntBetween(1, 10); ++i) {
-            groups.add(GroupConfigTests.randomGroupConfig());
-        }
-
-        return new PivotConfig(groups, AggregationConfigTests.randomInvalidAggregationConfig());
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomInvalidAggregationConfig());
     }
 
     @Override
@@ -55,42 +41,86 @@ public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<Pivot
 
     public void testAggsAbbreviations() throws IOException {
         String pivotAggs = "{"
-                    + " \"group_by\": [ {"
+                    + " \"group_by\": {"
                     + "   \"id\": {"
                     + "     \"terms\": {"
                     + "       \"field\": \"id\""
-                    + "} } } ],"
+                    + "} } },"
                     + " \"aggs\": {"
                     + "   \"avg\": {"
                     + "     \"avg\": {"
                     + "       \"field\": \"points\""
                     + "} } } }";
 
-        PivotConfig p1 = createPivotConfigFromString(pivotAggs);
+        PivotConfig p1 = createPivotConfigFromString(pivotAggs, false);
         String pivotAggregations = pivotAggs.replace("aggs", "aggregations");
         assertNotEquals(pivotAggs, pivotAggregations);
-        PivotConfig p2 = createPivotConfigFromString(pivotAggregations);
+        PivotConfig p2 = createPivotConfigFromString(pivotAggregations, false);
         assertEquals(p1,p2);
     }
 
     public void testMissingAggs() throws IOException {
         String pivot = "{"
-                + " \"group_by\": [ {"
+                + " \"group_by\": {"
                 + "   \"id\": {"
                 + "     \"terms\": {"
                 + "       \"field\": \"id\""
-                + "} } } ] }";
+                + "} } } }";
 
-        expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot));
+        expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
+    }
+
+    public void testEmptyAggs() throws IOException {
+        String pivot = "{"
+                + " \"group_by\": {"
+                + "   \"id\": {"
+                + "     \"terms\": {"
+                + "       \"field\": \"id\""
+                + "} } },"
+                + "\"aggs\": {}"
+                + " }";
+
+        expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
+
+        // lenient passes but reports invalid
+        PivotConfig pivotConfig = createPivotConfigFromString(pivot, true);
+        assertFalse(pivotConfig.isValid());
+    }
+
+    public void testEmptyGroupBy() throws IOException {
+        String pivot = "{"
+                + " \"group_by\": {},"
+                + " \"aggs\": {"
+                + "   \"avg\": {"
+                + "     \"avg\": {"
+                + "       \"field\": \"points\""
+                + "} } } }";
+
+        expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
+
+        // lenient passes but reports invalid
+        PivotConfig pivotConfig = createPivotConfigFromString(pivot, true);
+        assertFalse(pivotConfig.isValid());
+    }
+
+    public void testMissingGroupBy() throws IOException {
+        String pivot = "{"
+                + " \"aggs\": {"
+                + "   \"avg\": {"
+                + "     \"avg\": {"
+                + "       \"field\": \"points\""
+                + "} } } }";
+
+        expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
     }
 
     public void testDoubleAggs() throws IOException {
         String pivot = "{"
-                + " \"group_by\": [ {"
+                + " \"group_by\": {"
                 + "   \"id\": {"
                 + "     \"terms\": {"
                 + "       \"field\": \"id\""
-                + "} } } ],"
+                + "} } },"
                 + " \"aggs\": {"
                 + "   \"avg\": {"
                 + "     \"avg\": {"
@@ -103,12 +133,12 @@ public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<Pivot
                 + "} } }"
                 + "}";
 
-        expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot));
+        expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
     }
 
-    private PivotConfig createPivotConfigFromString(String json) throws IOException {
+    private PivotConfig createPivotConfigFromString(String json, boolean lenient) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(),
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
-        return PivotConfig.fromXContent(parser, false);
+        return PivotConfig.fromXContent(parser, lenient);
     }
 }

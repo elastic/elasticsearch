@@ -83,6 +83,11 @@ public class DateHistogramGroupSource extends SingleGroupSource<DateHistogramGro
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 
+    @Override
+    public Type getType() {
+        return Type.DATE_HISTOGRAM;
+    }
+
     public long getInterval() {
         return interval;
     }

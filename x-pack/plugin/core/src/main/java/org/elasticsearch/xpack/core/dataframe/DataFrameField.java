@@ -14,9 +14,12 @@ import org.elasticsearch.common.ParseField;
 public final class DataFrameField {
 
     // common parse fields
+    public static final ParseField AGGREGATIONS = new ParseField("aggregations");
+    public static final ParseField AGGS = new ParseField("aggs");
     public static final ParseField ID = new ParseField("id");
     public static final ParseField TRANSFORMS = new ParseField("transforms");
     public static final ParseField COUNT = new ParseField("count");
+    public static final ParseField GROUP_BY = new ParseField("group_by");
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
     public static final ParseField STATS_FIELD = new ParseField("stats");

@@ -76,10 +76,11 @@ public class Pivot {
 
     public Stream<Map<String, Object>> extractResults(CompositeAggregation agg,
             DataFrameIndexerTransformStats dataFrameIndexerTransformStats) {
-        Iterable<GroupConfig> sources = config.getGroups();
+
+        GroupConfig groups = config.getGroupConfig();
         Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
 
-        return AggregationResultUtils.extractCompositeAggregationResults(agg, sources, aggregationBuilders, dataFrameIndexerTransformStats);
+        return AggregationResultUtils.extractCompositeAggregationResults(agg, groups, aggregationBuilders, dataFrameIndexerTransformStats);
     }
 
     private void runTestQuery(Client client, final ActionListener<Boolean> listener) {

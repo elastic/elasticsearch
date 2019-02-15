@@ -40,7 +40,7 @@ public class AggregationConfigTests extends AbstractSerializingDataFrameTestCase
 
         // ensure that the unlikely does not happen: 2 aggs share the same name
         Set<String> names = new HashSet<>();
-        for (int i = 1; i < randomIntBetween(1, 20); ++i) {
+        for (int i = 0; i < randomIntBetween(1, 20); ++i) {
             AggregationBuilder aggBuilder = getRandomSupportedAggregation();
             if (names.add(aggBuilder.getName())) {
                 builder.addAggregator(aggBuilder);
@@ -86,6 +86,21 @@ public class AggregationConfigTests extends AbstractSerializingDataFrameTestCase
     @Override
     protected Reader<AggregationConfig> instanceReader() {
         return AggregationConfig::new;
+    }
+
+    public void testEmptyAggregation() throws IOException {
+        String source = "{}";
+
+        // lenient, passes but reports invalid
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            AggregationConfig aggregationConfig = AggregationConfig.fromXContent(parser, true);
+            assertFalse(aggregationConfig.isValid());
+        }
+
+        // strict throws
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            expectThrows(IllegalArgumentException.class, () -> AggregationConfig.fromXContent(parser, false));
+        }
     }
 
     public void testFailOnStrictPassOnLenient() throws IOException {

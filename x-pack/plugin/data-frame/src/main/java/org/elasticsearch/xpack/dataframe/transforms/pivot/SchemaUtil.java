@@ -34,8 +34,8 @@ public class SchemaUtil {
         // collects the fieldnames and target fieldnames used for grouping
         Map<String, String> fieldNamesForGrouping = new HashMap<>();
 
-        config.getGroups().forEach(group -> {
-            fieldNamesForGrouping.put(group.getDestinationFieldName(), group.getGroupSource().getField());
+        config.getGroupConfig().getGroups().forEach((destinationFieldName, group) -> {
+            fieldNamesForGrouping.put(destinationFieldName, group.getField());
         });
 
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {

@@ -39,6 +39,11 @@ public class TermsGroupSource extends SingleGroupSource<TermsGroupSource> {
         super(in);
     }
 
+    @Override
+    public Type getType() {
+        return Type.TERMS;
+    }
+
     public static TermsGroupSource fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }

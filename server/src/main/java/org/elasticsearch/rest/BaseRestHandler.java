@@ -70,6 +70,16 @@ public abstract class BaseRestHandler implements RestHandler {
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
     public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
+    /**
+     * An undocumented parameter that when specified, causes types warnings to be skipped.
+     * It can be provided to put index template and create index requests, and defaults to false.
+     *
+     * This 'backdoor' parameter was introduced to prevent internal products from triggering
+     * types warnings, which makes the deprecation logs much less useful for others developing
+     * against elasticsearch. It will be removed as soon as possible.
+     */
+    public static final String SUPPRESS_TYPES_WARNINGS_PARAMETER = "suppress_types_warnings";
+
     protected BaseRestHandler(Settings settings) {
         // TODO drop settings from ctor
     }

@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+import static org.elasticsearch.rest.BaseRestHandler.SUPPRESS_TYPES_WARNINGS_PARAMETER;
 import static org.mockito.Mockito.mock;
 
 public class RestPutIndexTemplateActionTests extends RestActionTestCase {
@@ -70,5 +71,31 @@ public class RestPutIndexTemplateActionTests extends RestActionTestCase {
                 .build();
         action.prepareRequest(request, mock(NodeClient.class));        
         assertWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    public void testSuppressTypesWarnings() throws IOException {
+       XContentBuilder content = XContentFactory.jsonBuilder().startObject()
+            .startObject("mappings")
+                .startObject("properties")
+                    .startObject("field1").field("type", "keyword").endObject()
+                    .startObject("field2").field("type", "text").endObject()
+                .endObject()
+            .endObject()
+            .startObject("aliases")
+                .startObject("read_alias").endObject()
+            .endObject()
+        .endObject();
+
+        Map<String, String> params = new HashMap<>();
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
+        params.put(SUPPRESS_TYPES_WARNINGS_PARAMETER, "true");
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.PUT)
+            .withParams(params)
+            .withPath("/_template/_some_template")
+            .withContent(BytesReference.bytes(content), XContentType.JSON)
+            .build();
+
+        action.prepareRequest(request, mock(NodeClient.class));
     }
 }

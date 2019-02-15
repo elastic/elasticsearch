@@ -31,10 +31,12 @@ import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+import static org.elasticsearch.rest.BaseRestHandler.SUPPRESS_TYPES_WARNINGS_PARAMETER;
 import static org.mockito.Mockito.mock;
 
 public class RestCreateIndexActionTests extends RestActionTestCase {
@@ -62,6 +64,21 @@ public class RestCreateIndexActionTests extends RestActionTestCase {
             .withPath("/some_index")
             .build();
         action.prepareRequest(validRequest, mock(NodeClient.class));
+    }
+
+    public void testSuppressTypesWarnings() throws IOException {
+        for (String includeTypeNameValue :Arrays.asList("true", "false")){
+            Map<String, String> params = new HashMap<>();
+            params.put(INCLUDE_TYPE_NAME_PARAMETER, includeTypeNameValue);
+            params.put(SUPPRESS_TYPES_WARNINGS_PARAMETER, "true");
+
+            RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
+                .withMethod(RestRequest.Method.PUT)
+                .withPath("/some_index")
+                .withParams(params)
+                .build();
+            action.prepareRequest(deprecatedRequest, mock(NodeClient.class));
+        }
     }
 
     public void testPrepareTypelessRequest() throws IOException {

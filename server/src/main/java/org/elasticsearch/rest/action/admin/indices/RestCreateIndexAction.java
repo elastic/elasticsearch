@@ -59,7 +59,8 @@ public class RestCreateIndexAction extends BaseRestHandler {
         final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
             DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)
+                && request.paramAsBoolean(SUPPRESS_TYPES_WARNINGS_PARAMETER, false) == false) {
             deprecationLogger.deprecatedAndMaybeLog("create_index_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
@@ -34,7 +35,6 @@ import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfig
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +99,12 @@ public class DataFrameAnalyticsManager {
 
         // Refresh to ensure copied index is fully searchable
         ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
-            bulkResponse -> client.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest()), refreshListener),
+            bulkResponse ->
+                ClientHelper.executeAsyncWithOrigin(client,
+                    ClientHelper.ML_ORIGIN,
+                    RefreshAction.INSTANCE,
+                    new RefreshRequest(config.getDest()),
+                    refreshListener),
             e -> task.markAsFailed(e)
         );
 
@@ -112,12 +117,17 @@ public class DataFrameAnalyticsManager {
                 reindexRequest.setSourceQuery(config.getParsedQuery());
                 reindexRequest.setDestIndex(config.getDest());
                 reindexRequest.setScript(new Script("ctx._source." + DataFrameAnalyticsFields.ID + " = ctx._id"));
-                client.execute(ReindexAction.INSTANCE, reindexRequest, reindexCompletedListener);
+                ClientHelper.executeWithHeadersAsync(config.getHeaders(),
+                    ClientHelper.ML_ORIGIN,
+                    client,
+                    ReindexAction.INSTANCE,
+                    reindexRequest,
+                    reindexCompletedListener);
             },
             reindexCompletedListener::onFailure
         );
 
-        createDestinationIndex(config.getSource(), config.getDest(), copyIndexCreatedListener);
+        createDestinationIndex(config.getSource(), config.getDest(), config.getHeaders(), copyIndexCreatedListener);
     }
 
     private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
@@ -144,10 +154,11 @@ public class DataFrameAnalyticsManager {
         // TODO This could fail with errors. In that case we get stuck with the copied index.
         // We could delete the index in case of failure or we could try building the factory before reindexing
         // to catch the error early on.
-        DataFrameDataExtractorFactory.create(client, Collections.emptyMap(), config, dataExtractorFactoryListener);
+        DataFrameDataExtractorFactory.create(client, config, dataExtractorFactoryListener);
     }
 
-    private void createDestinationIndex(String sourceIndex, String destinationIndex, ActionListener<CreateIndexResponse> listener) {
+    private void createDestinationIndex(String sourceIndex, String destinationIndex, Map<String, String> headers,
+                                        ActionListener<CreateIndexResponse> listener) {
         IndexMetaData indexMetaData = clusterService.state().getMetaData().getIndices().get(sourceIndex);
         if (indexMetaData == null) {
             listener.onFailure(new IndexNotFoundException(sourceIndex));
@@ -161,7 +172,12 @@ public class DataFrameAnalyticsManager {
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(destinationIndex, settingsBuilder.build());
         addDestinationIndexMappings(indexMetaData, createIndexRequest);
-        client.execute(CreateIndexAction.INSTANCE, createIndexRequest, listener);
+        ClientHelper.executeWithHeadersAsync(headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            CreateIndexAction.INSTANCE,
+            createIndexRequest,
+            listener);
     }
 
     private static void addDestinationIndexMappings(IndexMetaData indexMetaData, CreateIndexRequest createIndexRequest) {

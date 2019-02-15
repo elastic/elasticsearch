@@ -7,12 +7,16 @@ package org.elasticsearch.xpack.core.ml.dataframe;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -22,13 +26,18 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
@@ -62,6 +71,10 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
     }
 
     public static DataFrameAnalyticsConfig createRandom(String id) {
+        return createRandomBuilder(id).build();
+    }
+
+    public static DataFrameAnalyticsConfig.Builder createRandomBuilder(String id) {
         String source = randomAlphaOfLength(10);
         String dest = randomAlphaOfLength(10);
         List<DataFrameAnalysisConfig> analyses = Collections.singletonList(DataFrameAnalysisConfigTests.randomConfig());
@@ -80,7 +93,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                 generateRandomStringArray(10, 10, false, false),
                 generateRandomStringArray(10, 10, false, false)));
         }
-        return builder.build();
+        return builder;
     }
 
     public static String randomValidId() {
@@ -146,6 +159,33 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                 () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null).build());
             assertEquals("[6:64] [data_frame_analytics_config] failed to parse field [query]", e.getMessage());
         }
+    }
+
+    public void testToXContentForInternalStorage() throws IOException {
+        DataFrameAnalyticsConfig.Builder builder = createRandomBuilder("foo");
+
+        // headers are only persisted to cluster state
+        Map<String, String> headers = new HashMap<>();
+        headers.put("header-name", "header-value");
+        builder.setHeaders(headers);
+        DataFrameAnalyticsConfig config = builder.build();
+
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
+
+        BytesReference forClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, params, false);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, forClusterstateXContent.streamInput());
+
+        DataFrameAnalyticsConfig parsedConfig = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
+        assertThat(parsedConfig.getHeaders(), hasEntry("header-name", "header-value"));
+
+        // headers are not written without the FOR_INTERNAL_STORAGE param
+        BytesReference nonClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
+        parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, nonClusterstateXContent.streamInput());
+
+        parsedConfig = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
+        assertThat(parsedConfig.getHeaders().entrySet(), hasSize(0));
     }
 
     public void testGetQueryDeprecations() {

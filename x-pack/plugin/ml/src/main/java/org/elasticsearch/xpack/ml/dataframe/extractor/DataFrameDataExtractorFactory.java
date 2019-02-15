@@ -63,12 +63,15 @@ public class DataFrameDataExtractorFactory {
     private final String analyticsId;
     private final String index;
     private final ExtractedFields extractedFields;
+    private final Map<String, String> headers;
 
-    private DataFrameDataExtractorFactory(Client client, String analyticsId, String index, ExtractedFields extractedFields) {
+    private DataFrameDataExtractorFactory(Client client, String analyticsId, String index, ExtractedFields extractedFields,
+                                          Map<String, String> headers) {
         this.client = Objects.requireNonNull(client);
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.index = Objects.requireNonNull(index);
         this.extractedFields = Objects.requireNonNull(extractedFields);
+        this.headers = headers;
     }
 
     public DataFrameDataExtractor newExtractor(boolean includeSource) {
@@ -78,7 +81,7 @@ public class DataFrameDataExtractorFactory {
                 Arrays.asList(index),
                 QueryBuilders.matchAllQuery(),
                 1000,
-                Collections.emptyMap(),
+                headers,
                 includeSource
             );
         return new DataFrameDataExtractor(client, context);
@@ -90,17 +93,15 @@ public class DataFrameDataExtractorFactory {
      * The destination index must exist and contain at least 1 compatible field or validations will fail.
      *
      * @param client ES Client used to make calls against the cluster
-     * @param headers Headers to use
      * @param config The config from which to create the extractor factory
      * @param listener The listener to notify on creation or failure
      */
     public static void create(Client client,
-                              Map<String, String> headers,
                               DataFrameAnalyticsConfig config,
                               ActionListener<DataFrameDataExtractorFactory> listener) {
-        validateIndexAndExtractFields(client, headers, config.getDest(), config.getFields(), ActionListener.wrap(
+        validateIndexAndExtractFields(client, config.getHeaders(), config.getDest(), config.getFields(), ActionListener.wrap(
             extractedFields -> listener.onResponse(
-                new DataFrameDataExtractorFactory(client, config.getId(), config.getDest(), extractedFields)),
+                new DataFrameDataExtractorFactory(client, config.getId(), config.getDest(), extractedFields, config.getHeaders())),
             listener::onFailure
         ));
     }
@@ -109,15 +110,13 @@ public class DataFrameDataExtractorFactory {
      * Validates the source index and analytics config
      *
      * @param client ES Client to make calls
-     * @param headers Headers for auth
      * @param config Analytics config to validate
      * @param listener The listener to notify on failure or completion
      */
     public static void validateConfigAndSourceIndex(Client client,
-                                                    Map<String, String> headers,
                                                     DataFrameAnalyticsConfig config,
                                                     ActionListener<Boolean> listener) {
-        validateIndexAndExtractFields(client, headers, config.getSource(), config.getFields(), ActionListener.wrap(
+        validateIndexAndExtractFields(client, config.getHeaders(), config.getSource(), config.getFields(), ActionListener.wrap(
             fields -> {
                 config.getParsedQuery(); // validate query is acceptable
                 listener.onResponse(true);

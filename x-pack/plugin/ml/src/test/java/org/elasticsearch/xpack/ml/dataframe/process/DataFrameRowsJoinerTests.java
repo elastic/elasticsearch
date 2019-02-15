@@ -13,9 +13,12 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.junit.Before;
@@ -124,8 +127,12 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     }
 
     private void givenClientHasNoFailures() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         ActionFuture<BulkResponse> responseFuture = mock(ActionFuture.class);
         when(responseFuture.actionGet()).thenReturn(new BulkResponse(new BulkItemResponse[0], 0));
         when(client.execute(same(BulkAction.INSTANCE), bulkRequestCaptor.capture())).thenReturn(responseFuture);
+        when(client.threadPool()).thenReturn(threadPool);
     }
 }

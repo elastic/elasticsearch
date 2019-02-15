@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.BuildPlugin
-
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'

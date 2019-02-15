@@ -154,7 +154,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         // ensure that a retention lease has been put in place on each shard
         assertBusy(() -> {
             final IndicesStatsResponse stats =
-                    leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
+                    leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
             assertNotNull(stats.getShards());
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
             final List<ShardStats> shardStats = getShardStats(stats);
@@ -231,7 +231,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             assertBusy(() -> {
                 retentionLeases.clear();
                 final IndicesStatsResponse stats =
-                        leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
+                        leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
                 assertNotNull(stats.getShards());
                 assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
                 final List<ShardStats> shardStats = getShardStats(stats);
@@ -251,7 +251,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             // now ensure that the retention leases are being renewed
             assertBusy(() -> {
                 final IndicesStatsResponse stats =
-                        leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
+                        leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
                 assertNotNull(stats.getShards());
                 assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
                 final List<ShardStats> shardStats = getShardStats(stats);
@@ -316,7 +316,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         assertBusy(() -> {
             retentionLeases.clear();
             final IndicesStatsResponse stats =
-                    leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
+                    leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
             assertNotNull(stats.getShards());
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
             final List<ShardStats> shardStats = getShardStats(stats);
@@ -346,7 +346,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         // now ensure that the retention leases are the same
         assertBusy(() -> {
             final IndicesStatsResponse stats =
-                    leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
+                    leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
             assertNotNull(stats.getShards());
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
             final List<ShardStats> shardStats = getShardStats(stats);

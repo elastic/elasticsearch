@@ -325,7 +325,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         // schedule renewals to run during the restore
         final Scheduler.Cancellable renewable = threadPool.scheduleWithFixedDelay(
                 () -> {
-                    logger.trace("{} background renewal of retention lease during restore", shardId);
+                    logger.trace("{} background renewal of retention lease [{}] during restore", shardId, retentionLeaseId);
                     final ThreadContext threadContext = threadPool.getThreadContext();
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                         // we have to execute under the system context so that if security is enabled the renewal is authorized
@@ -333,7 +333,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         renewRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
                     } catch (final Exception e) {
                         assert e instanceof ElasticsearchSecurityException == false : e;
-                        logger.warn(new ParameterizedMessage("{} background renewal of retention lease failed during restore", shardId), e);
+                        logger.warn(new ParameterizedMessage(
+                                        "{} background renewal of retention lease [{}] failed during restore",
+                                        shardId,
+                                        retentionLeaseId),
+                                e);
                         throw e;
                     }
                 },
@@ -375,12 +379,19 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         final Optional<RetentionLeaseAlreadyExistsException> maybeAddAlready =
                 addRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
         maybeAddAlready.ifPresent(addAlready -> {
-            logger.trace(() -> new ParameterizedMessage("{} retention lease already exists, requesting a renewal", shardId), addAlready);
+            logger.trace(() -> new ParameterizedMessage(
+                            "{} retention lease [{}] already exists, requesting a renewal",
+                            shardId,
+                            retentionLeaseId),
+                    addAlready);
             final Optional<RetentionLeaseNotFoundException> maybeRenewNotFound =
                     renewRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
             maybeRenewNotFound.ifPresent(renewNotFound -> {
                 logger.trace(() -> new ParameterizedMessage(
-                        "{} retention lease not found while attempting to renew, requesting a final add", shardId), renewNotFound);
+                                "{} retention lease [{}] not found while attempting to renew, requesting a final add",
+                                shardId,
+                                retentionLeaseId),
+                        renewNotFound);
                 final Optional<RetentionLeaseAlreadyExistsException> maybeFallbackAddAlready =
                         addRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
                 maybeFallbackAddAlready.ifPresent(fallbackAddAlready -> {

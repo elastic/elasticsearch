@@ -115,7 +115,7 @@ public class RetentionLeaseActions {
         }
 
         @Override
-        protected Response shardOperation(final T request, final ShardId shardId) throws IOException {
+        protected Response shardOperation(final T request, final ShardId shardId) {
             throw new UnsupportedOperationException();
         }
 

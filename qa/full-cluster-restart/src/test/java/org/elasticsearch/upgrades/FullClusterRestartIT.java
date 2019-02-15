@@ -213,7 +213,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             logger.debug("--> creating [{}] replicas for index [{}]", numReplicas, index);
             Request setNumberOfReplicas = new Request("PUT", "/" + index + "/_settings");
             setNumberOfReplicas.setJsonEntity("{ \"index\": { \"number_of_replicas\" : " + numReplicas + " }}");
-            Response response = client().performRequest(setNumberOfReplicas);
+            client().performRequest(setNumberOfReplicas);
 
             ensureGreenLongWait(index);
 
@@ -863,7 +863,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Stick a template into the cluster so we can see it after the restore
         XContentBuilder templateBuilder = JsonXContent.contentBuilder().startObject();
-        boolean templateUsesTypes = false;
         templateBuilder.field("index_patterns", "evil_*"); // Don't confuse other tests by applying the template
         templateBuilder.startObject("settings"); {
             templateBuilder.field("number_of_shards", 1);
@@ -872,7 +871,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         templateBuilder.startObject("mappings"); {
             if (isRunningAgainstAncientCluster()) {
                 templateBuilder.startObject(type);
-                templateUsesTypes = true;
             }
             {
                 templateBuilder.startObject("_source");

@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;

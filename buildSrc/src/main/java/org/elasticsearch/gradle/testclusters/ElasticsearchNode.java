@@ -263,7 +263,7 @@ public class ElasticsearchNode {
         processHandle.children().forEach(each -> stopHandle(each, forcibly));
 
         logProcessInfo(
-            "Terminating elasticsearch process" + (forcibly ? " forcibly " : "gratefully") + ":",
+            "Terminating elasticsearch process" + (forcibly ? " forcibly " : "gracefully") + ":",
             processHandle.info()
         );
 
@@ -272,11 +272,12 @@ public class ElasticsearchNode {
         } else {
             processHandle.destroy();
             waitForProcessToExit(processHandle);
-            if (processHandle.isAlive()) {
-                logger.info("process did not terminate after {} {}, stopping it forcefully",
-                    ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
-                processHandle.destroyForcibly();
+            if (processHandle.isAlive() == false) {
+                return;
             }
+            logger.info("process did not terminate after {} {}, stopping it forcefully",
+                ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
+            processHandle.destroyForcibly();
         }
 
         waitForProcessToExit(processHandle);

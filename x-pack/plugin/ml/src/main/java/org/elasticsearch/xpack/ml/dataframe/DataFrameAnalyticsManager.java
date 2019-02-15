@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfig
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -155,7 +154,7 @@ public class DataFrameAnalyticsManager {
         // TODO This could fail with errors. In that case we get stuck with the copied index.
         // We could delete the index in case of failure or we could try building the factory before reindexing
         // to catch the error early on.
-        DataFrameDataExtractorFactory.create(client, Collections.emptyMap(), config, dataExtractorFactoryListener);
+        DataFrameDataExtractorFactory.create(client, config, dataExtractorFactoryListener);
     }
 
     private void createDestinationIndex(String sourceIndex, String destinationIndex, Map<String, String> headers,

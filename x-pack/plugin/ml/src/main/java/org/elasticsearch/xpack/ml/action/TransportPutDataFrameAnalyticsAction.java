@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
@@ -71,18 +69,16 @@ public class TransportPutDataFrameAnalyticsAction
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
-        
         validateConfig(request.getConfig());
         if (licenseState.isAuthAllowed()) {
             final String username = securityContext.getUser().principal();
             RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(request.getConfig().getSource())
-                .privileges(SearchAction.NAME)
+                .privileges("read")
                 .build();
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(request.getConfig().getDest())
-                 // CreateIndexAction.NAME is more expansive than and create_index, in this instance we want at least create_index.
-                .privileges(SearchAction.NAME, IndexAction.NAME, "create_index")
+                .privileges("read", "index", "create_index")
                 .build();
 
             HasPrivilegesRequest privRequest = new HasPrivilegesRequest();

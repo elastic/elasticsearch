@@ -88,16 +88,14 @@ public class DataFrameDataExtractorFactory {
      * The destination index must exist and contain at least 1 compatible field or validations will fail.
      *
      * @param client ES Client used to make calls against the cluster
-     * @param headers Headers to use
      * @param config The config from which to create the extractor factory
      * @param listener The listener to notify on creation or failure
      */
     public static void create(Client client,
-                              Map<String, String> headers,
                               DataFrameAnalyticsConfig config,
                               ActionListener<DataFrameDataExtractorFactory> listener) {
 
-        validateIndexAndExtractFields(client, headers, config.getDest(), ActionListener.wrap(
+        validateIndexAndExtractFields(client, config.getHeaders(), config.getDest(), ActionListener.wrap(
             extractedFields -> listener.onResponse(
                 new DataFrameDataExtractorFactory(client, config.getId(), config.getDest(), extractedFields, config.getHeaders())),
             listener::onFailure
@@ -108,15 +106,13 @@ public class DataFrameDataExtractorFactory {
      * Validates the source index and analytics config
      *
      * @param client ES Client to make calls
-     * @param headers Headers for auth
      * @param config Analytics config to validate
      * @param listener The listener to notify on failure or completion
      */
     public static void validateConfigAndSourceIndex(Client client,
-                                                    Map<String, String> headers,
                                                     DataFrameAnalyticsConfig config,
                                                     ActionListener<Boolean> listener) {
-        validateIndexAndExtractFields(client, headers, config.getSource(), ActionListener.wrap(
+        validateIndexAndExtractFields(client, config.getHeaders(), config.getSource(), ActionListener.wrap(
             fields -> {
                 config.getParsedQuery(); // validate query is acceptable
                 listener.onResponse(true);

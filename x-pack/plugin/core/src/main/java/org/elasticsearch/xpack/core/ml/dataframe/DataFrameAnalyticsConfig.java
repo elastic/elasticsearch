@@ -80,7 +80,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         parser.declareObject((builder, query) -> builder.setQuery(query, ignoreUnknownFields), (p, c) -> p.mapOrdered(), QUERY);
         if (ignoreUnknownFields) {
             // Headers are not parsed by the strict (config) parser, so headers supplied in the _body_ of a REST request will be rejected.
-            // (For config, headers are explicitly transferred from the auth headers by code in the put/update datafeed actions.)
+            // (For config, headers are explicitly transferred from the auth headers by code in the put data frame actions.)
             parser.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
         }
         return parser;
@@ -236,7 +236,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             this.id = config.id;
             this.source = config.source;
             this.dest = config.dest;
-            this.analyses = new ArrayList<>(config.analyses);
+
+            List<DataFrameAnalysisConfig> configs = new ArrayList<>(config.analyses.size());
+            config.analyses.forEach(c -> configs.add(new DataFrameAnalysisConfig(c)));
+            this.analyses = configs;
             this.query = new LinkedHashMap<>(config.query);
             this.headers = new HashMap<>(config.headers);
         }

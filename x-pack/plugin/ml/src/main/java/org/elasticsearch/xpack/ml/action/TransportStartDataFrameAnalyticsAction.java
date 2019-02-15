@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -131,7 +130,7 @@ public class TransportStartDataFrameAnalyticsAction
         // Validate config
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config ->
-                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, Collections.emptyMap(), config, validateListener),
+                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, config, validateListener),
             listener::onFailure
         );
 

@@ -460,7 +460,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     private void wipeCluster() throws Exception {
 
         // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
-        // so if we need to fully shut them down first otherwise a job might stall waiting
+        // so we need to fully shut them down first otherwise a job might stall waiting
         // for a bulk to finish against a non-existing index (and then fail tests)
         if (hasXPack && false == preserveRollupJobsUponCompletion()) {
             wipeRollupJobs();

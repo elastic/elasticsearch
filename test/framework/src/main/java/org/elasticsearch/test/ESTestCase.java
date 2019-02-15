@@ -332,10 +332,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     @BeforeClass
     public static void ensureSupportedLocale() {
         if (isUnusableLocale()) {
-            // See: https://github.com/bcgit/bc-java/issues/405
             Logger logger = LogManager.getLogger(ESTestCase.class);
             logger.warn("Attempting to run tests in an unusable locale in a FIPS JVM. Certificate expiration validation will fail, " +
-                "switching to English");
+                "switching to English. See: https://github.com/bcgit/bc-java/issues/405");
             restoreLocale = Locale.getDefault();
             Locale.setDefault(Locale.ENGLISH);
         }

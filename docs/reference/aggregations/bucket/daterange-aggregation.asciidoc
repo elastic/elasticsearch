@@ -20,7 +20,7 @@ POST /sales/_search?size=0
         "range": {
             "date_range": {
                 "field": "date",
-                "format": "MM-yyy",
+                "format": "MM-yyyy",
                 "ranges": [
                     { "to": "now-10M/M" }, <1>
                     { "from": "now-10M/M" } <2>

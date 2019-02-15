@@ -700,7 +700,6 @@ public class ApiKeyService {
             expiredQuery.should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
             boolQuery.filter(expiredQuery);
         }
-
         final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
             .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
             .setQuery(boolQuery)
@@ -860,8 +859,14 @@ public class ApiKeyService {
         return exception;
     }
 
+    // pkg scoped for testing
     boolean isExpirationInProgress() {
         return expiredApiKeysRemover.isExpirationInProgress();
+    }
+
+    // pkg scoped for testing
+    long lastTimeWhenApiKeysRemoverWasTriggered() {
+        return lastExpirationRunMs;
     }
 
     private void maybeStartApiKeyRemover() {

@@ -286,8 +286,7 @@ public class RelocationIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", numberOfReplicas)
                         .put("index.refresh_interval", -1) // we want to control refreshes
-                        .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms"))
-                .get();
+               ).get();
 
         for (int i = 1; i < numberOfNodes; i++) {
             logger.info("--> starting [node_{}] ...", i);
@@ -472,8 +471,7 @@ public class RelocationIT extends ESIntegTestCase {
         final Settings.Builder settings = Settings.builder()
                 .put("index.routing.allocation.exclude.color", "blue")
                 .put(indexSettings())
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1))
-                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms");
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1));
         assertAcked(prepareCreate("test", settings));
         assertAllShardsOnNodes("test", redNodes);
         int numDocs = randomIntBetween(100, 150);
@@ -525,8 +523,8 @@ public class RelocationIT extends ESIntegTestCase {
         prepareCreate("test", Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
-            .put("index.refresh_interval", -1) // we want to control refreshes
-        ).get();
+            // we want to control refreshes
+            .put("index.refresh_interval", -1)).get();
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {

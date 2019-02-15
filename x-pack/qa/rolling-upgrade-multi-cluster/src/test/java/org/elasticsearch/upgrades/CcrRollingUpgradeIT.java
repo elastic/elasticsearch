@@ -90,11 +90,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     public void testAutoFollowing() throws Exception {
-        final Settings indexSettings = Settings.builder()
-            .put("index.soft_deletes.enabled", true)
-            .put("index.number_of_shards", 1)
-            .build();
-
         String leaderIndex1 = "logs-20200101";
         String leaderIndex2 = "logs-20200102";
         String leaderIndex3 = "logs-20200103";
@@ -134,7 +129,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
             switch (upgradeState) {
                 case NONE:
                     putAutoFollowPattern(followerClient(), "test_pattern", "leader", "logs-*");
-                    createIndex(leaderIndex1, indexSettings);
+                    createLeaderIndex(leaderClient(), leaderIndex1);
                     index(leaderClient(), leaderIndex1, 64);
                     assertBusy(() -> {
                         String followerIndex = "copy-" + leaderIndex1;
@@ -152,7 +147,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                     // and if this node get updated then auto follow stats are reset
                 {
                     int previousNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
-                    createIndex(leaderIndex2, indexSettings);
+                    createLeaderIndex(leaderClient(), leaderIndex2);
                     index(leaderClient(), leaderIndex2, 64);
                     assertBusy(() -> {
                         String followerIndex = "copy-" + leaderIndex2;
@@ -177,7 +172,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                     // and if this node get updated then auto follow stats are reset
                 {
                     int previousNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
-                    createIndex(leaderIndex3, indexSettings);
+                    createLeaderIndex(leaderClient(), leaderIndex3);
                     index(leaderClient(), leaderIndex3, 64);
                     assertBusy(() -> {
                         String followerIndex = "copy-" + leaderIndex3;
@@ -236,12 +231,13 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     private static void createLeaderIndex(RestClient client, String indexName) throws IOException {
-        Settings indexSettings = Settings.builder()
-            .put("index.soft_deletes.enabled", true)
+        Settings.Builder indexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .build();
-        createIndex(client, indexName, indexSettings);
+            .put("index.number_of_replicas", 0);
+        if (randomBoolean()) {
+            indexSettings.put("index.soft_deletes.enabled", true);
+        }
+        createIndex(client, indexName, indexSettings.build());
     }
 
     private static void createIndex(RestClient client, String name, Settings settings) throws IOException {

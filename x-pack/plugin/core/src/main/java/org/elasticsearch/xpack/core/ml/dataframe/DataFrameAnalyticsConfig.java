@@ -236,10 +236,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             this.id = config.id;
             this.source = config.source;
             this.dest = config.dest;
-
-            List<DataFrameAnalysisConfig> configs = new ArrayList<>(config.analyses.size());
-            config.analyses.forEach(c -> configs.add(new DataFrameAnalysisConfig(c)));
-            this.analyses = configs;
+            this.analyses = new ArrayList<>(config.analyses);
             this.query = new LinkedHashMap<>(config.query);
             this.headers = new HashMap<>(config.headers);
         }

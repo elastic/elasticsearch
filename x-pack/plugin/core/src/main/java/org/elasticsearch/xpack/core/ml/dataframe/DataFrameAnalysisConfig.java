@@ -28,18 +28,14 @@ public class DataFrameAnalysisConfig implements ToXContentObject, Writeable {
     private final Map<String, Object> config;
 
     public DataFrameAnalysisConfig(Map<String, Object> config) {
-        this.config = Collections.unmodifiableMap(Objects.requireNonNull(config));
+        this.config = Collections.unmodifiableMap(new HashMap<>(Objects.requireNonNull(config)));
         if (config.size() != 1) {
             throw ExceptionsHelper.badRequestException("A data frame analysis must specify exactly one analysis type");
         }
     }
 
-    public DataFrameAnalysisConfig(DataFrameAnalysisConfig config) {
-        this(new HashMap<>(config.config));
-    }
-
     public DataFrameAnalysisConfig(StreamInput in) throws IOException {
-        config = in.readMap();
+        config = Collections.unmodifiableMap(in.readMap());
     }
 
     public Map<String, Object> asMap() {

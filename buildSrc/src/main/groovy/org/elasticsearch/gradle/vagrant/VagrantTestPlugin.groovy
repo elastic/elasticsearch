@@ -25,8 +25,8 @@ class VagrantTestPlugin implements Plugin<Project> {
             'centos-7',
             'debian-8',
             'debian-9',
-            'fedora-27',
             'fedora-28',
+            'fedora-29',
             'oel-6',
             'oel-7',
             'opensuse-42',
@@ -547,11 +547,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                     project.gradle.removeListener(batsPackagingReproListener)
                 }
                 if (project.extensions.esvagrant.boxes.contains(box)) {
-                    // these tests are temporarily disabled for suse boxes while we debug an issue
-                    // https://github.com/elastic/elasticsearch/issues/30295
-                    if (box.equals("opensuse-42") == false && box.equals("sles-12") == false) {
-                        packagingTest.dependsOn(batsPackagingTest)
-                    }
+                    packagingTest.dependsOn(batsPackagingTest)
                 }
             }
 
@@ -590,11 +586,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 project.gradle.removeListener(javaPackagingReproListener)
             }
             if (project.extensions.esvagrant.boxes.contains(box)) {
-                // these tests are temporarily disabled for suse boxes while we debug an issue
-                // https://github.com/elastic/elasticsearch/issues/30295
-                if (box.equals("opensuse-42") == false && box.equals("sles-12") == false) {
-                    packagingTest.dependsOn(javaPackagingTest)
-                }
+                packagingTest.dependsOn(javaPackagingTest)
             }
 
             /*

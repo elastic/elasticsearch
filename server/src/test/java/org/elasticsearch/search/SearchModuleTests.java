@@ -358,7 +358,8 @@ public class SearchModuleTests extends ESTestCase {
             "terms_set",
             "type",
             "wildcard",
-            "wrapper"
+            "wrapper",
+            "distance_feature"
     };
 
     //add here deprecated queries to make sure we log a deprecation warnings when they are used

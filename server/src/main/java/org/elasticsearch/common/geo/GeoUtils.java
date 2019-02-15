@@ -545,6 +545,16 @@ public class GeoUtils {
         }
     }
 
+    public static GeoPoint parseFromString(String val){
+        GeoPoint point = new GeoPoint();
+        boolean ignoreZValue = false;
+        if (val.contains(",")) {
+            return point.resetFromString(val, ignoreZValue);
+        } else {
+            return parseGeoHash(point, val, EffectivePoint.BOTTOM_LEFT);
+        }
+    }
+
     /**
      * Parse a precision that can be expressed as an integer or a distance measure like "1km", "10m".
      *

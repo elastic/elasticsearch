@@ -502,16 +502,11 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Creates a new history snapshot for reading operations since the provided seqno.
-     * The returned snapshot can be retrieved from either Lucene index or translog files.
+     * Creates a new history snapshot for reading operations since the provided seqno from the translog.
      */
     @Override
     public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            return newChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false);
-        } else {
-            return getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
-        }
+        return getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
     }
 
     /**
@@ -2546,21 +2541,17 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            return getMinRetainedSeqNo() <= startingSeqNo;
-        } else {
-            final long currentLocalCheckpoint = getLocalCheckpointTracker().getCheckpoint();
-            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
-            try (Translog.Snapshot snapshot = getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
-                Translog.Operation operation;
-                while ((operation = snapshot.next()) != null) {
-                    if (operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                        tracker.markSeqNoAsCompleted(operation.seqNo());
-                    }
+        final long currentLocalCheckpoint = getLocalCheckpointTracker().getCheckpoint();
+        final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
+        try (Translog.Snapshot snapshot = getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
+            Translog.Operation operation;
+            while ((operation = snapshot.next()) != null) {
+                if (operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    tracker.markSeqNoAsCompleted(operation.seqNo());
                 }
             }
-            return tracker.getCheckpoint() >= currentLocalCheckpoint;
         }
+        return tracker.getCheckpoint() >= currentLocalCheckpoint;
     }
 
     /**
@@ -2575,7 +2566,15 @@ public class InternalEngine extends Engine {
     @Override
     public Closeable acquireRetentionLock() {
         if (softDeleteEnabled) {
-            return softDeletesPolicy.acquireRetentionLock();
+            final Releasable softDeletesRetentionLock = softDeletesPolicy.acquireRetentionLock();
+            final Closeable translogRetentionLock;
+            try {
+                translogRetentionLock = translog.acquireRetentionLock();
+            } catch (Exception e) {
+                softDeletesRetentionLock.close();
+                throw e;
+            }
+            return () -> IOUtils.close(translogRetentionLock, softDeletesRetentionLock);
         } else {
             return translog.acquireRetentionLock();
         }

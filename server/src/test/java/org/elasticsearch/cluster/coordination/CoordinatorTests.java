@@ -870,6 +870,7 @@ public class CoordinatorTests extends ESTestCase {
         assertEquals(0L, newNodePublishStats.getIncompatibleClusterStateDiffReceivedCount());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38867")
     public void testIncompatibleDiffResendsFullState() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();

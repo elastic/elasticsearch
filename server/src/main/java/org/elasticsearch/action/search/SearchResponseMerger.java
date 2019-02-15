@@ -39,7 +39,6 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -368,17 +367,7 @@ final class SearchResponseMerger {
             if (shardIdCompareTo != 0) {
                 return shardIdCompareTo;
             }
-            int clusterAliasCompareTo = clusterAlias.compareTo(o.clusterAlias);
-            if (clusterAliasCompareTo != 0) {
-                //TODO we may want to fix this, CCS returns remote results before local ones (TransportSearchAction#mergeShardsIterators)
-                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    return 1;
-                }
-                if (o.clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    return -1;
-                }
-            }
-            return clusterAliasCompareTo;
+            return clusterAlias.compareTo(o.clusterAlias);
         }
     }
 }

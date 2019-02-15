@@ -1,5 +1,5 @@
 ---
-"Test cat indices output (no indices)":
+"Test cat indices output":
 
   - do:
       cat.indices: {}
@@ -7,9 +7,6 @@
   - match:
       $body: |
                /^$/
-
----
-"Test cat indices output":
 
   - do:
       indices.create:
@@ -50,26 +47,9 @@
                   (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\dZ) \s*
                 )
                 $/
-
----
-"Test cat indices output for closed index (pre 8.0.0)":
-
-  - skip:
-      version: "8.0.0 - "
-      reason:  "closed indices are replicated starting version 8.0"
-
-  - do:
-      indices.create:
-        index: index1
-        body:
-          settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
-
   - do:
       indices.close:
         index: index1
-  - is_true: acknowledged
 
   - do:
       cat.indices:
@@ -89,59 +69,6 @@
                          \s*
                 )
                 $/
-
----
-"Test cat indices output for closed index":
-
-  - skip:
-      version: " - 7.99.99"
-      reason:  "closed indices are replicated starting version 8.0"
-
-  - do:
-      indices.create:
-        index: index1
-        body:
-          settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
-
-  - do:
-      bulk:
-        body:
-          - '{"index": {"_index": "index1"}}'
-          - '{"f1": "1"}'
-          - '{"index": {"_index": "index1"}}'
-          - '{"f1": "2"}'
-          - '{"index": {"_index": "index1"}}'
-          - '{"f1": "3"}'
-          - '{"index": {"_index": "index1"}}'
-          - '{"f1": "4"}'
-          - '{"index": {"_index": "index1"}}'
-          - '{"f1": "5"}'
-
-  - do:
-      indices.close:
-        index: index1
-  - is_true: acknowledged
-
-  - do:
-      cat.indices:
-        index: index*
-
-  - match:
-      $body: |
-        /^(       \s+
-           close  \s+
-           index1 \s+
-           ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
-                   \s+
-                   \s+
-            5      \s+
-            0      \s+
-            (\d+|\d+[.]\d+)(kb|b) \s+
-            (\d+|\d+[.]\d+)(kb|b) \s*
-          )
-          $/
 
 ---
 "Test cat indices using health status":

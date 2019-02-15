@@ -567,14 +567,14 @@ public class IndexSettingsTests extends ESTestCase {
         {
             Version createdVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
             Settings settings = Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion).build();
-            assertThat(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings), equalTo(true));
+            assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
         }
         // disabled by default on the previous versions
         {
             Version prevVersion = VersionUtils.randomVersionBetween(
                 random(), Version.V_6_5_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
             Settings settings = Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), prevVersion).build();
-            assertThat(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings), equalTo(false));
+            assertFalse(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
         }
     }
 }

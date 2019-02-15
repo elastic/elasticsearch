@@ -632,12 +632,6 @@ public class SearchResponseMergerTests extends ESTestCase {
             }
             int clusterAliasCompareTo = aShard.getClusterAlias().compareTo(bShard.getClusterAlias());
             if (clusterAliasCompareTo != 0) {
-                if (aShard.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    return 1;
-                }
-                if (bShard.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    return -1;
-                }
                 return clusterAliasCompareTo;
             }
             return Integer.compare(a.docId(), b.docId());

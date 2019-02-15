@@ -44,7 +44,7 @@ The possible actions are `index`, `create`, `delete` and `update`.
 `index` and `create` expect a source on the next
 line, and have the same semantics as the `op_type` parameter to the
 standard index API (i.e. create will fail if a document with the same
-index and type exists already, whereas index will add or replace a
+index exists already, whereas index will add or replace a
 document as necessary). `delete` does not expect a source on the
 following line, and has the same semantics as the standard delete API.
 `update` expects that the partial doc, upsert and script and its options
@@ -172,9 +172,8 @@ The result of this bulk operation is:
 // TESTRESPONSE[s/"_seq_no" : 3/"_seq_no" : $body.items.3.update._seq_no/]
 // TESTRESPONSE[s/"_primary_term" : 4/"_primary_term" : $body.items.3.update._primary_term/]
 
-The endpoints are `/_bulk`, `/{index}/_bulk`, and `{index}/{type}/_bulk`.
-When the index or the index/type are provided, they will be used by
-default on bulk items that don't provide them explicitly.
+The endpoints are `/_bulk` and `/{index}/_bulk`. When the index is provided, it
+will be used by default on bulk items that don't provide it explicitly.
 
 A note on the format. The idea here is to make processing of this as
 fast as possible. As some of the actions will be redirected to other

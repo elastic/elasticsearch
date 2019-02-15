@@ -2,6 +2,8 @@
 [[release-notes-6.6.1]]
 == {es} version 6.6.1
 
+coming[6.6.1]
+
 Also see <<breaking-changes-6.6, Breaking changes in 6.6>>.
 
 [[enhancement-6.6.1]]
@@ -9,12 +11,12 @@ Also see <<breaking-changes-6.6, Breaking changes in 6.6>>.
 === Enhancements
 
 Machine Learning::
-* [ML] Add explanation so far to file structure finder exceptions {pull}38191[#38191] (issue: {issue}29821[#29821])
+* Add explanation so far to file structure finder exceptions {pull}38191[#38191] (issue: {issue}29821[#29821])
 
 SQL::
-* SQL: Generate relevant error message when grouping functions are not used in GROUP BY {pull}38017[#38017] (issue: {issue}37952[#37952])
-* SQL: Skip the nested and object field types in case of an ODBC request {pull}37948[#37948] (issue: {issue}37801[#37801])
-* SQL: Describe aliases as views {pull}37496[#37496] (issue: {issue}37422[#37422])
+* Generate relevant error message when grouping functions are not used in GROUP BY {pull}38017[#38017] (issue: {issue}37952[#37952])
+* Skip the nested and object field types in case of an ODBC request {pull}37948[#37948] (issue: {issue}37801[#37801])
+* Describe aliases as views {pull}37496[#37496] (issue: {issue}37422[#37422])
 
 Security::
 * Cleanup construction of interceptors {pull}38294[#38294]
@@ -48,22 +50,22 @@ Geo::
 * Geo: Do not normalize the longitude with value -180 for Lucene shapes {pull}37299[#37299] (issue: {issue}37297[#37297])
 
 Machine Learning::
-* ML: Fix error race condition on stop _all datafeeds and close _all jobs {pull}38113[#38113] (issue: {issue}37959[#37959])
-* ML: Update ML results mappings on process start {pull}37706[#37706] (issue: {issue}37607[#37607])
+* Fix error race condition on stop _all datafeeds and close _all jobs {pull}38113[#38113] (issue: {issue}37959[#37959])
+* Update ML results mappings on process start {pull}37706[#37706] (issue: {issue}37607[#37607])
 
 Network::
 * Reload SSL context on file change for LDAP {pull}36937[#36937] (issues: {issue}30509[#30509], {issue}36923[#36923])
 
 SQL::
-* SQL: Prevent grouping over grouping functions {pull}38649[#38649] (issue: {issue}38308[#38308])
-* SQL: Relax StackOverflow circuit breaker for constants {pull}38572[#38572] (issue: {issue}38571[#38571])
-* SQL: Fix issue with IN not resolving to underlying keyword field {pull}38440[#38440] (issue: {issue}38424[#38424])
-* SQL: change the Intervals milliseconds precision to 3 digits {pull}38297[#38297] (issue: {issue}37423[#37423])
-* SQL: Added SSL configuration options tests {pull}37875[#37875] (issue: {issue}37711[#37711])
-* SQL: Fix casting from date to numeric type to use millis {pull}37869[#37869] (issue: {issue}37655[#37655])
-* SQL: fix object extraction from sources {pull}37502[#37502] (issue: {issue}37364[#37364])
-* SQL: Fix bug regarding alias fields with dots {pull}37279[#37279] (issue: {issue}37224[#37224])
-* SQL: Fix issue with complex expression as args of PERCENTILE/_RANK {pull}37102[#37102] (issue: {issue}37099[#37099])
+* Prevent grouping over grouping functions {pull}38649[#38649] (issue: {issue}38308[#38308])
+* Relax StackOverflow circuit breaker for constants {pull}38572[#38572] (issue: {issue}38571[#38571])
+* Fix issue with IN not resolving to underlying keyword field {pull}38440[#38440] (issue: {issue}38424[#38424])
+* Change the Intervals milliseconds precision to 3 digits {pull}38297[#38297] (issue: {issue}37423[#37423])
+* Added SSL configuration options tests {pull}37875[#37875] (issue: {issue}37711[#37711])
+* Fix casting from date to numeric type to use millis {pull}37869[#37869] (issue: {issue}37655[#37655])
+* Fix object extraction from sources {pull}37502[#37502] (issue: {issue}37364[#37364])
+* Fix bug regarding alias fields with dots {pull}37279[#37279] (issue: {issue}37224[#37224])
+* Fix issue with complex expression as args of PERCENTILE/_RANK {pull}37102[#37102] (issue: {issue}37099[#37099])
 
 Search::
 * Use executor `SAME` to handle search related handlers {pull}37427[#37427] (issues: {issue}33732[#33732], {issue}37392[#37392])

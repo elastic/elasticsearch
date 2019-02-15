@@ -166,9 +166,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             followerSettingsVersion = Math.max(followerSettingsVersion, foundFollowerSettingsVersion);
         }
 
-        assertThat(followerMaxSeqNo, greaterThanOrEqualTo(1));
-        assertThat(followerMappingVersion, greaterThanOrEqualTo(1));
-        assertThat(followerSettingsVersion, greaterThanOrEqualTo(1));
+        assertThat(followerMaxSeqNo, greaterThan(0));
+        assertThat(followerMappingVersion, greaterThan(0));
+        assertThat(followerSettingsVersion, greaterThan(0));
     }
 
     protected static void verifyAutoFollowMonitoring() throws IOException {

@@ -55,7 +55,7 @@ public class ScoreScriptUtils {
      */
     public static final class CosineSimilarity {
         final double queryVectorMagnitude;
-        List<Number> queryVector;
+        final List<Number> queryVector;
 
         // calculate queryVectorMagnitude once per query execution
         public CosineSimilarity(List<Number> queryVector) {
@@ -110,8 +110,8 @@ public class ScoreScriptUtils {
      * A user will call `dotProductSparse(params.queryVector, doc['my_vector'])`
      */
     public static final class DotProductSparse {
-        double[] queryValues;
-        int[] queryDims;
+        final double[] queryValues;
+        final int[] queryDims;
 
         // prepare queryVector once per script execution
         // queryVector represents a map of dimensions to values
@@ -152,9 +152,9 @@ public class ScoreScriptUtils {
      * A user will call `cosineSimilaritySparse(params.queryVector, doc['my_vector'])`
      */
     public static final class CosineSimilaritySparse {
-        double[] queryValues;
-        int[] queryDims;
-        double queryVectorMagnitude;
+        final double[] queryValues;
+        final int[] queryDims;
+        final double queryVectorMagnitude;
 
         // prepare queryVector once per script execution
         public CosineSimilaritySparse(Map<String, Number> queryVector) {

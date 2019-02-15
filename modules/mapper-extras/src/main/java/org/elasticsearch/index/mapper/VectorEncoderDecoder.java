@@ -38,7 +38,7 @@ public final class VectorEncoderDecoder {
      *          and may be over-allocated
      * @return BytesRef
      */
-    static BytesRef encodeSparseVector(int[] dims, float[] values, int dimCount) {
+    public static BytesRef encodeSparseVector(int[] dims, float[] values, int dimCount) {
         // 1. Sort dims and values
         sortSparseDimsValues(dims, values, dimCount);
         byte[] buf = new byte[dimCount * (INT_BYTES + SHORT_BYTES)];

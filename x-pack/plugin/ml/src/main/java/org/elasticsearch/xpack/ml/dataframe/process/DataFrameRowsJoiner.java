@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 
@@ -105,7 +106,11 @@ class DataFrameRowsJoiner {
             bulkRequest.add(indexRequest);
         }
         if (bulkRequest.numberOfActions() > 0) {
-            BulkResponse bulkResponse = client.execute(BulkAction.INSTANCE, bulkRequest).actionGet();
+            BulkResponse bulkResponse =
+                ClientHelper.executeWithHeaders(dataExtractor.getHeaders(),
+                    ClientHelper.ML_ORIGIN,
+                    client,
+                    () -> client.execute(BulkAction.INSTANCE, bulkRequest).actionGet());
             if (bulkResponse.hasFailures()) {
                 LOGGER.error("Failures while writing data frame");
                 // TODO Better error handling

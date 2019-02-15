@@ -27,7 +27,9 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsFields;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
@@ -57,6 +59,10 @@ public class DataFrameDataExtractor {
         this.context = Objects.requireNonNull(context);
         hasNext = true;
         searchHasShardFailure = false;
+    }
+
+    public Map<String, String> getHeaders() {
+        return Collections.unmodifiableMap(context.headers);
     }
 
     public boolean hasNext() {

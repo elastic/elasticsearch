@@ -65,7 +65,7 @@ exactly the same field as the `user_name` field in the `tweet` type, and both
 `user_name` fields must have the same mapping (definition) in both types.
 
 This can lead to frustration when, for example, you want `deleted` to be a
-`date` field in one type and a `boolean` field in another type in the same
+`date` field in one type and a `boolean` field is another type in the same
 index.
 
 On top of that, storing different entities that have few or no fields in

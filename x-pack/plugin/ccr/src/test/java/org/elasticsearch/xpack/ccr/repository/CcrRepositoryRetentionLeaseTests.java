@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
+import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.same;
@@ -60,13 +61,8 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final ShardId followerShardId = new ShardId(new Index("follower-index-name", "follower-index-uuid"), 0);
         final ShardId leaderShardId = new ShardId(new Index("leader-index-name", "leader-index-uuid"), 0);
 
-        final String retentionLeaseId = CcrRetentionLeases.retentionLeaseId(
-                "local-cluster",
-                "remote-cluster",
-                followerShardId.getIndex().getName(),
-                followerShardId.getIndex().getUUID(),
-                leaderShardId.getIndex().getName(),
-                leaderShardId.getIndex().getUUID());
+        final String retentionLeaseId =
+                retentionLeaseId("local-cluster", followerShardId.getIndex(), "remote-cluster", leaderShardId.getIndex());
 
         // simulate that the the retention lease already exists on the leader, and verify that we attempt to renew it
         final Client remoteClient = mock(Client.class);
@@ -118,13 +114,8 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final ShardId followerShardId = new ShardId(new Index("follower-index-name", "follower-index-uuid"), 0);
         final ShardId leaderShardId = new ShardId(new Index("leader-index-name", "leader-index-uuid"), 0);
 
-        final String retentionLeaseId = CcrRetentionLeases.retentionLeaseId(
-                "local-cluster",
-                "remote-cluster",
-                followerShardId.getIndex().getName(),
-                followerShardId.getIndex().getUUID(),
-                leaderShardId.getIndex().getName(),
-                leaderShardId.getIndex().getUUID());
+        final String retentionLeaseId =
+                retentionLeaseId("local-cluster", followerShardId.getIndex(), "remote-cluster", leaderShardId.getIndex());
 
         // simulate that the the retention lease already exists on the leader, expires before we renew, and verify that we attempt to add it
         final Client remoteClient = mock(Client.class);

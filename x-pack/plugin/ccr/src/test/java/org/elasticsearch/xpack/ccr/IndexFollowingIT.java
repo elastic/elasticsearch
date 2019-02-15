@@ -57,6 +57,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
@@ -1011,11 +1012,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
                     final String retentionLeaseId = retentionLeaseId(
                             getFollowerCluster().getClusterName(),
+                            new Index("index2", followerUUID),
                             getLeaderCluster().getClusterName(),
-                            "index2",
-                            followerUUID,
-                            "index1",
-                            leaderUUID);
+                            new Index("index1", leaderUUID));
 
                     for (final ObjectCursor<IndexShardRoutingTable> shardRoutingTable
                             : leaderRoutingTable.index("index1").shards().values()) {

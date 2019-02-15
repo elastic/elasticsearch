@@ -307,8 +307,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         // TODO: Add timeouts to network calls / the restore process.
         createEmptyStore(indexShard, shardId);
 
-        final String followerIndexName = indexShard.shardId().getIndex().getName();
-        final String followerUUID = indexShard.shardId().getIndex().getUUID();
         final Map<String, String> ccrMetaData = indexShard.indexSettings().getIndexMetaData().getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         final String leaderIndexName = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
         final String leaderUUID = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
@@ -318,7 +316,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         final Client remoteClient = getRemoteClusterClient();
 
         final String retentionLeaseId =
-                retentionLeaseId(localClusterName, remoteClusterAlias, followerIndexName, followerUUID, leaderIndexName, leaderUUID);
+                retentionLeaseId(localClusterName, indexShard.shardId().getIndex(), remoteClusterAlias, leaderIndex);
 
         acquireRetentionLeaseOnLeader(shardId, retentionLeaseId, leaderShardId, remoteClient);
 

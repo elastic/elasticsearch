@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -330,11 +331,9 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                         currentRetentionLeases.leases().iterator().next();
                 final String expectedRetentionLeaseId = retentionLeaseId(
                         getFollowerCluster().getClusterName(),
+                        new Index(followerIndex, followerUUID),
                         getLeaderCluster().getClusterName(),
-                        followerIndex,
-                        followerUUID,
-                        leaderIndex,
-                        leaderUUID);
+                        new Index(leaderIndex, leaderUUID));
                 assertThat(retentionLease.id(), equalTo(expectedRetentionLeaseId));
                 retentionLeases.add(currentRetentionLeases);
             }
@@ -393,11 +392,9 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
     private String getRetentionLeaseId(String followerIndex, String followerUUID, String leaderIndex, String leaderUUID) {
         return retentionLeaseId(
                             getFollowerCluster().getClusterName(),
+                            new Index(followerIndex, followerUUID),
                             getLeaderCluster().getClusterName(),
-                            followerIndex,
-                            followerUUID,
-                            leaderIndex,
-                            leaderUUID);
+                            new Index(leaderIndex, leaderUUID));
     }
 
     private void assertExpectedDocument(final String followerIndex, final int value) {

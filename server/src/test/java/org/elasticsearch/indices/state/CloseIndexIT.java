@@ -20,9 +20,11 @@ package org.elasticsearch.indices.state;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -304,6 +306,25 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsOpened(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(),
             indexer.totalIndexedDocs());
+    }
+
+    public void testCloseIndexWaitForActiveShards() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0) // no replicas to avoid recoveries that could fail the index closing
+            .build());
+
+        final int nbDocs = randomIntBetween(0, 50);
+        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
+            .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i)).collect(toList()));
+        ensureGreen(indexName);
+
+        final CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose(indexName).get();
+        assertThat(client().admin().cluster().prepareHealth(indexName).get().getStatus(), is(ClusterHealthStatus.GREEN));
+        assertTrue(closeIndexResponse.isAcknowledged());
+        assertTrue(closeIndexResponse.isShardsAcknowledged());
+        assertIndexIsClosed(indexName);
     }
 
     static void assertIndexIsClosed(final String... indices) {

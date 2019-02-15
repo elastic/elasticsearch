@@ -28,6 +28,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardsObserver;
@@ -119,7 +120,7 @@ public class MetaDataIndexStateService {
      * Closing indices is a 3 steps process: it first adds a write block to every indices to close, then waits for the operations on shards
      * to be terminated and finally closes the indices by moving their state to CLOSE.
      */
-    public void closeIndices(final CloseIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
+    public void closeIndices(final CloseIndexClusterStateUpdateRequest request, final ActionListener<CloseIndexResponse> listener) {
         final Index[] concreteIndices = request.indices();
         if (concreteIndices == null || concreteIndices.length == 0) {
             throw new IllegalArgumentException("Index name is required");
@@ -139,7 +140,7 @@ public class MetaDataIndexStateService {
                 public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
                     if (oldState == newState) {
                         assert blockedIndices.isEmpty() : "List of blocked indices is not empty but cluster state wasn't changed";
-                        listener.onResponse(new AcknowledgedResponse(true));
+                        listener.onResponse(new CloseIndexResponse(true, false));
                     } else {
                         assert blockedIndices.isEmpty() == false : "List of blocked indices is empty but cluster state was changed";
                         threadPool.executor(ThreadPool.Names.MANAGEMENT)
@@ -171,7 +172,6 @@ public class MetaDataIndexStateService {
                                         public void clusterStateProcessed(final String source,
                                                                           final ClusterState oldState, final ClusterState newState) {
 
-                                            final AcknowledgedResponse response = new AcknowledgedResponse(acknowledged);
                                             final String[] indices = results.entrySet().stream()
                                                 .filter(result -> result.getValue().isAcknowledged())
                                                 .map(result -> result.getKey().getName())
@@ -185,10 +185,14 @@ public class MetaDataIndexStateService {
                                                             logger.debug("[{}] indices closed, but the operation timed out while waiting " +
                                                                 "for enough shards to be started.", Arrays.toString(indices));
                                                         }
-                                                        listener.onResponse(response);
+                                                        // acknowledged maybe be false but some indices may have been correctly closed, so
+                                                        // we maintain a kind of coherency by overriding the shardsAcknowledged value
+                                                        // (see ShardsAcknowledgedResponse constructor)
+                                                        boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
+                                                        listener.onResponse(new CloseIndexResponse(acknowledged, shardsAcked));
                                                     }, listener::onFailure);
                                             } else {
-                                                listener.onResponse(response);
+                                                listener.onResponse(new CloseIndexResponse(acknowledged, false));
                                             }
                                         }
                                     }),

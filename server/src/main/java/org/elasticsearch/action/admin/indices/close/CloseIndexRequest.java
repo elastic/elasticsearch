@@ -40,7 +40,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT; //NORELEASE Changes this to NONE to keep previous behavior
 
     public CloseIndexRequest() {
     }

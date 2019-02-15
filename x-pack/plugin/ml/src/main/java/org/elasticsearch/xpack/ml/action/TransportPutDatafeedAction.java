@@ -114,16 +114,19 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
             ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
                 response -> {
                     if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                        indicesPrivilegesBuilder.privileges("read");
                     } else {
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME, RollupSearchAction.NAME);
+                        // indices:admin/xpack/rollup/search* is less permissive than manage_rollup (the only rollup related privilege)
+                        // Opting for the least permissive check as it is the only action we need
+                        // TODO fix once rollup adjusts their privileges
+                        indicesPrivilegesBuilder.privileges("read", RollupSearchAction.NAME);
                     }
                     privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
                     client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
                 },
                 e -> {
                     if (e instanceof IndexNotFoundException) {
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                        indicesPrivilegesBuilder.privileges("read");
                         privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
                         client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
                     } else {

@@ -34,7 +34,7 @@ Identifiers however are not - as {es} is case sensitive, {es-sql} uses the recei
 
 To help differentiate between the two, through-out the documentation the SQL key words are upper-cased a convention we find increases readability and thus recommend to others.
 
-[sql-syntax-identifiers]
+[[sql-syntax-identifiers]]
 [float]
 === Identifiers
 
@@ -58,13 +58,13 @@ The first identifier from needs to quoted as otherwise it clashes with the `FROM
 
 Hence why in general, *especially* when dealing with user input it is *highly* recommended to use quotes for identifiers. It adds minimal increase to your queries and in return offers clarity and disambiguation.
 
-[sql-syntax-literals]
+[[sql-syntax-literals]]
 [float]
 === Literals (Constants)
 
 {es-sql} supports two kind of __implicitly-typed__ literals: strings and numbers.
 
-[sql-syntax-string-literals]
+[[sql-syntax-string-literals]]
 [float]
 ==== String Literals
 
@@ -90,7 +90,7 @@ Numeric literals are accepted both in decimal and scientific notation with expon
 
 Numeric literals that contain a decimal point are always interpreted as being of type `double`. Those without are considered `integer` if they fit otherwise their type is `long` (or `BIGINT` in ANSI SQL types).
 
-[sql-syntax-generic-literals]
+[[sql-syntax-generic-literals]]
 [float]
 ==== Generic Literals
 
@@ -105,7 +105,7 @@ CONVERT('10.0.0.1', IP)                     -- cast '10.0.0.1' to an IP
 
 Do note that {es-sql} provides functions that out of the box return popular literals (like `E()`) or provide dedicated parsing for certain strings.
 
-[sql-syntax-single-vs-double-quotes]
+[[sql-syntax-single-vs-double-quotes]]
 [float]
 === Single vs Double Quotes
 
@@ -125,7 +125,7 @@ SELECT "first_name" <1>
 <1> Double quotes `"` used for column and table identifiers
 <2> Single quotes `'` used for a string literal
 
-[sql-syntax-special-chars]
+[[sql-syntax-special-chars]]
 [float]
 === Special characters
 
@@ -145,7 +145,7 @@ s|Description
 |()| Parentheses are used for specific SQL commands, function declarations or to enforce precedence.
 |===
 
-[sql-syntax-operators]
+[[sql-syntax-operators]]
 [float]
 === Operators
 
@@ -204,7 +204,7 @@ s|Description
 |===
 
 
-[sql-syntax-comments]
+[[sql-syntax-comments]]
 [float]
 === Comments
 

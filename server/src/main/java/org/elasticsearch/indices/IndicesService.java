@@ -874,6 +874,9 @@ public class IndicesService extends AbstractLifecycleComponent
             final IndexMetaData metaData;
             try {
                 metaData = metaStateService.loadIndexState(index);
+                if (metaData == null) {
+                    return null;
+                }
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, " +
                     "folders will be left on disk", index), e);

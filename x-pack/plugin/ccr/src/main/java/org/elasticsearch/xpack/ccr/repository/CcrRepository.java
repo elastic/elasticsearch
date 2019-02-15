@@ -328,7 +328,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                         // we have to execute under the system context so that if security is enabled the renewal is authorized
                         threadContext.markAsSystemContext();
-                        // ignore the response, we fired the request asynchronously
                         asyncRenewRetentionLease(
                                 leaderShardId,
                                 retentionLeaseId,

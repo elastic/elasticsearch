@@ -10,3 +10,7 @@ your application to {es} 8.0.
 See also <<release-highlights>> and <<es-release-notes>>.
 
 coming[8.0.0]
+
+* <<breaking_80_mappings_changes>>
+
+include::migrate_8_0/mappings.asciidoc[]

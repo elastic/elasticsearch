@@ -62,10 +62,11 @@ public abstract class PackageTestCase extends PackagingTestCase {
 
     public void test05InstallFailsWhenJavaMissing() {
         final Shell sh = new Shell();
-        final Result java = sh.run("command -v java");
+        final Result javaHomeOutput = sh.run("echo $JAVA_HOME");
 
-        final Path originalJavaPath = Paths.get(java.stdout.trim());
-        final Path relocatedJavaPath = originalJavaPath.getParent().resolve("java.relocated");
+        final Path javaHome = Paths.get(javaHomeOutput.stdout.trim());
+        final Path originalJavaPath = javaHome.resolve("bin").resolve("java");
+        final Path relocatedJavaPath = javaHome.resolve("bin").resolve("java.relocated");
         try {
             mv(originalJavaPath, relocatedJavaPath);
             final Result installResult = runInstallCommand(distribution());

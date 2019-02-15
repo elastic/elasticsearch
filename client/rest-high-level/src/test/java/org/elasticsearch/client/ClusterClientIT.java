@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -270,7 +271,19 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(shardHealth.getRelocatingShards(), equalTo(0));
     }
 
+    private static void assertNoIndices(ClusterHealthResponse response) {
+        assertThat(response.getIndices(), equalTo(emptyMap()));
+        assertThat(response.getActivePrimaryShards(), equalTo(0));
+        assertThat(response.getNumberOfDataNodes(), equalTo(1));
+        assertThat(response.getNumberOfNodes(), equalTo(1));
+        assertThat(response.getActiveShards(), equalTo(0));
+        assertThat(response.getDelayedUnassignedShards(), equalTo(0));
+        assertThat(response.getInitializingShards(), equalTo(0));
+        assertThat(response.getUnassignedShards(), equalTo(0));
+    }
+
     public void testClusterHealthNotFoundIndex() throws IOException {
+        createIndex("index", Settings.EMPTY);
         ClusterHealthRequest request = new ClusterHealthRequest("notexisted-index");
         request.timeout("5s");
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
@@ -279,6 +292,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.isTimedOut(), equalTo(true));
         assertThat(response.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
+        assertNoIndices(response);
     }
 
 }

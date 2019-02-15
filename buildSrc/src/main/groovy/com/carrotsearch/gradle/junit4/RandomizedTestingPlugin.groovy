@@ -8,7 +8,7 @@ import org.gradle.api.tasks.TaskContainer
 class RandomizedTestingPlugin implements Plugin<Project> {
 
     void apply(Project project) {
-        def seed = setupSeed(project)
+        String seed = setupSeed(project)
         createUnitTestTask(project.tasks)
         configureAnt(project.ant, seed)
     }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -29,6 +30,8 @@ public final class SystemPrivilege extends Privilege {
         "indices:admin/seq_no/global_checkpoint_sync*", // needed for global checkpoint syncs
         RetentionLeaseSyncAction.ACTION_NAME + "*", // needed for retention lease syncs
         RetentionLeaseBackgroundSyncAction.ACTION_NAME + "*", // needed for background retention lease syncs
+        RetentionLeaseActions.Add.ACTION_NAME + "*", // needed for CCR to add retention leases
+        RetentionLeaseActions.Renew.ACTION_NAME + "*", // needed for CCR to renew retention leases
         "indices:admin/settings/update" // needed for DiskThresholdMonitor.markIndicesReadOnly
     );
 

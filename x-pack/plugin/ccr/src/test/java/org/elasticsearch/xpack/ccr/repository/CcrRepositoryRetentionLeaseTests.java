@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ccr.repository;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -32,6 +34,7 @@ import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -67,24 +70,36 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final Client remoteClient = mock(Client.class);
         final ArgumentCaptor<RetentionLeaseActions.AddRequest> addRequestCaptor =
                 ArgumentCaptor.forClass(RetentionLeaseActions.AddRequest.class);
-        when(remoteClient.execute(same(RetentionLeaseActions.Add.INSTANCE), addRequestCaptor.capture()))
-                .thenThrow(new RetentionLeaseAlreadyExistsException(retentionLeaseId));
+        doAnswer(
+                invocation -> {
+                    @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
+                            (ActionListener<RetentionLeaseActions.Response>) invocation.getArguments()[2];
+                    listener.onFailure(new RetentionLeaseAlreadyExistsException(retentionLeaseId));
+                    return null;
+                })
+                .when(remoteClient)
+                .execute(same(RetentionLeaseActions.Add.INSTANCE), addRequestCaptor.capture(), any());
         final ArgumentCaptor<RetentionLeaseActions.RenewRequest> renewRequestCaptor =
                 ArgumentCaptor.forClass(RetentionLeaseActions.RenewRequest.class);
-        final PlainActionFuture<RetentionLeaseActions.Response> response = new PlainActionFuture<>();
-        response.onResponse(new RetentionLeaseActions.Response());
-        when(remoteClient.execute(same(RetentionLeaseActions.Renew.INSTANCE), renewRequestCaptor.capture()))
-                .thenReturn(response);
+        doAnswer(
+                invocation -> {
+                    @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
+                            (ActionListener<RetentionLeaseActions.Response>) invocation.getArguments()[2];
+                    listener.onResponse(new RetentionLeaseActions.Response());
+                    return null;
+                })
+                .when(remoteClient)
+                .execute(same(RetentionLeaseActions.Renew.INSTANCE), renewRequestCaptor.capture(), any());
 
         repository.acquireRetentionLeaseOnLeader(followerShardId, retentionLeaseId, leaderShardId, remoteClient);
 
-        verify(remoteClient).execute(same(RetentionLeaseActions.Add.INSTANCE), any(RetentionLeaseActions.AddRequest.class));
+        verify(remoteClient).execute(same(RetentionLeaseActions.Add.INSTANCE), any(RetentionLeaseActions.AddRequest.class), any());
         assertThat(addRequestCaptor.getValue().getShardId(), equalTo(leaderShardId));
         assertThat(addRequestCaptor.getValue().getId(), equalTo(retentionLeaseId));
         assertThat(addRequestCaptor.getValue().getRetainingSequenceNumber(), equalTo(RETAIN_ALL));
         assertThat(addRequestCaptor.getValue().getSource(), equalTo("ccr"));
 
-        verify(remoteClient).execute(same(RetentionLeaseActions.Renew.INSTANCE), any(RetentionLeaseActions.RenewRequest.class));
+        verify(remoteClient).execute(same(RetentionLeaseActions.Renew.INSTANCE), any(RetentionLeaseActions.RenewRequest.class), any());
         assertThat(renewRequestCaptor.getValue().getShardId(), equalTo(leaderShardId));
         assertThat(renewRequestCaptor.getValue().getId(), equalTo(retentionLeaseId));
         assertThat(renewRequestCaptor.getValue().getRetainingSequenceNumber(), equalTo(RETAIN_ALL));
@@ -122,23 +137,41 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
                 ArgumentCaptor.forClass(RetentionLeaseActions.AddRequest.class);
         final PlainActionFuture<RetentionLeaseActions.Response> response = new PlainActionFuture<>();
         response.onResponse(new RetentionLeaseActions.Response());
-        when(remoteClient.execute(same(RetentionLeaseActions.Add.INSTANCE), addRequestCaptor.capture()))
-                .thenThrow(new RetentionLeaseAlreadyExistsException(retentionLeaseId))
-                .thenReturn(response);
+        final AtomicBoolean firstInvocation = new AtomicBoolean(true);
+        doAnswer(
+                invocation -> {
+                    @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
+                            (ActionListener<RetentionLeaseActions.Response>) invocation.getArguments()[2];
+                    if (firstInvocation.compareAndSet(true, false)) {
+                        listener.onFailure(new RetentionLeaseAlreadyExistsException(retentionLeaseId));
+                    } else {
+                        listener.onResponse(new RetentionLeaseActions.Response());
+                    }
+                    return null;
+                })
+                .when(remoteClient).execute(same(RetentionLeaseActions.Add.INSTANCE), addRequestCaptor.capture(), any());
         final ArgumentCaptor<RetentionLeaseActions.RenewRequest> renewRequestCaptor =
                 ArgumentCaptor.forClass(RetentionLeaseActions.RenewRequest.class);
-        when(remoteClient.execute(same(RetentionLeaseActions.Renew.INSTANCE), renewRequestCaptor.capture()))
-                .thenThrow(new RetentionLeaseNotFoundException(retentionLeaseId));
+        doAnswer(
+                invocation -> {
+                    @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
+                            (ActionListener<RetentionLeaseActions.Response>) invocation.getArguments()[2];
+                    listener.onFailure(new RetentionLeaseNotFoundException(retentionLeaseId));
+                    return null;
+                }
+        ).when(remoteClient)
+                .execute(same(RetentionLeaseActions.Renew.INSTANCE), renewRequestCaptor.capture(), any());
 
         repository.acquireRetentionLeaseOnLeader(followerShardId, retentionLeaseId, leaderShardId, remoteClient);
 
-        verify(remoteClient, times(2)).execute(same(RetentionLeaseActions.Add.INSTANCE), any(RetentionLeaseActions.AddRequest.class));
+        verify(remoteClient, times(2))
+                .execute(same(RetentionLeaseActions.Add.INSTANCE), any(RetentionLeaseActions.AddRequest.class), any());
         assertThat(addRequestCaptor.getValue().getShardId(), equalTo(leaderShardId));
         assertThat(addRequestCaptor.getValue().getId(), equalTo(retentionLeaseId));
         assertThat(addRequestCaptor.getValue().getRetainingSequenceNumber(), equalTo(RETAIN_ALL));
         assertThat(addRequestCaptor.getValue().getSource(), equalTo("ccr"));
 
-        verify(remoteClient).execute(same(RetentionLeaseActions.Renew.INSTANCE), any(RetentionLeaseActions.RenewRequest.class));
+        verify(remoteClient).execute(same(RetentionLeaseActions.Renew.INSTANCE), any(RetentionLeaseActions.RenewRequest.class), any());
         assertThat(renewRequestCaptor.getValue().getShardId(), equalTo(leaderShardId));
         assertThat(renewRequestCaptor.getValue().getId(), equalTo(retentionLeaseId));
         assertThat(renewRequestCaptor.getValue().getRetainingSequenceNumber(), equalTo(RETAIN_ALL));

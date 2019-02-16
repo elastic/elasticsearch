@@ -80,6 +80,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     private static final ParseField SORTMODE_FIELD = new ParseField("mode", "sort_mode");
     private static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
+    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
 
     private final String fieldName;
     private final List<GeoPoint> points = new ArrayList<>();
@@ -509,6 +510,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     nestedPath = parser.text();
                 } else if (IGNORE_UNMAPPED.match(currentName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
+                } else if (DISTANCE_TYPE_FIELD.match(currentName, parser.getDeprecationHandler())) {
+                    deprecationLogger.deprecated("[distance_type] has been deprecated");
                 } else if (token == Token.VALUE_STRING){
                     if (fieldName != null && fieldName.equals(currentName) == false) {
                         throw new ParsingException(

@@ -216,7 +216,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    \"lon\" : -51.94128329747579\n" +
                 "  } ],\n" +
                 "  \"unit\" : \"m\",\n" +
-                "  \"distance_type\" : \"arc\",\n" +
                 "  \"mode\" : \"SUM\"\n" +
                 "}";
         try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
@@ -227,13 +226,12 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             assertEquals("sort_mode [sum] isn't supported for sorting by geo distance", e.getMessage());
         }
     }
-
+    
     public void testGeoDistanceSortCanBeParsedFromGeoHash() throws IOException {
         String json = "{\n" +
                 "    \"VDcvDuFjE\" : [ \"7umzzv8eychg\", \"dmdgmt5z13uw\", " +
                 "    \"ezu09wxw6v4c\", \"kc7s3515p6k6\", \"jgeuvjwrmfzn\", \"kcpcfj7ruyf8\" ],\n" +
                 "    \"unit\" : \"m\",\n" +
-                "    \"distance_type\" : \"arc\",\n" +
                 "    \"mode\" : \"MAX\",\n" +
                 "    \"nested\" : {\n" +
                 "      \"filter\" : {\n" +

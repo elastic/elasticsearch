@@ -190,6 +190,13 @@ public class RetentionLeases implements ToXContent, Writeable {
         return builder;
     }
 
+    /**
+     * Parses a retention leases collection from {@link org.elasticsearch.common.xcontent.XContent}. This method assumes that the retention
+     * leases were converted to {@link org.elasticsearch.common.xcontent.XContent} via {@link #toXContent(XContentBuilder, Params)}.
+     *
+     * @param parser the parser
+     * @return a retention leases collection
+     */
     public static RetentionLeases fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }

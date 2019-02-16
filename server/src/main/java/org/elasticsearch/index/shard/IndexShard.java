@@ -2006,6 +2006,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.updateRetentionLeasesOnReplica(retentionLeases);
     }
 
+    /**
+     * Persists the current retention leases to their dedicated state file.
+     *
+     * @throws WriteStateException if an exception occurs writing the state file
+     */
     public void persistRetentionLeases() throws WriteStateException {
         verifyNotClosed();
         replicationTracker.persistRetentionLeases(path);

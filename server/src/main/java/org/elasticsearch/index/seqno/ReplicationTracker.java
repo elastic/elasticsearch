@@ -320,6 +320,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
     }
 
+    /**
+     * Persists the current retention leases to their dedicated state file.
+     *
+     * @param shardPath the path for the shard this replication tracker belong to
+     * @throws WriteStateException if an exception occurs writing the state file
+     */
     public synchronized void persistRetentionLeases(final ShardPath shardPath) throws WriteStateException {
         logger.trace("persisting retention leases [{}]", retentionLeases);
         RetentionLeases.FORMAT.writeAndCleanup(retentionLeases, shardPath.getShardStatePath());

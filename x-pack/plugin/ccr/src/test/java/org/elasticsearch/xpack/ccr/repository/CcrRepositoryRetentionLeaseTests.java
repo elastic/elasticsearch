@@ -140,7 +140,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final PlainActionFuture<RetentionLeaseActions.Response> response = new PlainActionFuture<>();
         response.onResponse(new RetentionLeaseActions.Response());
         doAnswer(
-                new Answer() {
+                new Answer<Void>() {
 
                     final AtomicBoolean firstInvocation = new AtomicBoolean(true);
 

@@ -247,6 +247,7 @@ public class RetentionLeases implements ToXContent, Writeable {
      * @return the map from retention lease ID to retention lease
      */
     private static Map<String, RetentionLease> toMap(final Collection<RetentionLease> leases) {
+        // use a linked hash map to preserve order
         return leases.stream()
                 .collect(Collectors.toMap(
                         RetentionLease::id,

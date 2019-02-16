@@ -23,6 +23,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.mockito.ArgumentCaptor;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -71,9 +73,9 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final ArgumentCaptor<RetentionLeaseActions.AddRequest> addRequestCaptor =
                 ArgumentCaptor.forClass(RetentionLeaseActions.AddRequest.class);
         doAnswer(
-                invocation -> {
+                invocationOnMock -> {
                     @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
-                            (ActionListener<RetentionLeaseActions.Response>) invocation.getArguments()[2];
+                            (ActionListener<RetentionLeaseActions.Response>) invocationOnMock.getArguments()[2];
                     listener.onFailure(new RetentionLeaseAlreadyExistsException(retentionLeaseId));
                     return null;
                 })
@@ -82,9 +84,9 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final ArgumentCaptor<RetentionLeaseActions.RenewRequest> renewRequestCaptor =
                 ArgumentCaptor.forClass(RetentionLeaseActions.RenewRequest.class);
         doAnswer(
-                invocation -> {
+                invocationOnMock -> {
                     @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
-                            (ActionListener<RetentionLeaseActions.Response>) invocation.getArguments()[2];
+                            (ActionListener<RetentionLeaseActions.Response>) invocationOnMock.getArguments()[2];
                     listener.onResponse(new RetentionLeaseActions.Response());
                     return null;
                 })
@@ -137,25 +139,31 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
                 ArgumentCaptor.forClass(RetentionLeaseActions.AddRequest.class);
         final PlainActionFuture<RetentionLeaseActions.Response> response = new PlainActionFuture<>();
         response.onResponse(new RetentionLeaseActions.Response());
-        final AtomicBoolean firstInvocation = new AtomicBoolean(true);
         doAnswer(
-                invocation -> {
-                    @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
-                            (ActionListener<RetentionLeaseActions.Response>) invocation.getArguments()[2];
-                    if (firstInvocation.compareAndSet(true, false)) {
-                        listener.onFailure(new RetentionLeaseAlreadyExistsException(retentionLeaseId));
-                    } else {
-                        listener.onResponse(new RetentionLeaseActions.Response());
+                new Answer() {
+
+                    final AtomicBoolean firstInvocation = new AtomicBoolean(true);
+
+                    @Override
+                    public Object answer(final InvocationOnMock invocationOnMock) {
+                        @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
+                                (ActionListener<RetentionLeaseActions.Response>) invocationOnMock.getArguments()[2];
+                        if (firstInvocation.compareAndSet(true, false)) {
+                            listener.onFailure(new RetentionLeaseAlreadyExistsException(retentionLeaseId));
+                        } else {
+                            listener.onResponse(new RetentionLeaseActions.Response());
+                        }
+                        return null;
                     }
-                    return null;
+
                 })
                 .when(remoteClient).execute(same(RetentionLeaseActions.Add.INSTANCE), addRequestCaptor.capture(), any());
         final ArgumentCaptor<RetentionLeaseActions.RenewRequest> renewRequestCaptor =
                 ArgumentCaptor.forClass(RetentionLeaseActions.RenewRequest.class);
         doAnswer(
-                invocation -> {
+                invocationOnMock -> {
                     @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
-                            (ActionListener<RetentionLeaseActions.Response>) invocation.getArguments()[2];
+                            (ActionListener<RetentionLeaseActions.Response>) invocationOnMock.getArguments()[2];
                     listener.onFailure(new RetentionLeaseNotFoundException(retentionLeaseId));
                     return null;
                 }

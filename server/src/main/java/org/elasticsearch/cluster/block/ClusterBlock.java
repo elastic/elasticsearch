@@ -48,7 +48,7 @@ public class ClusterBlock implements Streamable, Writeable, ToXContentFragment {
 
     public ClusterBlock(StreamInput in) throws IOException {
         id = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
             uuid = in.readOptionalString();
         } else {
             uuid = null;
@@ -155,7 +155,7 @@ public class ClusterBlock implements Streamable, Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             out.writeOptionalString(uuid);
         }
         out.writeString(description);

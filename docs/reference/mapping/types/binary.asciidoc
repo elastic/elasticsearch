@@ -10,14 +10,12 @@ stored by default and is not searchable:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "name": {
-          "type": "text"
-        },
-        "blob": {
-          "type": "binary"
-        }
+    "properties": {
+      "name": {
+        "type": "text"
+      },
+      "blob": {
+        "type": "binary"
       }
     }
   }

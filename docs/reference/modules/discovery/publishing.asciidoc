@@ -34,9 +34,9 @@ which defaults to `90s`. If a node has still not successfully applied the
 cluster state update within this time then it is considered to have failed and
 is removed from the cluster.
 
-NOTE: Elasticsearch is a peer to peer based system, in which nodes communicate
-with one another directly. The high-throughput APIs (index, delete, search) do
-not normally interact with the master node. The responsibility of the master
-node is to maintain the global cluster state and reassign shards when nodes join or leave
-the cluster. Each time the cluster state is changed, the
-new state is published to all nodes in the cluster as described above.
+NOTE: {es} is a peer to peer based system, in which nodes communicate with one
+another directly. The high-throughput APIs (index, delete, search) do not
+normally interact with the master node. The responsibility of the master node
+is to maintain the global cluster state and reassign shards when nodes join or
+leave the cluster. Each time the cluster state is changed, the new state is
+published to all nodes in the cluster as described above.

@@ -225,7 +225,7 @@ public class MetaDataIndexStateService {
 
         // If the cluster is in a mixed version that does not support the shard close action,
         // we use the previous way to close indices and directly close them without sanity checks
-        final boolean useDirectClose = currentState.nodes().getMinNodeVersion().before(Version.V_7_0_0);
+        final boolean useDirectClose = currentState.nodes().getMinNodeVersion().before(Version.V_6_7_0);
 
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());

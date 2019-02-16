@@ -30,7 +30,7 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
 
     public ModelPlot createTestInstance(String jobId) {
         ModelPlot modelPlot =
-                new ModelPlot(jobId, new Date(randomLong()), randomNonNegativeLong(), randomInt());
+                new ModelPlot(jobId, randomDate(), randomNonNegativeLong(), randomInt());
         if (randomBoolean()) {
             modelPlot.setByFieldName(randomAlphaOfLengthBetween(1, 20));
         }
@@ -73,14 +73,16 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
 
     public void testEquals_GivenSameObject() {
         ModelPlot modelPlot =
-                new ModelPlot(randomAlphaOfLength(15), new Date(randomLong()), randomNonNegativeLong(), randomInt());
+                new ModelPlot(randomAlphaOfLength(15),
+                    randomDate(), randomNonNegativeLong(), randomInt());
 
         assertTrue(modelPlot.equals(modelPlot));
     }
 
     public void testEquals_GivenObjectOfDifferentClass() {
         ModelPlot modelPlot =
-                new ModelPlot(randomAlphaOfLength(15), new Date(randomLong()), randomNonNegativeLong(), randomInt());
+                new ModelPlot(randomAlphaOfLength(15),
+                    randomDate(), randomNonNegativeLong(), randomInt());
 
         assertFalse(modelPlot.equals("a string"));
     }

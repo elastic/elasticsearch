@@ -59,6 +59,7 @@ import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -309,6 +310,15 @@ public final class NodeEnvironment  implements Closeable {
             if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
                 ensureAtomicMoveSupported(nodePaths);
             }
+
+            if (DiscoveryNode.isDataNode(settings) == false) {
+                if (DiscoveryNode.isMasterNode(settings) == false) {
+                    ensureNoIndexMetaData(nodePaths);
+                }
+
+                ensureNoShardData(nodePaths);
+            }
+
             success = true;
         } finally {
             if (success == false) {
@@ -1030,6 +1040,60 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 
+    private void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
+        List<Path> shardDataPaths = collectIndexSubPaths(nodePaths, this::isShardPath);
+        if (shardDataPaths.isEmpty() == false) {
+            throw new IllegalStateException("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false, but has shard data: "
+                + shardDataPaths);
+        }
+    }
+
+    private void ensureNoIndexMetaData(final NodePath[] nodePaths) throws IOException {
+        List<Path> indexMetaDataPaths = collectIndexSubPaths(nodePaths, this::isIndexMetaDataPath);
+        if (indexMetaDataPaths.isEmpty() == false) {
+            throw new IllegalStateException("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false and "
+                + Node.NODE_MASTER_SETTING.getKey()
+                + "=false, but has index metadata: "
+                + indexMetaDataPaths);
+        }
+    }
+
+    private List<Path> collectIndexSubPaths(NodePath[] nodePaths, Predicate<Path> subPathPredicate) throws IOException {
+        List<Path> indexSubPaths = new ArrayList<>();
+        for (NodePath nodePath : nodePaths) {
+            Path indicesPath = nodePath.indicesPath;
+            if (Files.isDirectory(indicesPath)) {
+                try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(indicesPath)) {
+                    for (Path indexPath : indexStream) {
+                        if (Files.isDirectory(indexPath)) {
+                            try (Stream<Path> shardStream = Files.list(indexPath)) {
+                                shardStream.filter(subPathPredicate)
+                                    .map(Path::toAbsolutePath)
+                                    .forEach(indexSubPaths::add);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return indexSubPaths;
+    }
+
+    private boolean isShardPath(Path path) {
+        return Files.isDirectory(path)
+            && path.getFileName().toString().chars().allMatch(Character::isDigit);
+    }
+
+    private boolean isIndexMetaDataPath(Path path) {
+        return Files.isDirectory(path)
+            && path.getFileName().toString().equals(MetaDataStateFormat.STATE_DIR_NAME);
+    }
+
     /**
      * Resolve the custom path for a index's shard.
      * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
@@ -1140,3 +1204,4 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 }
+

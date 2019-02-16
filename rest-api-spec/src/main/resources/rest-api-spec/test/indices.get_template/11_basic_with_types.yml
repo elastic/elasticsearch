@@ -1,6 +1,7 @@
 setup:
   - do:
       indices.put_template:
+        include_type_name: true
         name: test
         body:
           index_patterns: test-*
@@ -18,6 +19,7 @@ setup:
 
   - do:
       indices.get_template:
+        include_type_name: true
         name: test
 
   - match: {test.index_patterns: ["test-*"]}
@@ -38,6 +40,7 @@ setup:
 
   - do:
       indices.get_template:
+        include_type_name: true
         name: test_no_mappings
 
   - match: {test_no_mappings.index_patterns: ["test-*"]}

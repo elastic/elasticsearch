@@ -26,7 +26,6 @@ import java.time.temporal.TemporalAmount;
 import java.util.Locale;
 
 import static java.lang.String.format;
-import static org.hamcrest.core.StringStartsWith.startsWith;
 
 public class ExpressionTests extends ESTestCase {
 
@@ -36,7 +35,7 @@ public class ExpressionTests extends ESTestCase {
         Expression lt = parser.createExpression("LEFT()");
         assertEquals(UnresolvedFunction.class, lt.getClass());
         UnresolvedFunction uf = (UnresolvedFunction) lt;
-        assertEquals("LEFT", uf.functionName());
+        assertEquals("LEFT()", uf.sourceText());
     }
 
     public void testLiteralBoolean() {
@@ -87,7 +86,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testLiteralLongPositive() {
-        Expression lt = parser.createExpression("+" + String.valueOf(Long.MAX_VALUE));
+        Expression lt = parser.createExpression("+" + Long.MAX_VALUE);
         assertEquals(Literal.class, lt.getClass());
         Literal l = (Literal) lt;
         assertEquals(Long.MAX_VALUE, l.value());
@@ -128,7 +127,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("Number [1.9976931348623157e+308] is too large", ex.getErrorMessage());
     }
 
-    public void testExactDayTimeInterval() throws Exception {
+    public void testExactDayTimeInterval() {
         int number = randomIntBetween(-100, 100);
         assertEquals(Duration.ofDays(number), intervalOf("INTERVAL " + number + " DAY"));
         number = randomIntBetween(-100, 100);
@@ -139,19 +138,19 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Duration.ofSeconds(number), intervalOf("INTERVAL " + number + " SECOND"));
     }
 
-    public void testExactYearMonthInterval() throws Exception {
+    public void testExactYearMonthInterval() {
         int number = randomIntBetween(-100, 100);
         assertEquals(Period.ofYears(number), intervalOf("INTERVAL " + number + " YEAR"));
         number = randomIntBetween(-100, 100);
         assertEquals(Period.ofMonths(number), intervalOf("INTERVAL " + number + " MONTH"));
     }
 
-    public void testStringInterval() throws Exception {
+    public void testStringInterval() {
         int randomDay = randomInt(1024);
         int randomHour = randomInt(23);
         int randomMinute = randomInt(59);
         int randomSecond = randomInt(59);
-        int randomMilli = randomInt(999999999);
+        int randomMilli = randomInt(999);
 
         String value = format(Locale.ROOT, "INTERVAL '%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
                 randomMilli);
@@ -159,12 +158,12 @@ public class ExpressionTests extends ESTestCase {
                 .plusMillis(randomMilli), intervalOf(value));
     }
 
-    public void testNegativeStringInterval() throws Exception {
+    public void testNegativeStringInterval() {
         int randomDay = randomInt(1024);
         int randomHour = randomInt(23);
         int randomMinute = randomInt(59);
         int randomSecond = randomInt(59);
-        int randomMilli = randomInt(999999999);
+        int randomMilli = randomInt(999);
 
         String value = format(Locale.ROOT, "INTERVAL -'%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
                 randomMilli);
@@ -182,10 +181,10 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testLiteralTimesLiteral() {
-        Expression expr = parser.createExpression("10*2");
+        Expression expr = parser.createExpression("10 *2");
         assertEquals(Mul.class, expr.getClass());
         Mul mul = (Mul) expr;
-        assertEquals("10 * 2", mul.name());
+        assertEquals("10 *2", mul.sourceText());
         assertEquals(DataType.INTEGER, mul.dataType());
     }
 
@@ -193,39 +192,46 @@ public class ExpressionTests extends ESTestCase {
         Expression expr = parser.createExpression("PI()*2");
         assertEquals(Mul.class, expr.getClass());
         Mul mul = (Mul) expr;
-        assertEquals("(PI) * 2", mul.name());
+        assertEquals("PI()*2", mul.sourceText());
+    }
+
+    public void testNegativeLiteral() {
+        Expression expr = parser.createExpression("- 6");
+        assertEquals(Literal.class, expr.getClass());
+        assertEquals("- 6", expr.sourceText());
     }
 
     public void testComplexArithmetic() {
-        Expression expr = parser.createExpression("-(((a-2)-(-3))+b)");
+        String sql = "-(((a-2)-(-3))+b)";
+        Expression expr = parser.createExpression(sql);
         assertEquals(Neg.class, expr.getClass());
         Neg neg = (Neg) expr;
-        assertThat(neg.name(), startsWith("-(((a) - 2) - -3) + (b)#"));
+        assertEquals(sql, neg.sourceText());
         assertEquals(1, neg.children().size());
         assertEquals(Add.class, neg.children().get(0).getClass());
         Add add = (Add) neg.children().get(0);
-        assertEquals("(((a) - 2) - -3) + (b)", add.name());
+        assertEquals("((a-2)-(-3))+b", add.sourceText());
         assertEquals(2, add.children().size());
         assertEquals("?b", add.children().get(1).toString());
         assertEquals(Sub.class, add.children().get(0).getClass());
         Sub sub1 = (Sub) add.children().get(0);
-        assertEquals("((a) - 2) - -3", sub1.name());
+        assertEquals("(a-2)-(-3)", sub1.sourceText());
         assertEquals(2, sub1.children().size());
         assertEquals(Literal.class, sub1.children().get(1).getClass());
-        assertEquals("-3", ((Literal) sub1.children().get(1)).name());
+        assertEquals("-3", sub1.children().get(1).sourceText());
         assertEquals(Sub.class, sub1.children().get(0).getClass());
         Sub sub2 = (Sub) sub1.children().get(0);
         assertEquals(2, sub2.children().size());
         assertEquals("?a", sub2.children().get(0).toString());
         assertEquals(Literal.class, sub2.children().get(1).getClass());
-        assertEquals("2", ((Literal) sub2.children().get(1)).name());
+        assertEquals("2", sub2.children().get(1).sourceText());
     }
 
     public void testEquals() {
         Expression expr = parser.createExpression("a = 10");
         assertEquals(Equals.class, expr.getClass());
         Equals eq = (Equals) expr;
-        assertEquals("(a) == 10", eq.name());
+        assertEquals("a = 10", eq.sourceText());
         assertEquals(2, eq.children().size());
     }
 
@@ -233,7 +239,7 @@ public class ExpressionTests extends ESTestCase {
         Expression expr = parser.createExpression("a <=> 10");
         assertEquals(NullEquals.class, expr.getClass());
         NullEquals nullEquals = (NullEquals) expr;
-        assertEquals("(a) <=> 10", nullEquals.name());
+        assertEquals("a <=> 10", nullEquals.sourceText());
         assertEquals(2, nullEquals.children().size());
     }
 
@@ -241,12 +247,12 @@ public class ExpressionTests extends ESTestCase {
         Expression expr = parser.createExpression("a != 10");
         assertEquals(NotEquals.class, expr.getClass());
         NotEquals neq = (NotEquals) expr;
-        assertEquals("(a) != 10", neq.name());
+        assertEquals("a != 10", neq.sourceText());
         assertEquals(2, neq.children().size());
     }
 
     public void testCastWithUnquotedDataType() {
-        Expression expr = parser.createExpression("CAST(10*2 AS long)");
+        Expression expr = parser.createExpression("CAST(10* 2 AS long)");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
         assertEquals(DataType.INTEGER, cast.from());
@@ -254,7 +260,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(DataType.LONG, cast.dataType());
         assertEquals(Mul.class, cast.field().getClass());
         Mul mul = (Mul) cast.field();
-        assertEquals("10 * 2", mul.name());
+        assertEquals("10* 2", mul.sourceText());
         assertEquals(DataType.INTEGER, mul.dataType());
     }
 
@@ -267,13 +273,44 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(DataType.LONG, cast.dataType());
         assertEquals(Mul.class, cast.field().getClass());
         Mul mul = (Mul) cast.field();
-        assertEquals("10 * 2", mul.name());
+        assertEquals("10*2", mul.sourceText());
         assertEquals(DataType.INTEGER, mul.dataType());
     }
 
     public void testCastWithInvalidDataType() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CAST(1 AS INVALID)"));
-        assertEquals("line 1:12: Does not recognize type invalid", ex.getMessage());
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CAST(1 AS InVaLiD)"));
+        assertEquals("line 1:12: Does not recognize type [InVaLiD]", ex.getMessage());
+    }
+
+    public void testCastOperatorWithUnquotedDataType() {
+        Expression expr = parser.createExpression("(10* 2)::long");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(Mul.class, cast.field().getClass());
+        Mul mul = (Mul) cast.field();
+        assertEquals("10* 2", mul.sourceText());
+        assertEquals(DataType.INTEGER, mul.dataType());
+    }
+
+    public void testCastOperatorWithQuotedDataType() {
+        Expression expr = parser.createExpression("(10*2)::\"LonG\"");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(Mul.class, cast.field().getClass());
+        Mul mul = (Mul) cast.field();
+        assertEquals("10*2", mul.sourceText());
+        assertEquals(DataType.INTEGER, mul.dataType());
+    }
+
+    public void testCastOperatorWithInvalidDataType() {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("-1::InVaLiD"));
+        assertEquals("line 1:6: Does not recognize type [InVaLiD]", ex.getMessage());
     }
 
     public void testConvertWithUnquotedDataType() {
@@ -285,20 +322,22 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(DataType.LONG, cast.dataType());
         assertEquals(Mul.class, cast.field().getClass());
         Mul mul = (Mul) cast.field();
-        assertEquals("10 * 2", mul.name());
+        assertEquals("10*2", mul.sourceText());
         assertEquals(DataType.INTEGER, mul.dataType());
     }
 
     public void testConvertWithQuotedDataType() {
-        Expression expr = parser.createExpression("CONVERT(10*2, \"LonG\")");
+        String e = "CONVERT(10*2, \"LonG\")";
+        Expression expr = parser.createExpression(e);
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
+        assertEquals(e, cast.sourceText());
         assertEquals(DataType.INTEGER, cast.from());
         assertEquals(DataType.LONG, cast.to());
         assertEquals(DataType.LONG, cast.dataType());
         assertEquals(Mul.class, cast.field().getClass());
         Mul mul = (Mul) cast.field();
-        assertEquals("10 * 2", mul.name());
+        assertEquals("10*2", mul.sourceText());
         assertEquals(DataType.INTEGER, mul.dataType());
     }
 
@@ -330,11 +369,27 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:13: Invalid data type [INVALID] provided", ex.getMessage());
     }
 
+    public void testCurrentDate() {
+        Expression expr = parser.createExpression("CURRENT_DATE");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_DATE", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
+
+    public void testCurrentDateWithParentheses() {
+        Expression expr = parser.createExpression("CURRENT_DATE(  )");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_DATE(  )", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
+
     public void testCurrentTimestamp() {
         Expression expr = parser.createExpression("CURRENT_TIMESTAMP");
         assertEquals(UnresolvedFunction.class, expr.getClass());
         UnresolvedFunction ur = (UnresolvedFunction) expr;
-        assertEquals("CURRENT_TIMESTAMP", ur.name());
+        assertEquals("CURRENT_TIMESTAMP", ur.sourceText());
         assertEquals(0, ur.children().size());
     }
 
@@ -342,7 +397,7 @@ public class ExpressionTests extends ESTestCase {
         Expression expr = parser.createExpression("CURRENT_TIMESTAMP(4)");
         assertEquals(UnresolvedFunction.class, expr.getClass());
         UnresolvedFunction ur = (UnresolvedFunction) expr;
-        assertEquals("CURRENT_TIMESTAMP", ur.name());
+        assertEquals("CURRENT_TIMESTAMP(4)", ur.sourceText());
         assertEquals(1, ur.children().size());
         Expression child = ur.children().get(0);
         assertEquals(Literal.class, child.getClass());
@@ -354,13 +409,13 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:20: Precision needs to be between [0-9], received [100]", ex.getMessage());
     }
 
-    public void testSourceKeyword() throws Exception {
+    public void testSourceKeyword() {
         String s = "CUrrENT_timestamP";
         Expression expr = parser.createExpression(s);
         assertEquals(s, expr.sourceText());
     }
 
-    public void testSourceFunction() throws Exception {
+    public void testSourceFunction() {
         String s = "PerCentile_RaNK(fOO,    12 )";
         Expression expr = parser.createExpression(s);
         assertEquals(s, expr.sourceText());

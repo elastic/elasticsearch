@@ -18,10 +18,8 @@ In order to enable the `_size` field, set the mapping as follows:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "_size": {
-        "enabled": true
-      }
+    "_size": {
+      "enabled": true
     }
   }
 }

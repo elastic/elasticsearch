@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.junit.After;
 import org.mockito.ArgumentCaptor;
 
@@ -68,7 +69,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
 
     private final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
     private final ScheduledThreadPoolExecutor scheduler =
-            new ScheduledThreadPoolExecutor(1, EsExecutors.daemonThreadFactory(Settings.EMPTY, "scheduler"));
+            new Scheduler.SafeScheduledThreadPoolExecutor(1, EsExecutors.daemonThreadFactory(Settings.EMPTY, "scheduler"));
 
     @After
     public void shutdownScheduler() {

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.notification.hipchat;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
@@ -32,7 +33,9 @@ public class V1AccountTests extends ESTestCase {
         Settings.Builder sb = Settings.builder();
 
         String authToken = randomAlphaOfLength(50);
-        sb.put(V1Account.AUTH_TOKEN_SETTING, authToken);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(V1Account.SECURE_AUTH_TOKEN_SETTING.getKey(), authToken);
+        sb.setSecureSettings(secureSettings);
 
         String host = HipChatServer.DEFAULT.host();
         if (randomBoolean()) {
@@ -96,16 +99,19 @@ public class V1AccountTests extends ESTestCase {
             new V1Account("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(Logger.class));
             fail("Expected SettingsException");
         } catch (SettingsException e) {
-            assertThat(e.getMessage(), is("hipchat account [_name] missing required [auth_token] setting"));
+            assertThat(e.getMessage(), is("hipchat account [_name] missing required [secure_auth_token] secure setting"));
         }
     }
 
     public void testSend() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
+        String authToken = randomAlphaOfLength(50);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(IntegrationAccount.SECURE_AUTH_TOKEN_SETTING.getKey(), "_token");
         V1Account account = new V1Account("_name", Settings.builder()
                 .put("host", "_host")
                 .put("port", "443")
-                .put("auth_token", "_token")
+                .setSecureSettings(secureSettings)
                 .build(), HipChatServer.DEFAULT, httpClient, mock(Logger.class));
 
         HipChatMessage.Format format = randomFrom(HipChatMessage.Format.values());

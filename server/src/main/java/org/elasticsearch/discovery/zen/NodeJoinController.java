@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
@@ -59,9 +60,10 @@ public class NodeJoinController {
     private ElectionContext electionContext = null;
 
 
-    public NodeJoinController(MasterService masterService, AllocationService allocationService, ElectMasterService electMaster) {
+    public NodeJoinController(Settings settings, MasterService masterService, AllocationService allocationService,
+                              ElectMasterService electMaster) {
         this.masterService = masterService;
-        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger) {
+        joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger) {
             @Override
             public void clusterStatePublished(ClusterChangedEvent event) {
                 electMaster.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());

@@ -20,8 +20,10 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,6 +35,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
     public void testHeadersSupportStashedValueReplacement() throws IOException {
         final AtomicReference<Map<String, String>> headersRef = new AtomicReference<>();
+        final Version version = VersionUtils.randomVersion(random());
         final ClientYamlTestExecutionContext context =
             new ClientYamlTestExecutionContext(null, randomBoolean()) {
                 @Override
@@ -40,6 +43,11 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
                         HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
                     headersRef.set(headers);
                     return null;
+                }
+
+                @Override
+                public Version esVersion() {
+                    return version;
                 }
             };
         final Map<String, String> headers = new HashMap<>();

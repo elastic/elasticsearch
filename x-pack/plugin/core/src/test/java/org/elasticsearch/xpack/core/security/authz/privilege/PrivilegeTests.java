@@ -123,9 +123,16 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("indices:admin/mapping/put"), is(true));
         assertThat(predicate.test("indices:admin/mapping/whatever"), is(false));
         assertThat(predicate.test("internal:transport/proxy/indices:data/read/query"), is(false));
+        assertThat(predicate.test("internal:transport/proxy/indices:monitor/whatever"), is(true));
         assertThat(predicate.test("indices:admin/seq_no/global_checkpoint_sync"), is(true));
         assertThat(predicate.test("indices:admin/seq_no/global_checkpoint_sync[p]"), is(true));
         assertThat(predicate.test("indices:admin/seq_no/global_checkpoint_sync[r]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_sync"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_sync[p]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_sync[r]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_background_sync"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_background_sync[p]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_background_sync[r]"), is(true));
         assertThat(predicate.test("indices:admin/settings/update"), is(true));
         assertThat(predicate.test("indices:admin/settings/foo"), is(false));
     }

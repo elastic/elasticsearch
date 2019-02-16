@@ -65,7 +65,7 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregation
             factory.missing(randomIntBetween(0, 10));
         }
         if (randomBoolean()) {
-            factory.timeZone(randomDateTimeZone());
+            factory.timeZone(randomZone());
         }
         return factory;
     }

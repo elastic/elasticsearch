@@ -41,8 +41,10 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         final HasPrivilegesRequest request = new HasPrivilegesRequest(
             new LinkedHashSet<>(Arrays.asList("monitor", "manage_watcher", "manage_ml")),
             new LinkedHashSet<>(Arrays.asList(
-                IndicesPrivileges.builder().indices("index-001", "index-002").privileges("all").build(),
-                IndicesPrivileges.builder().indices("index-003").privileges("read").build()
+                IndicesPrivileges.builder().indices("index-001", "index-002").privileges("all")
+                    .allowRestrictedIndices(true).build(),
+                IndicesPrivileges.builder().indices("index-003").privileges("read")
+                    .build()
             )),
             new LinkedHashSet<>(Arrays.asList(
                 new ApplicationResourcePrivileges("myapp", Arrays.asList("read", "write"), Arrays.asList("*")),
@@ -56,10 +58,12 @@ public class HasPrivilegesRequestTests extends ESTestCase {
             " \"cluster\":[\"monitor\",\"manage_watcher\",\"manage_ml\"]," +
             " \"index\":[{" +
             "   \"names\":[\"index-001\",\"index-002\"]," +
-            "   \"privileges\":[\"all\"]" +
+            "   \"privileges\":[\"all\"]," +
+            "   \"allow_restricted_indices\":true" +
             "  },{" +
             "   \"names\":[\"index-003\"]," +
-            "   \"privileges\":[\"read\"]" +
+            "   \"privileges\":[\"read\"]," +
+            "   \"allow_restricted_indices\":false" +
             " }]," +
             " \"application\":[{" +
             "   \"application\":\"myapp\"," +
@@ -81,6 +85,7 @@ public class HasPrivilegesRequestTests extends ESTestCase {
             () -> IndicesPrivileges.builder()
                 .indices(generateRandomStringArray(5, 12, false, false))
                 .privileges(generateRandomStringArray(3, 8, false, false))
+                .allowRestrictedIndices(randomBoolean())
                 .build()));
         final Set<ApplicationResourcePrivileges> application = Sets.newHashSet(randomArray(1, 5, ApplicationResourcePrivileges[]::new,
             () -> new ApplicationResourcePrivileges(

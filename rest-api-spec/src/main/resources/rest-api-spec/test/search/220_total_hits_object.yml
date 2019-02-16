@@ -10,49 +10,42 @@ setup:
   - do:
       index:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
   - do:
       index:
         index:  test_1
-        type:   test
         id:     3
         body:   { foo: baz }
 
   - do:
       index:
         index:  test_1
-        type:   test
         id:     2
         body:   { foo: bar }
 
   - do:
       index:
         index:  test_1
-        type:   test
         id:     4
         body:   { foo: bar }
 
   - do:
       index:
         index:  test_2
-        type:   test
         id:     42
         body:   { foo: bar }
 
   - do:
       index:
         index:  test_2
-        type:   test
         id:     24
         body:   { foo: baz }
 
   - do:
       index:
         index:  test_2
-        type:   test
         id:     36
         body:   { foo: bar }
 
@@ -169,5 +162,3 @@ setup:
               foo: bar
 
   - match: {hits.total: 2}
-
-

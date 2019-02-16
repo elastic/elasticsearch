@@ -139,21 +139,21 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject());
             MapperException exception = expectThrows(MapperException.class,
                     () -> mapper.parse(new SourceToParse("test", "type", "1", bytes, XContentType.JSON)));
-            assertThat(exception.getMessage(), containsString("failed to parse field [foo] of type [long]"));
+            assertThat(exception.getMessage(), containsString("failed to parse field [foo] of type [long] in document with id '1'"));
         }
         {
             BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("bar", "bar")
                 .endObject());
             MapperException exception = expectThrows(MapperException.class,
                     () -> mapper.parse(new SourceToParse("test", "type", "2", bytes, XContentType.JSON)));
-            assertThat(exception.getMessage(), containsString("failed to parse field [bar] of type [boolean]"));
+            assertThat(exception.getMessage(), containsString("failed to parse field [bar] of type [boolean] in document with id '2'"));
         }
         {
             BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("geo", 123)
                 .endObject());
             MapperException exception = expectThrows(MapperException.class,
                     () -> mapper.parse(new SourceToParse("test", "type", "2", bytes, XContentType.JSON)));
-            assertThat(exception.getMessage(), containsString("failed to parse field [geo] of type [geo_shape]"));
+            assertThat(exception.getMessage(), containsString("failed to parse field [geo]"));
         }
 
     }

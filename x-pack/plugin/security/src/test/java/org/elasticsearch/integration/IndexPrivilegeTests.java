@@ -436,7 +436,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     // indexing a document to have the mapping available, and wait for green state to make sure index is created
                     assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/1", jsonDoc);
                     assertNoTimeout(client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get());
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/_mapping/foo/field/name");
+                    assertAccessIsAllowed(user, "GET", "/" + index + "/_mapping/field/name");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_settings");
                 } else {
                     assertAccessIsDenied(user, "DELETE", "/" + index);
@@ -449,7 +449,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsDenied(user, "POST", "/" + index + "/_close");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_open");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_cache/clear");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/_mapping/foo/field/name");
+                    assertAccessIsDenied(user, "GET", "/" + index + "/_mapping/field/name");
                     assertAccessIsDenied(user, "GET", "/" + index + "/_settings");
                 }
                 break;

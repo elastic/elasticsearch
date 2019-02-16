@@ -35,16 +35,6 @@ public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<Simulat
 
     /**
      * Create a new builder for {@link SimulatePipelineRequest}s
-     * @deprecated use {@link #SimulatePipelineRequestBuilder(ElasticsearchClient, SimulatePipelineAction, BytesReference, XContentType)} to
-     *             avoid content type auto-detection on the source bytes
-     */
-    @Deprecated
-    public SimulatePipelineRequestBuilder(ElasticsearchClient client, SimulatePipelineAction action, BytesReference source) {
-        super(client, action, new SimulatePipelineRequest(source));
-    }
-
-    /**
-     * Create a new builder for {@link SimulatePipelineRequest}s
      */
     public SimulatePipelineRequestBuilder(ElasticsearchClient client, SimulatePipelineAction action, BytesReference source,
                                           XContentType xContentType) {

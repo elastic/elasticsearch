@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -190,6 +191,17 @@ public abstract class ScrollableHitSource {
          * internal APIs.
          */
         long getVersion();
+
+        /**
+         * The sequence number of the match or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if sequence numbers weren't requested.
+         */
+        long getSeqNo();
+
+        /**
+         * The primary term of the match or {@link SequenceNumbers#UNASSIGNED_PRIMARY_TERM} if sequence numbers weren't requested.
+         */
+        long getPrimaryTerm();
+
         /**
          * The source of the hit. Returns null if the source didn't come back from the search, usually because it source wasn't stored at
          * all.
@@ -217,6 +229,8 @@ public abstract class ScrollableHitSource {
         private BytesReference source;
         private XContentType xContentType;
         private String routing;
+        private long seqNo;
+        private long primaryTerm;
 
         public BasicHit(String index, String type, String id, long version) {
             this.index = index;
@@ -246,6 +260,16 @@ public abstract class ScrollableHitSource {
         }
 
         @Override
+        public long getSeqNo() {
+            return seqNo;
+        }
+
+        @Override
+        public long getPrimaryTerm() {
+            return primaryTerm;
+        }
+
+        @Override
         public BytesReference getSource() {
             return source;
         }
@@ -269,6 +293,14 @@ public abstract class ScrollableHitSource {
         public BasicHit setRouting(String routing) {
             this.routing = routing;
             return this;
+        }
+
+        public void setSeqNo(long seqNo) {
+            this.seqNo = seqNo;
+        }
+
+        public void setPrimaryTerm(long primaryTerm) {
+            this.primaryTerm = primaryTerm;
         }
     }
 

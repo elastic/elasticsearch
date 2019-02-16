@@ -56,10 +56,10 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
             newIndices[i] = randomSimpleString(random(), 1, 30);
         }
         request.indices(newIndices);
-        for (int i = 0; i < numNewIndices; i++) {;
+        for (int i = 0; i < numNewIndices; i++) {
             assertEquals(newIndices[i], request.indices()[i]);
         }
-        for (int i = 0; i < numNewIndices; i++) {;
+        for (int i = 0; i < numNewIndices; i++) {
             assertEquals(newIndices[i], request.getSearchRequest().indices()[i]);
         }
     }

@@ -98,7 +98,7 @@ setup() {
     systemctl start elasticsearch.service
     wait_for_elasticsearch_status
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
-    assert_file_exist "/var/log/elasticsearch/elasticsearch.log"
+    assert_file_exist "/var/log/elasticsearch/elasticsearch_server.json"
 
     # Converts the epoch back in a human readable format
     run date --date=@$epoch "+%Y-%m-%d %H:%M:%S"
@@ -234,7 +234,7 @@ setup() {
     local max_processes=$(cat /proc/$pid/limits | grep "Max processes" | awk '{ print $3 }')
     [ "$max_processes" == "4096" ]
     local max_open_files=$(cat /proc/$pid/limits | grep "Max open files" | awk '{ print $4 }')
-    [ "$max_open_files" == "65536" ]
+    [ "$max_open_files" == "65535" ]
     local max_address_space=$(cat /proc/$pid/limits | grep "Max address space" | awk '{ print $4 }')
     [ "$max_address_space" == "unlimited" ]
     systemctl stop elasticsearch.service

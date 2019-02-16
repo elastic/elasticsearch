@@ -87,7 +87,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
-        super(settings);
         this.settings = settings;
         this.networkService = networkService;
         this.bigArrays = bigArrays;
@@ -277,16 +276,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     protected void onServerException(HttpServerChannel channel, Exception e) {
         logger.error(new ParameterizedMessage("exception from http server channel caught on transport layer [channel={}]", channel), e);
-    }
-
-    /**
-     * Exception handler for exceptions that are not associated with a specific channel.
-     *
-     * @param exception the exception
-     */
-    protected void onNonChannelException(Exception exception) {
-        String threadName = Thread.currentThread().getName();
-        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", threadName), exception);
     }
 
     protected void serverAcceptedChannel(HttpChannel httpChannel) {

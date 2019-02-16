@@ -21,10 +21,14 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,9 +37,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -65,6 +71,8 @@ import static org.elasticsearch.test.VersionUtils.getFirstVersion;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializationTestCase<Custom> {
 
@@ -305,6 +313,91 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         PersistentTasksCustomMetaData read = new PersistentTasksCustomMetaData(
             new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry()));
         assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible")));
+    }
+
+    public void testDisassociateDeadNodes_givenNoPersistentTasks() {
+        ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests")).build();
+        ClusterState returnedState = PersistentTasksCustomMetaData.disassociateDeadNodes(originalState);
+        assertThat(originalState, sameInstance(returnedState));
+    }
+
+    public void testDisassociateDeadNodes_givenAssignedPersistentTask() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
+                .localNodeId("node1")
+                .masterNodeId("node1")
+                .build();
+
+        String taskName = "test/task";
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder()
+                .addTask("task-id", taskName, emptyTaskParams(taskName),
+                        new PersistentTasksCustomMetaData.Assignment("node1", "test assignment"));
+
+        ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests"))
+                .nodes(nodes)
+                .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()))
+                .build();
+        ClusterState returnedState = PersistentTasksCustomMetaData.disassociateDeadNodes(originalState);
+        assertThat(originalState, sameInstance(returnedState));
+
+        PersistentTasksCustomMetaData originalTasks = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(originalState);
+        PersistentTasksCustomMetaData returnedTasks = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(returnedState);
+        assertEquals(originalTasks, returnedTasks);
+    }
+
+    public void testDisassociateDeadNodes() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
+                .localNodeId("node1")
+                .masterNodeId("node1")
+                .build();
+
+        String taskName = "test/task";
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder()
+                .addTask("assigned-task", taskName, emptyTaskParams(taskName),
+                        new PersistentTasksCustomMetaData.Assignment("node1", "test assignment"))
+                .addTask("task-on-deceased-node", taskName, emptyTaskParams(taskName),
+                new PersistentTasksCustomMetaData.Assignment("left-the-cluster", "test assignment"));
+
+        ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests"))
+                .nodes(nodes)
+                .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()))
+                .build();
+        ClusterState returnedState = PersistentTasksCustomMetaData.disassociateDeadNodes(originalState);
+        assertThat(originalState, not(sameInstance(returnedState)));
+
+        PersistentTasksCustomMetaData originalTasks = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(originalState);
+        PersistentTasksCustomMetaData returnedTasks = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(returnedState);
+        assertNotEquals(originalTasks, returnedTasks);
+
+        assertEquals(originalTasks.getTask("assigned-task"), returnedTasks.getTask("assigned-task"));
+        assertNotEquals(originalTasks.getTask("task-on-deceased-node"), returnedTasks.getTask("task-on-deceased-node"));
+        assertEquals(PersistentTasksCustomMetaData.LOST_NODE_ASSIGNMENT, returnedTasks.getTask("task-on-deceased-node").getAssignment());
+    }
+
+    private PersistentTaskParams emptyTaskParams(String taskName) {
+        return new PersistentTaskParams() {
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+                return builder;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {
+
+            }
+
+            @Override
+            public String getWriteableName() {
+                return taskName;
+            }
+
+            @Override
+            public Version getMinimalSupportedVersion() {
+                return Version.CURRENT;
+            }
+        };
     }
 
     private Assignment randomAssignment() {

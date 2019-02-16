@@ -20,14 +20,12 @@ You index a dense vector as an array of floats.
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_vector": {
-          "type": "dense_vector"
-        },
-        "my_text" : {
-          "type" : "keyword"
-        }
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector"
+      },
+      "my_text" : {
+        "type" : "keyword"
       }
     }
   }

@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -169,7 +170,7 @@ public class EsExecutorsTests extends ESTestCase {
     public void testScaleUp() throws Exception {
         final int min = between(1, 3);
         final int max = between(min + 1, 6);
-        final ThreadBarrier barrier = new ThreadBarrier(max + 1);
+        final CyclicBarrier barrier = new CyclicBarrier(max + 1);
 
         ThreadPoolExecutor pool =
                 EsExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), randomTimeUnit(),
@@ -179,16 +180,13 @@ public class EsExecutorsTests extends ESTestCase {
 
         for (int i = 0; i < max; ++i) {
             final CountDownLatch latch = new CountDownLatch(1);
-            pool.execute(new Runnable() {
-                @Override
-                public void run() {
-                    latch.countDown();
-                    try {
-                        barrier.await();
-                        barrier.await();
-                    } catch (Exception e) {
-                        barrier.reset(e);
-                    }
+            pool.execute(() -> {
+                latch.countDown();
+                try {
+                    barrier.await();
+                    barrier.await();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
                 }
             });
 
@@ -207,7 +205,7 @@ public class EsExecutorsTests extends ESTestCase {
     public void testScaleDown() throws Exception {
         final int min = between(1, 3);
         final int max = between(min + 1, 6);
-        final ThreadBarrier barrier = new ThreadBarrier(max + 1);
+        final CyclicBarrier barrier = new CyclicBarrier(max + 1);
 
         final ThreadPoolExecutor pool =
                 EsExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), TimeUnit.MILLISECONDS,
@@ -217,16 +215,13 @@ public class EsExecutorsTests extends ESTestCase {
 
         for (int i = 0; i < max; ++i) {
             final CountDownLatch latch = new CountDownLatch(1);
-            pool.execute(new Runnable() {
-                @Override
-                public void run() {
-                    latch.countDown();
-                    try {
-                        barrier.await();
-                        barrier.await();
-                    } catch (Exception e) {
-                        barrier.reset(e);
-                    }
+            pool.execute(() -> {
+                latch.countDown();
+                try {
+                    barrier.await();
+                    barrier.await();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
                 }
             });
 

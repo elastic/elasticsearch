@@ -107,14 +107,14 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.queryDelay = in.readOptionalTimeValue();
         this.frequency = in.readOptionalTimeValue();
         if (in.readBoolean()) {
-            this.indices = in.readList(StreamInput::readString);
+            this.indices = in.readStringList();
         } else {
             this.indices = null;
         }
         // This consumes the list of types if there was one.
         if (in.getVersion().before(Version.V_7_0_0)) {
             if (in.readBoolean()) {
-                in.readList(StreamInput::readString);
+                in.readStringList();
             }
         }
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
@@ -148,7 +148,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         out.writeOptionalTimeValue(frequency);
         if (indices != null) {
             out.writeBoolean(true);
-            out.writeStringList(indices);
+            out.writeStringCollection(indices);
         } else {
             out.writeBoolean(false);
         }
@@ -156,7 +156,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         // An empty list is expected
         if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(true);
-            out.writeStringList(Collections.emptyList());
+            out.writeStringCollection(Collections.emptyList());
         }
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalWriteable(aggregations);

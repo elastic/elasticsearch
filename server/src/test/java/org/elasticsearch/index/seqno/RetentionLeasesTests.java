@@ -28,6 +28,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -72,8 +74,20 @@ public class RetentionLeasesTests extends ESTestCase {
         assertFalse(left.supersedes(right));
     }
 
+    public void testRetentionLeasesRejectsDuplicates() {
+        final RetentionLeases retentionLeases = randomRetentionLeases(false);
+        final RetentionLease retentionLease = randomFrom(retentionLeases.leases());
+        final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> new RetentionLeases(
+                        retentionLeases.primaryTerm(),
+                        retentionLeases.version(),
+                        Stream.concat(retentionLeases.leases().stream(), Stream.of(retentionLease)).collect(Collectors.toList())));
+        assertThat(e, hasToString(containsString("duplicate retention lease ID [" + retentionLease.id() + "]")));
+    }
+
     public void testLeasesPreservesIterationOrder() {
-        final RetentionLeases retentionLeases = randomRetentionLeases();
+        final RetentionLeases retentionLeases = randomRetentionLeases(true);
         if (retentionLeases.leases().isEmpty()) {
             assertThat(retentionLeases.leases(), empty());
         } else {
@@ -83,15 +97,15 @@ public class RetentionLeasesTests extends ESTestCase {
 
     public void testRetentionLeasesMetaDataStateFormat() throws IOException {
         final Path path = createTempDir();
-        final RetentionLeases retentionLeases = randomRetentionLeases();
+        final RetentionLeases retentionLeases = randomRetentionLeases(true);
         RetentionLeases.FORMAT.writeAndCleanup(retentionLeases, path);
         assertThat(RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path), equalTo(retentionLeases));
     }
 
-    private RetentionLeases randomRetentionLeases() {
+    private RetentionLeases randomRetentionLeases(boolean allowEmpty) {
         final long primaryTerm = randomNonNegativeLong();
         final long version = randomNonNegativeLong();
-        final int length = randomIntBetween(0, 8);
+        final int length = randomIntBetween(allowEmpty ? 0 : 1, 8);
         final List<RetentionLease> leases = new ArrayList<>(length);
         for (int i = 0; i < length; i++) {
             final String id = randomAlphaOfLength(8);

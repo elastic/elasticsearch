@@ -32,6 +32,7 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -246,7 +247,15 @@ public class RetentionLeases implements ToXContent, Writeable {
      * @return the map from retention lease ID to retention lease
      */
     private static Map<String, RetentionLease> toMap(final Collection<RetentionLease> leases) {
-        return leases.stream().collect(Collectors.toMap(RetentionLease::id, Function.identity()));
+        return leases.stream()
+                .collect(Collectors.toMap(
+                        RetentionLease::id,
+                        Function.identity(),
+                        (left, right) -> {
+                            assert left.id().equals(right.id()) : "expected [" + left.id() + "] to equal [" + right.id() + "]";
+                            throw new IllegalStateException("duplicate key [" + left.id() + "]");
+                        },
+                        LinkedHashMap::new));
     }
 
     /**

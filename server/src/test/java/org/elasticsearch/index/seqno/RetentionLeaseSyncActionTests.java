@@ -119,11 +119,8 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
 
         final TransportWriteAction.WritePrimaryResult<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response> result =
                 action.shardOperationOnPrimary(request, indexShard);
-        // the retention leases on the shard should be flushed
-        final ArgumentCaptor<FlushRequest> flushRequest = ArgumentCaptor.forClass(FlushRequest.class);
-        verify(indexShard).flush(flushRequest.capture());
-        assertTrue(flushRequest.getValue().force());
-        assertTrue(flushRequest.getValue().waitIfOngoing());
+        // the retention leases on the shard should be persisted
+        verify(indexShard).persistRetentionLeases();
         // we should forward the request containing the current retention leases to the replica
         assertThat(result.replicaRequest(), sameInstance(request));
         // we should start with an empty replication response
@@ -160,11 +157,8 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 action.shardOperationOnReplica(request, indexShard);
         // the retention leases on the shard should be updated
         verify(indexShard).updateRetentionLeasesOnReplica(retentionLeases);
-        // the retention leases on the shard should be flushed
-        final ArgumentCaptor<FlushRequest> flushRequest = ArgumentCaptor.forClass(FlushRequest.class);
-        verify(indexShard).flush(flushRequest.capture());
-        assertTrue(flushRequest.getValue().force());
-        assertTrue(flushRequest.getValue().waitIfOngoing());
+        // the retention leases on the shard should be persisteed
+        verify(indexShard).persistRetentionLeases();
         // the result should indicate success
         final AtomicBoolean success = new AtomicBoolean();
         result.respond(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));

@@ -121,8 +121,8 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
 
         final ReplicationOperation.PrimaryResult<RetentionLeaseBackgroundSyncAction.Request> result =
                 action.shardOperationOnPrimary(request, indexShard);
-        // the retention leases on the shard should be periodically flushed
-        verify(indexShard).afterWriteOperation();
+        // the retention leases on the shard should be persisted
+        verify(indexShard).persistRetentionLeases();
         // we should forward the request containing the current retention leases to the replica
         assertThat(result.replicaRequest(), sameInstance(request));
     }
@@ -157,8 +157,8 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         final TransportReplicationAction.ReplicaResult result = action.shardOperationOnReplica(request, indexShard);
         // the retention leases on the shard should be updated
         verify(indexShard).updateRetentionLeasesOnReplica(retentionLeases);
-        // the retention leases on the shard should be periodically flushed
-        verify(indexShard).afterWriteOperation();
+        // the retention leases on the shard should be persisted
+        verify(indexShard).persistRetentionLeases();
         // the result should indicate success
         final AtomicBoolean success = new AtomicBoolean();
         result.respond(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));

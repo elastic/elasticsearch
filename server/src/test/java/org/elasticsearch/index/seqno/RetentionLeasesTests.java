@@ -19,14 +19,19 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
 public class RetentionLeasesTests extends ESTestCase {
@@ -67,6 +72,18 @@ public class RetentionLeasesTests extends ESTestCase {
     }
 
     public void testPreservesIterationOrder() {
+        final RetentionLeases retentionLeases = randomRetentionLeases();
+        assertThat(retentionLeases.leases(), contains(retentionLeases.leases().toArray(new RetentionLease[0])));
+    }
+
+    public void testRetentionLeasesMetaDataStateFormat() throws IOException {
+        final Path path = createTempDir();
+        final RetentionLeases retentionLeases = randomRetentionLeases();
+        RetentionLeases.FORMAT.writeAndCleanup(retentionLeases, path);
+        assertThat(RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path), equalTo(retentionLeases));
+    }
+
+    private RetentionLeases randomRetentionLeases() {
         final long primaryTerm = randomNonNegativeLong();
         final long version = randomNonNegativeLong();
         final int length = randomIntBetween(0, 8);
@@ -79,8 +96,7 @@ public class RetentionLeasesTests extends ESTestCase {
             final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);
             leases.add(retentionLease);
         }
-        final RetentionLeases retentionLeases = new RetentionLeases(primaryTerm, version, leases);
-        assertThat(retentionLeases.leases(), contains(retentionLeases.leases().toArray(new RetentionLease[0])));
+        return new RetentionLeases(primaryTerm, version, leases);
     }
 
 }

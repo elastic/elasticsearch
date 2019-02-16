@@ -20,7 +20,6 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

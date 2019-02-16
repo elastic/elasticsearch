@@ -546,7 +546,6 @@ public class RecoverySourceHandler {
 
         final AtomicInteger skippedOps = new AtomicInteger();
         final AtomicInteger totalSentOps = new AtomicInteger();
-        final LocalCheckpointTracker requiredOpsTracker = new LocalCheckpointTracker(endingSeqNo, requiredSeqNoRangeStart - 1);
         final AtomicInteger lastBatchCount = new AtomicInteger(); // used to estimate the count of the subsequent batch.
         final CheckedSupplier<List<Translog.Operation>, IOException> readNextBatch = () -> {
             // We need to synchronized Snapshot#next() because it's called by different threads through sendBatch.
@@ -568,7 +567,6 @@ public class RecoverySourceHandler {
                     ops.add(operation);
                     batchSizeInBytes += operation.estimateSize();
                     totalSentOps.incrementAndGet();
-                    requiredOpsTracker.markSeqNoAsCompleted(seqNo);
 
                     // check if this request is past bytes threshold, and if so, send it off
                     if (batchSizeInBytes >= chunkSizeInBytes) {
@@ -586,10 +584,10 @@ public class RecoverySourceHandler {
                 assert snapshot.totalOperations() == snapshot.skippedOperations() + skippedOps.get() + totalSentOps.get()
                     : String.format(Locale.ROOT, "expected total [%d], overridden [%d], skipped [%d], total sent [%d]",
                     snapshot.totalOperations(), snapshot.skippedOperations(), skippedOps.get(), totalSentOps.get());
-                if (requiredOpsTracker.getCheckpoint() < endingSeqNo) {
+                if (targetLocalCheckpoint < endingSeqNo) {
                     throw new IllegalStateException("translog replay failed to cover required sequence numbers" +
                         " (required range [" + requiredSeqNoRangeStart + ":" + endingSeqNo + "). first missing op is ["
-                        + (requiredOpsTracker.getCheckpoint() + 1) + "]");
+                        + (targetLocalCheckpoint + 1) + "]");
                 }
                 stopWatch.stop();
                 final TimeValue tookTime = stopWatch.totalTime();

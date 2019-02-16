@@ -253,7 +253,7 @@ public class RetentionLeases implements ToXContent, Writeable {
                         Function.identity(),
                         (left, right) -> {
                             assert left.id().equals(right.id()) : "expected [" + left.id() + "] to equal [" + right.id() + "]";
-                            throw new IllegalStateException("duplicate key [" + left.id() + "]");
+                            throw new IllegalStateException("duplicate retention lease ID [" + left.id() + "]");
                         },
                         LinkedHashMap::new));
     }

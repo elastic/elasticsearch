@@ -21,8 +21,11 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -61,6 +64,23 @@ public class RetentionLeasesTests extends ESTestCase {
         final RetentionLeases right = new RetentionLeases(primaryTerm, higherVersion, Collections.emptyList());
         assertTrue(right.supersedes(left));
         assertFalse(left.supersedes(right));
+    }
+
+    public void testPreservesIterationOrder() {
+        final long primaryTerm = randomNonNegativeLong();
+        final long version = randomNonNegativeLong();
+        final int length = randomIntBetween(0, 8);
+        final List<RetentionLease> leases = new ArrayList<>(length);
+        for (int i = 0; i < length; i++) {
+            final String id = randomAlphaOfLength(8);
+            final long retainingSequenceNumber = randomNonNegativeLong();
+            final long timestamp = randomNonNegativeLong();
+            final String source = randomAlphaOfLength(8);
+            final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);
+            leases.add(retentionLease);
+        }
+        final RetentionLeases retentionLeases = new RetentionLeases(primaryTerm, version, leases);
+        assertThat(retentionLeases.leases(), contains(retentionLeases.leases().toArray(new RetentionLease[0])));
     }
 
 }

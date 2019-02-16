@@ -177,7 +177,6 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), 3);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38894")
     public void testAddNewReplicasOnFollower() throws Exception {
         int numberOfReplicas = between(0, 1);
         String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,

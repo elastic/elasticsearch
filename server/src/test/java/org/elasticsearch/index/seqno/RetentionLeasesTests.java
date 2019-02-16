@@ -31,6 +31,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -71,9 +72,13 @@ public class RetentionLeasesTests extends ESTestCase {
         assertFalse(left.supersedes(right));
     }
 
-    public void testPreservesIterationOrder() {
+    public void testLeasesPreservesIterationOrder() {
         final RetentionLeases retentionLeases = randomRetentionLeases();
-        assertThat(retentionLeases.leases(), contains(retentionLeases.leases().toArray(new RetentionLease[0])));
+        if (retentionLeases.leases().isEmpty()) {
+            assertThat(retentionLeases.leases(), empty());
+        } else {
+            assertThat(retentionLeases.leases(), contains(retentionLeases.leases().toArray(new RetentionLease[0])));
+        }
     }
 
     public void testRetentionLeasesMetaDataStateFormat() throws IOException {

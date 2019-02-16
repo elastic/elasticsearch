@@ -145,7 +145,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
                     final AtomicBoolean firstInvocation = new AtomicBoolean(true);
 
                     @Override
-                    public Object answer(final InvocationOnMock invocationOnMock) {
+                    public Void answer(final InvocationOnMock invocationOnMock) {
                         @SuppressWarnings("unchecked") final ActionListener<RetentionLeaseActions.Response> listener =
                                 (ActionListener<RetentionLeaseActions.Response>) invocationOnMock.getArguments()[2];
                         if (firstInvocation.compareAndSet(true, false)) {

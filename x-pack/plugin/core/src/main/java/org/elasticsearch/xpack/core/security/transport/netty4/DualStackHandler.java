@@ -10,19 +10,18 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.ssl.SslHandler;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.xpack.core.security.transport.ESMessageHelper;
 
 import javax.net.ssl.SSLEngine;
 
-public class DualStackSSLHandler extends ChannelDuplexHandler {
+public class DualStackHandler extends ChannelDuplexHandler {
 
 
-    public static final String HANDLER_NAME = "dual_tls_stack_handler";
+    static final String HANDLER_NAME = "dual_tls_stack_handler";
     private final SSLEngine engine;
 
-    public DualStackSSLHandler(SSLEngine engine) {
+    DualStackHandler(SSLEngine engine) {
         this.engine = engine;
     }
 

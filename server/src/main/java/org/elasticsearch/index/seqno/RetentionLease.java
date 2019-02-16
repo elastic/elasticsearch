@@ -19,13 +19,16 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -34,7 +37,7 @@ import java.util.Objects;
  * otherwise merge away operations that have been soft deleted). Each retention lease contains a unique identifier, the retaining sequence
  * number, the timestamp of when the lease was created or renewed, and the source of the retention lease (e.g., "ccr").
  */
-public final class RetentionLease implements Writeable {
+public final class RetentionLease implements ToXContent, Writeable {
 
     private final String id;
 
@@ -145,43 +148,42 @@ public final class RetentionLease implements Writeable {
         out.writeString(source);
     }
 
-    /**
-     * Encodes a retention lease as a string. This encoding can be decoded by {@link #decodeRetentionLease(String)}. The retention lease is
-     * encoded in the format <code>id:{id};retaining_seq_no:{retainingSequenecNumber};timestamp:{timestamp};source:{source}</code>.
-     *
-     * @param retentionLease the retention lease
-     * @return the encoding of the retention lease
-     */
-    static String encodeRetentionLease(final RetentionLease retentionLease) {
-        Objects.requireNonNull(retentionLease);
-        return String.format(
-                Locale.ROOT,
-                "id:%s;retaining_seq_no:%d;timestamp:%d;source:%s",
-                retentionLease.id,
-                retentionLease.retainingSequenceNumber,
-                retentionLease.timestamp,
-                retentionLease.source);
+    private static final ParseField ID_FIELD = new ParseField("id");
+    private static final ParseField RETAINING_SEQUENCE_NUMBER_FIELD = new ParseField("retaining_sequence_number");
+    private static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp");
+    private static final ParseField SOURCE_FIELD = new ParseField("source");
+
+    private static ConstructingObjectParser<RetentionLease, Void> PARSER = new ConstructingObjectParser<>(
+            "retention_leases",
+            (a) -> new RetentionLease((String) a[0], (Long) a[1], (Long) a[2], (String) a[3]));
+
+    static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), RETAINING_SEQUENCE_NUMBER_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIMESTAMP_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), SOURCE_FIELD);
     }
 
-    /**
-     * Decodes a retention lease encoded by {@link #encodeRetentionLease(RetentionLease)}.
-     *
-     * @param encodedRetentionLease an encoded retention lease
-     * @return the decoded retention lease
-     */
-    static RetentionLease decodeRetentionLease(final String encodedRetentionLease) {
-        Objects.requireNonNull(encodedRetentionLease);
-        final String[] fields = encodedRetentionLease.split(";");
-        assert fields.length == 4 : Arrays.toString(fields);
-        assert fields[0].matches("id:[^:;,]+") : fields[0];
-        final String id = fields[0].substring("id:".length());
-        assert fields[1].matches("retaining_seq_no:\\d+") : fields[1];
-        final long retainingSequenceNumber = Long.parseLong(fields[1].substring("retaining_seq_no:".length()));
-        assert fields[2].matches("timestamp:\\d+") : fields[2];
-        final long timestamp = Long.parseLong(fields[2].substring("timestamp:".length()));
-        assert fields[3].matches("source:[^:;,]+") : fields[3];
-        final String source = fields[3].substring("source:".length());
-        return new RetentionLease(id, retainingSequenceNumber, timestamp, source);
+    @Override
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        builder.startObject();
+        {
+            builder.field(ID_FIELD.getPreferredName(), id);
+            builder.field(RETAINING_SEQUENCE_NUMBER_FIELD.getPreferredName(), retainingSequenceNumber);
+            builder.field(TIMESTAMP_FIELD.getPreferredName(), timestamp);
+            builder.field(SOURCE_FIELD.getPreferredName(), source);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public boolean isFragment() {
+        return false;
+    }
+
+    public static RetentionLease fromXContent(final XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     @Override

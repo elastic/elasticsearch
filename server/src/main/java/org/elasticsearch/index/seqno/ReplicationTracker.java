@@ -32,11 +32,13 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -316,6 +318,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (retentionLeases.supersedes(this.retentionLeases)) {
             this.retentionLeases = retentionLeases;
         }
+    }
+
+    public synchronized void persistRetentionLeases(final ShardPath shardPath) throws WriteStateException {
+        logger.trace("persisting retention leases [{}]", retentionLeases);
+        RetentionLeases.FORMAT.writeAndCleanup(retentionLeases, shardPath.getShardStatePath());
     }
 
     public static class CheckpointState implements Writeable {

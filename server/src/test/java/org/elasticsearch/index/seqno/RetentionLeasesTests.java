@@ -21,14 +21,9 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
 public class RetentionLeasesTests extends ESTestCase {
@@ -47,30 +42,6 @@ public class RetentionLeasesTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> new RetentionLeases(randomLongBetween(1, Long.MAX_VALUE), version, Collections.emptyList()));
         assertThat(e, hasToString(containsString("version must be non-negative but was [" + version + "]")));
-    }
-
-    public void testRetentionLeasesEncoding() {
-        final long primaryTerm = randomNonNegativeLong();
-        final long version = randomNonNegativeLong();
-        final int length = randomIntBetween(0, 8);
-        final List<RetentionLease> retentionLeases = new ArrayList<>(length);
-        for (int i = 0; i < length; i++) {
-            final String id = randomAlphaOfLength(8);
-            final long retainingSequenceNumber = randomNonNegativeLong();
-            final long timestamp = randomNonNegativeLong();
-            final String source = randomAlphaOfLength(8);
-            final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);
-            retentionLeases.add(retentionLease);
-        }
-        final RetentionLeases decodedRetentionLeases =
-                RetentionLeases.decodeRetentionLeases(
-                        RetentionLeases.encodeRetentionLeases(new RetentionLeases(primaryTerm, version, retentionLeases)));
-        assertThat(decodedRetentionLeases.version(), equalTo(version));
-        if (length == 0) {
-            assertThat(decodedRetentionLeases.leases(), empty());
-        } else {
-            assertThat(decodedRetentionLeases.leases(), containsInAnyOrder(retentionLeases.toArray(new RetentionLease[0])));
-        }
     }
 
     public void testSupersedesByPrimaryTerm() {

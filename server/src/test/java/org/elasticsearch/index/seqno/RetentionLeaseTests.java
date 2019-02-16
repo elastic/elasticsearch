@@ -93,13 +93,4 @@ public class RetentionLeaseTests extends ESTestCase {
         }
     }
 
-    public void testRetentionLeaseEncoding() {
-        final String id = randomAlphaOfLength(8);
-        final long retainingSequenceNumber = randomNonNegativeLong();
-        final long timestamp = randomNonNegativeLong();
-        final String source = randomAlphaOfLength(8);
-        final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);
-        assertThat(RetentionLease.decodeRetentionLease(RetentionLease.encodeRetentionLease(retentionLease)), equalTo(retentionLease));
-    }
-
 }

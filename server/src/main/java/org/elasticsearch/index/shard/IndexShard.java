@@ -64,8 +64,10 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -1431,7 +1433,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
-        replicationTracker.updateRetentionLeasesOnReplica(getRetentionLeases(store.readLastCommittedSegmentsInfo()));
+        replicationTracker.updateRetentionLeasesOnReplica(loadLatestRetentionLeases());
         trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();
@@ -1451,12 +1453,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
 
-    static RetentionLeases getRetentionLeases(final SegmentInfos segmentInfos) {
-        final String committedRetentionLeases = segmentInfos.getUserData().get(Engine.RETENTION_LEASES);
-        if (committedRetentionLeases == null) {
+    RetentionLeases loadLatestRetentionLeases() throws IOException {
+        final RetentionLeases retentionLeases =
+                RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPath().getShardStatePath());
+        if (retentionLeases == null) {
             return RetentionLeases.EMPTY;
         }
-        return RetentionLeases.decodeRetentionLeases(committedRetentionLeases);
+        return retentionLeases;
     }
 
     private void trimUnsafeCommits() throws IOException {
@@ -2001,6 +2004,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertReplicationTarget();
         verifyNotClosed();
         replicationTracker.updateRetentionLeasesOnReplica(retentionLeases);
+    }
+
+    public void persistRetentionLeases() throws WriteStateException {
+        verifyNotClosed();
+        replicationTracker.persistRetentionLeases(path);
     }
 
     /**

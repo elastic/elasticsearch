@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -91,7 +92,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testRetentionLeaseBackgroundSyncActionOnPrimary() {
+    public void testRetentionLeaseBackgroundSyncActionOnPrimary() throws WriteStateException {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -126,7 +127,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         assertThat(result.replicaRequest(), sameInstance(request));
     }
 
-    public void testRetentionLeaseBackgroundSyncActionOnReplica() {
+    public void testRetentionLeaseBackgroundSyncActionOnReplica() throws WriteStateException {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");

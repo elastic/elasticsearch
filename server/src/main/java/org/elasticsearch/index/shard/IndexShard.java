@@ -64,7 +64,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
@@ -1433,7 +1432,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
-        replicationTracker.updateRetentionLeasesOnReplica(loadLatestRetentionLeases());
+        updateRetentionLeasesOnReplica(loadRetentionLeases());
         trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();
@@ -1451,15 +1450,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         onSettingsChanged();
         assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
-    }
-
-    RetentionLeases loadLatestRetentionLeases() throws IOException {
-        final RetentionLeases retentionLeases =
-                RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPath().getShardStatePath());
-        if (retentionLeases == null) {
-            return RetentionLeases.EMPTY;
-        }
-        return retentionLeases;
     }
 
     private void trimUnsafeCommits() throws IOException {
@@ -2007,13 +1997,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Loads the latest retention leases from their dedicated state file.
+     *
+     * @return the retention leases
+     * @throws IOException if an I/O exception occurs reading the retention leases
+     */
+    public RetentionLeases loadRetentionLeases() throws IOException {
+        verifyNotClosed();
+        return replicationTracker.loadRetentionLeases(path.getShardStatePath());
+    }
+
+    /**
      * Persists the current retention leases to their dedicated state file.
      *
      * @throws WriteStateException if an exception occurs writing the state file
      */
     public void persistRetentionLeases() throws WriteStateException {
         verifyNotClosed();
-        replicationTracker.persistRetentionLeases(path);
+        replicationTracker.persistRetentionLeases(path.getShardStatePath());
     }
 
     /**

@@ -202,7 +202,7 @@ public class RetentionLeases implements ToXContent, Writeable {
         return PARSER.apply(parser, null);
     }
 
-    public static final MetaDataStateFormat<RetentionLeases> FORMAT = new MetaDataStateFormat<RetentionLeases>("retention-leases-") {
+    static final MetaDataStateFormat<RetentionLeases> FORMAT = new MetaDataStateFormat<RetentionLeases>("retention-leases-") {
 
         @Override
         public void toXContent(final XContentBuilder builder, final RetentionLeases retentionLeases) throws IOException {

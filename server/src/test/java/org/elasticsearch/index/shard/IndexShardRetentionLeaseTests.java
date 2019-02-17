@@ -234,7 +234,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
 
             // the written retention leases should equal our current retention leases
             final RetentionLeases retentionLeases = indexShard.getEngine().config().retentionLeasesSupplier().get();
-            final RetentionLeases writtenRetentionLeases = indexShard.loadLatestRetentionLeases();
+            final RetentionLeases writtenRetentionLeases = indexShard.loadRetentionLeases();
             if (retentionLeases.leases().isEmpty()) {
                 assertThat(writtenRetentionLeases.version(), equalTo(0L));
                 assertThat(writtenRetentionLeases.leases(), empty());

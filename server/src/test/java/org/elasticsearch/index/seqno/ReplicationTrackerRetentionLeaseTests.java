@@ -28,6 +28,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.IndexSettingsModule;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -458,6 +460,40 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                     replicationTracker.getRetentionLeases().leases(),
                     contains(expectedLeases.toArray(new RetentionLease[0])));
         }
+    }
+
+    public void testLoadAndPersistRetentionLeases() throws IOException {
+        final AllocationId allocationId = AllocationId.newInitializing();
+        long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        final ReplicationTracker replicationTracker = new ReplicationTracker(
+                new ShardId("test", "_na", 0),
+                allocationId.getId(),
+                IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                primaryTerm,
+                UNASSIGNED_SEQ_NO,
+                value -> {},
+                () -> 0L,
+                (leases, listener) -> {});
+        replicationTracker.updateFromMaster(
+                randomNonNegativeLong(),
+                Collections.singleton(allocationId.getId()),
+                routingTable(Collections.emptySet(), allocationId),
+                Collections.emptySet());
+        replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
+        final int length = randomIntBetween(0, 8);
+        for (int i = 0; i < length; i++) {
+            if (rarely() && primaryTerm < Long.MAX_VALUE) {
+                primaryTerm = randomLongBetween(primaryTerm + 1, Long.MAX_VALUE);
+                replicationTracker.setOperationPrimaryTerm(primaryTerm);
+            }
+            final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+            replicationTracker.addRetentionLease(
+                    Integer.toString(i), retainingSequenceNumber, "test-" + i, ActionListener.wrap(() -> {}));
+        }
+
+        final Path path = createTempDir();
+        replicationTracker.persistRetentionLeases(path);
+        assertThat(replicationTracker.loadRetentionLeases(path), equalTo(replicationTracker.getRetentionLeases()));
     }
 
     private void assertRetentionLeases(

@@ -340,7 +340,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
      * Persists the current retention leases to their dedicated state file.
      *
-     * @param path the path for the shard this replication tracker belong to
+     * @param path the path to the directory containing the state file
      * @throws WriteStateException if an exception occurs writing the state file
      */
     public synchronized void persistRetentionLeases(final Path path) throws WriteStateException {

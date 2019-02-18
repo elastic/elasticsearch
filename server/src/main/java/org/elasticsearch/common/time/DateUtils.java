@@ -231,7 +231,11 @@ public class DateUtils {
      * @return {@link ZonedDateTime} instance for the current date-time with milliseconds precision in UTC
      */
     public static ZonedDateTime nowWithMillisResolution() {
-        Clock millisResolutionClock = Clock.tick(Clock.systemUTC(), Duration.ofMillis(1));
+        return nowWithMillisResolution(Clock.systemUTC());
+    }
+
+    public static ZonedDateTime nowWithMillisResolution(Clock clock) {
+        Clock millisResolutionClock = Clock.tick(clock, Duration.ofMillis(1));
         return ZonedDateTime.now(millisResolutionClock);
     }
 }

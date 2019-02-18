@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -252,7 +253,25 @@ public class JobResultsProvider {
 
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
-        String indexName = job.getInitialResultsIndexName();
+        String tempIndexName = job.getInitialResultsIndexName();
+
+        // Our read/write aliases should point to the concrete index
+        // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
+        if (state.getMetaData().hasAlias(tempIndexName)) {
+            IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+            String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName);
+
+            // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this
+            // if it is closed, we bailout and return an error
+            if (concreteIndices.length == 0) {
+                finalListener.onFailure(
+                    ExceptionsHelper.badRequestException("Cannot create job [{}] as it requires closed index {}", job.getId(),
+                        tempIndexName));
+                return;
+            }
+            tempIndexName = concreteIndices[0];
+        }
+        final String indexName = tempIndexName;
 
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
             final IndicesAliasesRequest request = client.admin().indices().prepareAliases()

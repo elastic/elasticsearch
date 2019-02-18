@@ -345,8 +345,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @throws WriteStateException if an exception occurs writing the state file
      */
     public void persistRetentionLeases(final Path path) throws WriteStateException {
-        final RetentionLeases currentRetentionLeases = retentionLeases;
         synchronized (retentionLeasePersistenceLock) {
+            final RetentionLeases currentRetentionLeases;
+            synchronized (this) {
+                currentRetentionLeases = retentionLeases;
+            }
             logger.trace("persisting retention leases [{}]", currentRetentionLeases);
             RetentionLeases.FORMAT.writeAndCleanup(currentRetentionLeases, path);
         }

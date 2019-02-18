@@ -539,16 +539,19 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         final Thread[] threads = new Thread[numberOfThreads];
         for (int i = 0; i < numberOfThreads; i++) {
-                threads[i] = new Thread(() -> {
-                    try {
-                        barrier.await();
-                        replicationTracker.persistRetentionLeases(path);
-                        barrier.await();
-                    } catch (final BrokenBarrierException | InterruptedException | WriteStateException e) {
-                        throw new AssertionError(e);
-                    }
-                });
-                threads[i].start();
+            final String id = Integer.toString(length + i);
+            threads[i] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+                    replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test-" + id, ActionListener.wrap(() -> {}));
+                    replicationTracker.persistRetentionLeases(path);
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException | WriteStateException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            threads[i].start();
         }
 
         try {

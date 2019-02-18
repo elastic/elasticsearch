@@ -23,6 +23,10 @@ class InfoResponse {
 
     @Override
     public String toString() {
-        return "v" + majorVersion + "." + minorVersion + "." + revisionVersion;
+        return cluster + "[" + versionString() + "]";
+    }
+    
+    public String versionString() {
+        return majorVersion + "." + minorVersion + "." + revisionVersion;
     }
 }

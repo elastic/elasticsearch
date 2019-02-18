@@ -41,7 +41,7 @@ class JdbcHttpClient {
         httpClient = new HttpClient(conCfg);
         this.conCfg = conCfg;
         this.serverInfo = fetchServerInfo();
-        checkConnection();
+        checkServerVersion();
     }
 
     boolean ping(long timeoutInMs) throws SQLException {
@@ -83,13 +83,12 @@ class JdbcHttpClient {
         return new InfoResponse(mainResponse.getClusterName(), version.major, version.minor, version.revision);
     }
     
-    
-    private void checkConnection() throws SQLException {
+    private void checkServerVersion() throws SQLException {
         if (serverInfo.majorVersion != Version.CURRENT.major
                 || serverInfo.minorVersion != Version.CURRENT.minor
                 || serverInfo.revisionVersion != Version.CURRENT.revision) {
             throw new SQLException("This version of the JDBC driver is only compatible with Elasticsearch version " +
-                    Version.CURRENT.toString() + ", but it's configured to connect to a server version " + serverInfo.toString());
+                    Version.CURRENT.toString() + ", attempting to connect to a server version " + serverInfo.versionString());
         }
     }
 

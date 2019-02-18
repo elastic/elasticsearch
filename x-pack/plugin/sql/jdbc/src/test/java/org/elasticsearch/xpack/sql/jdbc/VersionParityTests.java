@@ -32,7 +32,7 @@ public class VersionParityTests extends WebServerTestCase {
         SQLException ex = expectThrows(SQLException.class, () -> new JdbcHttpClient(JdbcConfiguration.create(url, null, 0)));
         assertEquals("This version of the JDBC driver is only compatible with Elasticsearch version "
                 + org.elasticsearch.xpack.sql.client.Version.CURRENT.toString()
-                + ", but it's configured to connect to a server version v" + version.toString(), ex.getMessage());
+                + ", attempting to connect to a server version " + version.toString(), ex.getMessage());
     }
     
     public void testNoExceptionThrownForCompatibleVersions() throws IOException {

@@ -17,10 +17,14 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
     @Override
     protected AnalyticsResult createTestInstance() {
         RowResults rowResults = null;
+        Integer progressPercent = null;
         if (randomBoolean()) {
             rowResults = RowResultsTests.createRandom();
         }
-        return new AnalyticsResult(rowResults);
+        if (randomBoolean()) {
+            progressPercent = randomIntBetween(0, 100);
+        }
+        return new AnalyticsResult(rowResults, progressPercent);
     }
 
     @Override

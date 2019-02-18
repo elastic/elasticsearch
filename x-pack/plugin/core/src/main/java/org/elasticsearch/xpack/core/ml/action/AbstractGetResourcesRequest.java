@@ -19,19 +19,19 @@ public abstract class AbstractGetResourcesRequest extends ActionRequest {
     private String resourceId;
     private PageParams pageParams = PageParams.defaultParams();
 
-    public void setResourceId(String resourceId) {
+    public final void setResourceId(String resourceId) {
         this.resourceId = resourceId;
     }
 
-    public String getResourceId() {
+    public final String getResourceId() {
         return resourceId;
     }
 
-    public void setPageParams(PageParams pageParams) {
+    public final void setPageParams(PageParams pageParams) {
         this.pageParams = pageParams;
     }
 
-    public PageParams getPageParams() {
+    public final PageParams getPageParams() {
         return pageParams;
     }
 

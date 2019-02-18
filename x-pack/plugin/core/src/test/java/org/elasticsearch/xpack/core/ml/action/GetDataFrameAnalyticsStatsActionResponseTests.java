@@ -22,8 +22,9 @@ public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireS
         int listSize = randomInt(10);
         List<Response.Stats> analytics = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
+            Integer progressPercentage = randomBoolean() ? null : randomIntBetween(0, 100);
             Response.Stats stats = new Response.Stats(DataFrameAnalyticsConfigTests.randomValidId(),
-                randomFrom(DataFrameAnalyticsState.values()), null, randomAlphaOfLength(20));
+                randomFrom(DataFrameAnalyticsState.values()), progressPercentage, null, randomAlphaOfLength(20));
             analytics.add(stats);
         }
         return new Response(new QueryPage<>(analytics, analytics.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));

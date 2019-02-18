@@ -18,10 +18,12 @@ public class AnalyticsResultProcessor {
 
     private static final Logger LOGGER = LogManager.getLogger(AnalyticsResultProcessor.class);
 
+    private final AnalyticsProcessManager.ProcessContext processContext;
     private final DataFrameRowsJoiner dataFrameRowsJoiner;
     private final CountDownLatch completionLatch = new CountDownLatch(1);
 
-    public AnalyticsResultProcessor(DataFrameRowsJoiner dataFrameRowsJoiner) {
+    public AnalyticsResultProcessor(AnalyticsProcessManager.ProcessContext processContext, DataFrameRowsJoiner dataFrameRowsJoiner) {
+        this.processContext = Objects.requireNonNull(processContext);
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
     }
 
@@ -56,6 +58,10 @@ public class AnalyticsResultProcessor {
         RowResults rowResults = result.getRowResults();
         if (rowResults != null) {
             dataFrameRowsJoiner.processRowResults(rowResults);
+        }
+        Integer progressPercent = result.getProgressPercent();
+        if (progressPercent != null) {
+            processContext.setProgressPercent(progressPercent);
         }
     }
 }

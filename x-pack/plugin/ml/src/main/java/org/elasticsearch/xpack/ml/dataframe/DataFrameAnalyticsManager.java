@@ -12,12 +12,14 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -25,6 +27,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
@@ -39,6 +42,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class DataFrameAnalyticsManager {
 
@@ -55,11 +61,14 @@ public class DataFrameAnalyticsManager {
     );
 
     private final ClusterService clusterService;
-    private final Client client;
+    /**
+     * We need a {@link NodeClient} to be get the reindexing task and be able to report progress
+     */
+    private final NodeClient client;
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final AnalyticsProcessManager processManager;
 
-    public DataFrameAnalyticsManager(ClusterService clusterService, Client client, DataFrameAnalyticsConfigProvider configProvider,
+    public DataFrameAnalyticsManager(ClusterService clusterService, NodeClient client, DataFrameAnalyticsConfigProvider configProvider,
                                      AnalyticsProcessManager processManager) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = Objects.requireNonNull(client);
@@ -117,12 +126,14 @@ public class DataFrameAnalyticsManager {
                 reindexRequest.setSourceQuery(config.getParsedQuery());
                 reindexRequest.setDestIndex(config.getDest());
                 reindexRequest.setScript(new Script("ctx._source." + DataFrameAnalyticsFields.ID + " = ctx._id"));
-                ClientHelper.executeWithHeadersAsync(config.getHeaders(),
-                    ClientHelper.ML_ORIGIN,
-                    client,
-                    ReindexAction.INSTANCE,
-                    reindexRequest,
-                    reindexCompletedListener);
+
+                final ThreadContext threadContext = client.threadPool().getThreadContext();
+                final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
+                try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(ML_ORIGIN)) {
+                    Task reindexTask = client.executeLocally(ReindexAction.INSTANCE, reindexRequest,
+                        new ContextPreservingActionListener<>(supplier, reindexCompletedListener));
+                    task.setReindexingTaskId(reindexTask.getId());
+                }
             },
             reindexCompletedListener::onFailure
         );
@@ -137,7 +148,7 @@ public class DataFrameAnalyticsManager {
                 DataFrameAnalyticsTaskState analyzingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.ANALYZING,
                     task.getAllocationId());
                 task.updatePersistentTaskState(analyzingState, ActionListener.wrap(
-                    updatedTask -> processManager.runJob(config, dataExtractorFactory,
+                    updatedTask -> processManager.runJob(task.getAllocationId(), config, dataExtractorFactory,
                         error -> {
                             if (error != null) {
                                 task.markAsFailed(error);

@@ -34,6 +34,10 @@ public class GetDataFrameAnalyticsAction extends Action<GetDataFrameAnalyticsAct
 
         public Request() {}
 
+        public Request(String id) {
+            setResourceId(id);
+        }
+
         public Request(StreamInput in) throws IOException {
             readFrom(in);
         }

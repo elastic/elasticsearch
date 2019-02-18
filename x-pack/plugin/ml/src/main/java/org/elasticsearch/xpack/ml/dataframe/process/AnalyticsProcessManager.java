@@ -8,11 +8,15 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -25,7 +29,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 public class AnalyticsProcessManager {
@@ -36,6 +43,7 @@ public class AnalyticsProcessManager {
     private final Environment environment;
     private final ThreadPool threadPool;
     private final AnalyticsProcessFactory processFactory;
+    private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
 
     public AnalyticsProcessManager(Client client, Environment environment, ThreadPool threadPool,
                                    AnalyticsProcessFactory analyticsProcessFactory) {
@@ -45,46 +53,51 @@ public class AnalyticsProcessManager {
         this.processFactory = Objects.requireNonNull(analyticsProcessFactory);
     }
 
-    public void runJob(DataFrameAnalyticsConfig config, DataFrameDataExtractorFactory dataExtractorFactory,
+    public void runJob(long taskAllocationId, DataFrameAnalyticsConfig config, DataFrameDataExtractorFactory dataExtractorFactory,
                        Consumer<Exception> finishHandler) {
         threadPool.generic().execute(() -> {
             DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor(false);
             AnalyticsProcess process = createProcess(config.getId(), createProcessConfig(config, dataExtractor));
+            processContextByAllocation.putIfAbsent(taskAllocationId, new ProcessContext());
             ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
             DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(config.getId(), client,
                 dataExtractorFactory.newExtractor(true));
-            AnalyticsResultProcessor resultProcessor = new AnalyticsResultProcessor(dataFrameRowsJoiner);
+            AnalyticsResultProcessor resultProcessor = new AnalyticsResultProcessor(processContextByAllocation.get(taskAllocationId),
+                dataFrameRowsJoiner);
             executorService.execute(() -> resultProcessor.process(process));
-            executorService.execute(() -> processData(config.getId(), dataExtractor, process, resultProcessor, finishHandler));
+            executorService.execute(
+                () -> processData(taskAllocationId, config, dataExtractor, process, resultProcessor, finishHandler));
         });
     }
 
-    private void processData(String jobId, DataFrameDataExtractor dataExtractor, AnalyticsProcess process,
-                             AnalyticsResultProcessor resultProcessor, Consumer<Exception> finishHandler) {
+    private void processData(long taskAllocationId, DataFrameAnalyticsConfig config, DataFrameDataExtractor dataExtractor,
+                             AnalyticsProcess process, AnalyticsResultProcessor resultProcessor, Consumer<Exception> finishHandler) {
         try {
             writeHeaderRecord(dataExtractor, process);
             writeDataRows(dataExtractor, process);
             process.writeEndOfDataMessage();
             process.flushStream();
 
-            LOGGER.info("[{}] Waiting for result processor to complete", jobId);
+            LOGGER.info("[{}] Waiting for result processor to complete", config.getId());
             resultProcessor.awaitForCompletion();
-            LOGGER.info("[{}] Result processor has completed", jobId);
+            refreshDest(config);
+            LOGGER.info("[{}] Result processor has completed", config.getId());
         } catch (IOException e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Error writing data to the process", jobId), e);
+            LOGGER.error(new ParameterizedMessage("[{}] Error writing data to the process", config.getId()), e);
             // TODO Handle this failure by setting the task state to FAILED
         } finally {
-            LOGGER.info("[{}] Closing process", jobId);
+            LOGGER.info("[{}] Closing process", config.getId());
             try {
                 process.close();
-                LOGGER.info("[{}] Closed process", jobId);
+                LOGGER.info("[{}] Closed process", config.getId());
 
                 // This results in marking the persistent task as complete
                 finishHandler.accept(null);
             } catch (IOException e) {
-                LOGGER.error("[{}] Error closing data frame analyzer process", jobId);
+                LOGGER.error("[{}] Error closing data frame analyzer process", config.getId());
                 finishHandler.accept(e);
             }
+            processContextByAllocation.remove(taskAllocationId);
         }
     }
 
@@ -144,5 +157,25 @@ public class AnalyticsProcessManager {
         AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(dataSummary.rows, dataSummary.cols,
                 new ByteSizeValue(1, ByteSizeUnit.GB), 1, dataFrameAnalyses.get(0));
         return processConfig;
+    }
+
+    @Nullable
+    public Integer getProgressPercent(long allocationId) {
+        ProcessContext processContext = processContextByAllocation.get(allocationId);
+        return processContext == null ? null : processContext.progressPercent.get();
+    }
+
+    private void refreshDest(DataFrameAnalyticsConfig config) {
+        ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
+            () -> client.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest())).actionGet());
+    }
+
+    static class ProcessContext {
+
+        private final AtomicInteger progressPercent = new AtomicInteger(0);
+
+        void setProgressPercent(int progressPercent) {
+            this.progressPercent.set(progressPercent);
+        }
     }
 }

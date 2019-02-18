@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
@@ -2015,7 +2016,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             retentionLeaseSyncer.sync(
                     shardId,
                     retentionLeases.v2(),
-                    ActionListener.wrap(r -> {}, e -> logger.warn("failed to sync retention leases after expiration check", e)));
+                    ActionListener.wrap(
+                            r -> {},
+                            e -> logger.warn(new ParameterizedMessage(
+                                            "failed to sync retention leases [{}] after expiration check",
+                                            retentionLeases),
+                                    e)));
         } else {
             logger.trace("background syncing retention leases [{}] after expiration check", retentionLeases.v2());
             retentionLeaseSyncer.backgroundSync(shardId, retentionLeases.v2());

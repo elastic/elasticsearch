@@ -8,12 +8,15 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -63,34 +66,35 @@ public class AnalyticsProcessManager {
                 dataFrameRowsJoiner);
             executorService.execute(() -> resultProcessor.process(process));
             executorService.execute(
-                () -> processData(taskAllocationId, config.getId(), dataExtractor, process, resultProcessor, finishHandler));
+                () -> processData(taskAllocationId, config, dataExtractor, process, resultProcessor, finishHandler));
         });
     }
 
-    private void processData(long taskAllocationId, String jobId, DataFrameDataExtractor dataExtractor, AnalyticsProcess process,
-                             AnalyticsResultProcessor resultProcessor, Consumer<Exception> finishHandler) {
+    private void processData(long taskAllocationId, DataFrameAnalyticsConfig config, DataFrameDataExtractor dataExtractor,
+                             AnalyticsProcess process, AnalyticsResultProcessor resultProcessor, Consumer<Exception> finishHandler) {
         try {
             writeHeaderRecord(dataExtractor, process);
             writeDataRows(dataExtractor, process);
             process.writeEndOfDataMessage();
             process.flushStream();
 
-            LOGGER.info("[{}] Waiting for result processor to complete", jobId);
+            LOGGER.info("[{}] Waiting for result processor to complete", config.getId());
             resultProcessor.awaitForCompletion();
-            LOGGER.info("[{}] Result processor has completed", jobId);
+            refreshDest(config);
+            LOGGER.info("[{}] Result processor has completed", config.getId());
         } catch (IOException e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Error writing data to the process", jobId), e);
+            LOGGER.error(new ParameterizedMessage("[{}] Error writing data to the process", config.getId()), e);
             // TODO Handle this failure by setting the task state to FAILED
         } finally {
-            LOGGER.info("[{}] Closing process", jobId);
+            LOGGER.info("[{}] Closing process", config.getId());
             try {
                 process.close();
-                LOGGER.info("[{}] Closed process", jobId);
+                LOGGER.info("[{}] Closed process", config.getId());
 
                 // This results in marking the persistent task as complete
                 finishHandler.accept(null);
             } catch (IOException e) {
-                LOGGER.error("[{}] Error closing data frame analyzer process", jobId);
+                LOGGER.error("[{}] Error closing data frame analyzer process", config.getId());
                 finishHandler.accept(e);
             }
             processContextByAllocation.remove(taskAllocationId);
@@ -159,6 +163,11 @@ public class AnalyticsProcessManager {
     public Integer getProgressPercent(long allocationId) {
         ProcessContext processContext = processContextByAllocation.get(allocationId);
         return processContext == null ? null : processContext.progressPercent.get();
+    }
+
+    private void refreshDest(DataFrameAnalyticsConfig config) {
+        ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
+            () -> client.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest())).actionGet());
     }
 
     static class ProcessContext {

@@ -81,3 +81,4 @@
         wait_for_active_shards: all
   - is_true: acknowledged
   - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }

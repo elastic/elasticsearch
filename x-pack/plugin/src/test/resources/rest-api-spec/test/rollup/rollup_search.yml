@@ -17,7 +17,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -127,7 +127,7 @@ setup:
 "Basic Search":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -152,7 +152,7 @@ setup:
 "Formatted Date Histo":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -178,7 +178,7 @@ setup:
 "Empty aggregation":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         rest_total_hits_as_int: true
         index: "foo_rollup"
         body:
@@ -193,7 +193,7 @@ setup:
 "Empty aggregation with new response format":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -210,7 +210,7 @@ setup:
 "Search with Metric":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -243,7 +243,7 @@ setup:
 "Search with Query":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -280,7 +280,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -388,7 +388,7 @@ setup:
 
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -423,7 +423,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -531,7 +531,7 @@ setup:
 
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -568,7 +568,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -675,7 +675,7 @@ setup:
             "_rollup.version": 1
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         body:
           size: 0
@@ -710,7 +710,7 @@ setup:
 "Wildcards matching single rollup index":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup*"
         body:
           size: 0
@@ -750,7 +750,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: bar
         body:  >
           {
@@ -777,7 +777,7 @@ setup:
 
   - do:
       catch: /RollupSearch currently only supports searching one rollup index at a time\./
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "*_rollup"
         body:
           size: 0
@@ -798,7 +798,7 @@ setup:
         name: rollup_alias
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "rollup_alias"
         body:
           size: 0
@@ -838,7 +838,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: bar
         body:  >
           {
@@ -870,7 +870,7 @@ setup:
 
   - do:
        catch: /RollupSearch currently only supports searching one rollup index at a time\./
-       xpack.rollup.rollup_search:
+       rollup.rollup_search:
          index: "rollup_alias"
          body:
            size: 0
@@ -886,7 +886,7 @@ setup:
 "Search with typed_keys":
 
   - do:
-      xpack.rollup.rollup_search:
+      rollup.rollup_search:
         index: "foo_rollup"
         typed_keys: true
         body:

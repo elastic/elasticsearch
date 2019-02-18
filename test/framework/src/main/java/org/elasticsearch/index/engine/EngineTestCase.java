@@ -27,6 +27,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -126,6 +128,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class EngineTestCase extends ESTestCase {
@@ -254,18 +257,20 @@ public abstract class EngineTestCase extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        if (engine != null && engine.isClosed.get() == false) {
-            engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
+        try {
+            if (engine != null && engine.isClosed.get() == false) {
+                engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
+                assertMaxSeqNoInCommitUserData(engine);
+            }
+            if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
+                replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService("test"));
+                assertMaxSeqNoInCommitUserData(replicaEngine);
+            }
+        } finally {
+            IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
         }
-        if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
-            replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService("test"));
-        }
-        IOUtils.close(
-                replicaEngine, storeReplica,
-                engine, store);
-        terminate(threadPool);
     }
 
 
@@ -1063,6 +1068,21 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
                 assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));
+            }
+        }
+    }
+
+    /**
+     * Asserts that the max_seq_no stored in the commit's user_data is never smaller than seq_no of any document in the commit.
+     */
+    public static void assertMaxSeqNoInCommitUserData(Engine engine) throws Exception {
+        List<IndexCommit> commits = DirectoryReader.listCommits(engine.store.directory());
+        for (IndexCommit commit : commits) {
+            try (DirectoryReader reader = DirectoryReader.open(commit)) {
+                AtomicLong maxSeqNoFromDocs = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+                Lucene.scanSeqNosInReader(reader, 0, Long.MAX_VALUE, n -> maxSeqNoFromDocs.set(Math.max(n, maxSeqNoFromDocs.get())));
+                assertThat(Long.parseLong(commit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                    greaterThanOrEqualTo(maxSeqNoFromDocs.get()));
             }
         }
     }

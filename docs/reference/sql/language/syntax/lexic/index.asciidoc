@@ -20,7 +20,7 @@ Take the following example:
 SELECT * FROM table
 ----
 
-This query has four tokens: `SELECT`, `\*`, `FROM` and `table`. The first three, namely `SELECT`, `*` and `FROM` are __key words__ meaning words that have a fixed meaning in SQL. The token `table` is an _identifier_ meaning it identifies (by name) an entity inside SQL such as a table (in this case), a column, etc...
+This query has four tokens: `SELECT`, `*`, `FROM` and `table`. The first three, namely `SELECT`, `*` and `FROM` are __key words__ meaning words that have a fixed meaning in SQL. The token `table` is an _identifier_ meaning it identifies (by name) an entity inside SQL such as a table (in this case), a column, etc...
 
 As one can see, both key words and identifiers have the _same_ lexical structure and thus one cannot know whether a token is one or the other without knowing the SQL language; the complete list of key words is available in the <<sql-syntax-reserved, reserved appendix>>.
 Do note that key words are case-insensitive meaning the previous example can be written as:
@@ -45,7 +45,7 @@ Identifiers can be of two types: __quoted__ and __unquoted__:
 SELECT ip_address FROM "hosts-*"
 ----
 
-This query has two identifiers, `ip_address` and `hosts-\*` (an <<multi-index,index pattern>>). As `ip_address` does not clash with any key words it can be used verbatim, `hosts-*` on the other hand cannot as it clashes with `-` (minus operation) and `*` hence the double quotes.
+This query has two identifiers, `ip_address` and `hosts-*` (an <<multi-index,index pattern>>). As `ip_address` does not clash with any key words it can be used verbatim, `hosts-*` on the other hand cannot as it clashes with `-` (minus operation) and `*` hence the double quotes.
 
 Another example:
 
@@ -213,7 +213,7 @@ s|Description
 Two styles are supported:
 
 Single Line:: Comments start with a double dash `--` and continue until the end of the line.
-Multi line:: Comments that start with `/\*` and end with `*/` (also known as C-style). 
+Multi line:: Comments that start with `/*` and end with `*/` (also known as C-style). 
 
 
 [source, sql]

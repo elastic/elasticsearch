@@ -146,9 +146,10 @@ public class SettingsFilterTests extends ESTestCase {
         if (useLegacyLdapBindPassword) {
             deprecatedSettings.add(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD);
         }
+
+        String fallbackProperties = inFipsJvm() ? "supported protocols" : "key configuration, trust configuration, supported protocols";
         assertSettingDeprecationsAndWarnings(deprecatedSettings.toArray(new Setting<?>[0]), "SSL configuration [xpack.http.ssl] relies " +
-            "upon fallback to another configuration for [key configuration, trust configuration, supported protocols], " +
-            "which is deprecated.");
+            "upon fallback to another configuration for [" + fallbackProperties + "], which is deprecated.");
     }
 
     private void configureUnfilteredSetting(String settingName, String value) {

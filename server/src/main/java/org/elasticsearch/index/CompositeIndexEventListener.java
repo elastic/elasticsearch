@@ -250,7 +250,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
 
     @Override
     public void onStoreCreated(ShardId shardId) {
-        for (IndexEventListener listener  : listeners) {
+        for (IndexEventListener listener : listeners) {
             try {
                 listener.onStoreCreated(shardId);
             } catch (Exception e) {

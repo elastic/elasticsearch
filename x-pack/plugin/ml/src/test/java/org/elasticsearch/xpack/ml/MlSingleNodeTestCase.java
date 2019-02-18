@@ -15,10 +15,13 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 /**
  * An extension to {@link ESSingleNodeTestCase} that adds node settings specifically needed for ML test cases.
@@ -44,6 +47,33 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(LocalStateMachineLearning.class);
+    }
+
+    /**
+     * This cleanup is to fix the problem described in
+     * https://github.com/elastic/elasticsearch/issues/38952
+     */
+    @Override
+    public void tearDown() throws Exception {
+        try {
+            logger.info("[{}#{}]: ML-specific after test cleanup", getTestClass().getSimpleName(), getTestName());
+            String[] nonAnnotationMlIndices;
+            boolean mlAnnotationsIndexExists;
+            do {
+                String[] mlIndices = client().admin().indices().prepareGetIndex().addIndices(".ml-*").get().indices();
+                nonAnnotationMlIndices = Arrays.stream(mlIndices).filter(name -> name.startsWith(".ml-annotations") == false)
+                    .toArray(String[]::new);
+                mlAnnotationsIndexExists = mlIndices.length > nonAnnotationMlIndices.length;
+            } while (nonAnnotationMlIndices.length > 0 && mlAnnotationsIndexExists == false);
+            if (nonAnnotationMlIndices.length > 0) {
+                // Delete the ML indices apart from the annotations index.  The annotations index will be deleted by the
+                // base class cleanup.  We want to delete all the others first so that the annotations index doesn't get
+                // automatically recreated.
+                assertAcked(client().admin().indices().prepareDelete(nonAnnotationMlIndices).get());
+            }
+        } finally {
+            super.tearDown();
+        }
     }
 
     protected void waitForMlTemplates() throws Exception {

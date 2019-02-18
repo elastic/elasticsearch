@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -103,10 +102,8 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             latch.await();
             retentionLock.close();
 
-            // check retention leases have been committed on the primary
-            final RetentionLeases primaryCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
-                    primary.commitStats().getUserData().get(Engine.RETENTION_LEASES));
-            assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(primaryCommittedRetentionLeases)));
+            // check retention leases have been written on the primary
+            assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(primary.loadRetentionLeases())));
 
             // check current retention leases have been synced to all replicas
             for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
@@ -118,10 +115,8 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                 final Map<String, RetentionLease> retentionLeasesOnReplica = RetentionLeases.toMap(replica.getRetentionLeases());
                 assertThat(retentionLeasesOnReplica, equalTo(currentRetentionLeases));
 
-                // check retention leases have been committed on the replica
-                final RetentionLeases replicaCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
-                        replica.commitStats().getUserData().get(Engine.RETENTION_LEASES));
-                assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(replicaCommittedRetentionLeases)));
+                // check retention leases have been written on the replica
+                assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(replica.loadRetentionLeases())));
             }
         }
     }
@@ -165,10 +160,8 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             latch.await();
             retentionLock.close();
 
-            // check retention leases have been committed on the primary
-            final RetentionLeases primaryCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
-                    primary.commitStats().getUserData().get(Engine.RETENTION_LEASES));
-            assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(primaryCommittedRetentionLeases)));
+            // check retention leases have been written on the primary
+            assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(primary.loadRetentionLeases())));
 
             // check current retention leases have been synced to all replicas
             for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
@@ -180,10 +173,8 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                 final Map<String, RetentionLease> retentionLeasesOnReplica = RetentionLeases.toMap(replica.getRetentionLeases());
                 assertThat(retentionLeasesOnReplica, equalTo(currentRetentionLeases));
 
-                // check retention leases have been committed on the replica
-                final RetentionLeases replicaCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
-                        replica.commitStats().getUserData().get(Engine.RETENTION_LEASES));
-                assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(replicaCommittedRetentionLeases)));
+                // check retention leases have been written on the replica
+                assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(replica.loadRetentionLeases())));
             }
         }
     }
@@ -322,7 +313,6 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38588")
     public void testRetentionLeasesSyncOnRecovery() throws Exception {
         final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);
@@ -378,6 +368,9 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     .getShardOrNull(new ShardId(resolveIndex("index"), 0));
             final Map<String, RetentionLease> retentionLeasesOnReplica = RetentionLeases.toMap(replica.getRetentionLeases());
             assertThat(retentionLeasesOnReplica, equalTo(currentRetentionLeases));
+
+            // check retention leases have been written on the replica; see RecoveryTarget#finalizeRecovery
+            assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(replica.loadRetentionLeases())));
         }
     }
 

@@ -292,17 +292,7 @@ public class DoSection implements ExecutableSection {
             final boolean matches = matcher.matches();
             if (matches) {
                 final String message = matcher.group(1);
-                // noinspection StatementWithEmptyBody
-                if (masterVersion.before(Version.V_7_0_0)
-                        && message.equals("the default number of shards will change from [5] to [1] in 7.0.0; "
-                        + "if you wish to continue using the default of [5] shards, "
-                        + "you must manage this on the create index request or with an index template")) {
-                    /*
-                     * This warning header will come back in the vast majority of our tests that create an index when running against an
-                     * older master. Rather than rewrite our tests to assert this warning header, we assume that it is expected.
-                     */
-                } else // noinspection StatementWithEmptyBody
-                    if (message.startsWith("[types removal]")) {
+                if (message.startsWith("[types removal]")) {
                     /*
                      * We skip warnings related to types deprecation so that we can continue to run the many
                      * mixed-version tests that used typed APIs.

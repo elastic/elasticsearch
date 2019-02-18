@@ -62,6 +62,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -83,7 +84,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -126,6 +126,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -196,6 +197,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MetaStateService metaStateService;
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
     private final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories;
+    final AbstractRefCounted indicesRefCount; // pkg-private for testing
 
     @Override
     protected void doStart() {
@@ -251,6 +253,27 @@ public class IndicesService extends AbstractLifecycleComponent
         }
 
         this.indexStoreFactories = indexStoreFactories;
+        // doClose() is called when shutting down a node, yet there might still be ongoing requests
+        // that we need to wait for before closing some resources such as the caches. In order to
+        // avoid closing these resources while ongoing requests are still being processed, we use a
+        // ref count which will only close them when both this service and all index services are
+        // actually closed
+        indicesRefCount = new AbstractRefCounted("indices") {
+            @Override
+            protected void closeInternal() {
+                try {
+                    IOUtils.close(
+                            analysisRegistry,
+                            indexingMemoryController,
+                            indicesFieldDataCache,
+                            cacheCleaner,
+                            indicesRequestCache,
+                            indicesQueryCache);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        };
     }
 
     @Override
@@ -282,14 +305,8 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     @Override
-    protected void doClose() {
-        IOUtils.closeWhileHandlingException(
-            analysisRegistry,
-            indexingMemoryController,
-            indicesFieldDataCache,
-            cacheCleaner,
-            indicesRequestCache,
-            indicesQueryCache);
+    protected void doClose() throws IOException {
+        indicesRefCount.decRef();
     }
 
     /**
@@ -458,8 +475,16 @@ public class IndicesService extends AbstractLifecycleComponent
         List<IndexEventListener> finalListeners = new ArrayList<>(builtInListeners);
         final IndexEventListener onStoreClose = new IndexEventListener() {
             @Override
+            public void onStoreCreated(ShardId shardId) {
+                indicesRefCount.incRef();
+            }
+            @Override
             public void onStoreClosed(ShardId shardId) {
-                indicesQueryCache.onClose(shardId);
+                try {
+                    indicesRefCount.decRef();
+                } finally {
+                    indicesQueryCache.onClose(shardId);
+                }
             }
         };
         finalListeners.add(onStoreClose);
@@ -495,11 +520,6 @@ public class IndicesService extends AbstractLifecycleComponent
                                                          List<IndexEventListener> builtInListeners,
                                                          IndexingOperationListener... indexingOperationListeners) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, settings, indexScopedSettings);
-        if (idxSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)
-            && EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.exists(idxSettings.getSettings())) {
-            throw new IllegalArgumentException(
-                "Setting [" + EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey() + "] was removed in version 7.0.0");
-        }
         // we ignore private settings since they are not registered settings
         indexScopedSettings.validate(indexMetaData.getSettings(), true, true, true);
         logger.debug("creating Index [{}], shards [{}]/[{}] - reason [{}]",

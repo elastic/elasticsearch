@@ -1,0 +1,32 @@
+[testenv="platinum"]
+
+If your {ml} indices were created earlier than the previous major version, they
+must be reindexed. In those circumstances, there must be no machine learning
+jobs running during the upgrade. 
+
+In all other circumstances, there is no requirement to close your {ml} jobs. 
+There are, however, advantages to doing so. If you choose to leave your jobs
+running during the upgrade, they are affected when you stop the {ml} nodes. The
+jobs move to another {ml} node and restore the model states. This scenario has
+the least disruption to the active {ml} jobs but incurs the highest load on the
+cluster.
+
+To close all {ml} jobs before you upgrade, see
+{stack-ov}/stopping-ml.html[Stopping {ml}]. This method persists the model
+state at the moment of closure, which means that when you open your jobs after
+the upgrade, they use the exact same model. This scenario takes the most time,
+however, especially if you have many jobs or jobs with large model states.  
+
+To temporarily halt the tasks associated with your {ml} jobs and {dfeeds} and
+prevent new jobs from opening, use the <<ml-set-upgrade-mode,set upgrade mode API>>:
+
+[source,js]
+--------------------------------------------------
+POST _ml/set_upgrade_mode?enabled=true
+--------------------------------------------------
+// CONSOLE
+
+This method does not persist the absolute latest model state, rather it uses the
+last model state that was automatically saved. By halting the tasks, you avoid
+incurring the cost of managing active jobs during the upgrade and it's quicker
+than stopping {dfeeds} and closing jobs. 

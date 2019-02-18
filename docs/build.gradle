@@ -840,7 +840,7 @@ buildRestTests.setups['sensor_prefab_data'] = '''
 '''
 buildRestTests.setups['sample_job'] = '''
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: "sample_job"
         body:  >
           {
@@ -894,7 +894,7 @@ buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index
 '''
 buildRestTests.setups['farequote_job'] = buildRestTests.setups['farequote_data'] + '''
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: "farequote"
         body:  >
           {
@@ -914,7 +914,7 @@ buildRestTests.setups['farequote_job'] = buildRestTests.setups['farequote_data']
 '''
 buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_job'] + '''
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: "datafeed-farequote"
         body:  >
           {
@@ -978,7 +978,7 @@ buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_met
 '''
 buildRestTests.setups['server_metrics_job'] = buildRestTests.setups['server_metrics_data'] + '''
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: "total-requests"
         body:  >
           {
@@ -1000,7 +1000,7 @@ buildRestTests.setups['server_metrics_job'] = buildRestTests.setups['server_metr
 '''
 buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server_metrics_job'] + '''
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: "datafeed-total-requests"
         body:  >
           {
@@ -1010,22 +1010,22 @@ buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server
 '''
 buildRestTests.setups['server_metrics_openjob'] = buildRestTests.setups['server_metrics_datafeed'] + '''
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "total-requests"
 '''
 buildRestTests.setups['server_metrics_startdf'] = buildRestTests.setups['server_metrics_openjob'] + '''
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "datafeed-total-requests"
 '''
 buildRestTests.setups['calendar_outages'] = '''
   - do:
-        xpack.ml.put_calendar:
+        ml.put_calendar:
           calendar_id: "planned-outages"
 '''
 buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages'] + '''
   - do:
-        xpack.ml.post_calendar_events:
+        ml.post_calendar_events:
           calendar_id: "planned-outages"
           body: >
             { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z", "calendar_id": "planned-outages" }
@@ -1034,12 +1034,12 @@ buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['cale
 '''
 buildRestTests.setups['calendar_outages_openjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
   - do:
-       xpack.ml.put_calendar:
+       ml.put_calendar:
          calendar_id: "planned-outages"
 '''
 buildRestTests.setups['calendar_outages_addjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
   - do:
-       xpack.ml.put_calendar:
+       ml.put_calendar:
          calendar_id: "planned-outages"
          body:  >
            {
@@ -1048,7 +1048,7 @@ buildRestTests.setups['calendar_outages_addjob'] = buildRestTests.setups['server
 '''
 buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages_addjob'] + '''
   - do:
-       xpack.ml.post_calendar_events:
+       ml.post_calendar_events:
          calendar_id: "planned-outages"
          body:  >
            { "events" : [

@@ -44,6 +44,7 @@ import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -750,7 +751,8 @@ public class ThreadPool implements Scheduler, Closeable {
      */
     public static boolean terminate(ThreadPool pool, long timeout, TimeUnit timeUnit) {
         if (pool != null) {
-            try {
+            // Leverage try-with-resources to close the threadpool
+            try (ThreadPool c = pool) {
                 pool.shutdown();
                 if (awaitTermination(pool, timeout, timeUnit)) {
                     return true;
@@ -758,8 +760,6 @@ public class ThreadPool implements Scheduler, Closeable {
                 // last resort
                 pool.shutdownNow();
                 return awaitTermination(pool, timeout, timeUnit);
-            } finally {
-                IOUtils.closeWhileHandlingException(pool);
             }
         }
         return false;
@@ -780,7 +780,7 @@ public class ThreadPool implements Scheduler, Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         threadContext.close();
     }
 

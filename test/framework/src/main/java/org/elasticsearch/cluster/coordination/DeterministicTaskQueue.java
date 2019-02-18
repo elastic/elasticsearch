@@ -41,7 +41,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class DeterministicTaskQueue {
 
@@ -301,11 +300,6 @@ public class DeterministicTaskQueue {
             @Override
             public long absoluteTimeInMillis() {
                 return currentTimeMillis;
-            }
-
-            @Override
-            public Supplier<Long> estimatedTimeInMillis() {
-                return () -> currentTimeMillis;
             }
 
             @Override

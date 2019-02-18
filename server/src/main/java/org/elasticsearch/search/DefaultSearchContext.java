@@ -81,14 +81,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 
 final class DefaultSearchContext extends SearchContext {
 
     private final long id;
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
-    private final Supplier<Long> timeEstimate;
+    private final LongSupplier timeEstimate;
     private SearchType searchType;
     private final Engine.Searcher engineSearcher;
     private final BigArrays bigArrays;
@@ -159,7 +159,7 @@ final class DefaultSearchContext extends SearchContext {
 
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
-                         IndexShard indexShard, BigArrays bigArrays, Supplier<Long> timeEstimate, TimeValue timeout,
+                         IndexShard indexShard, BigArrays bigArrays, LongSupplier timeEstimate, TimeValue timeout,
                          FetchPhase fetchPhase, Version minNodeVersion) {
         this.id = id;
         this.request = request;
@@ -804,7 +804,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public Supplier<Long> timeEstimate() {
+    public LongSupplier timeEstimate() {
         return timeEstimate;
     }
 

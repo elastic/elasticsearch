@@ -66,7 +66,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 
 /**
  * This class encapsulates the state needed to execute a search. It holds a reference to the
@@ -395,7 +395,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract ObjectMapper getObjectMapper(String name);
 
-    public abstract Supplier<Long> timeEstimate();
+    public abstract LongSupplier timeEstimate();
 
     /** Return a view of the additional query collectors that should be run for this context. */
     public abstract Map<Class<?>, Collector> queryCollectors();

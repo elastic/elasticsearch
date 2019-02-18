@@ -57,7 +57,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
@@ -250,10 +249,6 @@ public class ThreadPool implements Scheduler, Closeable {
      */
     public long absoluteTimeInMillis() {
         return cachedTimeThread.absoluteTimeInMillis();
-    }
-
-    public Supplier<Long> estimatedTimeInMillis() {
-        return () -> cachedTimeThread.relativeMillis;
     }
 
     public ThreadPoolInfo info() {

@@ -35,7 +35,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 
 public class SubSearchContext extends FilteredSearchContext {
 
@@ -354,7 +354,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public Supplier<Long> timeEstimate() {
+    public LongSupplier timeEstimate() {
         throw new UnsupportedOperationException("Not supported");
     }
 

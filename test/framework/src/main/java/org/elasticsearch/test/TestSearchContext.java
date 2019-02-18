@@ -63,7 +63,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 
 public class TestSearchContext extends SearchContext {
 
@@ -73,7 +73,7 @@ public class TestSearchContext extends SearchContext {
     final ThreadPool threadPool;
     final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     final IndexShard indexShard;
-    final Supplier<Long> timeEstimate = () -> 0L;
+    final LongSupplier timeEstimate = () -> 0L;
     final QuerySearchResult queryResult = new QuerySearchResult();
     final QueryShardContext queryShardContext;
     ParsedQuery originalQuery;
@@ -593,7 +593,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Supplier<Long> timeEstimate() {
+    public LongSupplier timeEstimate() {
         return timeEstimate;
     }
 

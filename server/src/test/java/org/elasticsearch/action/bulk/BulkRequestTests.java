@@ -311,7 +311,7 @@ public class BulkRequestTests extends ESTestCase {
         assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);                
     }
 
-    public void testToValidateUpsertRequestAndVersionInBulkRequest() throws IOException {
+    public void testToValidateUpsertRequestAndCASInBulkRequest() throws IOException {
         XContentType xContentType = XContentType.SMILE;
         BytesReference data;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -321,7 +321,8 @@ public class BulkRequestTests extends ESTestCase {
                 builder.field("_index", "index");
                 builder.field("_type", "type");
                 builder.field("_id", "id");
-                builder.field("version", 1L);
+                builder.field("if_seq_no", 1L);
+                builder.field("if_primary_term", 100L);
                 builder.endObject();
                 builder.endObject();
             }
@@ -330,7 +331,8 @@ public class BulkRequestTests extends ESTestCase {
                 builder.startObject();
                 builder.startObject("doc").endObject();
                 Map<String,Object> values = new HashMap<>();
-                values.put("version", 2L);
+                values.put("if_seq_no", 1L);
+                values.put("if_primary_term", 100L);
                 values.put("_index", "index");
                 values.put("_type", "type");
                 builder.field("upsert", values);
@@ -341,8 +343,7 @@ public class BulkRequestTests extends ESTestCase {
         }
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(data, null, null, xContentType);
-        assertThat(bulkRequest.validate().validationErrors(), contains("can't provide both upsert request and a version",
-            "can't provide version in upsert request"));
+        assertThat(bulkRequest.validate().validationErrors(), contains("upsert requests don't support `if_seq_no` and `if_primary_term`"));
         //This test's JSON contains outdated references to types
         assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);        
     }

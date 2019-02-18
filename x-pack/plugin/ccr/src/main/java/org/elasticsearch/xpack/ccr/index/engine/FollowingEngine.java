@@ -68,10 +68,14 @@ public final class FollowingEngine extends InternalEngine {
     @Override
     protected InternalEngine.IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
         preFlight(index);
+        markSeqNoAsSeen(index.seqNo());
         // NOTES: refer Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers.
         final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
         assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         if (hasBeenProcessedBefore(index)) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("index operation [id={} seq_no={} origin={}] was processed before", index.id(), index.seqNo(), index.origin());
+            }
             if (index.origin() == Operation.Origin.PRIMARY) {
                 /*
                  * The existing operation in this engine was probably assigned the term of the previous primary shard which is different
@@ -100,6 +104,7 @@ public final class FollowingEngine extends InternalEngine {
     @Override
     protected InternalEngine.DeletionStrategy deletionStrategyForOperation(final Delete delete) throws IOException {
         preFlight(delete);
+        markSeqNoAsSeen(delete.seqNo());
         if (delete.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(delete)) {
             // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
             final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
@@ -191,5 +196,13 @@ public final class FollowingEngine extends InternalEngine {
      */
     public long getNumberOfOptimizedIndexing() {
         return numOfOptimizedIndexing.count();
+    }
+
+    @Override
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
+        // the value of the global checkpoint is not verified when the following engine is closed,
+        // allowing it to be closed even in the case where all operations have not been fetched and
+        // processed from the leader and the operations history has gaps. This way the following
+        // engine can be closed and reopened in order to bootstrap the follower index again.
     }
 }

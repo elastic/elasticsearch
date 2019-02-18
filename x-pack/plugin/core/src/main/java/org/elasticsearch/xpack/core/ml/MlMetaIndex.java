@@ -29,6 +29,7 @@ public final class MlMetaIndex {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
             builder.startObject(TYPE);
+                ElasticsearchMappings.addMetaInformation(builder);
                 ElasticsearchMappings.addDefaultMapping(builder);
                 builder.startObject(ElasticsearchMappings.PROPERTIES)
                     .startObject(Calendar.ID.getPreferredName())

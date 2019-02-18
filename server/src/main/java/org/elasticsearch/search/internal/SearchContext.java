@@ -84,7 +84,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public static final int DEFAULT_TERMINATE_AFTER = 0;
     public static final int TRACK_TOTAL_HITS_ACCURATE = Integer.MAX_VALUE;
     public static final int TRACK_TOTAL_HITS_DISABLED = -1;
-    public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = TRACK_TOTAL_HITS_ACCURATE;
+    public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
 
     private Map<Lifetime, List<Releasable>> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);

@@ -43,10 +43,7 @@ import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallatio
 import static org.elasticsearch.packaging.util.Platforms.isRPM;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 

@@ -131,7 +131,7 @@ and <<auditing-settings>>.
 
 .. Restart {es}.
 
-Events are logged to a dedicated `<clustername>_audit.log` file in
+Events are logged to a dedicated `<clustername>_audit.json` file in
 `ES_HOME/logs`, on each cluster node.
 --
 

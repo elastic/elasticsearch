@@ -11,7 +11,9 @@ set ES_MAIN_CLASS=org.elasticsearch.xpack.watcher.trigger.schedule.tool.CronEval
 set ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-watcher-env
 call "%~dp0elasticsearch-cli.bat" ^
   %%* ^
-  || exit /b 1
+  || goto exit
 
 endlocal
 endlocal
+:exit
+exit /b %ERRORLEVEL%

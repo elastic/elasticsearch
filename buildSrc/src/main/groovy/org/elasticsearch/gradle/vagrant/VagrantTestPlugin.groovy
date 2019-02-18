@@ -25,8 +25,8 @@ class VagrantTestPlugin implements Plugin<Project> {
             'centos-7',
             'debian-8',
             'debian-9',
-            'fedora-27',
             'fedora-28',
+            'fedora-29',
             'oel-6',
             'oel-7',
             'opensuse-42',
@@ -53,10 +53,10 @@ class VagrantTestPlugin implements Plugin<Project> {
 
     /** All distributions to bring into test VM, whether or not they are used **/
     static final List<String> DISTRIBUTIONS = unmodifiableList([
-            'archives:tar',
-            'archives:oss-tar',
-            'archives:zip',
-            'archives:oss-zip',
+            'archives:linux-tar',
+            'archives:oss-linux-tar',
+            'archives:windows-zip',
+            'archives:oss-windows-zip',
             'packages:rpm',
             'packages:oss-rpm',
             'packages:deb',
@@ -630,7 +630,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             void afterExecute(Task task, TaskState state) {
                 final String gradlew = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew" : "./gradlew"
                 if (state.failure != null) {
-                    println "REPRODUCE WITH: ${gradlew} ${reproTaskPath} -Dtests.seed=${project.testSeed} "
+                    println "REPRODUCE WITH: ${gradlew} \"${reproTaskPath}\" -Dtests.seed=${project.testSeed} "
                 }
             }
         }

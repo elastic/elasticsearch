@@ -65,8 +65,8 @@ public class DocumentMapperParser {
         this.similarityService = similarityService;
         this.queryShardContextSupplier = queryShardContextSupplier;
         this.typeParsers = mapperRegistry.getMapperParsers();
-        this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers();
-        indexVersionCreated = indexSettings.getIndexVersionCreated();
+        this.indexVersionCreated = indexSettings.getIndexVersionCreated();
+        this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers(indexVersionCreated);
     }
 
     public Mapper.TypeParser.ParserContext parserContext(String type) {

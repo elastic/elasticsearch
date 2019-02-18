@@ -43,7 +43,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -61,7 +60,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
     private String[] indices;
 
-    GetIndexResponse(String[] indices,
+    public GetIndexResponse(String[] indices,
                      ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings,
                      ImmutableOpenMap<String, List<AliasMetaData>> aliases,
                      ImmutableOpenMap<String, Settings> settings,
@@ -315,9 +314,16 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
 
     private static ImmutableOpenMap<String, MappingMetaData> parseMappings(XContentParser parser) throws IOException {
         ImmutableOpenMap.Builder<String, MappingMetaData> indexMappings = ImmutableOpenMap.builder();
-        Map<String, Object> map = parser.map();
-        if (map.isEmpty() == false) {
-            indexMappings.put(MapperService.SINGLE_MAPPING_NAME, new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, map));
+        // We start at START_OBJECT since parseIndexEntry ensures that
+        while (parser.nextToken() != Token.END_OBJECT) {
+            ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            parser.nextToken();
+            if (parser.currentToken() == Token.START_OBJECT) {
+                String mappingType = parser.currentName();
+                indexMappings.put(mappingType, new MappingMetaData(mappingType, parser.map()));
+            } else if (parser.currentToken() == Token.START_ARRAY) {
+                parser.skipChildren();
+            }
         }
         return indexMappings.build();
     }

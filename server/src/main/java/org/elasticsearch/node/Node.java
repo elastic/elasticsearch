@@ -67,6 +67,7 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -683,10 +684,14 @@ public class Node implements Closeable {
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings);
+        configureNodeAndClusterIdStateListener(clusterService);
+
         if (initialStateTimeout.millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterState clusterState = clusterService.state();
-            ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, null, logger, thread.getThreadContext());
+            ClusterStateObserver observer =
+                new ClusterStateObserver(clusterState, clusterService, null, logger, thread.getThreadContext());
+
             if (clusterState.nodes().getMasterNodeId() == null) {
                 logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
                 final CountDownLatch latch = new CountDownLatch(1);
@@ -729,6 +734,11 @@ public class Node implements Closeable {
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
 
         return this;
+    }
+
+    protected void configureNodeAndClusterIdStateListener(ClusterService clusterService) {
+        NodeAndClusterIdStateListener.getAndSetNodeIdAndClusterId(clusterService,
+            injector.getInstance(ThreadPool.class).getThreadContext());
     }
 
     private Node stop() {

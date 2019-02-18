@@ -150,17 +150,17 @@ The Debian package for Elasticsearch v{version} can be downloaded from the websi
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.deb
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.deb.sha512
-shasum -a 512 -c elasticsearch-{version}.deb.sha512 <1>
-sudo dpkg -i elasticsearch-{version}.deb
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-amd64.deb
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-amd64.deb.sha512
+shasum -a 512 -c elasticsearch-{version}-amd64.deb.sha512 <1>
+sudo dpkg -i elasticsearch-{version}-amd64.deb
 --------------------------------------------
 <1> Compares the SHA of the downloaded Debian package and the published checksum, which should output
-    `elasticsearch-{version}.deb: OK`.
+    `elasticsearch-{version}-amd64.deb: OK`.
     
 Alternatively, you can download the following package, which contains only 
 features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.deb    
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-amd64.deb    
 
 endif::[]
 

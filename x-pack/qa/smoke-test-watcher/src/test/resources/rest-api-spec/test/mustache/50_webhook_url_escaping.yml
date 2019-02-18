@@ -12,7 +12,7 @@
         refresh: true
         body:    { foo: bar }
 
-  - do: {xpack.watcher.stats:{}}
+  - do: {watcher.stats:{}}
   - match: { "stats.0.watcher_state": "started" }
   - match: { "stats.0.watch_count": 0 }
 
@@ -38,7 +38,7 @@
   - set: { docs.0.doc._source.port: port }
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
           id: "test_watch"
           body:
             metadata:
@@ -73,7 +73,7 @@
   - match: { created: true }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
           id: "test_watch"
 
   - do:

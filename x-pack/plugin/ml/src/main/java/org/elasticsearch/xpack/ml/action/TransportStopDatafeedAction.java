@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -187,7 +188,10 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                     @Override
                     public void onFailure(Exception e) {
                         final int slot = counter.incrementAndGet();
-                        failures.set(slot - 1, e);
+                        if ((e instanceof ResourceNotFoundException &&
+                            Strings.isAllOrWildcard(new String[]{request.getDatafeedId()})) == false) {
+                            failures.set(slot - 1, e);
+                        }
                         if (slot == startedDatafeeds.size()) {
                             sendResponseOrFailure(request.getDatafeedId(), listener, failures);
                         }
@@ -215,7 +219,13 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                         @Override
                         public void onFailure(Exception e) {
-                            listener.onFailure(e);
+                            if ((e instanceof ResourceNotFoundException &&
+                                Strings.isAllOrWildcard(new String[]{request.getDatafeedId()}))) {
+                                datafeedTask.stop("stop_datafeed (api)", request.getStopTimeout());
+                                listener.onResponse(new StopDatafeedAction.Response(true));
+                            } else {
+                                listener.onFailure(e);
+                            }
                         }
 
                         @Override

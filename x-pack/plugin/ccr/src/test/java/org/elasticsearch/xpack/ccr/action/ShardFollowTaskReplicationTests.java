@@ -367,11 +367,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             new ShardId("follow_index", "", 0),
             new ShardId("leader_index", "", 0),
             between(1, 64),
-            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-            between(1, 8),
             between(1, 64),
-            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+            between(1, 8),
             between(1, 4),
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
             10240,
             new ByteSizeValue(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
@@ -380,7 +380,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         );
         final String recordedLeaderIndexHistoryUUID = leaderGroup.getPrimary().getHistoryUUID();
 
-        BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(delay, ThreadPool.Names.GENERIC, task);
+        BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
         AtomicBoolean stopped = new AtomicBoolean(false);
         LongSet fetchOperations = new LongHashSet();
         return new ShardFollowNodeTask(

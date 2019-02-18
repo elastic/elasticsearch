@@ -11,15 +11,14 @@ import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.sql.DatabaseMetaData;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
@@ -81,7 +80,7 @@ public class SysTypes extends Command {
         List<List<?>> rows = values
                 // sort by SQL int type (that's what the JDBC/ODBC specs want) followed by name
                 .sorted(Comparator.comparing((DataType t) -> t.sqlType.getVendorTypeNumber()).thenComparing(DataType::sqlName))
-                .map(t -> asList(t.esType.toUpperCase(Locale.ROOT),
+                .map(t -> asList(t.toString(),
                         t.sqlType.getVendorTypeNumber(),
                         //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size?view=sql-server-2017
                         t.defaultPrecision,

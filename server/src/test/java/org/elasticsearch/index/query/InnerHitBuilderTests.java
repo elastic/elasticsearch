@@ -32,7 +32,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
@@ -158,8 +157,7 @@ public class InnerHitBuilderTests extends ESTestCase {
             innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16)));
         }
         innerHits.setDocValueFields(randomListStuff(16,
-                () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16),
-                        randomBoolean() ? null : DocValueFieldsContext.USE_DEFAULT_FORMAT)));
+                () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null)));
         // Random script fields deduped on their field name.
         Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
         for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
@@ -201,8 +199,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         modifiers.add(() -> {
             if (randomBoolean()) {
                 copy.setDocValueFields(randomValueOtherThan(copy.getDocValueFields(),
-                        () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16),
-                                randomBoolean() ? null : DocValueFieldsContext.USE_DEFAULT_FORMAT))));
+                        () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null))));
             } else {
                 copy.addDocValueField(randomAlphaOfLengthBetween(1, 16));
             }

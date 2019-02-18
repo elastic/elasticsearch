@@ -131,10 +131,12 @@ class ClusterFormationTasks {
                 writeConfigSetup = { Map esConfig ->
                     if (config.getAutoSetHostsProvider()) {
                         // Don't force discovery provider if one is set by the test cluster specs already
-                        if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
-                            esConfig['discovery.zen.hosts_provider'] = 'file'
+                        final String seedProvidersSettingName =
+                                node.nodeVersion.onOrAfter("7.0.0") ? "discovery.seed_providers" : "discovery.zen.hosts_provider";
+                        if (esConfig.containsKey(seedProvidersSettingName) == false) {
+                            esConfig[seedProvidersSettingName] = 'file'
                         }
-                        esConfig['discovery.zen.ping.unicast.hosts'] = []
+                        esConfig[node.nodeVersion.onOrAfter("7.0.0") ? "discovery.seed_hosts" : "discovery.zen.ping.unicast.hosts"] = []
                     }
                     boolean supportsInitialMasterNodes = hasBwcNodes == false || config.bwcVersion.onOrAfter("7.0.0")
                     if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes() && supportsInitialMasterNodes) {
@@ -191,13 +193,21 @@ class ClusterFormationTasks {
             throw new GradleException("Unknown distribution: ${distro} in project ${project.path}")
         }
         Version version = Version.fromString(elasticsearchVersion)
-        String group = "downloads.zip" // dummy group, does not matter except for integ-test-zip, it is ignored by the fake ivy repo
+        String os = getOs()
+        String classifier = "${os}-x86_64"
+        String packaging = os.equals('windows') ? 'zip' : 'tar.gz'
         String artifactName = 'elasticsearch'
         if (distro.equals('oss') && Version.fromString(elasticsearchVersion).onOrAfter('6.3.0')) {
             artifactName += '-oss'
         }
-        String snapshotProject = distro == 'oss' ? 'oss-zip' : 'zip'
         Object dependency
+        String snapshotProject = "${os}-${os.equals('windows') ? 'zip' : 'tar'}"
+        if (version.before("7.0.0")) {
+            snapshotProject = "zip"
+        }
+        if (distro.equals("oss")) {
+            snapshotProject = "oss-" + snapshotProject
+        }
         boolean internalBuild = project.hasProperty('bwcVersions')
         VersionCollection.UnreleasedVersionInfo unreleasedInfo = null
         if (project.hasProperty('bwcVersions')) {
@@ -205,11 +215,16 @@ class ClusterFormationTasks {
             unreleasedInfo = project.bwcVersions.unreleasedInfo(version)
         }
         if (unreleasedInfo != null) {
-            dependency = project.dependencies.project(path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: snapshotProject)
+            dependency = project.dependencies.project(
+                        path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: snapshotProject)
         } else if (internalBuild && elasticsearchVersion.equals(VersionProperties.elasticsearch)) {
             dependency = project.dependencies.project(path: ":distribution:archives:${snapshotProject}")
         } else {
-            dependency = "${group}:${artifactName}:${elasticsearchVersion}@zip"
+            if (version.before('7.0.0')) {
+                classifier = "" // for bwc, before we had classifiers
+            }
+            // group does not matter as it is not used when we pull from the ivy repo that points to the download service
+            dependency = "dnm:${artifactName}:${elasticsearchVersion}${classifier}@${packaging}"
         }
         project.dependencies.add(configuration.name, dependency)
     }
@@ -335,8 +350,15 @@ class ClusterFormationTasks {
           the elasticsearch source tree then this should be the version of elasticsearch built by the source tree.
           If it isn't then Bad Things(TM) will happen. */
         Task extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
-            from {
-                project.zipTree(configuration.singleFile)
+            if (getOs().equals("windows")) {
+                from {
+                    project.zipTree(configuration.singleFile)
+                }
+            } else {
+                // macos and linux use tar
+                from {
+                    project.tarTree(project.resources.gzip(configuration.singleFile))
+                }
             }
             into node.baseDir
         }
@@ -353,18 +375,15 @@ class ClusterFormationTasks {
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
-                'node.attr.testattr'           : 'test'
+                'node.attr.testattr'           : 'test',
+                // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
+                'discovery.initial_state_timeout' : '0s'
         ]
         int minimumMasterNodes = node.config.minimumMasterNodes.call()
-        if (minimumMasterNodes > 0) {
+        if (node.nodeVersion.before("7.0.0") && minimumMasterNodes > 0) {
             esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes
         }
-        if (minimumMasterNodes > 1) {
-            // don't wait for state.. just start up quickly
-            // this will also allow new and old nodes in the BWC case to become the master
-            esConfig['discovery.initial_state_timeout'] = '0s'
-        }
-        if (esConfig.containsKey('discovery.zen.master_election.wait_for_joins_timeout') == false) {
+        if (node.nodeVersion.before("7.0.0") && esConfig.containsKey('discovery.zen.master_election.wait_for_joins_timeout') == false) {
             // If a node decides to become master based on partial information from the pinging, don't let it hang for 30 seconds to correct
             // its mistake. Instead, only wait 5s to do another round of pinging.
             // This is necessary since we use 30s as the default timeout in REST requests waiting for cluster formation
@@ -947,5 +966,16 @@ class ClusterFormationTasks {
     static String findPluginName(Project pluginProject) {
         PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin')
         return extension.name
+    }
+
+    /** Find the current OS */
+    static String getOs() {
+        String os = "linux"
+        if (Os.FAMILY_WINDOWS) {
+            os = "windows"
+        } else if (Os.FAMILY_MAC) {
+            os = "darwin"
+        }
+        return os
     }
 }

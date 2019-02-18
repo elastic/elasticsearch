@@ -268,7 +268,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(currentStepKey, equalTo(new StepKey(firstStepKey.getPhase(), firstStepKey.getAction(), ErrorStep.NAME)));
         assertThat(firstStep.getExecuteCount(), equalTo(1L));
         assertThat(secondStep.getExecuteCount(), equalTo(0L));
-        assertThat(task.getNextStepKey(), equalTo(secondStep.getKey()));
+        assertNull(task.getNextStepKey());
         assertThat(lifecycleState.getPhaseTime(), nullValue());
         assertThat(lifecycleState.getActionTime(), nullValue());
         assertThat(lifecycleState.getStepInfo(),

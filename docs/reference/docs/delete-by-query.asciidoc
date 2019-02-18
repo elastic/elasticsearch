@@ -166,7 +166,7 @@ the `scroll` parameter to control how long it keeps the "search context" alive,
 e.g. `?scroll=10m`. By default it's 5 minutes.
 
 `requests_per_second` can be set to any positive decimal number (`1.4`, `6`,
-`1000`, etc.) and throttles the rate at which `_delete_by_query` issues batches of
+`1000`, etc.) and throttles the rate at which delete by query issues batches of
 delete operations by padding each batch with a wait time. The throttling can be
 disabled by setting `requests_per_second` to `-1`.
 
@@ -569,7 +569,7 @@ be larger than others. Expect larger slices to have a more even distribution.
 are distributed proportionally to each sub-request. Combine that with the point
 above about distribution being uneven and you should conclude that the using
 `size` with `slices` might not result in exactly `size` documents being
-`_delete_by_query`ed.
+deleted.
 * Each sub-request gets a slightly different snapshot of the source index
 though these are all taken at approximately the same time.
 

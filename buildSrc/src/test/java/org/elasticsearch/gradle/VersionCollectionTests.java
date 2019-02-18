@@ -45,6 +45,9 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         sampleVersions.put("8.0.0", asList(
             "7_0_0", "7_0_1", "7_1_0", "7_1_1", "7_2_0", "7_3_0", "8.0.0"
         ));
+        sampleVersions.put("9.0.0", asList(
+            "9.0.0", "8_0_0", "8_1_0", "7_7_0", "7_6_1", "7_6_0"
+        ));
         sampleVersions.put("7.0.0-alpha1", asList(
             "6_0_0_alpha1", "6_0_0_alpha2", "6_0_0_beta1", "6_0_0_beta2", "6_0_0_rc1", "6_0_0_rc2",
             "6_0_0", "6_0_1", "6_1_0", "6_1_1", "6_1_2", "6_1_3", "6_1_4",
@@ -152,7 +155,10 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             asList("6.7.0", "7.0.0"),
             getVersionCollection("7.1.0").getWireCompatible()
         );
-
+        assertVersionsEquals(
+            asList("8.1.0"),
+            getVersionCollection("9.0.0").getWireCompatible()
+        );
     }
 
     public void testWireCompatibleUnreleased() {
@@ -181,7 +187,11 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         );
         assertVersionsEquals(
             asList("6.7.0", "7.0.0"),
-            getVersionCollection("7.1.0").getWireCompatible()
+            getVersionCollection("7.1.0").getUnreleasedWireCompatible()
+        );
+        assertVersionsEquals(
+            asList("8.1.0"),
+            getVersionCollection("9.0.0").getUnreleasedWireCompatible()
         );
     }
 
@@ -232,6 +242,11 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             asList("7.0.0", "7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0"),
             getVersionCollection("8.0.0").getIndexCompatible()
         );
+
+        assertVersionsEquals(
+            asList("8.0.0", "8.1.0"),
+            getVersionCollection("9.0.0").getIndexCompatible()
+        );
     }
 
     public void testIndexCompatibleUnreleased() {
@@ -259,6 +274,11 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             asList("7.1.1", "7.2.0", "7.3.0"),
             getVersionCollection("8.0.0").getUnreleasedIndexCompatible()
         );
+
+        assertVersionsEquals(
+            asList("8.0.0", "8.1.0"),
+            getVersionCollection("9.0.0").getUnreleasedIndexCompatible()
+        );
     }
 
     public void testGetUnreleased() {
@@ -282,6 +302,10 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             asList("7.1.1", "7.2.0", "7.3.0", "8.0.0"),
             getVersionCollection("8.0.0").getUnreleased()
         );
+        assertVersionsEquals(
+            asList("7.6.1", "7.7.0", "8.0.0", "8.1.0", "9.0.0"),
+            getVersionCollection("9.0.0").getUnreleased()
+        );
     }
 
     public void testGetBranch() {
@@ -304,6 +328,10 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         assertUnreleasedBranchNames(
             asList("7.1", "7.2", "7.x"),
             getVersionCollection("8.0.0")
+        );
+        assertUnreleasedBranchNames(
+            asList("8.0", "8.x"),
+            getVersionCollection("9.0.0")
         );
     }
 
@@ -331,6 +359,10 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         assertUnreleasedGradleProjectNames(
             asList("staged", "minor"),
             getVersionCollection("7.1.0")
+        );
+        assertUnreleasedGradleProjectNames(
+            asList("staged", "minor"),
+            getVersionCollection("9.0.0")
         );
     }
 
@@ -366,7 +398,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         vc.compareToAuthoritative(authoritativeReleasedVersions);
     }
 
-    public void testCompareToAuthoritativeNotReallyRelesed() {
+    public void testCompareToAuthoritativeNotReallyReleased() {
         List<String> listOfVersions = asList("7.0.0", "7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0", "8.0.0");
         List<Version> authoritativeReleasedVersions = Stream.of("7.0.0", "7.0.1")
                 .map(Version::fromString)

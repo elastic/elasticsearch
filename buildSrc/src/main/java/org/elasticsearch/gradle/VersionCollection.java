@@ -21,6 +21,7 @@ package org.elasticsearch.gradle;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -134,7 +135,7 @@ public class VersionCollection {
         assertNoOlderThanTwoMajors();
 
         Map<Version, UnreleasedVersionInfo> unreleased = new HashMap<>();
-        for (Version unreleasedVersion : getUnreleased()) {
+        for (Version unreleasedVersion : getUnreleasedIndexCompatible()) {
             if (unreleasedVersion.equals(currentVersion)) {
                 continue;
             }
@@ -171,7 +172,7 @@ public class VersionCollection {
     }
 
     public void forPreviousUnreleased(Consumer<UnreleasedVersionInfo> consumer) {
-        List<UnreleasedVersionInfo> collect = getUnreleased().stream()
+        List<UnreleasedVersionInfo> collect = getUnreleasedIndexCompatible().stream()
             .filter(version -> version.equals(currentVersion) == false)
             .map(version -> new UnreleasedVersionInfo(
                     version,
@@ -228,7 +229,7 @@ public class VersionCollection {
         }
     }
 
-    public List<Version> getUnreleased() {
+    protected List<Version> getUnreleased() {
         List<Version> unreleased = new ArrayList<>();
         // The current version is being worked, is always unreleased
         unreleased.add(currentVersion);
@@ -254,12 +255,38 @@ public class VersionCollection {
             }
         }
 
+        // Special case when  we are about to release a new major, we have branched and incremented versions
+        Version greatestPrevMinor = getLatestVersionByKey(groupByMinor, greatestMinor);
+        if (currentVersion.getMinor() == 0 && currentVersion.getRevision() == 0 &&
+            greatestPrevMinor.getMinor() == 1 && greatestPrevMinor.getRevision() == 0) {
+            Version leaf = getLeaf(-2);
+            unreleased.add(leaf);
+            if (leaf.getRevision() == 0) {
+                unreleased.add(getLeaf(-2, -1));
+            }
+        }
+
         return unmodifiableList(
             unreleased.stream()
                 .sorted()
                 .distinct()
                 .collect(Collectors.toList())
         );
+    }
+
+    private Version getLeaf(int relativeToMajor) {
+        List<Version> versions = groupByMajor.get(currentVersion.getMajor() + relativeToMajor);
+        return versions.get(versions.size() - 1);
+    }
+
+    private Version getLeaf(int relativeToMajor, int relativeToMinor) {
+        Map<Integer, List<Version>> majorGroupedByMinor = groupByMajor.get(currentVersion.getMajor() + relativeToMajor)
+            .stream()
+            .collect(Collectors.groupingBy(Version::getMinor, Collectors.toList()));
+        Integer maxMinor = majorGroupedByMinor.keySet().stream().max(Integer::compareTo).orElseThrow();
+        return majorGroupedByMinor.get(maxMinor + relativeToMinor).stream()
+            .sorted(Comparator.reverseOrder())
+            .findFirst().orElseThrow();
     }
 
     private Version getLatestVersionByKey(Map<Integer, List<Version>> groupByMajor, int key) {

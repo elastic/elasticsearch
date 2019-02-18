@@ -550,22 +550,39 @@ public class ThreadPool implements Scheduler, Closeable {
             this.absoluteMillis = System.currentTimeMillis();
             this.counter = new TimeCounter();
             setDaemon(true);
+            if (interval <= 0) {
+                this.running = false;
+            }
         }
 
         /**
          * Return the current time used for relative calculations. This is
          * {@link System#nanoTime()} truncated to milliseconds.
+         * <p>
+         * If {@link ThreadPool#ESTIMATED_TIME_INTERVAL_SETTING} is set to 0
+         * then the cache is disabled and the method calls {@link System#nanoTime()}
+         * whenever called. Typically used for testing.
          */
         long relativeTimeInMillis() {
-            return relativeMillis;
+            if (running) {
+                return relativeMillis;
+            }
+            return TimeValue.nsecToMSec(System.nanoTime());
         }
 
         /**
          * Return the current epoch time, used to find absolute time. This is
          * a cached version of {@link System#currentTimeMillis()}.
+         * <p>
+         * If {@link ThreadPool#ESTIMATED_TIME_INTERVAL_SETTING} is set to 0
+         * then the cache is disabled and the method calls {@link System#currentTimeMillis()}
+         * whenever called. Typically used for testing.
          */
         long absoluteTimeInMillis() {
-            return absoluteMillis;
+            if (running) {
+                return absoluteMillis;
+            }
+            return System.currentTimeMillis();
         }
 
         @Override

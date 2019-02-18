@@ -134,7 +134,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put("thread_pool.estimated_time_interval", TimeValue.timeValueMillis(1))
+            .put("thread_pool.estimated_time_interval", 0)
             .build();
     }
 

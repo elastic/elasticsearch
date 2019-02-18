@@ -271,7 +271,9 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                     index(leaderClient(), "leader_index5", 128);
                     break;
                 case ALL:
+                    ensureGreen(followerClient(), "follower_index5");
                     resumeIndexFollowing(followerClient(), "follower_index5");
+                    ensureGreen(leaderClient(), "follower_index6");
                     resumeIndexFollowing(leaderClient(), "follower_index6");
 
                     assertTotalHitCount("follower_index5", 896, followerClient());
@@ -371,6 +373,15 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
     private static void resumeIndexFollowing(RestClient client, String followerIndex) throws IOException {
         assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/resume_follow")));
+    }
+
+    private static void ensureGreen(RestClient client, String index) throws IOException {
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("wait_for_status", "green");
+        request.addParameter("wait_for_no_relocating_shards", "true");
+        request.addParameter("timeout", "70s");
+        request.addParameter("level", "shards");
+        client.performRequest(request);
     }
 
 }

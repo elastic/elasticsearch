@@ -243,7 +243,8 @@ public class ElasticsearchNode {
         }
         logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
-        stopHandle(esProcess.toHandle());
+        // Test clusters are not reused, don't spend time on a graceful shutdown
+        stopHandle(esProcess.toHandle(), true);
         if (tailLogs) {
             logFileContents("Standard output of node", esStdoutFile);
             logFileContents("Standard error of node", esStderrFile);
@@ -251,27 +252,37 @@ public class ElasticsearchNode {
         esProcess = null;
     }
 
-    private void stopHandle(ProcessHandle processHandle) {
+    private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
         // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
-        if (processHandle.isAlive()) {
-            processHandle.children().forEach(this::stopHandle);
-        }
-        logProcessInfo("Terminating elasticsearch process:", processHandle.info());
-        if (processHandle.isAlive()) {
-            processHandle.destroy();
-        } else {
+        if (processHandle.isAlive() == false) {
             logger.info("Process was not running when we tried to terminate it.");
+            return;
         }
-        waitForProcessToExit(processHandle);
-        if (processHandle.isAlive()) {
+
+        // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
+        processHandle.children().forEach(each -> stopHandle(each, forcibly));
+
+        logProcessInfo(
+            "Terminating elasticsearch process" + (forcibly ? " forcibly " : "gracefully") + ":",
+            processHandle.info()
+        );
+
+        if (forcibly) {
+            processHandle.destroyForcibly();
+        } else {
+            processHandle.destroy();
+            waitForProcessToExit(processHandle);
+            if (processHandle.isAlive() == false) {
+                return;
+            }
             logger.info("process did not terminate after {} {}, stopping it forcefully",
-                ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT
-            );
+                ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
             processHandle.destroyForcibly();
         }
+
         waitForProcessToExit(processHandle);
         if (processHandle.isAlive()) {
-            throw new TestClustersException("Was not able to terminate es process");
+            throw new TestClustersException("Was not able to terminate elasticsearch process");
         }
     }
 

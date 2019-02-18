@@ -1697,7 +1697,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(template2.mappings().containsKey("custom_doc_type"));
 
         List<String> names = randomBoolean()
-            ? Arrays.asList("*-1", "template-2")
+            ? Arrays.asList("*plate-1", "template-2")
             : Arrays.asList("template-*");
         GetIndexTemplatesRequest getBothRequest = new GetIndexTemplatesRequest(names);
         org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse getBoth = execute(
@@ -1780,7 +1780,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
 
         List<String> names = randomBoolean()
-            ? Arrays.asList("*-1", "template-2")
+            ? Arrays.asList("*plate-1", "template-2")
             : Arrays.asList("template-*");
         GetIndexTemplatesRequest getBothRequest = new GetIndexTemplatesRequest(names);
         GetIndexTemplatesResponse getBoth = execute(
@@ -1834,7 +1834,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         {
             final List<String> templateNames = randomBoolean()
-                ? Arrays.asList("*-1", "template-2")
+                ? Arrays.asList("*plate-1", "template-2")
                 : Arrays.asList("template-*");
 
             final IndexTemplatesExistRequest bothRequest = new IndexTemplatesExistRequest(templateNames);

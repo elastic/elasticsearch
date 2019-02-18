@@ -89,7 +89,7 @@ teardown:
   # This index pattern will match both indices, but we only have permission to read one
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -115,7 +115,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.rollup.start_job:
+      rollup.start_job:
         id: foo
   - is_true: started
 
@@ -135,7 +135,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
   - match:
         jobs.0.stats.documents_processed: 1
@@ -250,7 +250,7 @@ teardown:
   # Index contains two docs, but we should only be able to see one of them
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -275,7 +275,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.rollup.start_job:
+      rollup.start_job:
         id: foo
   - is_true: started
 
@@ -295,7 +295,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
   - match:
         jobs.0.stats.documents_processed: 1

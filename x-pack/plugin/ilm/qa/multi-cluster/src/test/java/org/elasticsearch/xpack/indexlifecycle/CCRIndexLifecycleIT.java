@@ -278,7 +278,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37165")
     public void testUnfollowInjectedBeforeShrink() throws Exception {
         final String indexName = "shrink-test";
         final String shrunkenIndexName = "shrink-" + indexName;

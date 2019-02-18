@@ -19,13 +19,18 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,30 +54,6 @@ public class RetentionLeasesTests extends ESTestCase {
         assertThat(e, hasToString(containsString("version must be non-negative but was [" + version + "]")));
     }
 
-    public void testRetentionLeasesEncoding() {
-        final long primaryTerm = randomNonNegativeLong();
-        final long version = randomNonNegativeLong();
-        final int length = randomIntBetween(0, 8);
-        final List<RetentionLease> retentionLeases = new ArrayList<>(length);
-        for (int i = 0; i < length; i++) {
-            final String id = randomAlphaOfLength(8);
-            final long retainingSequenceNumber = randomNonNegativeLong();
-            final long timestamp = randomNonNegativeLong();
-            final String source = randomAlphaOfLength(8);
-            final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);
-            retentionLeases.add(retentionLease);
-        }
-        final RetentionLeases decodedRetentionLeases =
-                RetentionLeases.decodeRetentionLeases(
-                        RetentionLeases.encodeRetentionLeases(new RetentionLeases(primaryTerm, version, retentionLeases)));
-        assertThat(decodedRetentionLeases.version(), equalTo(version));
-        if (length == 0) {
-            assertThat(decodedRetentionLeases.leases(), empty());
-        } else {
-            assertThat(decodedRetentionLeases.leases(), containsInAnyOrder(retentionLeases.toArray(new RetentionLease[0])));
-        }
-    }
-
     public void testSupersedesByPrimaryTerm() {
         final long lowerPrimaryTerm = randomLongBetween(1, Long.MAX_VALUE);
         final RetentionLeases left = new RetentionLeases(lowerPrimaryTerm, randomLongBetween(1, Long.MAX_VALUE), Collections.emptyList());
@@ -90,6 +71,50 @@ public class RetentionLeasesTests extends ESTestCase {
         final RetentionLeases right = new RetentionLeases(primaryTerm, higherVersion, Collections.emptyList());
         assertTrue(right.supersedes(left));
         assertFalse(left.supersedes(right));
+    }
+
+    public void testRetentionLeasesRejectsDuplicates() {
+        final RetentionLeases retentionLeases = randomRetentionLeases(false);
+        final RetentionLease retentionLease = randomFrom(retentionLeases.leases());
+        final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> new RetentionLeases(
+                        retentionLeases.primaryTerm(),
+                        retentionLeases.version(),
+                        Stream.concat(retentionLeases.leases().stream(), Stream.of(retentionLease)).collect(Collectors.toList())));
+        assertThat(e, hasToString(containsString("duplicate retention lease ID [" + retentionLease.id() + "]")));
+    }
+
+    public void testLeasesPreservesIterationOrder() {
+        final RetentionLeases retentionLeases = randomRetentionLeases(true);
+        if (retentionLeases.leases().isEmpty()) {
+            assertThat(retentionLeases.leases(), empty());
+        } else {
+            assertThat(retentionLeases.leases(), contains(retentionLeases.leases().toArray(new RetentionLease[0])));
+        }
+    }
+
+    public void testRetentionLeasesMetaDataStateFormat() throws IOException {
+        final Path path = createTempDir();
+        final RetentionLeases retentionLeases = randomRetentionLeases(true);
+        RetentionLeases.FORMAT.writeAndCleanup(retentionLeases, path);
+        assertThat(RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path), equalTo(retentionLeases));
+    }
+
+    private RetentionLeases randomRetentionLeases(boolean allowEmpty) {
+        final long primaryTerm = randomNonNegativeLong();
+        final long version = randomNonNegativeLong();
+        final int length = randomIntBetween(allowEmpty ? 0 : 1, 8);
+        final List<RetentionLease> leases = new ArrayList<>(length);
+        for (int i = 0; i < length; i++) {
+            final String id = randomAlphaOfLength(8);
+            final long retainingSequenceNumber = randomNonNegativeLong();
+            final long timestamp = randomNonNegativeLong();
+            final String source = randomAlphaOfLength(8);
+            final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);
+            leases.add(retentionLease);
+        }
+        return new RetentionLeases(primaryTerm, version, leases);
     }
 
 }

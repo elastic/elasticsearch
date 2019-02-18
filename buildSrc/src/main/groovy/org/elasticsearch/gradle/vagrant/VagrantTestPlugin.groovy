@@ -547,7 +547,11 @@ class VagrantTestPlugin implements Plugin<Project> {
                     project.gradle.removeListener(batsPackagingReproListener)
                 }
                 if (project.extensions.esvagrant.boxes.contains(box)) {
-                    packagingTest.dependsOn(batsPackagingTest)
+                    // these tests are temporarily disabled for suse boxes while we debug an issue
+                    // https://github.com/elastic/elasticsearch/issues/30295
+                    if (box.equals("opensuse-42") == false && box.equals("sles-12") == false) {
+                        packagingTest.dependsOn(batsPackagingTest)
+                    }
                 }
             }
 
@@ -586,7 +590,11 @@ class VagrantTestPlugin implements Plugin<Project> {
                 project.gradle.removeListener(javaPackagingReproListener)
             }
             if (project.extensions.esvagrant.boxes.contains(box)) {
-                packagingTest.dependsOn(javaPackagingTest)
+                // these tests are temporarily disabled for suse boxes while we debug an issue
+                // https://github.com/elastic/elasticsearch/issues/30295
+                if (box.equals("opensuse-42") == false && box.equals("sles-12") == false) {
+                    packagingTest.dependsOn(javaPackagingTest)
+                }
             }
 
             /*

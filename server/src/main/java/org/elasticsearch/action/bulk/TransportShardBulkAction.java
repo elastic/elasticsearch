@@ -261,16 +261,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     context.getPrimary().shardId(), docWriteRequest.opType().getLowercase(), docWriteRequest), failure);
             }
 
-            final BulkItemResponse primaryResponse;
-            // if it's a conflict failure, and we already executed the request on a primary (and we execute it
-            // again, due to primary relocation and only processing up to N bulk items when the shard gets closed)
-            // then just use the response we got from the failed execution
-            if (TransportShardBulkAction.isConflictException(failure) && context.getPreviousPrimaryResponse() != null) {
-                primaryResponse = context.getPreviousPrimaryResponse();
-            } else {
-                primaryResponse = executionResult;
-            }
-            context.markAsCompleted(primaryResponse);
+            context.markAsCompleted(executionResult);
         } else {
             context.markAsCompleted(executionResult);
         }

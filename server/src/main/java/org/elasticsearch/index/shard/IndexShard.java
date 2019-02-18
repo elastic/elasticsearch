@@ -2011,8 +2011,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyNotClosed();
         final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
         if (retentionLeases.v1()) {
-            retentionLeaseSyncer.sync(shardId, retentionLeases.v2(), ActionListener.wrap(() -> {}));
+            logger.trace("syncing retention leases [{}] after expiration check", retentionLeases.v2());
+            retentionLeaseSyncer.sync(
+                    shardId,
+                    retentionLeases.v2(),
+                    ActionListener.wrap(r -> {}, e -> logger.warn("failed to sync retention leases after expiration check", e)));
         } else {
+            logger.trace("background syncing retention leases [{}] after expiration check", retentionLeases.v2());
             retentionLeaseSyncer.backgroundSync(shardId, retentionLeases.v2());
         }
     }

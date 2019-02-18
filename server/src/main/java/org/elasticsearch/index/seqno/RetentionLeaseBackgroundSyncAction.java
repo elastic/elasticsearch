@@ -119,19 +119,21 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     }
 
     @Override
-    protected PrimaryResult<Request, ReplicationResponse> shardOperationOnPrimary(final Request request, final IndexShard primary) {
+    protected PrimaryResult<Request, ReplicationResponse> shardOperationOnPrimary(
+            final Request request,
+            final IndexShard primary) throws IOException {
         Objects.requireNonNull(request);
         Objects.requireNonNull(primary);
-        primary.afterWriteOperation();
+        primary.persistRetentionLeases();
         return new PrimaryResult<>(request, new ReplicationResponse());
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final Request request, final IndexShard replica){
+    protected ReplicaResult shardOperationOnReplica(final Request request, final IndexShard replica) throws IOException {
         Objects.requireNonNull(request);
         Objects.requireNonNull(replica);
         replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
-        replica.afterWriteOperation();
+        replica.persistRetentionLeases();
         return new ReplicaResult();
     }
 

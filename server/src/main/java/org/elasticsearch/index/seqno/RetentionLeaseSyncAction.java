@@ -25,7 +25,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
@@ -121,29 +120,24 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(final Request request, final IndexShard primary) {
+    protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(
+            final Request request,
+            final IndexShard primary) throws IOException {
         Objects.requireNonNull(request);
         Objects.requireNonNull(primary);
-        // we flush to ensure that retention leases are committed
-        flush(primary);
+        primary.persistRetentionLeases();
         return new WritePrimaryResult<>(request, new Response(), null, null, primary, logger);
     }
 
     @Override
-    protected WriteReplicaResult<Request> shardOperationOnReplica(final Request request, final IndexShard replica) {
+    protected WriteReplicaResult<Request> shardOperationOnReplica(
+            final Request request,
+            final IndexShard replica) throws IOException {
         Objects.requireNonNull(request);
         Objects.requireNonNull(replica);
         replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
-        // we flush to ensure that retention leases are committed
-        flush(replica);
+        replica.persistRetentionLeases();
         return new WriteReplicaResult<>(request, null, null, replica, logger);
-    }
-
-    private void flush(final IndexShard indexShard) {
-        final FlushRequest flushRequest = new FlushRequest();
-        flushRequest.force(true);
-        flushRequest.waitIfOngoing(true);
-        indexShard.flush(flushRequest);
     }
 
     public static final class Request extends ReplicatedWriteRequest<Request> {

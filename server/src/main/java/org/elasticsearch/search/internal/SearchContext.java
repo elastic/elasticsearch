@@ -22,7 +22,6 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
@@ -67,6 +66,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * This class encapsulates the state needed to execute a search. It holds a reference to the
@@ -395,7 +395,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract ObjectMapper getObjectMapper(String name);
 
-    public abstract Counter timeEstimateCounter();
+    public abstract Supplier<Long> timeEstimate();
 
     /** Return a view of the additional query collectors that should be run for this context. */
     public abstract Map<Class<?>, Collector> queryCollectors();

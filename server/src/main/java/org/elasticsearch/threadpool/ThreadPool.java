@@ -22,7 +22,6 @@ package org.elasticsearch.threadpool;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.Counter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -58,6 +57,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
@@ -252,8 +252,8 @@ public class ThreadPool implements Scheduler, Closeable {
         return cachedTimeThread.absoluteTimeInMillis();
     }
 
-    public Counter estimatedTimeInMillisCounter() {
-        return cachedTimeThread.counter;
+    public Supplier<Long> estimatedTimeInMillisCounter() {
+        return () -> cachedTimeThread.relativeMillis;
     }
 
     public ThreadPoolInfo info() {
@@ -538,7 +538,6 @@ public class ThreadPool implements Scheduler, Closeable {
     static class CachedTimeThread extends Thread {
 
         final long interval;
-        final TimeCounter counter;
         volatile boolean running = true;
         volatile long relativeMillis;
         volatile long absoluteMillis;
@@ -548,7 +547,6 @@ public class ThreadPool implements Scheduler, Closeable {
             this.interval = interval;
             this.relativeMillis = TimeValue.nsecToMSec(System.nanoTime());
             this.absoluteMillis = System.currentTimeMillis();
-            this.counter = new TimeCounter();
             setDaemon(true);
         }
 
@@ -579,19 +577,6 @@ public class ThreadPool implements Scheduler, Closeable {
                     running = false;
                     return;
                 }
-            }
-        }
-
-        private class TimeCounter extends Counter {
-
-            @Override
-            public long addAndGet(long delta) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long get() {
-                return relativeMillis;
             }
         }
     }

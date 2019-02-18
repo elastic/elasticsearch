@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -906,6 +907,27 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testLimitOfContextMappings() throws Throwable {
+        final String index = "test";
+        XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().startObject().startObject("properties")
+            .startObject("suggest").field("type", "completion").startArray("contexts");
+        for (int i = 0; i < COMPLETION_CONTEXTS_LIMIT + 1; i++) {
+            mappingBuilder.startObject();
+            mappingBuilder.field("name", Integer.toString(i));
+            mappingBuilder.field("type", "category");
+            mappingBuilder.endObject();
+        }
+
+        mappingBuilder.endArray().endObject().endObject().endObject();
+        String mappings = Strings.toString(mappingBuilder);
+
+        DocumentMapper mapper = createIndex(index).mapperService().documentMapperParser()
+            .parse("type1", new CompressedXContent(mappings));
+        assertWarnings("You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
+            " in the mapping for index [test]. The maximum allowed number of completion contexts in a mapping will be limited to " +
+                "[" + COMPLETION_CONTEXTS_LIMIT + "] starting in version [8.0].");
     }
 
     private Matcher<IndexableField> suggestField(String value) {

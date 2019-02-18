@@ -72,3 +72,10 @@ or `quadtree`. This will ensure compatibility with previously created indexes.
 The following type parameters are deprecated for the `geo_shape` field type: `tree`,
 `precision`, `tree_levels`, `distance_error_pct`, `points_only`, and `strategy`. They
 will be removed in a future version.
+
+[float]
+==== Limiting the number of completion contexts
+
+The maximum allowed number of completion contexts in a mapping will be limited
+to 10 in the next major version. Completion fields that define more than 10
+contexts in a mapping will log a deprecation warning in this version.

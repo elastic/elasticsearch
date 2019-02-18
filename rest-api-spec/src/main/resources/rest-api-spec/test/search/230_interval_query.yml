@@ -322,3 +322,68 @@ setup:
                               query: "there"
                         ordered: false
   - match: { hits.total.value: 1 }
+
+---
+"Test overlapping":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Implemented in 7.1"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold outside"
+                  ordered: true
+                  filter:
+                    overlapping:
+                      match:
+                        query: "baby there"
+                        ordered: false
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+---
+"Test before":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Implemented in 7.1"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold"
+                  filter:
+                    before:
+                      match:
+                        query: "outside"
+  - match: { hits.total.value: 2 }
+
+---
+"Test after":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Implemented in 7.1"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "cold"
+                  filter:
+                    after:
+                      match:
+                        query: "outside"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "4" }
+

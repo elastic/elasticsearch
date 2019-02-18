@@ -48,6 +48,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateSettingsIT extends ESIntegTestCase {
@@ -446,7 +447,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting("test", "index.final"), nullValue());
     }
 
-    public void testEngineGCDeletesSetting() {
+    public void testEngineGCDeletesSetting() throws Exception {
         createIndex("test");
         client().prepareIndex("test", "type", "1").setSource("f", 1).get();
         DeleteResponse response = client().prepareDelete("test", "type", "1").get();
@@ -462,10 +463,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         // Make sure the time has advanced for InternalEngine#resolveDocVersion()
         for (ThreadPool tPool : internalCluster().getInstances(ThreadPool.class)) {
             long time1 = tPool.relativeTimeInMillis();
-            long time2 = tPool.relativeTimeInMillis();
-            while (time1 == time2) {
-                time2 = tPool.relativeTimeInMillis();
-            }
+            assertBusy(() -> assertThat(tPool.relativeTimeInMillis(), greaterThan(time1)));
         }
 
         // delete is should not be in cache

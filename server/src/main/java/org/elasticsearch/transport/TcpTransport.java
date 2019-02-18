@@ -559,15 +559,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             try {
                 keepAlive.close();
 
-                // Copy map of server channels to avoid holding serverChannels monitor while closing channels.
-                Map<String, List<TcpServerChannel>> serverChannelsCopy;
-                synchronized (this.serverChannels) {
-                    serverChannelsCopy = new HashMap<>(this.serverChannels);
-                    this.serverChannels.clear();
-                }
-
                 // first stop to accept any incoming connections so nobody can connect to this transport
-                for (Map.Entry<String, List<TcpServerChannel>> entry : serverChannelsCopy.entrySet()) {
+                for (Map.Entry<String, List<TcpServerChannel>> entry : serverChannels.entrySet()) {
                     String profile = entry.getKey();
                     List<TcpServerChannel> channels = entry.getValue();
                     ActionListener<Void> closeFailLogger = ActionListener.wrap(c -> {
@@ -576,6 +569,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     channels.forEach(c -> c.addCloseListener(closeFailLogger));
                     CloseableChannel.closeChannels(channels, true);
                 }
+                serverChannels.clear();
 
                 // close all of the incoming channels. The closeChannels method takes a list so we must convert the set.
                 CloseableChannel.closeChannels(new ArrayList<>(acceptedChannels), true);

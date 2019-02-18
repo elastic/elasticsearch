@@ -550,9 +550,6 @@ public class ThreadPool implements Scheduler, Closeable {
             this.absoluteMillis = System.currentTimeMillis();
             this.counter = new TimeCounter();
             setDaemon(true);
-            if (interval <= 0) {
-                this.running = false;
-            }
         }
 
         /**
@@ -564,7 +561,7 @@ public class ThreadPool implements Scheduler, Closeable {
          * whenever called. Typically used for testing.
          */
         long relativeTimeInMillis() {
-            if (running) {
+            if (0 < interval) {
                 return relativeMillis;
             }
             return TimeValue.nsecToMSec(System.nanoTime());
@@ -579,7 +576,7 @@ public class ThreadPool implements Scheduler, Closeable {
          * whenever called. Typically used for testing.
          */
         long absoluteTimeInMillis() {
-            if (running) {
+            if (0 < interval) {
                 return absoluteMillis;
             }
             return System.currentTimeMillis();
@@ -587,7 +584,7 @@ public class ThreadPool implements Scheduler, Closeable {
 
         @Override
         public void run() {
-            while (running) {
+            while (running && 0 < interval) {
                 relativeMillis = TimeValue.nsecToMSec(System.nanoTime());
                 absoluteMillis = System.currentTimeMillis();
                 try {

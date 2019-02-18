@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
@@ -64,6 +63,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class TestSearchContext extends SearchContext {
 
@@ -73,7 +73,7 @@ public class TestSearchContext extends SearchContext {
     final ThreadPool threadPool;
     final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     final IndexShard indexShard;
-    final Counter timeEstimateCounter = Counter.newCounter();
+    final Supplier<Long> timeEstimate = () -> 0L;
     final QuerySearchResult queryResult = new QuerySearchResult();
     final QueryShardContext queryShardContext;
     ParsedQuery originalQuery;
@@ -593,8 +593,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Counter timeEstimateCounter() {
-        return timeEstimateCounter;
+    public Supplier<Long> timeEstimate() {
+        return timeEstimate;
     }
 
     @Override

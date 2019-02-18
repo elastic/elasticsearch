@@ -19,7 +19,6 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -36,6 +35,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 public class SubSearchContext extends FilteredSearchContext {
 
@@ -354,7 +354,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public Counter timeEstimateCounter() {
+    public Supplier<Long> timeEstimate() {
         throw new UnsupportedOperationException("Not supported");
     }
 

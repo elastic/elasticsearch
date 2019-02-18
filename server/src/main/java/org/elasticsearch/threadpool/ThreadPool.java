@@ -252,7 +252,7 @@ public class ThreadPool implements Scheduler, Closeable {
         return cachedTimeThread.absoluteTimeInMillis();
     }
 
-    public Supplier<Long> estimatedTimeInMillisCounter() {
+    public Supplier<Long> estimatedTimeInMillis() {
         return () -> cachedTimeThread.relativeMillis;
     }
 

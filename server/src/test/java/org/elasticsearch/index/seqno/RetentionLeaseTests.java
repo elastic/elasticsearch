@@ -31,14 +31,6 @@ import static org.hamcrest.Matchers.hasToString;
 
 public class RetentionLeaseTests extends ESTestCase {
 
-    public void testInvalidId() {
-        final String id = "id" + randomFrom(":", ";", ",");
-        final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new RetentionLease(id, randomNonNegativeLong(), randomNonNegativeLong(), "source"));
-        assertThat(e, hasToString(containsString("retention lease ID can not contain any of [:;,] but was [" + id + "]")));
-    }
-
     public void testEmptyId() {
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -62,14 +54,6 @@ public class RetentionLeaseTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> new RetentionLease("id", randomNonNegativeLong(), timestamp, "source"));
         assertThat(e, hasToString(containsString("retention lease timestamp [" + timestamp + "] out of range")));
-    }
-
-    public void testInvalidSource() {
-        final String source = "source" + randomFrom(":", ";", ",");
-        final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new RetentionLease("id", randomNonNegativeLong(), randomNonNegativeLong(), source));
-        assertThat(e, hasToString(containsString("retention lease source can not contain any of [:;,] but was [" + source + "]")));
     }
 
     public void testEmptySource() {

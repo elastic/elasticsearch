@@ -97,10 +97,6 @@ public final class RetentionLease implements ToXContent, Writeable {
         if (id.isEmpty()) {
             throw new IllegalArgumentException("retention lease ID can not be empty");
         }
-        if (id.contains(":") || id.contains(";") || id.contains(",")) {
-            // retention lease IDs can not contain these characters because they are used in encoding retention leases
-            throw new IllegalArgumentException("retention lease ID can not contain any of [:;,] but was [" + id + "]");
-        }
         if (retainingSequenceNumber < 0) {
             throw new IllegalArgumentException("retention lease retaining sequence number [" + retainingSequenceNumber + "] out of range");
         }
@@ -110,10 +106,6 @@ public final class RetentionLease implements ToXContent, Writeable {
         Objects.requireNonNull(source);
         if (source.isEmpty()) {
             throw new IllegalArgumentException("retention lease source can not be empty");
-        }
-        if (source.contains(":") || source.contains(";") || source.contains(",")) {
-            // retention lease sources can not contain these characters because they are used in encoding retention leases
-            throw new IllegalArgumentException("retention lease source can not contain any of [:;,] but was [" + source + "]");
         }
         this.id = id;
         this.retainingSequenceNumber = retainingSequenceNumber;

@@ -5,7 +5,7 @@
           wait_for_status: green
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_exe_watch"
         body:  >
           {
@@ -80,7 +80,7 @@
   - match: { _id: "my_exe_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_exe_watch"
 
   - match: { _id: "my_exe_watch" }
@@ -88,7 +88,7 @@
   - match: { watch.input.chain.inputs.1.second.transform.script.source: "return [ 'hits' : [ 'total' : ctx.payload.first.hits.total ]]" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_exe_watch"
         body: >
           {
@@ -132,7 +132,7 @@
         wait_for_status: green
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_exe_watch"
         body:  >
           {
@@ -207,7 +207,7 @@
   - match: { _id: "my_exe_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_exe_watch"
 
   - match: { _id: "my_exe_watch" }
@@ -215,7 +215,7 @@
   - match: { watch.input.chain.inputs.1.second.transform.script.source: "return [ 'hits' : [ 'total' : ctx.payload.first.hits.total ]]" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_exe_watch"
         body: >
           {

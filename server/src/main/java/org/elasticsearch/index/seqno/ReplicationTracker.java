@@ -329,8 +329,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @throws IOException if an I/O exception occurs reading the retention leases
      */
     public RetentionLeases loadRetentionLeases(final Path path) throws IOException {
-        final RetentionLeases retentionLeases =
-                RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+        final RetentionLeases retentionLeases = RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
         if (retentionLeases == null) {
             return RetentionLeases.EMPTY;
         }

@@ -388,7 +388,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
-        closeLock.readLock().lock();
+        closeLock.writeLock().lock();
         try {
             if (lifecycle.initialized() == false && lifecycle.started() == false) {
                 throw new IllegalStateException("transport has been stopped");
@@ -396,15 +396,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             boolean success = portsRange.iterate(portNumber -> {
                 try {
                     TcpServerChannel channel = bind(name, new InetSocketAddress(hostAddress, portNumber));
-                    synchronized (serverChannels) {
-                        List<TcpServerChannel> list = serverChannels.get(name);
-                        if (list == null) {
-                            list = new ArrayList<>();
-                            serverChannels.put(name, list);
-                        }
-                        list.add(channel);
-                        boundSocket.set(channel.getLocalAddress());
-                    }
+                    serverChannels.computeIfAbsent(name, k -> new ArrayList<>()).add(channel);
+                    boundSocket.set(channel.getLocalAddress());
                 } catch (Exception e) {
                     lastException.set(e);
                     return false;
@@ -415,7 +408,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new BindTransportException("Failed to bind to [" + port + "]", lastException.get());
             }
         } finally {
-            closeLock.readLock().unlock();
+            closeLock.writeLock().unlock();
         }
         if (logger.isDebugEnabled()) {
             logger.debug("Bound profile [{}] to address {{}}", name, NetworkAddress.format(boundSocket.get()));

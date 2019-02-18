@@ -143,13 +143,22 @@ public class IntervalBuilder {
     protected List<IntervalsSource> analyzeTerms(TokenStream ts) throws IOException {
         List<IntervalsSource> terms = new ArrayList<>();
         TermToBytesRefAttribute bytesAtt = ts.addAttribute(TermToBytesRefAttribute.class);
+        PositionIncrementAttribute posAtt = ts.addAttribute(PositionIncrementAttribute.class);
         ts.reset();
         while (ts.incrementToken()) {
             BytesRef term = bytesAtt.getBytesRef();
-            terms.add(Intervals.term(BytesRef.deepCopyOf(term)));
+            int precedingSpaces = posAtt.getPositionIncrement() - 1;
+            terms.add(extend(Intervals.term(BytesRef.deepCopyOf(term)), precedingSpaces));
         }
         ts.end();
         return terms;
+    }
+
+    public static IntervalsSource extend(IntervalsSource source, int precedingSpaces) {
+        if (precedingSpaces == 0) {
+            return source;
+        }
+        return Intervals.extend(source, precedingSpaces, 0);
     }
 
     protected IntervalsSource analyzeSynonyms(TokenStream ts, int maxGaps, boolean ordered) throws IOException {
@@ -159,22 +168,24 @@ public class IntervalBuilder {
         PositionIncrementAttribute posAtt = ts.addAttribute(PositionIncrementAttribute.class);
         ts.reset();
         while (ts.incrementToken()) {
-            if (posAtt.getPositionIncrement() == 1) {
+            int spaces = posAtt.getPositionIncrement() - 1;
+            if (spaces >= 0) {
                 if (synonyms.size() == 1) {
-                    terms.add(synonyms.get(0));
+                    terms.add(extend(synonyms.get(0), spaces));
                 }
                 else if (synonyms.size() > 1) {
-                    terms.add(Intervals.or(synonyms.toArray(new IntervalsSource[0])));
+                    terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
                 }
                 synonyms.clear();
             }
             synonyms.add(Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef())));
         }
+        int spaces = posAtt.getPositionIncrement() - 1;
         if (synonyms.size() == 1) {
-            terms.add(synonyms.get(0));
+            terms.add(extend(synonyms.get(0), spaces));
         }
         else {
-            terms.add(Intervals.or(synonyms.toArray(new IntervalsSource[0])));
+            terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
         }
         return combineSources(terms, maxGaps, ordered);
     }

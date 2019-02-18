@@ -94,6 +94,22 @@ public class IntervalBuilderTests extends ESTestCase {
 
     }
 
+    public void testPhraseWithStopword() throws IOException {
+
+        CannedTokenStream ts = new CannedTokenStream(
+            new Token("term1", 1, 1, 2),
+            new Token("term3", 2, 5, 6)
+        );
+
+        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), 0, true);
+        IntervalsSource expected = Intervals.phrase(
+            Intervals.term("term1"), Intervals.extend(Intervals.term("term3"), 1, 0)
+        );
+
+        assertEquals(expected, source);
+
+    }
+
     public void testSimpleSynonyms() throws IOException {
 
         CannedTokenStream ts = new CannedTokenStream(
@@ -112,16 +128,19 @@ public class IntervalBuilderTests extends ESTestCase {
 
     }
 
+    private static Token graphToken(String text, int posInc, int posLen, int start, int end) {
+        Token token = new Token(text, posInc, start, end);
+        token.setPositionLength(posLen);
+        return token;
+    }
+
     public void testGraphSynonyms() throws IOException {
 
-        // term1 term2/term3:2 term4 term5
-
-        Token graphToken = new Token("term2", 3, 4);
-        graphToken.setPositionLength(2);
+        // term1 term2:2/term3 term4 term5
 
         CannedTokenStream ts = new CannedTokenStream(
             new Token("term1", 1, 2),
-            graphToken,
+            graphToken("term2", 1, 2, 3, 4),
             new Token("term3", 0, 3, 4),
             new Token("term4", 5, 6),
             new Token("term5", 6, 7)
@@ -131,6 +150,33 @@ public class IntervalBuilderTests extends ESTestCase {
         IntervalsSource expected = Intervals.ordered(
             Intervals.term("term1"),
             Intervals.or(Intervals.term("term2"), Intervals.phrase("term3", "term4")),
+            Intervals.term("term5")
+        );
+
+        assertEquals(expected, source);
+
+    }
+
+    public void testGraphSynonymsWithGaps() throws IOException {
+
+        // term1 [] term2:4/term3 [] [] term4 term5
+
+        CannedTokenStream ts = new CannedTokenStream(
+            new Token("term1", 1, 2),
+            graphToken("term2", 2, 4, 3, 4),
+            new Token("term3", 0, 3, 4),
+            new Token("term4", 3, 5, 6),
+            new Token("term5", 6, 7)
+        );
+
+        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), -1, true);
+        IntervalsSource expected = Intervals.ordered(
+            Intervals.term("term1"),
+            Intervals.or(
+                Intervals.extend(Intervals.term("term2"), 1, 0),
+                Intervals.phrase(
+                    Intervals.extend(Intervals.term("term3"), 1, 0),
+                    Intervals.extend(Intervals.term("term4"), 2, 0))),
             Intervals.term("term5")
         );
 

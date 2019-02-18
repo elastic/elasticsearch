@@ -368,6 +368,9 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     .getShardOrNull(new ShardId(resolveIndex("index"), 0));
             final Map<String, RetentionLease> retentionLeasesOnReplica = RetentionLeases.toMap(replica.getRetentionLeases());
             assertThat(retentionLeasesOnReplica, equalTo(currentRetentionLeases));
+
+            // check retention leases have been written on the replica; see RecoveryTarget#finalizeRecovery
+            assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(replica.loadRetentionLeases())));
         }
     }
 

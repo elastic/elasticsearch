@@ -267,9 +267,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public void startPrimary() throws IOException {
-            final DiscoveryNode pNode = getDiscoveryNode(primary.routingEntry().currentNodeId());
-            primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(), pNode, null));
-            primary.recoverFromStore();
+            recoverPrimary(primary);
             HashSet<String> activeIds = new HashSet<>();
             activeIds.addAll(activeIds());
             activeIds.add(primary.routingEntry().allocationId().getId());
@@ -302,6 +300,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             updateAllocationIDsOnPrimary();
         }
 
+        protected synchronized void recoverPrimary(IndexShard primary) {
+            final DiscoveryNode pNode = getDiscoveryNode(primary.routingEntry().currentNodeId());
+            primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(), pNode, null));
+            primary.recoverFromStore();
+        }
 
         public synchronized IndexShard addReplicaWithExistingPath(final ShardPath shardPath, final String nodeId) throws IOException {
             final ShardRouting shardRouting = TestShardRouting.newShardRouting(

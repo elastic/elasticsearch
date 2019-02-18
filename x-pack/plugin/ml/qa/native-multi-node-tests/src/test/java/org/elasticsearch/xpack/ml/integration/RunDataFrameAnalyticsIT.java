@@ -136,7 +136,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
 
         // Check they all have an outlier_score
-        searchResponse = client().prepareSearch(config.getDest()).setQuery(QueryBuilders.existsQuery("outlier_score")).get();
+        searchResponse = client().prepareSearch(config.getDest())
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.existsQuery("outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
     }
 

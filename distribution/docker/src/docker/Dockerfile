@@ -48,10 +48,9 @@ ENV JAVA_HOME /opt/jdk-${jdkVersion}
 
 COPY --from=builder /opt/jdk-${jdkVersion} /opt/jdk-${jdkVersion}
 
-RUN for iter in {1..10}; do yum update -y && \
+RUN yum update -y && \
     yum install -y nc && \
-    yum clean all && exit_code=0 && break || exit_code=$? && echo "yum error: retry $iter in 1s" && sleep 10; done; \
-    (exit $exit_code)
+    yum clean all
 
 RUN groupadd -g 1000 elasticsearch && \
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \

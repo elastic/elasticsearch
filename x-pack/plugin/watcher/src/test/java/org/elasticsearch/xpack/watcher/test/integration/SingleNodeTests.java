@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36782")
+@TestLogging("org.elasticsearch.xpack.watcher.execution:DEBUG")
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, maxNumDataNodes = 1, supportsDedicatedMasters = false)
 public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
 

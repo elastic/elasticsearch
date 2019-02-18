@@ -155,7 +155,7 @@ public class RecoverySourceHandler {
                 assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
             }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ",
                 shard, cancellableThreads, logger);
-            final Closeable retentionLock = shard.acquireRetentionLockForPeerRecovery();
+            final Closeable retentionLock = shard.acquireRetentionLock();
             resources.add(retentionLock);
             final long startingSeqNo;
             final long requiredSeqNoRangeStart;
@@ -177,10 +177,9 @@ public class RecoverySourceHandler {
                 // We must have everything above the local checkpoint in the commit
                 requiredSeqNoRangeStart =
                     Long.parseLong(phase1Snapshot.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
-                // If soft-deletes enabled, we need to transfer only operations after the local_checkpoint of the commit to have
-                // the same history on the target. However, with translog, we need to set this to 0 to create a translog roughly
-                // according to the retention policy on the target. Note that it will still filter out legacy operations without seqNo.
-                startingSeqNo = shard.indexSettings().isSoftDeleteEnabled() ? requiredSeqNoRangeStart : 0;
+                // We need to set this to 0 to create a translog roughly according to the retention policy on the target. Note that it will
+                // still filter out legacy operations without seqNo.
+                startingSeqNo = 0;
                 try {
                     final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo);
                     sendFileResult = phase1(phase1Snapshot.getIndexCommit(), () -> estimateNumOps);

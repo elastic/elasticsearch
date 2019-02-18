@@ -43,8 +43,11 @@ include::synced-flush.asciidoc[]
 
 --
 
-. *Stop any machine learning jobs that are running.* See
-{xpack-ref}/stopping-ml.html[Stopping Machine Learning].
+. *Stop any machine learning jobs that are running.*
++
+--
+include::close-ml.asciidoc[]
+--
 
 . [[upgrade-node]] *Shut down a single node*.
 +
@@ -160,6 +163,11 @@ for each node that needs to be updated.
 --
 
 . *Restart machine learning jobs.*
++
+--
+include::open-ml.asciidoc[]
+--
+
 
 [IMPORTANT]
 ====================================================

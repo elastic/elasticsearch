@@ -35,9 +35,9 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.Index;
@@ -95,13 +95,8 @@ public class RestIndicesAction extends AbstractCatAction {
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                final ClusterState state = clusterStateResponse.getState();
-                final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, strictExpandIndicesOptions, indices);
-                // concreteIndices should contain exactly the indices in state.metaData() that were selected by clusterStateRequest using
-                // IndicesOptions.strictExpand(). We select the indices again here so that they can be displayed in the resulting table
-                // in the requesting order.
-                assert concreteIndices.length == state.metaData().getIndices().size();
-
+                final ClusterState clusterState = clusterStateResponse.getState();
+                final IndexMetaData[] indicesMetaData = getOrderedIndexMetaData(indices, clusterState, strictExpandIndicesOptions);
                 // Indices that were successfully resolved during the cluster state request might be deleted when the subsequent cluster
                 // health and indices stats requests execute. We have to distinguish two cases:
                 // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we want the subsequent
@@ -111,24 +106,24 @@ public class RestIndicesAction extends AbstractCatAction {
                 // This behavior can be ensured by letting the cluster health and indices stats requests re-resolve the index names with the
                 // same indices options that we used for the initial cluster state request (strictExpand). Unfortunately cluster health
                 // requests hard-code their indices options and the best we can do is apply strictExpand to the indices stats request.
-                ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(indices);
+                final ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(indices);
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
+
                 client.admin().cluster().health(clusterHealthRequest, new RestActionListener<ClusterHealthResponse>(channel) {
                     @Override
                     public void processResponse(final ClusterHealthResponse clusterHealthResponse) {
-                        IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+                        final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                         indicesStatsRequest.indices(indices);
                         indicesStatsRequest.indicesOptions(strictExpandIndicesOptions);
                         indicesStatsRequest.all();
+
                         client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(IndicesStatsResponse indicesStatsResponse) throws Exception {
-                                Table tab = buildTable(request, concreteIndices, clusterHealthResponse,
-                                    indicesStatsResponse, state.metaData());
+                                final Table tab = buildTable(request, indicesMetaData, clusterHealthResponse, indicesStatsResponse);
                                 return RestTable.buildResponse(tab, channel);
                             }
                         });
-
                     }
                 });
             }
@@ -388,8 +383,7 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     // package private for testing
-    Table buildTable(RestRequest request, Index[] indices, ClusterHealthResponse response,
-                     IndicesStatsResponse stats, MetaData indexMetaDatas) {
+    Table buildTable(RestRequest request, IndexMetaData[] indicesMetaData, ClusterHealthResponse response, IndicesStatsResponse stats) {
         final String healthParam = request.param("health");
         final ClusterHealthStatus status;
         if (healthParam != null) {
@@ -400,31 +394,50 @@ public class RestIndicesAction extends AbstractCatAction {
 
         Table table = getTableWithHeader(request);
 
-        for (final Index index : indices) {
-            final String indexName = index.getName();
+        for (IndexMetaData indexMetaData : indicesMetaData) {
+            final String indexName = indexMetaData.getIndex().getName();
             ClusterIndexHealth indexHealth = response.getIndices().get(indexName);
             IndexStats indexStats = stats.getIndices().get(indexName);
-            IndexMetaData indexMetaData = indexMetaDatas.getIndices().get(indexName);
             IndexMetaData.State state = indexMetaData.getState();
             boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(indexMetaData.getSettings());
 
             if (status != null) {
                 if (state == IndexMetaData.State.CLOSE ||
-                        (indexHealth == null && !ClusterHealthStatus.RED.equals(status)) ||
-                        !indexHealth.getStatus().equals(status)) {
+                        (indexHealth == null && false == ClusterHealthStatus.RED.equals(status)) ||
+                        false == indexHealth.getStatus().equals(status)) {
                     continue;
                 }
             }
 
-            final CommonStats primaryStats = indexStats == null ? new CommonStats() : indexStats.getPrimaries();
-            final CommonStats totalStats = indexStats == null ? new CommonStats() : indexStats.getTotal();
+            // the open index is present in the cluster state but is not returned in the indices stats API
+            if (indexStats == null && state != IndexMetaData.State.CLOSE) {
+                // the index stats API is called last, after cluster state and cluster health. If the index stats
+                // has not resolved the same open indices as the initial cluster state call, then the indices might
+                // have been removed in the meantime or, more likely, are unauthorized. This is because the cluster
+                // state exposes everything, even unauthorized indices, which are not exposed in APIs.
+                // We ignore such an index instead of displaying it with an empty stats.
+                continue;
+            }
+
+            final CommonStats primaryStats;
+            final CommonStats totalStats;
+
+            if (state == IndexMetaData.State.CLOSE) {
+                // empty stats for closed indices, but their names are displayed
+                assert indexStats == null;
+                primaryStats = new CommonStats();
+                totalStats = new CommonStats();
+            } else {
+                primaryStats = indexStats.getPrimaries();
+                totalStats = indexStats.getTotal();
+            }
 
             table.startRow();
             table.addCell(state == IndexMetaData.State.OPEN ?
                 (indexHealth == null ? "red*" : indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)) : null);
             table.addCell(state.toString().toLowerCase(Locale.ROOT));
             table.addCell(indexName);
-            table.addCell(index.getUUID());
+            table.addCell(indexMetaData.getIndexUUID());
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfShards());
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfReplicas());
 
@@ -606,8 +619,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getSuggestCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getSuggestCount());
 
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getTotalMemory());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getTotalMemory());
+            table.addCell(totalStats.getTotalMemory());
+            table.addCell(primaryStats.getTotalMemory());
 
             table.addCell(searchThrottled);
 
@@ -615,5 +628,22 @@ public class RestIndicesAction extends AbstractCatAction {
         }
 
         return table;
+    }
+
+    // package private for testing
+    IndexMetaData[] getOrderedIndexMetaData(String[] indicesExpression, ClusterState clusterState, IndicesOptions indicesOptions) {
+        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, indicesExpression);
+        // concreteIndices should contain exactly the indices in state.metaData() that were selected by clusterStateRequest using the
+        // same indices option (IndicesOptions.strictExpand()). We select the indices again here so that they can be displayed in the
+        // resulting table in the requesting order.
+        assert concreteIndices.length == clusterState.metaData().getIndices().size();
+        final ImmutableOpenMap<String, IndexMetaData> indexMetaDataMap = clusterState.metaData().getIndices();
+        final IndexMetaData[] indicesMetaData = new IndexMetaData[concreteIndices.length];
+        // select the index metadata in the requested order, so that the response can display the indices in the resulting table
+        // in the requesting order.
+        for (int i = 0; i < concreteIndices.length; i++) {
+            indicesMetaData[i] = indexMetaDataMap.get(concreteIndices[i].getName());
+        }
+        return indicesMetaData;
     }
 }

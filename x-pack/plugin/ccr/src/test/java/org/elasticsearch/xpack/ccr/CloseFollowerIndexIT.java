@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.is;
 
 public class CloseFollowerIndexIT extends CcrIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/38767")
     public void testCloseAndReopenFollowerIndex() throws Exception {
         final String leaderIndexSettings = getIndexSettings(1, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));

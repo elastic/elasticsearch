@@ -140,11 +140,11 @@ POST twitter/_delete_by_query?scroll_size=5000
 [float]
 === URL Parameters
 
-In addition to the standard parameters like `pretty`, the `_delete_by_query` API
+In addition to the standard parameters like `pretty`, the delete by query API
 also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,
 and `scroll`.
 
-Sending the `refresh` will refresh all shards involved in the `_delete_by_query`
+Sending the `refresh` will refresh all shards involved in the delete by query
 once the request completes. This is different than the delete API's `refresh`
 parameter which causes just the shard that received the delete request
 to be refreshed. Also unlike the delete API it does not support `wait_for`.
@@ -238,7 +238,7 @@ The number of milliseconds from start to end of the whole operation.
 `timed_out`::
 
 This flag is set to `true` if any of the requests executed during the
-`_delete_by_query` execution has timed out.
+delete by query execution has timed out.
 
 `total`::
 
@@ -250,21 +250,21 @@ The number of documents that were successfully deleted.
 
 `batches`::
 
-The number of scroll responses pulled back by the `_delete_by_query`.
+The number of scroll responses pulled back by the delete by query.
 
 `version_conflicts`::
 
-The number of version conflicts that the `_delete_by_query` hit.
+The number of version conflicts that the delete by query hit.
 
 `noops`::
 
-This field is always equal to zero for `_delete_by_query`. It only exists
-so that `_delete_by_query`, `_update_by_query`, and reindex APIs return responses
+This field is always equal to zero for delete by query. It only exists
+so that delete by query, update by query, and reindex APIs return responses
  with the same structure.
 
 `retries`::
 
-The number of retries attempted by `_delete_by_query`. `bulk` is the number
+The number of retries attempted by delete by query. `bulk` is the number
 of bulk actions retried, and `search` is the number of search actions retried.
 
 `throttled_millis`::
@@ -273,7 +273,7 @@ Number of milliseconds the request slept to conform to `requests_per_second`.
 
 `requests_per_second`::
 
-The number of requests per second effectively executed during the `_delete_by_query`.
+The number of requests per second effectively executed during the delete by query.
 
 `throttled_until_millis`::
 
@@ -286,7 +286,7 @@ executed again in order to conform to `requests_per_second`.
 
 Array of failures if there were any unrecoverable errors during the process. If
 this is non-empty then the request aborted because of those failures.
-`_delete_by_query` is implemented using batches, and any failure causes the entire
+Delete by query is implemented using batches, and any failure causes the entire
 process to abort but all failures in the current batch are collected into the
 array. You can use the `conflicts` option to prevent reindex from aborting on
 version conflicts.
@@ -296,7 +296,7 @@ version conflicts.
 [[docs-delete-by-query-task-api]]
 === Works with the Task API
 
-You can fetch the status of any running `_delete_by_query` requests with the
+You can fetch the status of any running delete by query requests with the
 <<tasks,Task API>>:
 
 [source,js]
@@ -373,7 +373,7 @@ you to delete that document.
 [[docs-delete-by-query-cancel-task-api]]
 === Works with the Cancel Task API
 
-Any `_delete_by_query` can be canceled using the <<tasks,task cancel API>>:
+Any delete by query can be canceled using the <<tasks,task cancel API>>:
 
 [source,js]
 --------------------------------------------------
@@ -384,7 +384,7 @@ POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 The task ID can be found using the <<tasks,tasks API>>.
 
 Cancellation should happen quickly but might take a few seconds. The task status 
-API above will continue to list the `_delete_by_query` task until this task checks that it 
+API above will continue to list the delete by query task until this task checks that it 
 has been cancelled and terminates itself.
 
 
@@ -392,7 +392,7 @@ has been cancelled and terminates itself.
 [[docs-delete-by-query-rethrottle]]
 === Rethrottling
 
-The value of `requests_per_second` can be changed on a running `_delete_by_query`
+The value of `requests_per_second` can be changed on a running delete by query
 using the `_rethrottle` API:
 
 [source,js]
@@ -403,7 +403,7 @@ POST _delete_by_query/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_seco
 
 The task ID can be found using the <<tasks,tasks API>>.
 
-Just like when setting it on the `_delete_by_query` API, `requests_per_second`
+Just like when setting it on the delete by query API, `requests_per_second`
 can be either `-1` to disable throttling or any decimal number
 like `1.7` or `12` to throttle to that level. Rethrottling that speeds up the
 query takes effect immediately but rethrotting that slows down the query will
@@ -414,7 +414,7 @@ timeouts.
 [[docs-delete-by-query-slice]]
 === Slicing
 
-`_delete_by_query` supports <<sliced-scroll, sliced scroll>> to parallelize the deleting process.
+Delete by query supports <<sliced-scroll, sliced scroll>> to parallelize the deleting process.
 This parallelization can improve efficiency and provide a convenient way to
 break the request down into smaller parts.
 
@@ -422,7 +422,7 @@ break the request down into smaller parts.
 [[docs-delete-by-query-manual-slice]]
 ==== Manual slicing
 
-Slice a `_delete_by_query` manually by providing a slice id and total number of
+Slice a delete by query manually by providing a slice id and total number of
 slices to each request:
 
 [source,js]
@@ -494,7 +494,7 @@ Which results in a sensible `total` like this one:
 [[docs-delete-by-query-automatic-slice]]
 ==== Automatic slicing
 
-You can also let `_delete_by_query` automatically parallelize using
+You can also let delete by query automatically parallelize using
 <<sliced-scroll, sliced scroll>> to slice on `_uid`. Use `slices` to specify the number of
 slices to use:
 

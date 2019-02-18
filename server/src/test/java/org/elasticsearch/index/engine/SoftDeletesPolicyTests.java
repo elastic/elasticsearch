@@ -121,30 +121,6 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
         assertThat(policy.getMinRetainedSeqNo(), equalTo(minRetainedSeqNo));
     }
 
-    public void testAlwaysFetchLatestRetentionLeases() {
-        final AtomicLong globalCheckpoint = new AtomicLong(NO_OPS_PERFORMED);
-        final Collection<RetentionLease> leases = new ArrayList<>();
-        final int numLeases = randomIntBetween(0, 10);
-        for (int i = 0; i < numLeases; i++) {
-            leases.add(new RetentionLease(Integer.toString(i), randomLongBetween(0, 1000), randomNonNegativeLong(), "test"));
-        }
-        final Supplier<RetentionLeases> leasesSupplier =
-                () -> new RetentionLeases(
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        Collections.unmodifiableCollection(new ArrayList<>(leases)));
-        final SoftDeletesPolicy policy =
-                new SoftDeletesPolicy(globalCheckpoint::get, randomIntBetween(1, 1000), randomIntBetween(0, 1000), leasesSupplier);
-        if (randomBoolean()) {
-            policy.acquireRetentionLock();
-        }
-        if (numLeases == 0) {
-            assertThat(policy.getRetentionPolicy().v2().leases(), empty());
-        } else {
-            assertThat(policy.getRetentionPolicy().v2().leases(), contains(leases.toArray(new RetentionLease[0])));
-        }
-    }
-
     public void testWhenGlobalCheckpointDictatesThePolicy() {
         final int retentionOperations = randomIntBetween(0, 1024);
         final AtomicLong globalCheckpoint = new AtomicLong(randomLongBetween(0, Long.MAX_VALUE - 2));

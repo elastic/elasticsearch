@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.io;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -72,8 +71,9 @@ public abstract class Streams {
     public static long copy(InputStream in, OutputStream out, byte[] buffer) throws IOException {
         Objects.requireNonNull(in, "No InputStream specified");
         Objects.requireNonNull(out, "No OutputStream specified");
-        boolean success = false;
-        try {
+        // Leverage try-with-resources to close in and out so that exceptions in close() are either propagated or added as suppressed
+        // exceptions to the main exception
+        try (InputStream in2 = in; OutputStream out2 = out) {
             long byteCount = 0;
             int bytesRead;
             while ((bytesRead = in.read(buffer)) != -1) {
@@ -81,14 +81,7 @@ public abstract class Streams {
                 byteCount += bytesRead;
             }
             out.flush();
-            success = true;
             return byteCount;
-        } finally {
-            if (success) {
-                IOUtils.close(in, out);
-            } else {
-                IOUtils.closeWhileHandlingException(in, out);
-            }
         }
     }
 
@@ -103,14 +96,8 @@ public abstract class Streams {
     public static void copy(byte[] in, OutputStream out) throws IOException {
         Objects.requireNonNull(in, "No input byte array specified");
         Objects.requireNonNull(out, "No OutputStream specified");
-        try {
+        try (OutputStream out2 = out) {
             out.write(in);
-        } finally {
-            try {
-                out.close();
-            } catch (IOException ex) {
-                // do nothing
-            }
         }
     }
 
@@ -131,8 +118,9 @@ public abstract class Streams {
     public static int copy(Reader in, Writer out) throws IOException {
         Objects.requireNonNull(in, "No Reader specified");
         Objects.requireNonNull(out, "No Writer specified");
-        boolean success = false;
-        try {
+        // Leverage try-with-resources to close in and out so that exceptions in close() are either propagated or added as suppressed
+        // exceptions to the main exception
+        try (Reader in2 = in; Writer out2 = out) {
             int byteCount = 0;
             char[] buffer = new char[BUFFER_SIZE];
             int bytesRead;
@@ -141,14 +129,7 @@ public abstract class Streams {
                 byteCount += bytesRead;
             }
             out.flush();
-            success = true;
             return byteCount;
-        } finally {
-            if (success) {
-                IOUtils.close(in, out);
-            } else {
-                IOUtils.closeWhileHandlingException(in, out);
-            }
         }
     }
 
@@ -163,14 +144,8 @@ public abstract class Streams {
     public static void copy(String in, Writer out) throws IOException {
         Objects.requireNonNull(in, "No input String specified");
         Objects.requireNonNull(out, "No Writer specified");
-        try {
+        try (Writer out2 = out) {
             out.write(in);
-        } finally {
-            try {
-                out.close();
-            } catch (IOException ex) {
-                // do nothing
-            }
         }
     }
 

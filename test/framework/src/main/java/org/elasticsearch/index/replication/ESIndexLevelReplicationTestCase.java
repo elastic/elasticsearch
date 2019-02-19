@@ -549,14 +549,15 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             getPrimary().removeRetentionLease(id, listener);
         }
 
-        public void executeRetentionLeasesSyncRequestOnReplica(RetentionLeaseSyncAction.Request request,
-                                                               IndexShard replica) throws Exception {
+        public void executeRetentionLeasesSyncRequestOnReplica(RetentionLeaseSyncAction.Request request, IndexShard replica) {
             final PlainActionFuture<Releasable> acquirePermitFuture = new PlainActionFuture<>();
             replica.acquireReplicaOperationPermit(getPrimary().getOperationPrimaryTerm(), getPrimary().getGlobalCheckpoint(),
                 getPrimary().getMaxSeqNoOfUpdatesOrDeletes(), acquirePermitFuture, ThreadPool.Names.SAME, request);
             try (Releasable ignored = acquirePermitFuture.actionGet()) {
                 replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
                 replica.persistRetentionLeases();
+            } catch (Exception e) {
+                throw new AssertionError("failed to execute retention lease request on replica [" + replica.routingEntry() + "]", e);
             }
         }
     }

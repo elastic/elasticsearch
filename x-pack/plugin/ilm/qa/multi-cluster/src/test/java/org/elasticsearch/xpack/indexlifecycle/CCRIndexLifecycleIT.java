@@ -373,7 +373,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 }
                 assertBusy(() -> {
                     for (int i = 0; i < 50; i++) {
-                        index(client(), indexName, Integer.toString(i));
+                        assertDocumentExists(client(), indexName, Integer.toString(i));
                     }
                 });
 

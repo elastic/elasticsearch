@@ -954,6 +954,23 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
          */
         Translog.Operation next() throws IOException;
+
+        Snapshot EMPTY = new Translog.Snapshot() {
+            @Override
+            public int totalOperations() {
+                return 0;
+            }
+
+            @Override
+            public Operation next() {
+                return null;
+            }
+
+            @Override
+            public void close() {
+
+            }
+        };
     }
 
     /**

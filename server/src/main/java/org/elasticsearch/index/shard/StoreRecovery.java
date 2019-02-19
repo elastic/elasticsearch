@@ -461,18 +461,32 @@ final class StoreRecovery {
                 snapshotShardId = new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
             }
             final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
-            repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(),
-                restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
-            final Store store = indexShard.store();
-            store.bootstrapNewHistory();
-            final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
-            final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            final String translogUUID = Translog.createEmptyTranslog(
-                indexShard.shardPath().resolveTranslog(), localCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
-            store.associateIndexWithNewTranslog(translogUUID);
-            assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
-            indexShard.openEngineAndRecoverFromTranslog();
-            indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+            try (Translog.Snapshot historySnapshot = repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(),
+                restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState())) {
+                final Store store = indexShard.store();
+                store.bootstrapNewHistory();
+                final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+                SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(segmentInfos.userData.entrySet());
+                final String translogUUID = Translog.createEmptyTranslog(
+                    indexShard.shardPath().resolveTranslog(), commitInfo.maxSeqNo, shardId, indexShard.getPendingPrimaryTerm());
+                store.associateIndexWithNewTranslog(translogUUID);
+                assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+                indexShard.openEngineAndRecoverFromTranslog();
+                if (commitInfo.localCheckpoint < commitInfo.maxSeqNo) {
+                    Translog.Operation op;
+                    translogState.totalOperations(historySnapshot.totalOperations());
+                    while ((op = historySnapshot.next()) != null) {
+                        indexShard.applyTranslogOperation(op, Engine.Operation.Origin.SNAPSHOT_RECOVERY);
+                        translogState.incrementRecoveredOperations();
+                    }
+                    indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+                    final long checkpoint = indexShard.seqNoStats().getLocalCheckpoint();
+                    if (checkpoint < commitInfo.maxSeqNo) {
+                        throw new IndexShardRestoreFailedException(shardId, "history is not restored " +
+                            "checkpoint=" + indexShard.seqNoStats().getGlobalCheckpoint() + " max_seq_no=" + commitInfo.maxSeqNo);
+                    }
+                }
+            }
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");
         } catch (Exception e) {

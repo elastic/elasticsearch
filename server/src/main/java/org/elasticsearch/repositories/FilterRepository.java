@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -125,9 +126,9 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                             RecoveryState recoveryState) {
-        in.restoreShard(shard, snapshotId, version, indexId, snapshotShardId, recoveryState);
+    public Translog.Snapshot restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId,
+                                          ShardId snapshotShardId, RecoveryState recoveryState) {
+        return in.restoreShard(shard, snapshotId, version, indexId, snapshotShardId, recoveryState);
     }
 
     @Override

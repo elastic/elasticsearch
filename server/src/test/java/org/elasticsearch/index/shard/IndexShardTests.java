@@ -2175,8 +2175,8 @@ public class IndexShardTests extends IndexShardTestCase {
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         assertTrue(target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
-            public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                                     RecoveryState recoveryState) {
+            public Translog.Snapshot restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId,
+                                                  ShardId snapshotShardId, RecoveryState recoveryState) {
                 try {
                     cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {
@@ -2185,6 +2185,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         }
                         targetStore.directory().copyFrom(sourceStore.directory(), file, file, IOContext.DEFAULT);
                     }
+                    return Translog.Snapshot.EMPTY;
                 } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
@@ -2192,7 +2193,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }));
         assertThat(target.getLocalCheckpoint(), equalTo(2L));
         assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(2L));
-        assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
+        assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(2L));
         IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted());
         assertThat(target.getReplicationTracker().getTrackedLocalCheckpointForShard(
             target.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(2L));

@@ -1320,10 +1320,11 @@ public abstract class Engine implements Closeable {
             REPLICA,
             PEER_RECOVERY,
             LOCAL_TRANSLOG_RECOVERY,
-            LOCAL_RESET;
+            LOCAL_RESET,
+            SNAPSHOT_RECOVERY;
 
             public boolean isRecovery() {
-                return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY;
+                return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY || this == SNAPSHOT_RECOVERY;
             }
 
             boolean isFromTranslog() {

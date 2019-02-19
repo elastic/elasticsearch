@@ -29,6 +29,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -215,9 +216,11 @@ public interface Repository extends LifecycleComponent {
      * @param indexId         id of the index in the repository from which the restore is occurring
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
+     * @return a snapshot of history operation will be replayed into the restoring shard.
+     *         Returns {@link Translog.Snapshot#EMPTY} if there is no operation to be replayed.
      */
-    void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId,
-                      ShardId snapshotShardId, RecoveryState recoveryState);
+    Translog.Snapshot restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId,
+                                   ShardId snapshotShardId, RecoveryState recoveryState);
 
     /**
      * Retrieve shard snapshot status for the stored snapshot

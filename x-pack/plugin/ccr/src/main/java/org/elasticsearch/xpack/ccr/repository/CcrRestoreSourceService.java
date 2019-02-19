@@ -14,10 +14,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CombinedRateLimiter;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -38,8 +41,10 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongConsumer;
@@ -234,6 +239,23 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             }
         }
 
+        Tuple<List<Translog.Operation>, ByteSizeValue> readHistoryOperations(long fromSeqNo, long toSeqNo,
+                                                                             ByteSizeValue maxBatchSize) throws IOException {
+            try (Translog.Snapshot snapshot = indexShard.newChangesSnapshot("ccr_remote_recovery", fromSeqNo, toSeqNo, true)) {
+                final List<Translog.Operation> operations = new ArrayList<>();
+                Translog.Operation op;
+                long totalSizeInBytes = 0;
+                while ((op = snapshot.next()) != null) {
+                    operations.add(op);
+                    totalSizeInBytes += op.estimateSize();
+                    if (totalSizeInBytes >= maxBatchSize.getBytes()) {
+                        break;
+                    }
+                }
+                return Tuple.tuple(operations, new ByteSizeValue(totalSizeInBytes));
+            }
+        }
+
         @Override
         protected void closeInternal() {
             logger.debug("closing session [{}] for shard [{}]", sessionUUID, indexShard.shardId());
@@ -271,6 +293,15 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             long throttleTime = rateLimiter.maybePause(reference.length());
             throttleListener.accept(throttleTime);
             return restoreSession.readFileBytes(fileName, reference);
+        }
+
+        public Tuple<List<Translog.Operation>, ByteSizeValue> readHistoryOperations(long fromSeqNo, long toSeqNo,
+                                                                                    ByteSizeValue maxBatchSize) throws IOException {
+            Tuple<List<Translog.Operation>, ByteSizeValue> batch = restoreSession.readHistoryOperations(fromSeqNo, toSeqNo, maxBatchSize);
+            CombinedRateLimiter rateLimiter = ccrSettings.getRateLimiter();
+            long throttleTime = rateLimiter.maybePause(Math.toIntExact(batch.v2().getBytes()));
+            throttleListener.accept(throttleTime);
+            return batch;
         }
 
         @Override

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
+import org.apache.commons.codec.Charsets;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -24,10 +25,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardRecoveryException;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.RestoreOnlyRepository;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -114,6 +117,42 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             source.refresh("test");
         }
         flushShard(source); // only flush source
+
+        // fail to restore because of missing history
+        {
+            ShardRouting routing = ShardRoutingHelper.initWithSameId(target.routingEntry(),
+                RecoverySource.ExistingStoreRecoverySource.INSTANCE);
+            final Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
+            routing = ShardRoutingHelper.newWithRestoreSource(routing,
+                new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT, "test"));
+            target = reinitShard(target, routing);
+            Store sourceStore = source.store();
+            Store targetStore = target.store();
+
+            DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+            target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
+            IndexShard failedShard = target;
+            expectThrows(IndexShardRecoveryException.class, () ->
+                failedShard.restoreFromRepository(new RestoreOnlyRepository("test") {
+                    @Override
+                    public Translog.Snapshot restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId,
+                                                          ShardId snapshotShardId, RecoveryState recoveryState) {
+                        try {
+                            cleanLuceneIndex(targetStore.directory());
+                            for (String file : sourceStore.directory().listAll()) {
+                                if (file.equals("write.lock") || file.startsWith("extra")) {
+                                    continue;
+                                }
+                                targetStore.directory().copyFrom(sourceStore.directory(), file, file, IOContext.DEFAULT);
+                            }
+                            return Translog.Snapshot.EMPTY;
+                        } catch (Exception ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    }
+                }));
+        }
+
         ShardRouting routing = ShardRoutingHelper.initWithSameId(target.routingEntry(),
             RecoverySource.ExistingStoreRecoverySource.INSTANCE);
         final Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
@@ -127,8 +166,8 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         assertTrue(target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
-            public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                                     RecoveryState recoveryState) {
+            public Translog.Snapshot restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId,
+                                                  ShardId snapshotShardId, RecoveryState recoveryState) {
                 try {
                     cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {
@@ -137,18 +176,40 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
                         }
                         targetStore.directory().copyFrom(sourceStore.directory(), file, file, IOContext.DEFAULT);
                     }
+                    return new Translog.Snapshot() {
+                        boolean drained = false;
+                        @Override
+                        public int totalOperations() {
+                            return 1;
+                        }
+                        @Override
+                        public Translog.Operation next() {
+                            if (drained == false) {
+                                drained = true;
+                                // String type, String id, long seqNo, long primaryTerm, Term uid
+                                return new Translog.Index("_doc", "1", 1L, 1L, 2L, "{}".getBytes(Charsets.UTF_8), null, -1L);
+                            }
+                            return null;
+                        }
+
+                        @Override
+                        public void close() {
+
+                        }
+                    };
                 } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
             }
         }));
-        assertThat(target.getLocalCheckpoint(), equalTo(0L));
+        assertThat(target.getLocalCheckpoint(), equalTo(2L));
         assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(2L));
-        assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
+        assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(2L));
         IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted());
-        assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
+        assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(2L));
+        assertThat(target.recoveryState().getTranslog().recoveredOperations(), equalTo(1));
 
-        assertDocs(target, "0", "2");
+        assertDocs(target, "0", "1", "2");
 
         closeShard(source, false);
         closeShards(target);

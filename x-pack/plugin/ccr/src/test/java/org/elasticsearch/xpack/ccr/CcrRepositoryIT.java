@@ -13,6 +13,8 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -25,6 +27,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -38,6 +42,7 @@ import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAct
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,6 +52,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -437,6 +443,71 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                 transportService.clearAllRules();
             }
         }
+    }
+
+    public void testFollowExistingIndex() throws Exception {
+        int numberOfReplicas = between(0, 1);
+        assertAcked(followerClient().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+            .put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), new ByteSizeValue(between(1, 100 * 1024)))));
+        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
+        AtomicBoolean stopped = new AtomicBoolean();
+        AtomicInteger docID = new AtomicInteger();
+        boolean appendOnly = randomBoolean();
+        Thread[] indexers = new Thread[between(1, 4)];
+        for (int i = 0; i < indexers.length; i++) {
+            indexers[i] = new Thread(() -> {
+                while (stopped.get() == false && docID.get() < 500) {
+                    try {
+                        String field = "\"field_" + between(0, 20) + "\"";
+                        if (appendOnly) {
+                            String id = Integer.toString(docID.incrementAndGet());
+                            leaderClient().prepareIndex("leader", "_doc", id)
+                                .setSource("{" + field + ":" + id + "}", XContentType.JSON).get();
+                        } else if (frequently()) {
+                            String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 100));
+                            leaderClient().prepareIndex("leader", "_doc", id)
+                                .setSource("{" + field + ":" + id + "}", XContentType.JSON).get();
+                        } else {
+                            String id = Integer.toString(between(0, docID.incrementAndGet()));
+                            leaderClient().prepareDelete("leader", "_doc", id).get();
+                        }
+                    } catch (Exception ex) {
+                        throw new AssertionError(ex);
+                    }
+                }
+            });
+            indexers[i].start();
+        }
+        awaitGlobalCheckpointAtLeast(leaderClient(), new ShardId(resolveLeaderIndex("leader"), 0), between(0, 50));
+        int numOfFlush = between(0, 10);
+        for (int i = 0; i < numOfFlush; i++) {
+            try {
+                leaderClient().admin().indices().prepareFlush("leader").get();
+                ShardStats[] shards = leaderClient().admin().indices().stats(new IndicesStatsRequest().clear())
+                    .actionGet().getShards();
+                for (ShardStats shard : shards) {
+                    if (shard.getShardRouting().primary() && shard.getCommitStats() != null) {
+                        SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+                            shard.getCommitStats().getUserData().entrySet());
+                        logger.info("--> commit on the leader primary {}", commitInfo);
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("failed to flush or retrieve commit stats", e);
+            }
+        }
+        PutFollowAction.Request follow = putFollow("leader", "follower");
+        followerClient().execute(PutFollowAction.INSTANCE, follow).get();
+        getFollowerCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(1, 2));
+        ensureFollowerGreen("follower");
+        stopped.set(true);
+        for (Thread indexer : indexers) {
+            indexer.join();
+        }
+        assertIndexFullyReplicatedToFollower("leader", "follower");
+        pauseFollow("follower");
     }
 
     private void assertExpectedDocument(String followerIndex, final int value) {

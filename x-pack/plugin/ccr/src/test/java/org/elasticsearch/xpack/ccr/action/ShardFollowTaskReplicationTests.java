@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
@@ -33,8 +34,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.RestoreOnlyRepository;
@@ -389,6 +392,63 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
+    public void testRemoteRecoveryWithGapsInIndexCommit() throws Exception {
+        try (ReplicationGroup leader = createLeaderGroup(0)) {
+            leader.startAll();
+            int numOps = between(0, 50);
+            List<Translog.Operation> ops = new ArrayList<>();
+            for (int i = 0; i < numOps; i++) {
+                final String id = Integer.toString(between(1, numOps));
+                if (randomBoolean()) {
+                    ops.add(new Translog.Index("_doc", id, i, 1L, 1L, "{}".getBytes(StandardCharsets.UTF_8), null, -1));
+                } else {
+                    ops.add(new Translog.Delete("_doc", id, EngineTestCase.newUid(id), i, 1L, 1L));
+                }
+            }
+            Randomness.shuffle(ops);
+            int recoveredOps = 0;
+            for (int i = 0; i < ops.size(); i++) {
+                leader.getPrimary().advanceMaxSeqNoOfUpdatesOrDeletes(ops.get(i).seqNo());
+                leader.getPrimary().applyTranslogOperation(ops.get(i), Engine.Operation.Origin.LOCAL_RESET);
+                if (randomInt(100) < 10) {
+                    leader.getPrimary().flush(new FlushRequest());
+                    recoveredOps = i + 1;
+                }
+            }
+            leader.getPrimary().updateLocalCheckpointForShard(leader.getPrimary().routingEntry().allocationId().getId(), numOps - 1);
+            leader.syncGlobalCheckpoint();
+            try (ReplicationGroup follower = createFollowGroup(leader, 0)) {
+                follower.startAll();
+                if (randomBoolean()) {
+                    follower.recoverReplica(follower.addReplica());
+                }
+                ShardFollowNodeTask followTask = createShardFollowTask(leader, follower);
+                followTask.start(
+                    follower.getPrimary().getHistoryUUID(),
+                    leader.getPrimary().getGlobalCheckpoint(),
+                    leader.getPrimary().seqNoStats().getMaxSeqNo(),
+                    follower.getPrimary().getGlobalCheckpoint(),
+                    follower.getPrimary().seqNoStats().getMaxSeqNo()
+                );
+                if (randomBoolean()) {
+                    leader.appendDocs(between(1, 20));
+                }
+                if (randomBoolean()) {
+                    follower.recoverReplica(follower.addReplica());
+                }
+                if (randomBoolean()) {
+                    leader.appendDocs(between(1, 20));
+                }
+                assertBusy(() -> {
+                    for (IndexShard shard : follower) {
+                        assertThat(getShardDocUIDs(shard), equalTo(getShardDocUIDs(leader.getPrimary())));
+                    }
+                });
+                followTask.markAsCompleted();
+            }
+        }
+    }
+
     private ReplicationGroup createLeaderGroup(int replicas) throws IOException {
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
@@ -417,7 +477,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 primary.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
                 primary.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
                     @Override
-                    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version,
+                    public Translog.Snapshot restoreShard(IndexShard shard, SnapshotId snapshotId, Version version,
                                              IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
                         try {
                             IndexShard leader = leaderGroup.getPrimary();
@@ -428,6 +488,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                     primary.store().directory().copyFrom(
                                         leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
                                 }
+                                SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+                                    sourceSnapshot.getCommitUserData().entrySet());
+                                if (commitInfo.localCheckpoint == commitInfo.maxSeqNo) {
+                                    return Translog.Snapshot.EMPTY;
+                                }
+                                return leader.newChangesSnapshot("test", commitInfo.localCheckpoint + 1, commitInfo.maxSeqNo, true);
                             }
                         } catch (Exception ex) {
                             throw new AssertionError(ex);

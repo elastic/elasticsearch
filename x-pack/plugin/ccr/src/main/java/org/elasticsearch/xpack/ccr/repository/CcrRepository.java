@@ -34,6 +34,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -41,12 +42,15 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.MissingHistoryOperationsException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRecoveryException;
 import org.elasticsearch.index.shard.ShardId;
@@ -56,6 +60,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
@@ -74,6 +79,7 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionRequest;
+import org.elasticsearch.xpack.ccr.action.repositories.GetCcrHistoryOperationAction;
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAction;
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
@@ -300,8 +306,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public void restoreShard(IndexShard indexShard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId,
-                             RecoveryState recoveryState) {
+    public Translog.Snapshot restoreShard(IndexShard indexShard, SnapshotId snapshotId, Version version, IndexId indexId,
+                                          ShardId shardId, RecoveryState recoveryState) {
         // TODO: Add timeouts to network calls / the restore process.
         createEmptyStore(indexShard, shardId);
 
@@ -345,16 +351,24 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(indexShard.indexSettings().getSettings()),
                 Ccr.CCR_THREAD_POOL_NAME);
 
-        // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
-        //  response, we should be able to retry by creating a new session.
-        try (RestoreSession restoreSession = openSession(metadata.name(), remoteClient, leaderShardId, indexShard, recoveryState)) {
-            restoreSession.restoreFiles();
-            updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, indexShard.routingEntry().index());
-        } catch (Exception e) {
-            throw new IndexShardRestoreFailedException(indexShard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
-        } finally {
+        final Releasable cancelRenewable = () -> {
             logger.trace("{} canceling background renewal of retention lease [{}] at the end of restore", shardId, retentionLeaseId);
             renewable.cancel();
+        };
+        // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
+        //  response, we should be able to retry by creating a new session.
+        final RestoreSession restoreSession = openSession(metadata.name(), remoteClient, leaderShardId, indexShard, recoveryState);
+        try {
+            restoreSession.restoreFiles();
+            updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, indexShard.routingEntry().index());
+            return restoreSession.getHistorySnapshot(() -> IOUtils.close(restoreSession, cancelRenewable));
+        } catch (Exception e) {
+            try {
+                IOUtils.close(restoreSession, cancelRenewable);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new IndexShardRestoreFailedException(indexShard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
         }
     }
 
@@ -488,7 +502,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     RestoreSession openSession(String repositoryName, Client remoteClient, ShardId leaderShardId, IndexShard indexShard,
-                                       RecoveryState recoveryState) {
+                               RecoveryState recoveryState) {
         String sessionUUID = UUIDs.randomBase64UUID();
         PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
             new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId)).actionGet(ccrSettings.getRecoveryActionTimeout());
@@ -609,6 +623,57 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             }
 
             logger.trace("[{}] completed CCR restore", shardId);
+        }
+
+        Translog.Snapshot getHistorySnapshot(final Closeable onClose) {
+            final SequenceNumbers.CommitInfo commitInfo =
+                SequenceNumbers.loadSeqNoInfoFromLuceneCommit(sourceMetaData.getCommitUserData().entrySet());
+            final int totalOperations = Math.toIntExact(commitInfo.maxSeqNo - commitInfo.localCheckpoint);
+            return new Translog.Snapshot() {
+                int index = 0;
+                List<Translog.Operation> operations = Collections.emptyList(); // last read batch
+                long localCheckpoint = commitInfo.localCheckpoint;
+
+                @Override
+                public int totalOperations() {
+                    return totalOperations;
+                }
+
+                @Override
+                public Translog.Operation next() {
+                    if (localCheckpoint < commitInfo.maxSeqNo && index >= operations.size()) {
+                        final GetCcrHistoryOperationAction.Request request = new GetCcrHistoryOperationAction.Request(
+                            node, sessionUUID, localCheckpoint + 1, commitInfo.maxSeqNo, ccrSettings.getChunkSize());
+                        final GetCcrHistoryOperationAction.Response response =
+                            remoteClient.execute(GetCcrHistoryOperationAction.INSTANCE, request)
+                                .actionGet(ccrSettings.getRecoveryActionTimeout());
+                        index = 0;
+                        operations = response.operations();
+                        final long nanosPaused = ccrSettings.getRateLimiter().maybePause(Math.toIntExact(response.batchSize().getBytes()));
+                        throttleListener.accept(nanosPaused);
+                    }
+                    if (index < operations.size()) {
+                        final Translog.Operation op = operations.get(index++);
+                        if (op.seqNo() != localCheckpoint + 1) {
+                            throw new MissingHistoryOperationsException(
+                                "expected seq_no [" + (localCheckpoint + 1) + "], found [" + op + "]");
+                        }
+                        localCheckpoint = op.seqNo();
+                        return op;
+                    } else {
+                        if (localCheckpoint < commitInfo.maxSeqNo) {
+                            throw new MissingHistoryOperationsException("Not every operation are read " +
+                                "local_checkpoint [" + localCheckpoint + "] max_seq_no [" + commitInfo.maxSeqNo + "]");
+                        }
+                        return null;
+                    }
+                }
+
+                @Override
+                public void close() throws IOException {
+                    onClose.close();
+                }
+            };
         }
 
         private void handleError(Store store, Exception e) throws IOException {

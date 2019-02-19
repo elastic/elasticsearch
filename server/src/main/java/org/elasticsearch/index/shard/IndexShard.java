@@ -67,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -1432,7 +1433,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
-        replicationTracker.updateRetentionLeasesOnReplica(getRetentionLeases(store.readLastCommittedSegmentsInfo()));
+        updateRetentionLeasesOnReplica(loadRetentionLeases());
         trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();
@@ -1450,14 +1451,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         onSettingsChanged();
         assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
-    }
-
-    static RetentionLeases getRetentionLeases(final SegmentInfos segmentInfos) {
-        final String committedRetentionLeases = segmentInfos.getUserData().get(Engine.RETENTION_LEASES);
-        if (committedRetentionLeases == null) {
-            return RetentionLeases.EMPTY;
-        }
-        return RetentionLeases.decodeRetentionLeases(committedRetentionLeases);
     }
 
     private void trimUnsafeCommits() throws IOException {
@@ -2002,6 +1995,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertReplicationTarget();
         verifyNotClosed();
         replicationTracker.updateRetentionLeasesOnReplica(retentionLeases);
+    }
+
+    /**
+     * Loads the latest retention leases from their dedicated state file.
+     *
+     * @return the retention leases
+     * @throws IOException if an I/O exception occurs reading the retention leases
+     */
+    public RetentionLeases loadRetentionLeases() throws IOException {
+        verifyNotClosed();
+        return replicationTracker.loadRetentionLeases(path.getShardStatePath());
+    }
+
+    /**
+     * Persists the current retention leases to their dedicated state file.
+     *
+     * @throws WriteStateException if an exception occurs writing the state file
+     */
+    public void persistRetentionLeases() throws WriteStateException {
+        verifyNotClosed();
+        replicationTracker.persistRetentionLeases(path.getShardStatePath());
     }
 
     /**

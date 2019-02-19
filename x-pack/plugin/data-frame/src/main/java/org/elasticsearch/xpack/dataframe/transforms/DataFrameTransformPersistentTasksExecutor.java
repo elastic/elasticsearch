@@ -18,6 +18,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformState;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.DataFrame;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
@@ -45,6 +46,14 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, @Nullable DataFrameTransform params, PersistentTaskState state) {
         DataFrameTransformTask buildTask = (DataFrameTransformTask) task;
+        DataFrameTransformTaskState dataFrameState = (DataFrameTransformTaskState) state;
+
+        // If we are failed, we should stay failed.
+        // This will keep the task in the ClusterState, but will not schedule a new job to run.
+        if (dataFrameState != null && dataFrameState.getState() == DataFrameTransformState.FAILED) {
+            return;
+        }
+
         SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(
                 DataFrameTransformTask.SCHEDULE_NAME + "_" + params.getId(), next());
 
@@ -66,6 +75,6 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
             PersistentTasksCustomMetaData.PersistentTask<DataFrameTransform> persistentTask, Map<String, String> headers) {
         return new DataFrameTransformTask(id, type, action, parentTaskId, persistentTask.getParams(),
-                (DataFrameTransformState) persistentTask.getState(), client, transformsConfigManager, schedulerEngine, threadPool, headers);
+                (DataFrameTransformTaskState) persistentTask.getState(), client, transformsConfigManager, schedulerEngine, threadPool, headers);
     }
 }

@@ -6,8 +6,12 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
 
@@ -16,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataFramePivotRestIT extends DataFrameRestTestCase {
@@ -222,6 +227,75 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
         assertEquals(21, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
         assertOnePivotValue(dataFrameIndex + "/_search?q=by_day:2017-01-15", 3.82);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFailedState() throws Exception {
+        String transformId = "simpleFailedPivot";
+        String dataFrameIndex = "failed_pivot_index";
+
+        // create mapping
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("mappings")
+                    .startObject("properties")
+                    .startObject("timestamp")
+                    .field("type", "date")
+                    .endObject()
+                    .startObject("user_id")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("business_id")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("stars")
+                    .field("type", "integer")
+                    .endObject()
+                    .endObject()
+                    .endObject();
+            }
+            builder.endObject();
+            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+            Request req = new Request("PUT", "not-reviews");
+            req.setEntity(entity);
+            client().performRequest(req);
+        }
+
+        final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + transformId);
+
+        String config = "{"
+            + " \"source\": \"not-reviews\","
+            + " \"dest\": \"" + dataFrameIndex + "\",";
+
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"by_day\": {"
+            + "       \"date_histogram\": {"
+            + "         \"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } }"
+            + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        assertTrue(indexExists(dataFrameIndex));
+
+        deleteIndex("not-reviews");
+        startAndWaitForTransform(transformId, dataFrameIndex);
+        Map<String, Object> statsResponse = getAsMap(DATAFRAME_ENDPOINT + transformId + "/_stats");
+
+        List<Map<String, Object>> stats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms.state", statsResponse);
+        assertNotNull(stats);
+        Map<String, Object> stat = stats.get(0);
+        assertThat(stat.get("transform_state"), equalTo("failed"));
+        assertThat(stat.get("reason"), equalTo("no such index [not-reviews]"));
     }
 
     private void startAndWaitForTransform(String transformId, String dataFrameIndex) throws IOException, Exception {

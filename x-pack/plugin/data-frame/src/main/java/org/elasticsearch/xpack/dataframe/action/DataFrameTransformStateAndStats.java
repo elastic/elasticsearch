@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformState;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformTaskState;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -25,21 +25,21 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
     public static final ParseField STATE_FIELD = new ParseField("state");
 
     private final String id;
-    private final DataFrameTransformState transformState;
+    private final DataFrameTransformTaskState transformState;
     private final DataFrameIndexerTransformStats transformStats;
 
     public static final ConstructingObjectParser<DataFrameTransformStateAndStats, Void> PARSER = new ConstructingObjectParser<>(
             GetDataFrameTransformsAction.NAME,
-            a -> new DataFrameTransformStateAndStats((String) a[0], (DataFrameTransformState) a[1], (DataFrameIndexerTransformStats) a[2]));
+            a -> new DataFrameTransformStateAndStats((String) a[0], (DataFrameTransformTaskState) a[1], (DataFrameIndexerTransformStats) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameField.ID);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), DataFrameTransformState.PARSER::apply, STATE_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), DataFrameTransformTaskState.PARSER::apply, STATE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DataFrameIndexerTransformStats.fromXContent(p),
                 DataFrameField.STATS_FIELD);
     }
 
-    public DataFrameTransformStateAndStats(String id, DataFrameTransformState state, DataFrameIndexerTransformStats stats) {
+    public DataFrameTransformStateAndStats(String id, DataFrameTransformTaskState state, DataFrameIndexerTransformStats stats) {
         this.id = Objects.requireNonNull(id);
         this.transformState = Objects.requireNonNull(state);
         this.transformStats = Objects.requireNonNull(stats);
@@ -47,7 +47,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
 
     public DataFrameTransformStateAndStats(StreamInput in) throws IOException {
         this.id = in.readString();
-        this.transformState = new DataFrameTransformState(in);
+        this.transformState = new DataFrameTransformTaskState(in);
         this.transformStats = new DataFrameIndexerTransformStats(in);
     }
 
@@ -97,7 +97,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         return transformStats;
     }
 
-    public DataFrameTransformState getTransformState() {
+    public DataFrameTransformTaskState getTransformState() {
         return transformState;
     }
 }

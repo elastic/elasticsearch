@@ -9,32 +9,38 @@ package org.elasticsearch.xpack.core.dataframe.transform;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformState;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class DataFrameTransformStateTests extends AbstractSerializingTestCase<DataFrameTransformState> {
+public class DataFrameTransformTaskStateTests extends AbstractSerializingTestCase<DataFrameTransformTaskState> {
 
-    public static DataFrameTransformState randomDataFrameTransformState() {
-        return new DataFrameTransformState(randomFrom(IndexerState.values()), randomPosition(), randomLongBetween(0,10));
+    public static DataFrameTransformTaskState randomDataFrameTransformState() {
+        if (randomBoolean()) {
+            return new DataFrameTransformTaskState(randomFrom(IndexerState.values()), randomPosition(), randomLongBetween(0,10));
+        } else {
+            return new DataFrameTransformTaskState(randomFrom(DataFrameTransformState.values()),
+                randomPosition(),
+                randomLongBetween(0,10),
+                randomAlphaOfLength(10));
+        }
     }
 
     @Override
-    protected DataFrameTransformState doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformState.fromXContent(parser);
+    protected DataFrameTransformTaskState doParseInstance(XContentParser parser) throws IOException {
+        return DataFrameTransformTaskState.fromXContent(parser);
     }
 
     @Override
-    protected DataFrameTransformState createTestInstance() {
+    protected DataFrameTransformTaskState createTestInstance() {
         return randomDataFrameTransformState();
     }
 
     @Override
-    protected Reader<DataFrameTransformState> instanceReader() {
-        return DataFrameTransformState::new;
+    protected Reader<DataFrameTransformTaskState> instanceReader() {
+        return DataFrameTransformTaskState::new;
     }
 
     private static Map<String, Object> randomPosition() {

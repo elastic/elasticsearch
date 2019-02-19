@@ -9,16 +9,16 @@ package org.elasticsearch.xpack.dataframe.action;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStatsTests;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformStateTests;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformTaskStateTests;
 import org.elasticsearch.xpack.dataframe.transforms.AbstractSerializingDataFrameTestCase;
 
 import java.io.IOException;
 
-public class DataFrameTransformStateAndStatsTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformStateAndStats> {
+public class DataFrameTransformTaskStateAndStatsTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformStateAndStats> {
 
     public static DataFrameTransformStateAndStats randomDataFrameTransformStateAndStats() {
         return new DataFrameTransformStateAndStats(randomAlphaOfLengthBetween(1, 10),
-                DataFrameTransformStateTests.randomDataFrameTransformState(),
+                DataFrameTransformTaskStateTests.randomDataFrameTransformState(),
                 DataFrameIndexerTransformStatsTests.randomStats());
     }
 

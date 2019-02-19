@@ -45,7 +45,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformState;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsAction;
@@ -217,10 +217,10 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         return  Arrays.asList(
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(DataFrameField.TASK_NAME),
                         DataFrameTransform::fromXContent),
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DataFrameTransformState.NAME),
-                        DataFrameTransformState::fromXContent),
-                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameTransformState.NAME),
-                        DataFrameTransformState::fromXContent)
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DataFrameTransformTaskState.NAME),
+                        DataFrameTransformTaskState::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameTransformTaskState.NAME),
+                        DataFrameTransformTaskState::fromXContent)
                 );
     }
 }

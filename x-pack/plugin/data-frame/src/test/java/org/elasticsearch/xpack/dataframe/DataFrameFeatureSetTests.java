@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.dataframe.action.DataFrameTransformStateAndStats;
-import org.elasticsearch.xpack.dataframe.action.DataFrameTransformStateAndStatsTests;
+import org.elasticsearch.xpack.dataframe.action.DataFrameTransformTaskStateAndStatsTests;
 import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction;
 import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction.Response;
 import org.junit.Before;
@@ -77,7 +77,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
 
         List<DataFrameTransformStateAndStats> transformsStateAndStats = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(0, 10); ++i) {
-            transformsStateAndStats.add(DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats());
+            transformsStateAndStats.add(DataFrameTransformTaskStateAndStatsTests.randomDataFrameTransformStateAndStats());
         }
 
         GetDataFrameTransformsStatsAction.Response mockResponse = new GetDataFrameTransformsStatsAction.Response(transformsStateAndStats);

@@ -183,7 +183,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::cancel-tasks-response-failures
         List<ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>
         List<TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>
-        // end::-tasks-response-failures
+        // end::cancel-tasks-response-failures
 
         assertThat(response.getNodeFailures(), equalTo(emptyList()));
         assertThat(response.getTaskFailures(), equalTo(emptyList()));

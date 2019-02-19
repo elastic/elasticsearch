@@ -97,6 +97,7 @@ import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
+import org.elasticsearch.index.seqno.PeerRecoveryRetentionLeaseRenewalAction;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
@@ -906,7 +907,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             threadPool,
                             shardStateAction,
                             actionFilters,
-                            indexNameExpressionResolver));
+                            indexNameExpressionResolver),
+                new PeerRecoveryRetentionLeaseRenewalAction(settings, transportService, clusterService, indicesService, threadPool,
+                    shardStateAction, actionFilters, indexNameExpressionResolver));
             Map<Action, TransportAction> actions = new HashMap<>();
             actions.put(CreateIndexAction.INSTANCE,
                 new TransportCreateIndexAction(

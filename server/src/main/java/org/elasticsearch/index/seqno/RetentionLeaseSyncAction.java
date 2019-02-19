@@ -26,11 +26,13 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -107,8 +109,9 @@ public class RetentionLeaseSyncAction extends
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
-            execute(
-                    new RetentionLeaseSyncAction.Request(shardId, retentionLeases),
+            final Request request = new Request(shardId, retentionLeases);
+            request.waitForActiveShards(ActiveShardCount.ONE);
+            execute(request,
                     ActionListener.wrap(
                             listener::onResponse,
                             e -> {
@@ -197,4 +200,17 @@ public class RetentionLeaseSyncAction extends
         return new Response();
     }
 
+    @Override
+    protected ClusterBlockLevel globalBlockLevel() {
+        // see e.g. ShrinkIndexIT#testCreateShrinkIndexFails which tries to relocate shards in a read-only index, needing updates to the
+        // peer recovery retention leases. TODO orly?
+        return null;
+    }
+
+    @Override
+    protected ClusterBlockLevel indexBlockLevel() {
+        // see e.g. ShrinkIndexIT#testCreateShrinkIndexFails which tries to relocate shards in a read-only index, needing updates to the
+        // peer recovery retention leases. TODO orly?
+        return null;
+    }
 }

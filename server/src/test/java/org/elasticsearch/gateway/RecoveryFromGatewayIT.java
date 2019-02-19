@@ -52,6 +52,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
 import java.nio.file.DirectoryStream;
@@ -73,6 +74,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.gateway.GatewayService.RECOVER_AFTER_NODES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.seqno.ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,6 +83,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertEquals;
 
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 public class RecoveryFromGatewayIT extends ESIntegTestCase {
@@ -465,11 +468,30 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                 ).get();
                 client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
                 if (softDeleteEnabled) { // We need an extra flush to advance the min_retained_seqno of the SoftDeletesPolicy
                     client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
+                    // expire retention lease for replica; since number_of_replicas is 0 it is no longer needed
+                    internalCluster().getInstance(IndicesService.class, primaryNode).indexServiceSafe(resolveIndex("test", primaryNode))
+                        .forEach(is -> {
+                            is.renewPeerRecoveryRetentionLeases();
+                            is.syncRetentionLeases();
+                            try {
+                                assertBusy(() -> {
+                                    assertThat(is.getRetentionLeases().leases().stream()
+                                        .filter(l -> PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(l.source())).count(), equalTo(1L));
+                                    assertEquals(is.getMinRetainedSeqNo(), is.getLocalCheckpointOfSafeCommit() + 1);
+                                });
+                            } catch (Exception e) {
+                                throw new AssertionError(e);
+                            }
+                        });
                 }
+                client(primaryNode).admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                ).get();
                 return super.onNodeStopped(nodeName);
             }
         });

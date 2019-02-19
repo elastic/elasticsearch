@@ -29,6 +29,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -50,6 +51,8 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -78,6 +81,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.index.seqno.ReplicationTracker.getPeerRecoveryRetentionLeaseId;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
 /**
@@ -144,29 +148,43 @@ public class RecoverySourceHandler {
             final Consumer<Exception> onFailure = e ->
                 IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
 
+            final SetOnce<RetentionLease> retentionLease = new SetOnce<>();
             runUnderPrimaryPermit(() -> {
                 final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
-                ShardRouting targetShardRouting = routingTable.getByAllocationId(request.targetAllocationId());
+                final ShardRouting targetShardRouting = routingTable.getByAllocationId(request.targetAllocationId());
                 if (targetShardRouting == null) {
                     logger.debug("delaying recovery of {} as it is not listed as assigned to target node {}", request.shardId(),
                         request.targetNode());
                     throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
                 }
-                assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
+                assert targetShardRouting.initializing()
+                    : "expected recovery target to be initializing but was " + targetShardRouting;
+                retentionLease.set(shard.getRetentionLeases().get(getPeerRecoveryRetentionLeaseId(targetShardRouting)));
             }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ",
                 shard, cancellableThreads, logger);
-            final Closeable retentionLock = shard.acquireRetentionLock();
+
+            final Closeable retentionLock = retentionLease.get() == null ? () -> {} : shard.acquireRetentionLock();
             resources.add(retentionLock);
             final long startingSeqNo;
             final long requiredSeqNoRangeStart;
+
             final boolean isSequenceNumberBasedRecovery = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO &&
-                isTargetSameHistory() && shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo());
+                isTargetSameHistory() && shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo())
+                && (shard.indexSettings().isSoftDeleteEnabled() == false || retentionLease.get() != null);
+
             final SendFileResult sendFileResult;
+            final StepListener<Void> addPeerRecoveryRetentionLeaseStep = new StepListener<>();
             if (isSequenceNumberBasedRecovery) {
                 logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
                 startingSeqNo = request.startingSeqNo();
                 requiredSeqNoRangeStart = startingSeqNo;
                 sendFileResult = SendFileResult.EMPTY;
+
+                if (shard.indexSettings().isSoftDeleteEnabled()) {
+                    assert retentionLease.get() != null;
+                    assert retentionLease.get().retainingSequenceNumber() <= request.startingSeqNo()
+                        : retentionLease.get() + " vs " + request.startingSeqNo();
+                }
             } else {
                 final Engine.IndexCommitRef phase1Snapshot;
                 try {
@@ -177,9 +195,10 @@ public class RecoverySourceHandler {
                 // We must have everything above the local checkpoint in the commit
                 requiredSeqNoRangeStart =
                     Long.parseLong(phase1Snapshot.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
-                // We need to set this to 0 to create a translog roughly according to the retention policy on the target. Note that it will
-                // still filter out legacy operations without seqNo.
-                startingSeqNo = 0;
+                // If soft-deletes enabled, we need to transfer only operations after the local_checkpoint of the commit to have
+                // the same history on the target. However, with translog, we need to set this to 0 to create a translog roughly
+                // according to the retention policy on the target. Note that it will still filter out legacy operations without seqNo.
+                startingSeqNo = shard.indexSettings().isSoftDeleteEnabled() ? requiredSeqNoRangeStart : 0;
                 try {
                     final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo);
                     sendFileResult = phase1(phase1Snapshot.getIndexCommit(), () -> estimateNumOps);
@@ -197,10 +216,35 @@ public class RecoverySourceHandler {
             assert requiredSeqNoRangeStart >= startingSeqNo : "requiredSeqNoRangeStart [" + requiredSeqNoRangeStart + "] is lower than ["
                 + startingSeqNo + "]";
 
+            if (retentionLease.get() == null) {
+                assert isSequenceNumberBasedRecovery == false;
+                runUnderPrimaryPermit(() -> {
+                    try {
+                        shard.addPeerRecoveryRetentionLease(request.targetNode().getId(), startingSeqNo, addPeerRecoveryRetentionLeaseStep);
+                    } catch (RetentionLeaseAlreadyExistsException e) {
+                        logger.debug("peer-recovery retention lease somehow exists now", e);
+                        addPeerRecoveryRetentionLeaseStep.onFailure(e);
+                    }
+                }, shardId + " adding peer-recovery retention lease for " + request.targetNode(), shard, cancellableThreads, logger);
+            } else {
+                assert retentionLease.get().retainingSequenceNumber() <= requiredSeqNoRangeStart
+                    : shard.shardId() + ": seqno " + requiredSeqNoRangeStart + " should be retained by " + retentionLease.get();
+                // The target shard has a lease (and it is now in the routing table so its lease will not expire)
+                addPeerRecoveryRetentionLeaseStep.onResponse(null);
+            }
+
+            addPeerRecoveryRetentionLeaseStep.whenComplete(r -> {
+                // we can release the retention lock here because the retention lease now reatils the required operations.
+                retentionLock.close();
+            }, onFailure);
+
             final StepListener<TimeValue> prepareEngineStep = new StepListener<>();
-            // For a sequence based recovery, the target can keep its local translog
-            prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,
-                shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo), prepareEngineStep);
+            addPeerRecoveryRetentionLeaseStep.whenComplete(r -> {
+                // For a sequence based recovery, the target can keep its local translog
+                prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,
+                    shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo), prepareEngineStep);
+            }, onFailure);
+
             final StepListener<SendSnapshotResult> sendSnapshotStep = new StepListener<>();
             prepareEngineStep.whenComplete(prepareEngineTime -> {
                 /*
@@ -225,8 +269,6 @@ public class RecoverySourceHandler {
                 }
                 final Translog.Snapshot phase2Snapshot = shard.getHistoryOperations("peer-recovery", startingSeqNo);
                 resources.add(phase2Snapshot);
-                // we can release the retention lock here because the snapshot itself will retain the required operations.
-                retentionLock.close();
                 // we have to capture the max_seen_auto_id_timestamp and the max_seq_no_of_updates to make sure that these values
                 // are at least as high as the corresponding values on the primary when any of these operations were executed on it.
                 final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();

@@ -122,6 +122,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncTranslogFSync fsyncTask;
     private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
     private volatile AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
+    private volatile AsyncPeerRecoveryRetentionLeaseRenewalTask peerRecoveryRetentionLeaseRenewalTask;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -199,6 +200,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        this.peerRecoveryRetentionLeaseRenewalTask = new AsyncPeerRecoveryRetentionLeaseRenewalTask(this);
         rescheduleFsyncTask(indexSettings.getTranslogDurability());
     }
 
@@ -289,7 +291,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         fsyncTask,
                         trimTranslogTask,
                         globalCheckpointTask,
-                        retentionLeaseSyncTask);
+                        retentionLeaseSyncTask,
+                        peerRecoveryRetentionLeaseRenewalTask);
             }
         }
     }
@@ -317,8 +320,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public synchronized IndexShard createShard(
             final ShardRouting routing,
             final Consumer<ShardId> globalCheckpointSyncer,
-            final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
+            final RetentionLeaseSyncer retentionLeaseSyncer,
+            final Consumer<ShardId> peerRecoveryRetentionLeaseRenewer) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
+        Objects.requireNonNull(peerRecoveryRetentionLeaseRenewer);
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
          * be able to serialize the execution via the cluster state in the future. for now we just
@@ -408,7 +413,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     indexingOperationListeners,
                     () -> globalCheckpointSyncer.accept(shardId),
                     retentionLeaseSyncer,
-                    circuitBreakerService);
+                    circuitBreakerService,
+                    () -> peerRecoveryRetentionLeaseRenewer.accept(shardId));
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
@@ -793,6 +799,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         sync(IndexShard::syncRetentionLeases, "retention lease");
     }
 
+    private void renewPeerRecoveryRetentionLeases() {
+        sync(IndexShard::renewPeerRecoveryRetentionLeases, "peer recovery retention leases");
+    }
+
     private void sync(final Consumer<IndexShard> sync, final String source) {
         for (final IndexShard shard : this.shards.values()) {
             if (shard.routingEntry().active() && shard.routingEntry().primary()) {
@@ -932,6 +942,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     Property.Dynamic,
                     Property.IndexScope);
 
+    // this setting is intentionally not registered, it is only used in tests
+    public static final Setting<TimeValue> RETENTION_LEASE_PEER_RECOVERY_SYNC_INTERVAL_SETTING =
+        Setting.timeSetting(
+            "index.soft_deletes.retention_lease.peer_recovery.sync_interval",
+            new TimeValue(5, TimeUnit.MINUTES),
+            new TimeValue(0, TimeUnit.MILLISECONDS),
+            Property.Dynamic,
+            Property.IndexScope);
+
     /**
      * Background task that syncs the global checkpoint to replicas.
      */
@@ -979,6 +998,28 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             return "retention_lease_sync";
         }
 
+    }
+
+    final class AsyncPeerRecoveryRetentionLeaseRenewalTask extends BaseAsyncTask {
+
+        AsyncPeerRecoveryRetentionLeaseRenewalTask(final IndexService indexService) {
+            super(indexService, RETENTION_LEASE_PEER_RECOVERY_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings()));
+        }
+
+        @Override
+        protected void runInternal() {
+            indexService.renewPeerRecoveryRetentionLeases();
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.MANAGEMENT;
+        }
+
+        @Override
+        public String toString() {
+            return "peer_recovery_retention_lease_sync";
+        }
     }
 
     AsyncRefreshTask getRefreshTask() { // for tests

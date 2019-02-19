@@ -59,6 +59,8 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,6 +76,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.index.seqno.ReplicationTracker.getPeerRecoveryRetentionLeaseId;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
@@ -259,6 +263,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             }
 
             shards.promoteReplicaToPrimary(newPrimary).get();
+            shards.removeReplica(oldPrimary);
 
             // check that local checkpoint of new primary is properly tracked after primary promotion
             assertThat(newPrimary.getLocalCheckpoint(), equalTo(totalDocs - 1L));
@@ -291,6 +296,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 });
                 newPrimary.flush(new FlushRequest().force(true));
                 if (replica.indexSettings().isSoftDeleteEnabled()) {
+                    replica.flush(new FlushRequest().force(true));
+                    newPrimary.removeRetentionLease(getPeerRecoveryRetentionLeaseId(oldPrimary.routingEntry()), wrap(() -> {}));
+                    newPrimary.runUnderPrimaryPermit(
+                        newPrimary::renewPeerRecoveryRetentionLeaseForPrimary, Assert::assertNull, Names.SAME, "");
+                    newPrimary.renewPeerRecoveryRetentionLeaseForReplica(replica.routingEntry(), replica.getLocalCheckpointOfSafeCommit());
                     // We need an extra flush to advance the min_retained_seqno on the new primary so ops-based won't happen.
                     // The min_retained_seqno only advances when a merge asks for the retention query.
                     newPrimary.flush(new FlushRequest().force(true));

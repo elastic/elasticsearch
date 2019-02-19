@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.index.seqno.RetentionLeases.toMapExcludingPeerRecoveryRetentionLeases;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -61,7 +62,6 @@ public class RetentionLeaseStatsTests extends ESSingleNodeTestCase {
         final IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("index").execute().actionGet();
         assertThat(indicesStats.getShards(), arrayWithSize(1));
         final RetentionLeaseStats retentionLeaseStats = indicesStats.getShards()[0].getRetentionLeaseStats();
-        assertThat(RetentionLeases.toMap(retentionLeaseStats.retentionLeases()), equalTo(currentRetentionLeases));
+        assertThat(toMapExcludingPeerRecoveryRetentionLeases(retentionLeaseStats.retentionLeases()), equalTo(currentRetentionLeases));
     }
-
 }

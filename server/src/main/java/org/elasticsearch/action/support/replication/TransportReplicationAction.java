@@ -32,6 +32,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.replication.ReplicationOperation.ReplicaResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -475,9 +476,17 @@ public abstract class TransportReplicationAction<
         protected ReplicationOperation<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> createReplicatedOperation(
             Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener,
             PrimaryShardReference primaryShardReference) {
-            return new ReplicationOperation<>(request, primaryShardReference, listener,
-                    newReplicasProxy(primaryTerm), logger, actionName);
+            return new ReplicationOperation<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>>
+                (request, primaryShardReference, listener, newReplicasProxy(primaryTerm), logger, actionName) {
+                @Override
+                protected void handleReplicaResponse(ShardRouting shard, ReplicaResponse response) {
+                    TransportReplicationAction.this.handleReplicaResponse(shard, response);
+                }
+            };
         }
+    }
+
+    protected void handleReplicaResponse(ShardRouting shard, ReplicationOperation.ReplicaResponse response) {
     }
 
     protected static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
@@ -542,6 +551,10 @@ public abstract class TransportReplicationAction<
             } else {
                 listener.onFailure(finalFailure);
             }
+        }
+
+        public ReplicaResponse getReplicaResponse(IndexShard replica) {
+            return new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint());
         }
     }
 
@@ -619,9 +632,7 @@ public abstract class TransportReplicationAction<
             try {
                 final ReplicaResult replicaResult = shardOperationOnReplica(request, replica);
                 releasable.close(); // release shard operation lock before responding to caller
-                final TransportReplicationAction.ReplicaResponse response =
-                        new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint());
-                replicaResult.respond(new ResponseListener(response));
+                replicaResult.respond(new ResponseListener(replicaResult.getReplicaResponse(replica)));
             } catch (final Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                 AsyncReplicaAction.this.onFailure(e);
@@ -1073,7 +1084,7 @@ public abstract class TransportReplicationAction<
         private long localCheckpoint;
         private long globalCheckpoint;
 
-        ReplicaResponse() {
+        public ReplicaResponse() {
 
         }
 
@@ -1217,6 +1228,12 @@ public abstract class TransportReplicationAction<
         }
     }
 
+    protected ReplicaResponse readReplicaResponse(StreamInput in) throws IOException {
+        ReplicaResponse replicaResponse = new ReplicaResponse();
+        replicaResponse.readFrom(in);
+        return replicaResponse;
+    }
+
     /**
      * Sends the specified replica request to the specified node.
      *
@@ -1228,12 +1245,8 @@ public abstract class TransportReplicationAction<
             final ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
             final DiscoveryNode node,
             final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-        final ActionListenerResponseHandler<ReplicaResponse> handler = new ActionListenerResponseHandler<>(listener, in -> {
-            ReplicaResponse replicaResponse = new ReplicaResponse();
-            replicaResponse.readFrom(in);
-            return replicaResponse;
-        });
-        transportService.sendRequest(node, transportReplicaAction, replicaRequest, transportOptions, handler);
+        transportService.sendRequest(node, transportReplicaAction, replicaRequest, transportOptions,
+            new ActionListenerResponseHandler<>(listener, this::readReplicaResponse));
     }
 
     /** a wrapper class to encapsulate a request when being sent to a specific allocation id **/

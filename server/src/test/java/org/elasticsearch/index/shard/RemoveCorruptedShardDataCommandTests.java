@@ -40,6 +40,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -110,7 +111,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         indexShard = newStartedShard(p ->
                 newShard(routing, shardPath, indexMetaData, null, null,
                     new InternalEngineFactory(), () -> {
-                    }, EMPTY_EVENT_LISTENER),
+                    }, RetentionLeaseSyncer.EMPTY, EMPTY_EVENT_LISTENER),
             true);
 
         translogPath = shardPath.resolveTranslog();
@@ -372,7 +373,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         };
 
         return newShard(shardRouting, shardPath, metaData, storeProvider, null,
-            indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+            indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), RetentionLeaseSyncer.EMPTY, EMPTY_EVENT_LISTENER);
     }
 
     private int indexDocs(IndexShard indexShard, boolean flushLast) throws IOException {

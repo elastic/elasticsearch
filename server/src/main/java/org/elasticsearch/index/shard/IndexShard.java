@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedRunnable;
@@ -140,6 +141,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -217,6 +219,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final RetentionLeaseSyncer retentionLeaseSyncer;
 
+    private final Runnable peerRecoveryRetentionLeaseRenewer;
+
     @Nullable
     private RecoveryState recoveryState;
 
@@ -275,7 +279,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final List<IndexingOperationListener> listeners,
             final Runnable globalCheckpointSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
-            final CircuitBreakerService circuitBreakerService) throws IOException {
+            final CircuitBreakerService circuitBreakerService,
+            final Runnable peerRecoveryRetentionLeaseRenewer) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -329,6 +334,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         threadPool::absoluteTimeInMillis,
                         (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, retentionLeases, listener));
         this.replicationTracker = replicationTracker;
+        this.peerRecoveryRetentionLeaseRenewer = peerRecoveryRetentionLeaseRenewer;
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -478,7 +484,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (newPrimaryTerm == pendingPrimaryTerm) {
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the master started a recovering primary, activate primary mode.
-                        replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+                        replicationTracker.activatePrimaryMode(getLocalCheckpoint(), getLocalCheckpointOfSafeCommit());
                     }
                 } else {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
@@ -520,7 +526,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 ", current routing: " + currentRouting + ", new routing: " + newRouting;
                             assert getOperationPrimaryTerm() == newPrimaryTerm;
                             try {
-                                replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+                                replicationTracker.activatePrimaryMode(getLocalCheckpoint(), getLocalCheckpointOfSafeCommit());
                                 /*
                                  * If this shard was serving as a replica shard when another shard was promoted to primary then
                                  * its Lucene index was reset during the primary term transition. In particular, the Lucene index
@@ -1433,7 +1439,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
-        updateRetentionLeasesOnReplica(loadRetentionLeases());
+        updateRetentionLeasesOnReplica(
+            recoveryState.getRecoverySource().getType() == Type.EXISTING_STORE ? loadRetentionLeases() : RetentionLeases.EMPTY);
         trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();
@@ -1907,10 +1914,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * If the expire leases parameter is false, gets all retention leases tracked on this shard and otherwise first calculates
-     * expiration of existing retention leases, and then gets all non-expired retention leases tracked on this shard. Note that only the
-     * primary shard calculates which leases are expired, and if any have expired, syncs the retention leases to any replicas. If the
-     * expire leases parameter is true, this replication tracker must be in primary mode.
+     * If the expire leases parameter is false, gets all retention leases tracked on this shard and otherwise first calculates expiration of
+     * existing retention leases, renews all peer-recovery retention leases for active shard copies, and then gets all non-expired retention
+     * leases tracked on this shard. Note that only the primary shard calculates which leases are expired, and if any have expired, syncs
+     * the retention leases to any replicas. If the expire leases parameter is true, this replication tracker must be in primary mode.
      *
      * @return a tuple indicating whether or not any retention leases were expired, and the non-expired retention leases
      */
@@ -2417,6 +2424,40 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public boolean isRelocatedPrimary() {
         assert shardRouting.primary() : "only call isRelocatedPrimary on primary shard";
         return replicationTracker.isRelocated();
+    }
+
+    public void addPeerRecoveryRetentionLease(String nodeId, long startingSeqNo, ActionListener<Void> listener) {
+        assert assertPrimaryMode();
+        replicationTracker.addPeerRecoveryRetentionLease(nodeId, startingSeqNo, listener);
+    }
+
+    public void renewPeerRecoveryRetentionLeaseForReplica(ShardRouting shardRouting, long localCheckpointOfSafeCommit) {
+        assert shardRouting.primary() == false : shardRouting;
+        runUnderPrimaryPermit(() -> replicationTracker.renewPeerRecoveryRetentionLease(shardRouting, localCheckpointOfSafeCommit),
+            e -> logger.debug(new ParameterizedMessage("exception renewing peer-recovery retention lease for {}", shardRouting), e),
+            Names.SAME, Tuple.tuple(shardRouting, localCheckpointOfSafeCommit));
+    }
+
+    public void renewPeerRecoveryRetentionLeaseForPrimary() {
+        assert assertPrimaryMode();
+        // already running under primary permit
+        assert indexShardOperationPermits.getActiveOperationsCount() != 0 : "no operation permit for " + routingEntry();
+        replicationTracker.renewPeerRecoveryRetentionLease(routingEntry(), getLocalCheckpointOfSafeCommit());
+    }
+
+    public void renewPeerRecoveryRetentionLeases() {
+        assert assertPrimaryMode();
+        if (replicationTracker.peerRetentionLeasesNeedRenewal(getLocalCheckpointOfSafeCommit())) {
+            peerRecoveryRetentionLeaseRenewer.run();
+        }
+    }
+
+    public long getLocalCheckpointOfSafeCommit() {
+        final Engine engine = getEngineOrNull();
+        if (engine == null) {
+            throw new ElasticsearchException("minimum sequence number for peer recovery is unavailable");
+        }
+        return engine.getLocalCheckpointOfSafeCommit();
     }
 
     class ShardEventListener implements Engine.EventListener {

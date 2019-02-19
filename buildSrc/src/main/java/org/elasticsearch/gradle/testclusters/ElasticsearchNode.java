@@ -187,8 +187,7 @@ public class ElasticsearchNode {
         logger.info("Starting `{}`", this);
 
         Path distroArtifact = artifactsExtractDir
-            .resolve(distribution.getFileExtension())
-            .resolve(distribution.getFileName() + "-" + getVersion());
+            .resolve(distribution.getArtifactName() + "-" + getVersion());
 
         if (Files.exists(distroArtifact) == false) {
             throw new TestClustersException("Can not start " + this + ", missing: " + distroArtifact);

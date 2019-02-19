@@ -30,3 +30,13 @@ This method does not persist the absolute latest model state, rather it uses the
 last model state that was automatically saved. By halting the tasks, you avoid
 incurring the cost of managing active jobs during the upgrade and it's quicker
 than stopping {dfeeds} and closing jobs. 
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST /_ml/set_upgrade_mode?enabled=false
+--------------------------------------------------
+// CONSOLE
+
+//////////////////////////

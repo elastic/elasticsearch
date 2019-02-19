@@ -2,8 +2,6 @@
 [[release-notes-6.6.1]]
 == {es} version 6.6.1
 
-coming[6.6.1]
-
 Also see <<breaking-changes-6.6, Breaking changes in 6.6>>.
 
 [[enhancement-6.6.1]]
@@ -70,6 +68,8 @@ Search::
 * Use executor `SAME` to handle search related handlers {pull}37427[#37427] (issues: {issue}33732[#33732], {issue}37392[#37392])
 
 Security::
+* Fix an improper permission issue when a new name is attached to an index. (CVE-2019-7611). See
+https://www.elastic.co/community/security[Security issues].
 * Fix potential NPE in UsersTool {pull}37660[#37660]
 
 ZenDiscovery::

@@ -77,16 +77,11 @@ public abstract class PackageTestCase extends PackagingTestCase {
         }
     }
 
-    public void test10InstallPackage() throws IOException {
+    public void test10InstallPackage() {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution());
-        // pass java through to package manager
-        final Shell sh = new Shell();
-        final String javaHome = sh.run("echo $JAVA_HOME").stdout.trim();
-
-        sh.run("echo \"JAVA_HOME=" + javaHome + "\" >> " + installation.envFile);
     }
 
     public void test20PluginsCommandWhenNoPlugins() {

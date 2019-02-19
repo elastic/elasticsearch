@@ -46,7 +46,7 @@ POST test/_doc/1/_update
 // CONSOLE
 // TEST[continued]
 
-We can add a tag to the list of tags (note: if the tag exists, it
+We can add a tag to the list of tags (if the tag exists, it
  still gets added, since this is a list):
 
 [source,js]

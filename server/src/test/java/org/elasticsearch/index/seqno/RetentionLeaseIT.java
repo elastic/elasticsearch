@@ -389,7 +389,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     final String nextSource = randomAlphaOfLength(8);
                     primary.addRetentionLease(nextId, nextRetainingSequenceNumber, nextSource, listener);
                 },
-                indexShard -> {});
+                primary -> {});
     }
 
     public void testCanRenewRetentionLeaseUnderBlock() throws InterruptedException {

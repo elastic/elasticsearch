@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.transport;
 
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -14,6 +15,9 @@ import org.junit.Before;
 
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class DualStackCoordinatorTests extends ESTestCase {
 
@@ -30,9 +34,36 @@ public class DualStackCoordinatorTests extends ESTestCase {
         coordinator = new DualStackCoordinator(clusterSettings);
     }
 
-    public void testEnable() {
+    public void testEnableAndDisable() {
         assertFalse(coordinator.isDualStackEnabled());
         clusterSettings.applySettings(dualStackEnabled);
         assertTrue(coordinator.isDualStackEnabled());
+        clusterSettings.applySettings(dualStackDisabled);
+        assertFalse(coordinator.isDualStackEnabled());
+    }
+
+    public void testChannelsClosedWhenDisabled() {
+        clusterSettings.applySettings(dualStackEnabled);
+        assertTrue(coordinator.isDualStackEnabled());
+
+        CloseableChannel channel1 = mock(CloseableChannel.class);
+        CloseableChannel channel2 = mock(CloseableChannel.class);
+        coordinator.registerPlaintextChannel(channel1);
+        coordinator.registerPlaintextChannel(channel2);
+
+        clusterSettings.applySettings(dualStackDisabled);
+        verify(channel1).close();
+        verify(channel2).close();
+    }
+
+    public void testChannelsClosedIfRegisteredWithDisabledCoordinator() {
+        assertFalse(coordinator.isDualStackEnabled());
+
+        CloseableChannel channel1 = mock(CloseableChannel.class);
+        CloseableChannel channel2 = mock(CloseableChannel.class);
+        coordinator.registerPlaintextChannel(channel1);
+        coordinator.registerPlaintextChannel(channel2);
+        verify(channel1).close();
+        verify(channel2).close();
     }
 }

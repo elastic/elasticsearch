@@ -461,9 +461,9 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         seqNo = response.getSeqNo();
 
         // Make sure the time has advanced for InternalEngine#resolveDocVersion()
-        for (ThreadPool tPool : internalCluster().getInstances(ThreadPool.class)) {
-            long time1 = tPool.relativeTimeInMillis();
-            assertBusy(() -> assertThat(tPool.relativeTimeInMillis(), greaterThan(time1)));
+        for (ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
+            long startTime = threadPool.relativeTimeInMillis();
+            assertBusy(() -> assertThat(threadPool.relativeTimeInMillis(), greaterThan(startTime)));
         }
 
         // delete is should not be in cache

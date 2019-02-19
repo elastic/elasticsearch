@@ -39,7 +39,7 @@ import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -89,7 +89,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                 .getShardOrNull(new ShardId(resolveIndex("index"), 0));
         // we will add multiple retention leases and expect to see them synced to all replicas
         final int length = randomIntBetween(1, 8);
-        final Map<String, RetentionLease> currentRetentionLeases = new HashMap<>();
+        final Map<String, RetentionLease> currentRetentionLeases = new LinkedHashMap<>();
         for (int i = 0; i < length; i++) {
             final String id = randomValueOtherThanMany(currentRetentionLeases.keySet()::contains, () -> randomAlphaOfLength(8));
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
@@ -136,7 +136,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                 .getInstance(IndicesService.class, primaryShardNodeName)
                 .getShardOrNull(new ShardId(resolveIndex("index"), 0));
         final int length = randomIntBetween(1, 8);
-        final Map<String, RetentionLease> currentRetentionLeases = new HashMap<>();
+        final Map<String, RetentionLease> currentRetentionLeases = new LinkedHashMap<>();
         for (int i = 0; i < length; i++) {
             final String id = randomValueOtherThanMany(currentRetentionLeases.keySet()::contains, () -> randomAlphaOfLength(8));
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
@@ -277,7 +277,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                 .getShardOrNull(new ShardId(resolveIndex("index"), 0));
         // we will add multiple retention leases and expect to see them synced to all replicas
         final int length = randomIntBetween(1, 8);
-        final Map<String, RetentionLease> currentRetentionLeases = new HashMap<>(length);
+        final Map<String, RetentionLease> currentRetentionLeases = new LinkedHashMap<>(length);
         final List<String> ids = new ArrayList<>(length);
         for (int i = 0; i < length; i++) {
             final String id = randomValueOtherThanMany(currentRetentionLeases.keySet()::contains, () -> randomAlphaOfLength(8));
@@ -318,15 +318,15 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);
         /*
          * We effectively disable the background sync to ensure that the retention leases are not synced in the background so that the only
-         * source of retention leases on the replicas would be from the commit point and recovery.
+         * source of retention leases on the replicas would be from recovery.
          */
-        final Settings settings = Settings.builder()
+        final Settings.Builder settings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(24))
-                .build();
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(24));
         // when we increase the number of replicas below we want to exclude the replicas from being allocated so that they do not recover
-        assertAcked(prepareCreate("index", 1).setSettings(settings));
+        assertAcked(prepareCreate("index", 1, settings));
         ensureYellow("index");
         final AcknowledgedResponse response = client().admin()
                 .indices()
@@ -339,7 +339,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                 .getInstance(IndicesService.class, primaryShardNodeName)
                 .getShardOrNull(new ShardId(resolveIndex("index"), 0));
         final int length = randomIntBetween(1, 8);
-        final Map<String, RetentionLease> currentRetentionLeases = new HashMap<>();
+        final Map<String, RetentionLease> currentRetentionLeases = new LinkedHashMap<>();
         for (int i = 0; i < length; i++) {
             final String id = randomValueOtherThanMany(currentRetentionLeases.keySet()::contains, () -> randomAlphaOfLength(8));
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
@@ -348,10 +348,6 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
             latch.await();
-            /*
-             * Now renew the leases; since we do not flush immediately on renewal, this means that the latest retention leases will not be
-             * in the latest commit point and therefore not transferred during the file-copy phase of recovery.
-             */
             currentRetentionLeases.put(id, primary.renewRetentionLease(id, retainingSequenceNumber, source));
         }
 

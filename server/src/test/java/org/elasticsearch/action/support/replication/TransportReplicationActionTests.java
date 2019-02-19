@@ -218,7 +218,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             }
 
             @Override
-            protected ClusterBlockLevel indexBlockLevel() {
+            public ClusterBlockLevel indexBlockLevel() {
                 return globalBlock == false ? ClusterBlockLevel.WRITE : null;
             }
         };
@@ -302,7 +302,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 }
 
                 @Override
-                protected ClusterBlockLevel indexBlockLevel() {
+                public ClusterBlockLevel indexBlockLevel() {
                     return globalBlock == false ? ClusterBlockLevel.WRITE : null;
                 }
             };

@@ -183,6 +183,15 @@ public class ElasticsearchNode {
         });
     }
 
+    /**
+     * Returns a stream of lines in the generated logs similar to Files.lines
+     *
+     * @return stream of log lines
+     */
+    public Stream<String> logLines() throws IOException {
+        return Files.lines(esStdoutFile, StandardCharsets.UTF_8);
+    }
+
     synchronized void start() {
         logger.info("Starting `{}`", this);
 
@@ -212,7 +221,7 @@ public class ElasticsearchNode {
             "install", "--batch", plugin.toString())
         );
 
-        startElasticsearchProcess(distroArtifact);
+        startElasticsearchProcess();
     }
 
     private void runElaticsearchBinScript(String tool, String... args) {
@@ -243,28 +252,25 @@ public class ElasticsearchNode {
         return environment;
     }
 
-    private void startElasticsearchProcess(Path distroArtifact) {
-        logger.info("Running `bin/elasticsearch` in `{}` for {}", workingDir, this);
+    private void startElasticsearchProcess() {
         final ProcessBuilder processBuilder = new ProcessBuilder();
+        final List<String> command;
         if (OperatingSystem.current().isWindows()) {
-            processBuilder.command(
-                "cmd", "/c",
-                distroArtifact.resolve("bin\\elasticsearch.bat").toAbsolutePath().toString()
-            );
+            command = Arrays.asList("cmd", "/c", "bin\\elasticsearch.bat");
         } else {
-            processBuilder.command(
-                distroArtifact.resolve("./bin/elasticsearch").toAbsolutePath().toString()
-            );
+            command = Arrays.asList("./bin/elasticsearch");
         }
+        processBuilder.command(command);
+        processBuilder.directory(workingDir.toFile());
+        Map<String, String> environment = processBuilder.environment();
+        // Don't inherit anything from the environment for as that would  lack reproducibility
+        environment.clear();
+        environment.putAll(getESEnvironment());
+        // don't buffer all in memory, make sure we don't block on the default pipes
+        processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
+        logger.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
         try {
-            processBuilder.directory(workingDir.toFile());
-            Map<String, String> environment = processBuilder.environment();
-            // Don't inherit anything from the environment for as that would  lack reproductability
-            environment.clear();
-            environment.putAll(getESEnvironment());
-            // don't buffer all in memory, make sure we don't block on the default pipes
-            processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
-            processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
             esProcess = processBuilder.start();
         } catch (IOException e) {
             throw new TestClustersException("Failed to start ES process for " + this, e);

@@ -51,6 +51,16 @@ allprojects { all ->
     }
 }
 
+task printLog {
+    useCluster testClusters.myTestCluster
+    doFirst {
+        println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+        testClusters.myTestCluster.logLines().each {
+            println it
+        }
+    }
+}
+
 task upToDate1 {
     useCluster testClusters.myTestCluster
 }

@@ -159,7 +159,9 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
                     .subAggregation(avgAggregationBuilder)
                     .field("time")
                     .interval(TimeValue.timeValueMinutes(5).millis())));
-        datafeedConfigBuilder.setParsedQuery(new RangeQueryBuilder("value").gte(numDocs/2));
+        datafeedConfigBuilder.setQuery(Collections.singletonMap(RangeQueryBuilder.NAME,
+            Collections.singletonMap("value",
+                Collections.singletonMap(RangeQueryBuilder.GTE_FIELD.getPreferredName(), numDocs/2))));
         datafeedConfigBuilder.setFrequency(TimeValue.timeValueMinutes(5));
         datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
 

@@ -307,6 +307,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
             // Persist the global checkpoint.
             indexShard.sync();
+            indexShard.persistRetentionLeases();
             indexShard.finalizeRecovery();
             return null;
         });

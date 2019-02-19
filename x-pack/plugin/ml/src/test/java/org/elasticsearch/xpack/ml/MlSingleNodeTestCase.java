@@ -56,7 +56,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
     @Override
     public void tearDown() throws Exception {
         try {
-            logger.info("[{}#{}]: ML-specific after test cleanup", getTestClass().getSimpleName(), getTestName());
+            logger.trace("[{}#{}]: ML-specific after test cleanup", getTestClass().getSimpleName(), getTestName());
             String[] nonAnnotationMlIndices;
             boolean mlAnnotationsIndexExists;
             do {

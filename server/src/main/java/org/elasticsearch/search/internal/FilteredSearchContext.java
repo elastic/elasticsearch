@@ -507,8 +507,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public long getTimeInMillis() {
-        return in.getTimeInMillis();
+    public long getRelativeTimeInMillis() {
+        return in.getRelativeTimeInMillis();
     }
 
     @Override

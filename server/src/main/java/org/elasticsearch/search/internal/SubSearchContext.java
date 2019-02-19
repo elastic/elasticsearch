@@ -353,7 +353,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public long getTimeInMillis() {
+    public long getRelativeTimeInMillis() {
         throw new UnsupportedOperationException("Not supported");
     }
 

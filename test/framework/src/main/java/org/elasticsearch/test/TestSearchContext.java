@@ -591,7 +591,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public long getTimeInMillis() {
+    public long getRelativeTimeInMillis() {
         return 0L;
     }
 

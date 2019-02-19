@@ -61,7 +61,7 @@ exist, and applies any <<indices-templates,index templates>> that are
 configured. The index operation also creates a dynamic mapping if one does not
 already exist. By default, new fields and objects will automatically be added
 to the mapping definition if needed. Check out the <<mapping,mapping>> section
-for more information on mapping definitions, and the the
+for more information on mapping definitions, and the
 <<indices-put-mapping,put mapping>> API for information about updating mappings
 manually.
 

@@ -28,6 +28,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ESCCRRestTestCase extends ESRestTestCase {
@@ -139,8 +140,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             throw new AssertionError("error while searching", e);
         }
 
-        int numberOfOperationsReceived = 0;
-        int numberOfOperationsIndexed = 0;
+        int followerMaxSeqNo = 0;
+        int followerMappingVersion = 0;
+        int followerSettingsVersion = 0;
 
         List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
         assertThat(hits.size(), greaterThanOrEqualTo(1));
@@ -153,16 +155,20 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             final String followerIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.follower_index", hit);
             assertThat(followerIndex, equalTo(expectedFollowerIndex));
 
-            int foundNumberOfOperationsReceived =
-                (int) XContentMapValues.extractValue("_source.ccr_stats.operations_read", hit);
-            numberOfOperationsReceived = Math.max(numberOfOperationsReceived, foundNumberOfOperationsReceived);
-            int foundNumberOfOperationsIndexed =
-                (int) XContentMapValues.extractValue("_source.ccr_stats.operations_written", hit);
-            numberOfOperationsIndexed = Math.max(numberOfOperationsIndexed, foundNumberOfOperationsIndexed);
+            int foundFollowerMaxSeqNo =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.follower_max_seq_no", hit);
+            followerMaxSeqNo = Math.max(followerMaxSeqNo, foundFollowerMaxSeqNo);
+            int foundFollowerMappingVersion =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.follower_mapping_version", hit);
+            followerMappingVersion = Math.max(followerMappingVersion, foundFollowerMappingVersion);
+            int foundFollowerSettingsVersion =
+                    (int) XContentMapValues.extractValue("_source.ccr_stats.follower_settings_version", hit);
+            followerSettingsVersion = Math.max(followerSettingsVersion, foundFollowerSettingsVersion);
         }
 
-        assertThat(numberOfOperationsReceived, greaterThanOrEqualTo(1));
-        assertThat(numberOfOperationsIndexed, greaterThanOrEqualTo(1));
+        assertThat(followerMaxSeqNo, greaterThan(0));
+        assertThat(followerMappingVersion, greaterThan(0));
+        assertThat(followerSettingsVersion, greaterThan(0));
     }
 
     protected static void verifyAutoFollowMonitoring() throws IOException {

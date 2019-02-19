@@ -254,7 +254,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         return Arrays.asList(
                 // Persistent action requests
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, ShardFollowTask.NAME,
-                        ShardFollowTask::new),
+                        ShardFollowTask::readFrom),
 
                 // Task statuses
                 new NamedWriteableRegistry.Entry(Task.Status.class, ShardFollowNodeTaskStatus.STATUS_PARSER_NAME,

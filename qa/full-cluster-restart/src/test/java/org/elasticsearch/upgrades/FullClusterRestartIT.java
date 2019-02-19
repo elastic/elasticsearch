@@ -778,7 +778,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      */
     public void testSnapshotRestore() throws IOException {
         int count;
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().major < 8) {
+        if (isRunningAgainstOldCluster()) {
             // Create the index
             count = between(200, 300);
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());

@@ -59,6 +59,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.engine.EngineTestCase.getDocIds;
+import static org.elasticsearch.index.engine.EngineTestCase.getTranslog;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -658,5 +659,50 @@ public class FollowingEngineTests extends ESTestCase {
                     fail("Following engine pre-closing verifications failed");
                 }
             });
+    }
+
+    public void testMaxSeqNoInCommitUserData() throws Exception {
+        final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+        final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+        try (Store store = createStore(shardId, indexSettings, newDirectory())) {
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
+            try (FollowingEngine engine = createEngine(store, engineConfig)) {
+                AtomicBoolean running = new AtomicBoolean(true);
+                Thread rollTranslog = new Thread(() -> {
+                    while (running.get() && getTranslog(engine).currentFileGeneration() < 500) {
+                        engine.rollTranslogGeneration(); // make adding operations to translog slower
+                    }
+                });
+                rollTranslog.start();
+
+                Thread indexing = new Thread(() -> {
+                    List<Engine.Operation> ops = EngineTestCase.generateSingleDocHistory(true, VersionType.EXTERNAL, 2, 50, 500, "id");
+                    engine.advanceMaxSeqNoOfUpdatesOrDeletes(ops.stream().mapToLong(Engine.Operation::seqNo).max().getAsLong());
+                    for (Engine.Operation op : ops) {
+                        if (running.get() == false) {
+                            return;
+                        }
+                        try {
+                            EngineTestCase.applyOperation(engine, op);
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                });
+                indexing.start();
+
+                int numCommits = between(5, 20);
+                for (int i = 0; i < numCommits; i++) {
+                    engine.flush(false, true);
+                }
+                running.set(false);
+                indexing.join();
+                rollTranslog.join();
+                EngineTestCase.assertMaxSeqNoInCommitUserData(engine);
+            }
+        }
     }
 }

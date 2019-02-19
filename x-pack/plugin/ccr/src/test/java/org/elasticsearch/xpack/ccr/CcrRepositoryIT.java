@@ -16,26 +16,20 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
@@ -55,7 +49,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.snapshots.RestoreService.restoreInProgress;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -453,51 +446,4 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         assertThat(getResponse.getSource().get("f"), equalTo(value));
     }
 
-    private ActionListener<RestoreService.RestoreCompletionResponse> waitForRestore(ClusterService clusterService,
-                                                                                    ActionListener<RestoreInfo> listener) {
-        return new ActionListener<RestoreService.RestoreCompletionResponse>() {
-            @Override
-            public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
-                if (restoreCompletionResponse.getRestoreInfo() == null) {
-                    final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
-                    final String uuid = restoreCompletionResponse.getUuid();
-
-                    ClusterStateListener clusterStateListener = new ClusterStateListener() {
-                        @Override
-                        public void clusterChanged(ClusterChangedEvent changedEvent) {
-                            final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), uuid);
-                            final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), uuid);
-                            if (prevEntry == null) {
-                                // When there is a master failure after a restore has been started, this listener might not be registered
-                                // on the current master and as such it might miss some intermediary cluster states due to batching.
-                                // Clean up listener in that case and acknowledge completion of restore operation to client.
-                                clusterService.removeListener(this);
-                                listener.onResponse(null);
-                            } else if (newEntry == null) {
-                                clusterService.removeListener(this);
-                                ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
-                                RestoreInfo ri = new RestoreInfo(prevEntry.snapshot().getSnapshotId().getName(),
-                                    prevEntry.indices(),
-                                    shards.size(),
-                                    shards.size() - RestoreService.failedShards(shards));
-                                logger.debug("restore of [{}] completed", snapshot);
-                                listener.onResponse(ri);
-                            } else {
-                                // restore not completed yet, wait for next cluster state update
-                            }
-                        }
-                    };
-
-                    clusterService.addListener(clusterStateListener);
-                } else {
-                    listener.onResponse(restoreCompletionResponse.getRestoreInfo());
-                }
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                listener.onFailure(t);
-            }
-        };
-    }
 }

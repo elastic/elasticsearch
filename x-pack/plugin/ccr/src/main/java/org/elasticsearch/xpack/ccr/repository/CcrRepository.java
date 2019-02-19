@@ -8,8 +8,12 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -19,6 +23,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -30,13 +35,18 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
+import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRecoveryException;
 import org.elasticsearch.index.shard.ShardId;
@@ -56,6 +66,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -76,12 +87,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 
 
 /**
@@ -89,6 +104,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
  * restore shards/indexes that exist on the remote cluster.
  */
 public class CcrRepository extends AbstractLifecycleComponent implements Repository {
+
+    private static final Logger logger = LogManager.getLogger(CcrRepository.class);
 
     public static final String LATEST = "_latest_";
     public static final String TYPE = "_ccr_";
@@ -98,6 +115,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     private final RepositoryMetaData metadata;
     private final CcrSettings ccrSettings;
+    private final String localClusterName;
     private final String remoteClusterAlias;
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -109,6 +127,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                          CcrSettings ccrSettings, ThreadPool threadPool) {
         this.metadata = metadata;
         this.ccrSettings = ccrSettings;
+        this.localClusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings).value();
         assert metadata.name().startsWith(NAME_PREFIX) : "CcrRepository metadata.name() must start with: " + NAME_PREFIX;
         this.remoteClusterAlias = Strings.split(metadata.name(), NAME_PREFIX)[1];
         this.ccrLicenseChecker = ccrLicenseChecker;
@@ -136,10 +155,14 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         return metadata;
     }
 
+    private Client getRemoteClusterClient() {
+        return client.getRemoteClusterClient(remoteClusterAlias);
+    }
+
     @Override
     public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
-        Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
+        Client remoteClient = getRemoteClusterClient();
         ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true).setNodes(true)
             .get(ccrSettings.getRecoveryActionTimeout());
         ImmutableOpenMap<String, IndexMetaData> indicesMap = response.getState().metaData().indices();
@@ -152,7 +175,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     @Override
     public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
-        Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
+        Client remoteClient = getRemoteClusterClient();
         // We set a single dummy index name to avoid fetching all the index data
         ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest("dummy_index_name");
         ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest)
@@ -164,7 +187,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         String leaderIndex = index.getName();
-        Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
+        Client remoteClient = getRemoteClusterClient();
 
         ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex);
         ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest)
@@ -203,7 +226,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public RepositoryData getRepositoryData() {
-        Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
+        Client remoteClient = getRemoteClusterClient();
         ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true)
             .get(ccrSettings.getRecoveryActionTimeout());
         MetaData remoteMetaData = response.getState().getMetaData();
@@ -280,32 +303,166 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public void restoreShard(IndexShard indexShard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId,
                              RecoveryState recoveryState) {
         // TODO: Add timeouts to network calls / the restore process.
-        final Store store = indexShard.store();
-        store.incRef();
-        try {
-            store.createEmpty(indexShard.indexSettings().getIndexMetaData().getCreationVersion().luceneVersion);
-        } catch (EngineException | IOException e) {
-            throw new IndexShardRecoveryException(shardId, "failed to create empty store", e);
-        } finally {
-            store.decRef();
-        }
+        createEmptyStore(indexShard, shardId);
 
-        Map<String, String> ccrMetaData = indexShard.indexSettings().getIndexMetaData().getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
-        String leaderUUID = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
-        Index leaderIndex = new Index(shardId.getIndexName(), leaderUUID);
-        ShardId leaderShardId = new ShardId(leaderIndex, shardId.getId());
+        final Map<String, String> ccrMetaData = indexShard.indexSettings().getIndexMetaData().getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        final String leaderIndexName = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
+        final String leaderUUID = ccrMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+        final Index leaderIndex = new Index(leaderIndexName, leaderUUID);
+        final ShardId leaderShardId = new ShardId(leaderIndex, shardId.getId());
 
-        Client remoteClient = client.getRemoteClusterClient(remoteClusterAlias);
+        final Client remoteClient = getRemoteClusterClient();
+
+        final String retentionLeaseId =
+                retentionLeaseId(localClusterName, indexShard.shardId().getIndex(), remoteClusterAlias, leaderIndex);
+
+        acquireRetentionLeaseOnLeader(shardId, retentionLeaseId, leaderShardId, remoteClient);
+
+        // schedule renewals to run during the restore
+        final Scheduler.Cancellable renewable = threadPool.scheduleWithFixedDelay(
+                () -> {
+                    logger.trace("{} background renewal of retention lease [{}] during restore", shardId, retentionLeaseId);
+                    final ThreadContext threadContext = threadPool.getThreadContext();
+                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                        // we have to execute under the system context so that if security is enabled the renewal is authorized
+                        threadContext.markAsSystemContext();
+                        asyncRenewRetentionLease(
+                                leaderShardId,
+                                retentionLeaseId,
+                                remoteClient,
+                                ActionListener.wrap(
+                                        r -> {},
+                                        e -> {
+                                            assert e instanceof ElasticsearchSecurityException == false : e;
+                                            logger.warn(new ParameterizedMessage(
+                                                            "{} background renewal of retention lease [{}] failed during restore",
+                                                            shardId,
+                                                            retentionLeaseId),
+                                                    e);
+                                        }));
+                    }
+                },
+                RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(indexShard.indexSettings().getSettings()),
+                Ccr.CCR_THREAD_POOL_NAME);
+
         // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
         //  response, we should be able to retry by creating a new session.
-        String name = metadata.name();
-        try (RestoreSession restoreSession = openSession(name, remoteClient, leaderShardId, indexShard, recoveryState)) {
+        try (RestoreSession restoreSession = openSession(metadata.name(), remoteClient, leaderShardId, indexShard, recoveryState)) {
             restoreSession.restoreFiles();
             updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, indexShard.routingEntry().index());
         } catch (Exception e) {
             throw new IndexShardRestoreFailedException(indexShard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
+        } finally {
+            logger.trace("{} canceling background renewal of retention lease [{}] at the end of restore", shardId, retentionLeaseId);
+            renewable.cancel();
         }
     }
+
+    private void createEmptyStore(final IndexShard indexShard, final ShardId shardId) {
+        final Store store = indexShard.store();
+        store.incRef();
+        try {
+            store.createEmpty(indexShard.indexSettings().getIndexMetaData().getCreationVersion().luceneVersion);
+        } catch (final EngineException | IOException e) {
+            throw new IndexShardRecoveryException(shardId, "failed to create empty store", e);
+        } finally {
+            store.decRef();
+        }
+    }
+
+    void acquireRetentionLeaseOnLeader(
+            final ShardId shardId,
+            final String retentionLeaseId,
+            final ShardId leaderShardId,
+            final Client remoteClient) {
+        logger.trace(
+                () -> new ParameterizedMessage("{} requesting leader to add retention lease [{}]", shardId, retentionLeaseId));
+        final Optional<RetentionLeaseAlreadyExistsException> maybeAddAlready =
+                syncAddRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
+        maybeAddAlready.ifPresent(addAlready -> {
+            logger.trace(() -> new ParameterizedMessage(
+                            "{} retention lease [{}] already exists, requesting a renewal",
+                            shardId,
+                            retentionLeaseId),
+                    addAlready);
+            final Optional<RetentionLeaseNotFoundException> maybeRenewNotFound =
+                    syncRenewRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
+            maybeRenewNotFound.ifPresent(renewNotFound -> {
+                logger.trace(() -> new ParameterizedMessage(
+                                "{} retention lease [{}] not found while attempting to renew, requesting a final add",
+                                shardId,
+                                retentionLeaseId),
+                        renewNotFound);
+                final Optional<RetentionLeaseAlreadyExistsException> maybeFallbackAddAlready =
+                        syncAddRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
+                maybeFallbackAddAlready.ifPresent(fallbackAddAlready -> {
+                    /*
+                     * At this point we tried to add the lease and the retention lease already existed. By the time we tried to renew the
+                     * lease, it expired or was removed. We tried to add the lease again and it already exists? Bail.
+                     */
+                    assert false : fallbackAddAlready;
+                    throw fallbackAddAlready;
+                });
+            });
+        });
+    }
+
+    private Optional<RetentionLeaseAlreadyExistsException> syncAddRetentionLease(
+            final ShardId leaderShardId,
+            final String retentionLeaseId,
+            final Client remoteClient) {
+        try {
+            final PlainActionFuture<RetentionLeaseActions.Response> response = new PlainActionFuture<>();
+            asyncAddRetentionLease(leaderShardId, retentionLeaseId, remoteClient, response);
+            response.actionGet(ccrSettings.getRecoveryActionTimeout());
+            return Optional.empty();
+        } catch (final RetentionLeaseAlreadyExistsException e) {
+            return Optional.of(e);
+        }
+    }
+
+    private void asyncAddRetentionLease(
+            final ShardId leaderShardId,
+            final String retentionLeaseId,
+            final Client remoteClient,
+            final ActionListener<RetentionLeaseActions.Response> listener) {
+        final RetentionLeaseActions.AddRequest request =
+                new RetentionLeaseActions.AddRequest(leaderShardId, retentionLeaseId, RETAIN_ALL, "ccr");
+        remoteClient.execute(RetentionLeaseActions.Add.INSTANCE, request, listener);
+    }
+
+    private Optional<RetentionLeaseNotFoundException> syncRenewRetentionLease(
+            final ShardId leaderShardId,
+            final String retentionLeaseId,
+            final Client remoteClient) {
+        try {
+            final PlainActionFuture<RetentionLeaseActions.Response> response = new PlainActionFuture<>();
+            asyncRenewRetentionLease(leaderShardId, retentionLeaseId, remoteClient, response);
+            response.actionGet(ccrSettings.getRecoveryActionTimeout());
+            return Optional.empty();
+        } catch (final RetentionLeaseNotFoundException e) {
+            return Optional.of(e);
+        }
+    }
+
+    private void asyncRenewRetentionLease(
+            final ShardId leaderShardId,
+            final String retentionLeaseId,
+            final Client remoteClient,
+            final ActionListener<RetentionLeaseActions.Response> listener) {
+        final RetentionLeaseActions.RenewRequest request =
+                new RetentionLeaseActions.RenewRequest(leaderShardId, retentionLeaseId, RETAIN_ALL, "ccr");
+        remoteClient.execute(RetentionLeaseActions.Renew.INSTANCE, request, listener);
+    }
+
+    // this setting is intentionally not registered, it is only used in tests
+    public static final Setting<TimeValue> RETENTION_LEASE_RENEW_INTERVAL_SETTING =
+            Setting.timeSetting(
+                    "index.ccr.retention_lease.renew_interval",
+                    new TimeValue(5, TimeUnit.MINUTES),
+                    new TimeValue(0, TimeUnit.MILLISECONDS),
+                    Setting.Property.Dynamic,
+                    Setting.Property.IndexScope);
 
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId leaderShardId) {
@@ -330,7 +487,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         }
     }
 
-    private RestoreSession openSession(String repositoryName, Client remoteClient, ShardId leaderShardId, IndexShard indexShard,
+    RestoreSession openSession(String repositoryName, Client remoteClient, ShardId leaderShardId, IndexShard indexShard,
                                        RecoveryState recoveryState) {
         String sessionUUID = UUIDs.randomBase64UUID();
         PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,

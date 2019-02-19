@@ -209,7 +209,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     protected void handleReadBytes() throws IOException {
         int bytesConsumed = Integer.MAX_VALUE;
-        while (selectorShouldClose() == false && bytesConsumed > 0 && channelBuffer.getIndex() > 0) {
+        while (isOpen() && bytesConsumed > 0 && channelBuffer.getIndex() > 0) {
             bytesConsumed = readWriteHandler.consumeReads(channelBuffer);
             channelBuffer.release(bytesConsumed);
         }

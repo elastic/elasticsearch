@@ -1,6 +1,10 @@
 ---
 "Index java 8 date without timezone":
 
+ - skip:
+    version: " - 6.6.99"
+    reason: bwc formatters were introduced in Elasticsearch 6.7
+
  - do:
      indices.create:
          index: test_index

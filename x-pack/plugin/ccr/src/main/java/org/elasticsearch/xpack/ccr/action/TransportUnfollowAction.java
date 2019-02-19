@@ -117,13 +117,20 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
 
                             @Override
                             public void onResponse(Collection<RetentionLeaseActions.Response> responses) {
-                                logger.trace("removed retention lease [{}] on all leader primary shards", retentionLeaseId);
+                                logger.trace(
+                                        "[{}] removed retention lease [{}] on all leader primary shards",
+                                        indexMetaData.getIndex(),
+                                        retentionLeaseId);
                                 listener.onResponse(new AcknowledgedResponse(true));
                             }
 
                             @Override
                             public void onFailure(final Exception e) {
-                                logger.warn("failure while removing retention lease [{}] on leader primary shards", retentionLeaseId);
+                                logger.warn(new ParameterizedMessage(
+                                        "[{}] failure while removing retention lease [{}] on leader primary shards",
+                                        indexMetaData.getIndex(),
+                                        retentionLeaseId),
+                                        e);
                                 listener.onFailure(e);
                             }
 

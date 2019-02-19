@@ -245,7 +245,7 @@ public abstract class TransportWriteAction<
     }
 
     @Override
-    protected ClusterBlockLevel indexBlockLevel() {
+    public ClusterBlockLevel indexBlockLevel() {
         return ClusterBlockLevel.WRITE;
     }
 

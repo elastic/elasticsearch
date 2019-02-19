@@ -127,7 +127,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     public void sendMessage(Object message, BiConsumer<Void, Exception> listener) {
-        if (isClosing.get()) {
+        if (selectorShouldClose()) {
             listener.accept(null, new ClosedChannelException());
             return;
         }
@@ -209,7 +209,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     protected void handleReadBytes() throws IOException {
         int bytesConsumed = Integer.MAX_VALUE;
-        while (bytesConsumed > 0 && channelBuffer.getIndex() > 0) {
+        while (selectorShouldClose() == false && bytesConsumed > 0 && channelBuffer.getIndex() > 0) {
             bytesConsumed = readWriteHandler.consumeReads(channelBuffer);
             channelBuffer.release(bytesConsumed);
         }

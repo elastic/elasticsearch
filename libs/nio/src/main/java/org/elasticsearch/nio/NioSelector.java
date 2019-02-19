@@ -238,12 +238,13 @@ public class NioSelector implements Closeable {
             }
 
             if (channelContext.isConnectComplete()) {
-                if ((ops & SelectionKey.OP_WRITE) != 0) {
-                    handleWrite(channelContext);
-                }
-
-                if ((ops & SelectionKey.OP_READ) != 0) {
-                    handleRead(channelContext);
+                if (channelContext.selectorShouldClose() == false) {
+                    if ((ops & SelectionKey.OP_WRITE) != 0) {
+                        handleWrite(channelContext);
+                    }
+                    if (channelContext.selectorShouldClose() == false && (ops & SelectionKey.OP_READ) != 0) {
+                        handleRead(channelContext);
+                    }
                 }
             }
             eventHandler.postHandling(channelContext);

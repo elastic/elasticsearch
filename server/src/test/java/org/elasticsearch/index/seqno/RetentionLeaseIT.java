@@ -493,7 +493,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     .admin()
                     .indices()
                     .prepareUpdateSettings("index")
-                    .setSettings(Settings.builder().putNull("index.blocks.metadata").build())
+                    .setSettings(Settings.builder().putNull("index.blocks." + block).build())
                     .get();
         }
     }

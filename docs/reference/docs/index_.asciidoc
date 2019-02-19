@@ -62,7 +62,7 @@ configured. The index operation also creates a dynamic type mapping for the
 specified type if one does not already exist. By default, new fields and
 objects will automatically be added to the mapping definition for the specified
 type if needed. Check out the <<mapping,mapping>> section for more information
-on mapping definitions, and the the <<indices-put-mapping,put mapping>> API for
+on mapping definitions, and the <<indices-put-mapping,put mapping>> API for
 information about updating type mappings manually.
 
 Automatic index creation is controlled by the `action.auto_create_index`

@@ -43,12 +43,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class HotThreadsIT extends ESIntegTestCase {
 
-    public void testHotThreadsDontFail() throws ExecutionException, InterruptedException {
-        /**
-         * This test just checks if nothing crashes or gets stuck etc.
-         */
+    /**
+     * This test just checks if nothing crashes or gets stuck etc.
+     */
+    public void testHotThreadsDontFail() throws InterruptedException {
         createIndex("test");
         final int iters = scaledRandomIntBetween(2, 20);
         final AtomicBoolean hasErrors = new AtomicBoolean(false);
@@ -81,6 +82,7 @@ public class HotThreadsIT extends ESIntegTestCase {
                 type = null;
             }
             final CountDownLatch latch = new CountDownLatch(1);
+            final int clusterNodes = cluster().size();
             nodesHotThreadsRequestBuilder.execute(new ActionListener<NodesHotThreadsResponse>() {
                 @Override
                 public void onResponse(NodesHotThreadsResponse nodeHotThreads) {
@@ -88,7 +90,7 @@ public class HotThreadsIT extends ESIntegTestCase {
                     try {
                         assertThat(nodeHotThreads, notNullValue());
                         Map<String, NodeHotThreads> nodesMap = nodeHotThreads.getNodesMap();
-                        assertThat(nodesMap.size(), equalTo(cluster().size()));
+                        assertThat(nodesMap.size(), equalTo(clusterNodes));
                         for (NodeHotThreads ht : nodeHotThreads.getNodes()) {
                             assertNotNull(ht.getHotThreads());
                             //logger.info(ht.getHotThreads());

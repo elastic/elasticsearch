@@ -1,9 +1,0 @@
-[[release-highlights-5.6.10]]
-== 5.6.10 release highlights
-++++
-<titleabbrev>5.6.10</titleabbrev>
-++++
-
-coming[5.6.10]
-
-// See also <<breaking-changes-5.6>> and <<release-notes-5.6.10>>. 

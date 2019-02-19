@@ -205,17 +205,4 @@ public class RetentionLeaseSyncAction extends
         return new Response();
     }
 
-    @Override
-    protected ClusterBlockLevel globalBlockLevel() {
-        // see e.g. ShrinkIndexIT#testCreateShrinkIndexFails which tries to relocate shards in a read-only index, needing updates to the
-        // peer recovery retention leases. TODO orly?
-        return null;
-    }
-
-    @Override
-    protected ClusterBlockLevel indexBlockLevel() {
-        // see e.g. ShrinkIndexIT#testCreateShrinkIndexFails which tries to relocate shards in a read-only index, needing updates to the
-        // peer recovery retention leases. TODO orly?
-        return null;
-    }
 }

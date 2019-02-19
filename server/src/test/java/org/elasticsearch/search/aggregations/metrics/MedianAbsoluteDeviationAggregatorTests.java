@@ -267,7 +267,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                 median = (sorted[halfway - 1] + sorted[halfway]) / 2d;
             } else {
                 // odd
-                median = (sorted[halfway -1]);
+                median = (sorted[halfway - 1]);
             }
             return median;
         }

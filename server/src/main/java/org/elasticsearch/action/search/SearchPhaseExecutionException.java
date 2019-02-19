@@ -85,8 +85,9 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     @Override
     public RestStatus status() {
         if (shardFailures.length == 0) {
-            // if no successful shards, it means no active shards, so just return SERVICE_UNAVAILABLE
-            return RestStatus.SERVICE_UNAVAILABLE;
+            // if no successful shards, the failure could have happened even before the fetch phase started
+            // so try to get the status from the cause instead of returning SERVICE_UNAVAILABLE blindly
+            return ExceptionsHelper.status(this.getCause());
         }
         RestStatus status = shardFailures[0].status();
         if (shardFailures.length > 1) {

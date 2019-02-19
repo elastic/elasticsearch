@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -25,6 +26,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
@@ -158,6 +160,7 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                     final GroupedActionListener<RetentionLeaseActions.Response> groupListener,
                     final Exception e) {
                 final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                assert cause instanceof ElasticsearchSecurityException == false : e;
                 if (cause instanceof RetentionLeaseNotFoundException) {
                     // treat as success
                     groupListener.onResponse(new RetentionLeaseActions.Response());
@@ -200,9 +203,13 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                     final String retentionLeaseId,
                     final Client remoteClient,
                     final ActionListener<RetentionLeaseActions.Response> listener) {
-                CcrRetentionLeases.asyncRemoveRetentionLease(leaderShardId, retentionLeaseId, remoteClient, listener);
+                final ThreadContext threadContext = threadPool.getThreadContext();
+                try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+                    // we have to execute under the system context so that if security is enabled the removal is authorized
+                    threadContext.markAsSystemContext();
+                    CcrRetentionLeases.asyncRemoveRetentionLease(leaderShardId, retentionLeaseId, remoteClient, listener);
+                }
             }
-
         });
     }
 

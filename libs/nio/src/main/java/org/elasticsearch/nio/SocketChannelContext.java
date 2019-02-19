@@ -127,7 +127,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     public void sendMessage(Object message, BiConsumer<Void, Exception> listener) {
-        if (selectorShouldClose()) {
+        if (isClosing.get()) {
             listener.accept(null, new ClosedChannelException());
             return;
         }

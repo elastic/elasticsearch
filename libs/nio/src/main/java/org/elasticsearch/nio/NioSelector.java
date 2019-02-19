@@ -337,7 +337,9 @@ public class NioSelector implements Closeable {
         }
 
         if (shouldFlushAfterQueuing) {
-            handleWrite(context);
+            if (context.selectorShouldClose() == false) {
+                handleWrite(context);
+            }
             eventHandler.postHandling(context);
         }
     }

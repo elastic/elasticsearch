@@ -227,7 +227,7 @@ public class InboundChannelBufferTests extends ESTestCase {
 
         long capacity = channelBuffer.getCapacity();
 
-        ByteBuffer[] postIndexBuffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+        ByteBuffer[] postIndexBuffers = channelBuffer.sliceBuffers();
         int i = 0;
         for (ByteBuffer buffer : postIndexBuffers) {
             while (buffer.hasRemaining()) {
@@ -241,7 +241,7 @@ public class InboundChannelBufferTests extends ESTestCase {
             assertEquals(indexIncremented - bytesReleased, channelBuffer.getIndex());
 
             long amountToInc = Math.min(randomInt(2000), channelBuffer.getRemaining());
-            ByteBuffer[] postIndexBuffers2 = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+            ByteBuffer[] postIndexBuffers2 = channelBuffer.sliceBuffers();
             assertEquals((byte) ((channelBuffer.getIndex() + bytesReleased) % 127), postIndexBuffers2[0].get());
             ByteBuffer[] preIndexBuffers = channelBuffer.sliceBuffersTo(channelBuffer.getIndex());
             if (preIndexBuffers.length > 0) {
@@ -257,6 +257,6 @@ public class InboundChannelBufferTests extends ESTestCase {
             indexIncremented += amountToInc;
         }
 
-        assertEquals(0, channelBuffer.sliceBuffersFrom(channelBuffer.getIndex()).length);
+        assertEquals(0, channelBuffer.sliceBuffers().length);
     }
 }

@@ -283,7 +283,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         } else {
             ioBuffer.flip();
             channelBuffer.ensureCapacity(channelBuffer.getIndex() + ioBuffer.remaining());
-            ByteBuffer[] buffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+            ByteBuffer[] buffers = channelBuffer.sliceBuffers();
             int j = 0;
             while (j < buffers.length && ioBuffer.remaining() > 0) {
                 ByteBuffer buffer = buffers[j++];

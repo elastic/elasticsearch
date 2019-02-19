@@ -112,8 +112,8 @@ public class SSLDriverTests extends ESTestCase {
         ByteBuffer[] buffers = {buffer};
         sendAppData(clientDriver, serverDriver, buffers);
         serverDriver.read(serverBuffer);
-        assertEquals(16384, serverBuffer.sliceBuffersFrom(0)[0].limit());
-        assertEquals(16384, serverBuffer.sliceBuffersFrom(0)[1].limit());
+        assertEquals(16384, serverBuffer.sliceBuffers()[0].limit());
+        assertEquals(16384, serverBuffer.sliceBuffers()[1].limit());
 
         ByteBuffer[] buffers2 = {ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8))};
         sendAppData(serverDriver, clientDriver, buffers2);

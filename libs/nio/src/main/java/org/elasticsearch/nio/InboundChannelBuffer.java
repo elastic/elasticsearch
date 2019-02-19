@@ -194,15 +194,15 @@ public final class InboundChannelBuffer implements AutoCloseable {
     }
 
     /**
-     * This method will return an array of {@link ByteBuffer} representing the bytes from the index passed
+     * This method will return an array of {@link ByteBuffer} representing the bytes from the current index
      * through the end of this buffer. The buffers will be duplicates of the internal buffers, so any
      * modifications to the markers {@link ByteBuffer#position()}, {@link ByteBuffer#limit()}, etc will not
      * modify the this class.
      *
-     * @param from the index to slice from
      * @return the byte buffers
      */
-    public ByteBuffer[] sliceBuffersFrom(long from) {
+    public ByteBuffer[] sliceBuffers() {
+        final long from = internalIndex;
         if (from > capacity) {
             throw new IndexOutOfBoundsException("can't slice a channel buffer with capacity [" + capacity +
                 "], with slice parameters from [" + from + "]");

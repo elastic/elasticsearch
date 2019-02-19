@@ -417,7 +417,7 @@ public class SSLChannelContextTests extends ESTestCase {
         return invocationOnMock -> {
             InboundChannelBuffer buffer = (InboundChannelBuffer) invocationOnMock.getArguments()[0];
             buffer.ensureCapacity(buffer.getIndex() + bytes.length);
-            ByteBuffer[] buffers = buffer.sliceBuffersFrom(buffer.getIndex());
+            ByteBuffer[] buffers = buffer.sliceBuffers();
             assert buffers[0].remaining() > bytes.length;
             buffers[0].put(bytes);
             buffer.incrementIndex(bytes.length);

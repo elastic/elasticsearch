@@ -175,7 +175,7 @@ public class SSLDriver implements AutoCloseable {
 
     private SSLEngineResult unwrap(InboundChannelBuffer buffer) throws SSLException {
         while (true) {
-            SSLEngineResult result = engine.unwrap(networkReadBuffer, buffer.sliceBuffersFrom(buffer.getIndex()));
+            SSLEngineResult result = engine.unwrap(networkReadBuffer, buffer.sliceBuffers());
             buffer.incrementIndex(result.bytesProduced());
             switch (result.getStatus()) {
                 case OK:

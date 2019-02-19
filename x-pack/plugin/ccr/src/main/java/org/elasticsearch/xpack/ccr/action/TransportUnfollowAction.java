@@ -135,6 +135,7 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                     final ShardId leaderShardId = new ShardId(leaderIndex, i);
                     final AtomicInteger tryCounter = new AtomicInteger(1);
                     removeRetentionLeaseForShard(
+                            followerShardId,
                             leaderShardId,
                             retentionLeaseId,
                             remoteClient,
@@ -174,6 +175,7 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                             e);
                     tryCounter.incrementAndGet();
                     removeRetentionLeaseForShard(
+                            followerShardId,
                             leaderShardId,
                             retentionLeaseId,
                             remoteClient,
@@ -199,10 +201,12 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
             }
 
             private void removeRetentionLeaseForShard(
+                    final ShardId followerShardId,
                     final ShardId leaderShardId,
                     final String retentionLeaseId,
                     final Client remoteClient,
                     final ActionListener<RetentionLeaseActions.Response> listener) {
+                logger.trace("{} removing retention lease [{}] while unfollowing leader index", followerShardId, retentionLeaseId);
                 final ThreadContext threadContext = threadPool.getThreadContext();
                 try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
                     // we have to execute under the system context so that if security is enabled the removal is authorized

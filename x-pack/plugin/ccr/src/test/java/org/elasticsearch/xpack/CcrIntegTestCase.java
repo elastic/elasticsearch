@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.ccr.LocalStateCcr;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -376,13 +377,18 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     protected void pauseFollow(String... indices) throws Exception {
         for (String index : indices) {
             final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request(index);
-            followerClient().execute(PauseFollowAction.INSTANCE, unfollowRequest).get();
+            assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, unfollowRequest).actionGet());
         }
         ensureNoCcrTasks();
     }
 
     protected void ensureNoCcrTasks() throws Exception {
         assertBusy(() -> {
+            CcrStatsAction.Response statsResponse =
+                followerClient().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
+            assertThat("Follow stats not empty: " + Strings.toString(statsResponse.getFollowStats()),
+                statsResponse.getFollowStats().getStatsResponses(), empty());
+
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
             final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             assertThat(tasks.tasks(), empty());

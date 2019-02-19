@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
-    public void testIndexFollowing() throws Exception {
+    public void testUniDirectionalIndexFollowing() throws Exception {
         logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);
 
         if (clusterName == ClusterName.LEADER) {
@@ -90,11 +90,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     public void testAutoFollowing() throws Exception {
-        final Settings indexSettings = Settings.builder()
-            .put("index.soft_deletes.enabled", true)
-            .put("index.number_of_shards", 1)
-            .build();
-
         String leaderIndex1 = "logs-20200101";
         String leaderIndex2 = "logs-20200102";
         String leaderIndex3 = "logs-20200103";
@@ -134,7 +129,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
             switch (upgradeState) {
                 case NONE:
                     putAutoFollowPattern(followerClient(), "test_pattern", "leader", "logs-*");
-                    createIndex(leaderIndex1, indexSettings);
+                    createLeaderIndex(leaderClient(), leaderIndex1);
                     index(leaderClient(), leaderIndex1, 64);
                     assertBusy(() -> {
                         String followerIndex = "copy-" + leaderIndex1;
@@ -152,7 +147,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                     // and if this node get updated then auto follow stats are reset
                 {
                     int previousNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
-                    createIndex(leaderIndex2, indexSettings);
+                    createLeaderIndex(leaderClient(), leaderIndex2);
                     index(leaderClient(), leaderIndex2, 64);
                     assertBusy(() -> {
                         String followerIndex = "copy-" + leaderIndex2;
@@ -177,7 +172,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                     // and if this node get updated then auto follow stats are reset
                 {
                     int previousNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
-                    createIndex(leaderIndex3, indexSettings);
+                    createLeaderIndex(leaderClient(), leaderIndex3);
                     index(leaderClient(), leaderIndex3, 64);
                     assertBusy(() -> {
                         String followerIndex = "copy-" + leaderIndex3;
@@ -235,13 +230,71 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
+    public void testBiDirectionalIndexFollowing() throws Exception {
+        logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);
+
+        if (clusterName == ClusterName.FOLLOWER) {
+            switch (upgradeState) {
+                case NONE:
+                    createLeaderIndex(leaderClient(), "leader_index5");
+                    index(leaderClient(), "leader_index5", 128);
+
+                    followIndex(followerClient(), "leader", "leader_index5", "follower_index5");
+                    followIndex(leaderClient(), "follower", "follower_index5", "follower_index6");
+                    assertTotalHitCount("follower_index5", 128, followerClient());
+                    assertTotalHitCount("follower_index6", 128, leaderClient());
+
+                    index(leaderClient(), "leader_index5", 128);
+                    pauseIndexFollowing(followerClient(), "follower_index5");
+                    pauseIndexFollowing(leaderClient(), "follower_index6");
+                    break;
+                case ONE_THIRD:
+                    index(leaderClient(), "leader_index5", 128);
+                    break;
+                case TWO_THIRD:
+                    index(leaderClient(), "leader_index5", 128);
+                    break;
+                case ALL:
+                    index(leaderClient(), "leader_index5", 128);
+                    break;
+                default:
+                    throw new AssertionError("unexpected upgrade_state [" + upgradeState + "]");
+            }
+        } else if (clusterName == ClusterName.LEADER) {
+            switch (upgradeState) {
+                case NONE:
+                    break;
+                case ONE_THIRD:
+                    index(leaderClient(), "leader_index5", 128);
+                    break;
+                case TWO_THIRD:
+                    index(leaderClient(), "leader_index5", 128);
+                    break;
+                case ALL:
+                    ensureGreen(followerClient(), "follower_index5");
+                    resumeIndexFollowing(followerClient(), "follower_index5");
+                    ensureGreen(leaderClient(), "follower_index6");
+                    resumeIndexFollowing(leaderClient(), "follower_index6");
+
+                    assertTotalHitCount("follower_index5", 896, followerClient());
+                    assertTotalHitCount("follower_index6", 896, leaderClient());
+                    break;
+                default:
+                    throw new AssertionError("unexpected upgrade_state [" + upgradeState + "]");
+            }
+        }  else {
+            throw new AssertionError("unexpected cluster_name [" + clusterName + "]");
+        }
+    }
+
     private static void createLeaderIndex(RestClient client, String indexName) throws IOException {
-        Settings indexSettings = Settings.builder()
-            .put("index.soft_deletes.enabled", true)
+        Settings.Builder indexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .build();
-        createIndex(client, indexName, indexSettings);
+            .put("index.number_of_replicas", 0);
+        if (randomBoolean()) {
+            indexSettings.put("index.soft_deletes.enabled", true);
+        }
+        createIndex(client, indexName, indexSettings.build());
     }
 
     private static void createIndex(RestClient client, String name, Settings settings) throws IOException {
@@ -309,9 +362,26 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     private static void stopIndexFollowing(RestClient client, String followerIndex) throws IOException {
-        assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/pause_follow")));
+        pauseIndexFollowing(client, followerIndex);
         assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_close")));
         assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/unfollow")));
+    }
+
+    private static void pauseIndexFollowing(RestClient client, String followerIndex) throws IOException {
+        assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/pause_follow")));
+    }
+
+    private static void resumeIndexFollowing(RestClient client, String followerIndex) throws IOException {
+        assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/resume_follow")));
+    }
+
+    private static void ensureGreen(RestClient client, String index) throws IOException {
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("wait_for_status", "green");
+        request.addParameter("wait_for_no_relocating_shards", "true");
+        request.addParameter("timeout", "70s");
+        request.addParameter("level", "shards");
+        client.performRequest(request);
     }
 
 }

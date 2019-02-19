@@ -120,6 +120,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -474,18 +475,22 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             final FlushStats initialStats = shard.flushStats();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
             check = () -> {
+                assertFalse(shard.shouldPeriodicallyFlush());
                 final FlushStats currentStats = shard.flushStats();
                 String msg = String.format(Locale.ROOT, "flush stats: total=[%d vs %d], periodic=[%d vs %d]",
                     initialStats.getTotal(), currentStats.getTotal(), initialStats.getPeriodic(), currentStats.getPeriodic());
-                assertThat(msg, currentStats.getPeriodic(), equalTo(initialStats.getPeriodic() + 1));
-                assertThat(msg, currentStats.getTotal(), equalTo(initialStats.getTotal() + 1));
+                assertThat(msg, currentStats.getPeriodic(),
+                    either(equalTo(initialStats.getPeriodic() + 1)).or(equalTo(initialStats.getPeriodic() + 2)));
+                assertThat(msg, currentStats.getTotal(),
+                    either(equalTo(initialStats.getTotal() + 1)).or(equalTo(initialStats.getTotal() + 2)));
             };
         } else {
             final long generation = getTranslog(shard).currentFileGeneration();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
-            check = () -> assertEquals(
-                    generation + 1,
-                    getTranslog(shard).currentFileGeneration());
+            check = () -> {
+                assertFalse(shard.shouldRollTranslogGeneration());
+                assertEquals(generation + 1, getTranslog(shard).currentFileGeneration());
+            };
         }
         assertBusy(check);
         running.set(false);

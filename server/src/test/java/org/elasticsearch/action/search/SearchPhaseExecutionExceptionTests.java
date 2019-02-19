@@ -127,7 +127,8 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
     public void testPhaseFailureWithoutSearchShardFailure() {
         final ShardSearchFailure[] searchShardFailures = new ShardSearchFailure[0];
         final String phase = randomFrom("fetch", "search", "other");
-        SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures", new EsRejectedExecutionException("ES rejected execution of fetch phase"), searchShardFailures);
+        SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures",
+            new EsRejectedExecutionException("ES rejected execution of fetch phase"), searchShardFailures);
 
         assertEquals(actual.status(), RestStatus.TOO_MANY_REQUESTS);
     }
@@ -146,7 +147,8 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
         }
 
         final String phase = randomFrom("fetch", "search", "other");
-        SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures", new EsRejectedExecutionException("ES rejected execution of fetch phase"), shardSearchFailures);
+        SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures",
+            new EsRejectedExecutionException("ES rejected execution of fetch phase"), shardSearchFailures);
 
         assertNotEquals(actual.status(), RestStatus.TOO_MANY_REQUESTS);
     }

@@ -253,7 +253,7 @@ participate in the `_bulk` request at all.
 [[bulk-update]]
 === Update
 
-When using `update`, the action `retry_on_conflict` can be used as a field in
+When using the `update` action, `retry_on_conflict` can be used as a field in
 the action itself (not in the extra payload line), to specify how many
 times an update should be retried in the case of a version conflict.
 

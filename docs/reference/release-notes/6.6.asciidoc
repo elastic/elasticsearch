@@ -9,7 +9,7 @@ Also see <<breaking-changes-6.6, Breaking changes in 6.6>>.
 === Enhancements
 
 Machine Learning::
-* Add explanation so far to file structure finder exceptions {pull}38191[#38191] (issue: {issue}29821[#29821])
+* Add explanation so far to file structure finder exceptions {pull}38191[#38191]
 
 SQL::
 * Generate relevant error message when grouping functions are not used in GROUP BY {pull}38017[#38017] (issue: {issue}37952[#37952])
@@ -24,7 +24,7 @@ Security::
 === Bug fixes
 
 Audit::
-* Fix IndexAuditTrail rolling upgrade on rollover edge - take 2 {pull}38286[#38286] (issues: {issue}33867[#33867], {issue}35988[#35988], {issue}37062[#37062])
+* Fix IndexAuditTrail rolling upgrade on rollover edge - take 2 {pull}38286[#38286] (issues: {issue}33867[#33867], {issue}37062[#37062])
 * Fix NPE in Logfile Audit Filter {pull}38120[#38120] (issue: {issue}38097[#38097])
 
 Authentication::
@@ -35,10 +35,9 @@ CCR::
 * Do not set fatal exception when shard follow task is stopped. {pull}37603[#37603]
 
 Distributed::
-* Fix synchronization in LocalCheckpointTracker#contains {pull}38755[#38755] (issues: {issue}33871[#33871], {issue}38633[#38633])
-
+* Fix synchronization in LocalCheckpointTracker#contains {pull}38755[#38755]
 Features/ILM::
-* Preserve ILM operation mode when creating new lifecycles {pull}38134[#38134] (issues: {issue}38229[#38229], {issue}38230[#38230])
+* Preserve ILM operation mode when creating new lifecycles {pull}38134[#38134], {pull}38230[#38230])
 
 Features/Monitoring::
 * Allow built-in monitoring_user role to call GET _xpack API {pull}38060[#38060] (issue: {issue}37970[#37970])

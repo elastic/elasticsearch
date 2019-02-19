@@ -169,6 +169,17 @@ public class NodeDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue watcherHipchatNotificationSettingsCheck(Settings nodeSettings, PluginsAndModules plugins) {
+        if (nodeSettings.getByPrefix("xpack.notification.hipchat.").size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Watcher Hipchat notifications will be removed in the next major release",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#watcher-notifications-account-settings",
+                "[hipchat] actions are deprecated and should be removed from watch definitions");
+        }
+        return null;
+    }
+
     static DeprecationIssue azureRepositoryChanges(Settings nodeSettings, PluginsAndModules plugins) {
         if (plugins.getPluginInfos().stream().anyMatch(pluginInfo -> "repository-azure".equals(pluginInfo.getName()))) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,

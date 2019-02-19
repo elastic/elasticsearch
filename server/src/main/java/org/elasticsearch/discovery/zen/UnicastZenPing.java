@@ -256,13 +256,6 @@ public class UnicastZenPing implements ZenPing {
     }
 
     /**
-     * Clears the list of cached ping responses.
-     */
-    public void clearTemporalResponses() {
-        temporalResponses.clear();
-    }
-
-    /**
      * Sends three rounds of pings notifying the specified {@link Consumer} when pinging is complete. Pings are sent after resolving
      * configured unicast hosts to their IP address (subject to DNS caching within the JVM). A batch of pings is sent, then another batch
      * of pings is sent at half the specified {@link TimeValue}, and then another batch of pings is sent at the specified {@link TimeValue}.
@@ -284,8 +277,7 @@ public class UnicastZenPing implements ZenPing {
     protected void ping(final Consumer<PingCollection> resultsConsumer,
                         final TimeValue scheduleDuration,
                         final TimeValue requestDuration) {
-        final List<TransportAddress> seedAddresses = new ArrayList<>();
-        seedAddresses.addAll(hostsProvider.getSeedAddresses(createHostsResolver()));
+        final List<TransportAddress> seedAddresses = new ArrayList<>(hostsProvider.getSeedAddresses(createHostsResolver()));
         final DiscoveryNodes nodes = contextProvider.clusterState().nodes();
         // add all possible master nodes that were active in the last known cluster configuration
         for (ObjectCursor<DiscoveryNode> masterNode : nodes.getMasterNodes().values()) {
@@ -425,10 +417,6 @@ public class UnicastZenPing implements ZenPing {
                     IOUtils.closeWhileHandlingException(toClose);
                 }
             }
-        }
-
-        public ConnectionProfile getConnectionProfile() {
-            return connectionProfile;
         }
     }
 
@@ -665,10 +653,6 @@ public class UnicastZenPing implements ZenPing {
                 pingResponse.writeTo(out);
             }
         }
-    }
-
-    protected Version getVersion() {
-        return Version.CURRENT; // for tests
     }
 
     public static int getMaxConcurrentResolvers(Settings settings) {

@@ -251,7 +251,7 @@ public class NodeJoinController {
 
         private Map<JoinTaskExecutor.Task, ClusterStateTaskListener> getPendingAsTasks(String reason) {
             Map<JoinTaskExecutor.Task, ClusterStateTaskListener> tasks = new HashMap<>();
-            joinRequestAccumulator.entrySet().stream().forEach(e -> tasks.put(
+            joinRequestAccumulator.entrySet().forEach(e -> tasks.put(
                 new JoinTaskExecutor.Task(e.getKey(), reason), new JoinTaskListener(e.getValue(), logger)));
             return tasks;
         }

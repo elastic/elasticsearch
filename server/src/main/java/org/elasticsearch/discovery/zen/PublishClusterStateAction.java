@@ -372,7 +372,7 @@ public class PublishClusterStateAction {
         return bStream.bytes();
     }
 
-    private Object lastSeenClusterStateMutex = new Object();
+    private final Object lastSeenClusterStateMutex = new Object();
     private ClusterState lastSeenClusterState;
 
     protected void handleIncomingClusterStateRequest(BytesTransportRequest request, TransportChannel channel) throws IOException {

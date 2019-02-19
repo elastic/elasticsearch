@@ -199,7 +199,7 @@ public class MembershipAction {
         public void messageReceived(ValidateJoinRequest request, TransportChannel channel, Task task) throws Exception {
             DiscoveryNode node = localNodeSupplier.get();
             assert node != null : "local node is null";
-            joinValidators.stream().forEach(action -> action.accept(node, request.state));
+            joinValidators.forEach(action -> action.accept(node, request.state));
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }

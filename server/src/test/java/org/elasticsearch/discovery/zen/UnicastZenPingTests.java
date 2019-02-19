@@ -201,12 +201,7 @@ public class UnicastZenPingTests extends ESTestCase {
         ClusterState stateC = ClusterState.builder(stateMismatch)
             .nodes(DiscoveryNodes.builder().add(handleC.node).localNodeId("UZP_C"))
             .build();
-        TestUnicastZenPing zenPingC = new TestUnicastZenPing(hostsSettingsMismatch, threadPool, handleC, () -> stateC) {
-            @Override
-            protected Version getVersion() {
-                return versionD;
-            }
-        };
+        TestUnicastZenPing zenPingC = new TestUnicastZenPing(hostsSettingsMismatch, threadPool, handleC, () -> stateC);
         zenPingC.start();
         closeables.push(zenPingC);
 

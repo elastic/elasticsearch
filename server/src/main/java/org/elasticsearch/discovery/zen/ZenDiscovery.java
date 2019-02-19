@@ -121,7 +121,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     private final TransportService transportService;
     private final MasterService masterService;
-    private final DiscoverySettings discoverySettings;
     private final NoMasterBlockService noMasterBlockService;
     protected final ZenPing zenPing; // protected to allow tests access
     private final MasterFaultDetection masterFD;
@@ -169,7 +168,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         this.masterService = masterService;
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
-        this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.noMasterBlockService = new NoMasterBlockService(settings, clusterSettings);
         this.zenPing = newZenPing(settings, threadPool, transportService, hostsProvider);
         this.electMaster = new ElectMasterService(settings);
@@ -221,7 +219,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         transportService,
                         namedWriteableRegistry,
                         this,
-                        discoverySettings);
+                        new DiscoverySettings(settings, clusterSettings));
         this.membership = new MembershipAction(transportService, new MembershipListener(), onJoinValidators);
         this.joinThreadControl = new JoinThreadControl();
 
@@ -405,10 +403,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     @Override
     public DiscoveryStats stats() {
         return new DiscoveryStats(pendingStatesQueue.stats(), publishClusterState.stats());
-    }
-
-    public DiscoverySettings getDiscoverySettings() {
-        return discoverySettings;
     }
 
     /**
@@ -778,7 +772,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         } else {
             // we do this in a couple of places including the cluster update thread. This one here is really just best effort
             // to ensure we fail as fast as possible.
-            onJoinValidators.stream().forEach(a -> a.accept(node, state));
+            onJoinValidators.forEach(a -> a.accept(node, state));
             if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                 JoinTaskExecutor.ensureMajorVersionBarrier(node.getVersion(), state.getNodes().getMinNodeVersion());
             }
@@ -821,8 +815,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         final DiscoveryNode localNode = transportService.getLocalNode();
 
         // add our selves
-        assert fullPingResponses.stream().map(ZenPing.PingResponse::node)
-            .filter(n -> n.equals(localNode)).findAny().isPresent() == false;
+        assert fullPingResponses.stream().map(ZenPing.PingResponse::node).anyMatch(n -> n.equals(localNode)) == false;
 
         fullPingResponses.add(new ZenPing.PingResponse(localNode, null, this.clusterState()));
 

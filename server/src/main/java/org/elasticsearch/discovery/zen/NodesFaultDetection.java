@@ -97,10 +97,6 @@ public class NodesFaultDetection extends FaultDetection {
         listeners.add(listener);
     }
 
-    public void removeListener(Listener listener) {
-        listeners.remove(listener);
-    }
-
     /**
      * Gets the current set of nodes involved in node fault detection.
      * NB: For testing purposes.
@@ -325,10 +321,6 @@ public class NodesFaultDetection extends FaultDetection {
 
         public DiscoveryNode targetNode() {
             return targetNode;
-        }
-
-        public ClusterName clusterName() {
-            return clusterName;
         }
 
         public DiscoveryNode masterNode() {

@@ -1331,11 +1331,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     // TODO: only here temporarily for BWC development, remove once complete
-    public static Settings.Builder addZen1Attribute(boolean isZen1Node, Settings.Builder builder) {
-        return builder.put("node.attr.zen1", isZen1Node);
-    }
-
-    // TODO: only here temporarily for BWC development, remove once complete
     public static boolean isZen1Node(DiscoveryNode discoveryNode) {
         return discoveryNode.getVersion().before(Version.V_7_0_0) ||
             (Booleans.isTrue(discoveryNode.getAttributes().getOrDefault("zen1", "false")));

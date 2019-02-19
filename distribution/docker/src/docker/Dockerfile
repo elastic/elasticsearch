@@ -23,8 +23,6 @@ RUN curl --retry 8 -s ${jdkUrl} | tar -C /opt -zxf -
 # REF: https://github.com/elastic/elasticsearch-docker/issues/171
 RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /opt/jdk-${jdkVersion}/lib/security/cacerts
 
-RUN yum install -y unzip which
-
 RUN groupadd -g 1000 elasticsearch && \
     adduser -u 1000 -g 1000 -d /usr/share/elasticsearch elasticsearch
 
@@ -51,7 +49,7 @@ ENV JAVA_HOME /opt/jdk-${jdkVersion}
 COPY --from=builder /opt/jdk-${jdkVersion} /opt/jdk-${jdkVersion}
 
 RUN yum update -y && \
-    yum install -y nc unzip wget which && \
+    yum install -y nc && \
     yum clean all
 
 RUN groupadd -g 1000 elasticsearch && \

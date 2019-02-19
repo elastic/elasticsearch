@@ -189,7 +189,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
             @Override
             public void backgroundSync(ShardId shardId, RetentionLeases retentionLeases) {
-                sync(shardId, retentionLeases, ActionListener.wrap(r -> {}, e -> fail("fail to sync retention leases [" + e + "]")));
+                sync(shardId, retentionLeases, ActionListener.wrap(
+                    r -> { },
+                    e -> {
+                        throw new AssertionError("failed to backgroun sync retention lease", e);
+                    }));
             }
         };
 
@@ -546,12 +550,13 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public void executeRetentionLeasesSyncRequestOnReplica(RetentionLeaseSyncAction.Request request,
-                                                        IndexShard replica) throws Exception {
+                                                               IndexShard replica) throws Exception {
             final PlainActionFuture<Releasable> acquirePermitFuture = new PlainActionFuture<>();
             replica.acquireReplicaOperationPermit(getPrimary().getOperationPrimaryTerm(), getPrimary().getGlobalCheckpoint(),
                 getPrimary().getMaxSeqNoOfUpdatesOrDeletes(), acquirePermitFuture, ThreadPool.Names.SAME, request);
             try (Releasable ignored = acquirePermitFuture.actionGet()) {
-                RetentionLeaseSyncAction.performOnReplica(request, replica);
+                replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
+                replica.persistRetentionLeases();
             }
         }
     }
@@ -919,13 +924,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected PrimaryResult performOnPrimary(IndexShard primary, RetentionLeaseSyncAction.Request request) throws Exception {
-            RetentionLeaseSyncAction.performOnPrimary(request, primary);
+            primary.persistRetentionLeases();
             return new PrimaryResult(request, new RetentionLeaseSyncAction.Response());
         }
 
         @Override
         protected void performOnReplica(RetentionLeaseSyncAction.Request request, IndexShard replica) throws Exception {
-            RetentionLeaseSyncAction.performOnReplica(request, replica);
+            replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
+            replica.persistRetentionLeases();
         }
     }
 

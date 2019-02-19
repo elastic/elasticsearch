@@ -125,29 +125,21 @@ public class RetentionLeaseSyncAction extends
     protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(
             final Request request,
             final IndexShard primary) throws WriteStateException {
-        performOnPrimary(request, primary);
-        return new WritePrimaryResult<>(request, new Response(), null, null, primary, getLogger());
-    }
-
-    public static void performOnPrimary(final Request request, final IndexShard primary) throws WriteStateException {
         Objects.requireNonNull(request);
         Objects.requireNonNull(primary);
         primary.persistRetentionLeases();
+        return new WritePrimaryResult<>(request, new Response(), null, null, primary, getLogger());
     }
 
     @Override
     protected WriteReplicaResult<Request> shardOperationOnReplica(
             final Request request,
             final IndexShard replica) throws WriteStateException {
-        performOnReplica(request, replica);
-        return new WriteReplicaResult<>(request, null, null, replica, getLogger());
-    }
-
-    public static void performOnReplica(final Request request, final IndexShard replica) throws WriteStateException {
         Objects.requireNonNull(request);
         Objects.requireNonNull(replica);
         replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
         replica.persistRetentionLeases();
+        return new WriteReplicaResult<>(request, null, null, replica, getLogger());
     }
 
     @Override

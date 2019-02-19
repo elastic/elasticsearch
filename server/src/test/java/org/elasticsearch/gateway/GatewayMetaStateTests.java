@@ -285,7 +285,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
 
     private static class MetaStateServiceWithFailures extends MetaStateService {
         private final int invertedFailRate;
-        private boolean failRandomly;
+        private volatile boolean failRandomly;
 
         private <T> MetaDataStateFormat<T> wrap(MetaDataStateFormat<T> format) {
             return new MetaDataStateFormat<T>(format.getPrefix()) {
@@ -316,6 +316,17 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                     }
                     closeAfterSuite(mock);
                     return mock;
+                }
+
+                @Override
+                public void cleanupOldFiles(final long currentGeneration, Path[] locations) {
+                    final boolean stashedFailRandomly = failRandomly;
+                    try {
+                        failRandomly = false;
+                        super.cleanupOldFiles(currentGeneration, locations);
+                    } finally {
+                        failRandomly = stashedFailRandomly;
+                    }
                 }
             };
         }
@@ -374,7 +385,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         return builder.build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39077")
     public void testAtomicityWithFailures() throws IOException {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateServiceWithFailures metaStateService =

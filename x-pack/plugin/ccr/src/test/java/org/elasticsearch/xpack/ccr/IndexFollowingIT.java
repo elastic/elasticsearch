@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -68,6 +69,8 @@ import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
@@ -1119,6 +1122,69 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertIndexFullyReplicatedToFollower("index1", "index2");
         for (int i = 2; i < numDocs; i++) {
             assertBusy(assertExpectedDocumentRunnable(i, i * 2));
+        }
+    }
+
+    public void testUpdateRemoteConfigsDuringFollowing() throws Exception {
+        final int numberOfPrimaryShards = randomIntBetween(1, 3);
+        int numberOfReplicas = between(0, 1);
+
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, numberOfReplicas,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderYellow("index1");
+
+        final int firstBatchNumDocs = randomIntBetween(200, 800);
+
+        logger.info("Executing put follow");
+        final PutFollowAction.Request followRequest = putFollow("index1", "index2");
+        PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        assertTrue(response.isFollowIndexCreated());
+        assertTrue(response.isFollowIndexShardsAcked());
+        assertTrue(response.isIndexFollowingStarted());
+
+        logger.info("Indexing [{}] docs while updateing remote config", firstBatchNumDocs);
+        try (BackgroundIndexer indexer = new BackgroundIndexer("index1", "_doc", leaderClient(), firstBatchNumDocs,
+            randomIntBetween(1, 5))) {
+
+            ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
+            String address = getLeaderCluster().getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
+            Setting<Boolean> compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("leader_cluster");
+            Setting<List<String>> seeds = RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("leader_cluster");
+            settingsRequest.persistentSettings(Settings.builder().put(compress.getKey(), true).put(seeds.getKey(), address));
+            assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+
+            waitForDocs(firstBatchNumDocs, indexer);
+            indexer.assertNoFailures();
+
+            final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
+            final ShardStats[] firstBatchShardStats =
+                leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
+            for (final ShardStats shardStats : firstBatchShardStats) {
+                if (shardStats.getShardRouting().primary()) {
+                    long value = shardStats.getStats().getIndexing().getTotal().getIndexCount() - 1;
+                    firstBatchNumDocsPerShard.put(shardStats.getShardRouting().shardId(), value);
+                }
+            }
+
+            assertBusy(assertTask(numberOfPrimaryShards, firstBatchNumDocsPerShard));
+
+            for (String docId : indexer.getIds()) {
+                assertBusy(() -> {
+                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
+                });
+            }
+
+            assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfPrimaryShards);
+        } finally {
+            ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
+            String address = getLeaderCluster().getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
+            Setting<Boolean> compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("leader_cluster");
+            Setting<List<String>> seeds = RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("leader_cluster");
+            settingsRequest.persistentSettings(Settings.builder().put(compress.getKey(), compress.getDefault(Settings.EMPTY))
+                .put(seeds.getKey(), address));
+            assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
         }
     }
 

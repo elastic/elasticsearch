@@ -12,8 +12,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,9 +42,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 
-public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowAction.Request, AcknowledgedResponse> {
+public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowAction.Request, UnfollowAction.Response> {
 
     private final Client client;
 
@@ -75,19 +72,19 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected UnfollowAction.Response newResponse() {
+        return new UnfollowAction.Response();
     }
 
     @Override
     protected void masterOperation(
             final UnfollowAction.Request request,
             final ClusterState state,
-            final ActionListener<AcknowledgedResponse> listener) throws Exception {
+            final ActionListener<UnfollowAction.Response> listener) {
         clusterService.submitStateUpdateTask("unfollow_action", new ClusterStateUpdateTask() {
 
             @Override
-            public ClusterState execute(final ClusterState current) throws Exception {
+            public ClusterState execute(final ClusterState current) {
                 String followerIndex = request.getFollowerIndex();
                 return unfollow(followerIndex, current);
             }
@@ -112,6 +109,7 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                         remoteClusterName,
                         leaderIndex);
                 final int numberOfShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexMetaData.getSettings());
+
                 final GroupedActionListener<RetentionLeaseActions.Response> groupListener = new GroupedActionListener<>(
                         new ActionListener<Collection<RetentionLeaseActions.Response>>() {
 
@@ -121,7 +119,7 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                                         "[{}] removed retention lease [{}] on all leader primary shards",
                                         indexMetaData.getIndex(),
                                         retentionLeaseId);
-                                listener.onResponse(new AcknowledgedResponse(true));
+                                listener.onResponse(new UnfollowAction.Response(true, null));
                             }
 
                             @Override
@@ -131,7 +129,7 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                                         indexMetaData.getIndex(),
                                         retentionLeaseId),
                                         e);
-                                listener.onFailure(e);
+                                listener.onResponse(new UnfollowAction.Response(false, e));
                             }
 
                         },
@@ -140,7 +138,6 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                 for (int i = 0; i < numberOfShards; i++) {
                     final ShardId followerShardId = new ShardId(indexMetaData.getIndex(), i);
                     final ShardId leaderShardId = new ShardId(leaderIndex, i);
-                    final AtomicInteger tryCounter = new AtomicInteger(1);
                     removeRetentionLeaseForShard(
                             followerShardId,
                             leaderShardId,
@@ -152,58 +149,8 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                                             followerShardId,
                                             retentionLeaseId,
                                             leaderShardId,
-                                            remoteClient,
-                                            tryCounter,
                                             groupListener,
                                             e)));
-                }
-            }
-
-            private void handleException(
-                    final ShardId followerShardId,
-                    final String retentionLeaseId,
-                    final ShardId leaderShardId,
-                    final Client remoteClient,
-                    final AtomicInteger tryCounter,
-                    final GroupedActionListener<RetentionLeaseActions.Response> groupListener,
-                    final Exception e) {
-                final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                assert cause instanceof ElasticsearchSecurityException == false : e;
-                if (cause instanceof RetentionLeaseNotFoundException) {
-                    // treat as success
-                    groupListener.onResponse(new RetentionLeaseActions.Response());
-                } else if (TransportActions.isShardNotAvailableException(e) && tryCounter.get() < 16) {
-                    logger.trace(new ParameterizedMessage(
-                                    "{} leader primary shard {} not available on try [{}] while removing retention lease [{}]",
-                                    followerShardId,
-                                    leaderShardId,
-                                    tryCounter.get(),
-                                    retentionLeaseId),
-                            e);
-                    tryCounter.incrementAndGet();
-                    removeRetentionLeaseForShard(
-                            followerShardId,
-                            leaderShardId,
-                            retentionLeaseId,
-                            remoteClient,
-                            ActionListener.wrap(
-                                    groupListener::onResponse,
-                                    // TODO: should this should exponentially backoff, or should we simply never retry?
-                                    inner -> handleException(
-                                            followerShardId,
-                                            retentionLeaseId,
-                                            leaderShardId,
-                                            remoteClient,
-                                            tryCounter,
-                                            groupListener,
-                                            inner)));
-                } else {
-                    logger.warn(new ParameterizedMessage(
-                                    "{} failed to remove retention lease [{}] on leader primary shard {}",
-                                    followerShardId,
-                                    leaderShardId,
-                                    retentionLeaseId),
-                            e);
                 }
             }
 
@@ -221,6 +168,35 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                     CcrRetentionLeases.asyncRemoveRetentionLease(leaderShardId, retentionLeaseId, remoteClient, listener);
                 }
             }
+
+            private void handleException(
+                    final ShardId followerShardId,
+                    final String retentionLeaseId,
+                    final ShardId leaderShardId,
+                    final ActionListener<RetentionLeaseActions.Response> listener,
+                    final Exception e) {
+                final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                assert cause instanceof ElasticsearchSecurityException == false : e;
+                if (cause instanceof RetentionLeaseNotFoundException) {
+                    // treat as success
+                    logger.trace(new ParameterizedMessage(
+                            "{} retention lease [{}] not found on {} while unfollowing",
+                            followerShardId,
+                            retentionLeaseId,
+                            leaderShardId,
+                            e));
+                    listener.onResponse(new RetentionLeaseActions.Response());
+                } else {
+                    logger.warn(new ParameterizedMessage(
+                            "{} failed to remove retention lease [{}] on {} while unfollowing",
+                            followerShardId,
+                            retentionLeaseId,
+                            leaderShardId,
+                            e));
+                    listener.onFailure(e);
+                }
+            }
+
         });
     }
 

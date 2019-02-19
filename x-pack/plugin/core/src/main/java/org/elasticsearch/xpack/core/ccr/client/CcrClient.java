@@ -86,12 +86,12 @@ public class CcrClient {
         return listener;
     }
 
-    public void unfollow(final UnfollowAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
+    public void unfollow(final UnfollowAction.Request request, final ActionListener<UnfollowAction.Response> listener) {
         client.execute(UnfollowAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<AcknowledgedResponse> unfollow(final UnfollowAction.Request request) {
-        final PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+    public ActionFuture<UnfollowAction.Response> unfollow(final UnfollowAction.Request request) {
+        final PlainActionFuture<UnfollowAction.Response> listener = PlainActionFuture.newFuture();
         client.execute(UnfollowAction.INSTANCE, request, listener);
         return listener;
     }

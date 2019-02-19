@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
@@ -86,6 +87,11 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
             builder.setQuery(
                 Collections.singletonMap(TermQueryBuilder.NAME,
                     Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10))), true);
+        }
+        if (randomBoolean()) {
+            builder.setAnalysesFields(new FetchSourceContext(true,
+                generateRandomStringArray(10, 10, false, false),
+                generateRandomStringArray(10, 10, false, false)));
         }
         return builder;
     }

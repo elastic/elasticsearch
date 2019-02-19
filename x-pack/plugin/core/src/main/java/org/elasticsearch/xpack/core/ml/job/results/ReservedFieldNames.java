@@ -261,6 +261,7 @@ public final class ReservedFieldNames {
             DataFrameAnalyticsConfig.SOURCE.getPreferredName(),
             DataFrameAnalyticsConfig.DEST.getPreferredName(),
             DataFrameAnalyticsConfig.ANALYSES.getPreferredName(),
+            DataFrameAnalyticsConfig.ANALYSES_FIELDS.getPreferredName(),
             "outlier_detection",
             "method",
             "number_neighbours",

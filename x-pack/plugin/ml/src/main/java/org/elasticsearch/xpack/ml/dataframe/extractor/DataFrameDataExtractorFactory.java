@@ -12,12 +12,17 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.NameResolver;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
 
@@ -94,8 +99,7 @@ public class DataFrameDataExtractorFactory {
     public static void create(Client client,
                               DataFrameAnalyticsConfig config,
                               ActionListener<DataFrameDataExtractorFactory> listener) {
-
-        validateIndexAndExtractFields(client, config.getHeaders(), config.getDest(), ActionListener.wrap(
+        validateIndexAndExtractFields(client, config.getHeaders(), config.getDest(), config.getAnalysesFields(), ActionListener.wrap(
             extractedFields -> listener.onResponse(
                 new DataFrameDataExtractorFactory(client, config.getId(), config.getDest(), extractedFields, config.getHeaders())),
             listener::onFailure
@@ -112,7 +116,7 @@ public class DataFrameDataExtractorFactory {
     public static void validateConfigAndSourceIndex(Client client,
                                                     DataFrameAnalyticsConfig config,
                                                     ActionListener<Boolean> listener) {
-        validateIndexAndExtractFields(client, config.getHeaders(), config.getSource(), ActionListener.wrap(
+        validateIndexAndExtractFields(client, config.getHeaders(), config.getSource(), config.getAnalysesFields(), ActionListener.wrap(
             fields -> {
                 config.getParsedQuery(); // validate query is acceptable
                 listener.onResponse(true);
@@ -122,10 +126,13 @@ public class DataFrameDataExtractorFactory {
     }
 
     // Visible for testing
-    static ExtractedFields detectExtractedFields(String index, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+    static ExtractedFields detectExtractedFields(String index,
+                                                 FetchSourceContext desiredFields,
+                                                 FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Set<String> fields = fieldCapabilitiesResponse.get().keySet();
         fields.removeAll(IGNORE_FIELDS);
         removeFieldsWithIncompatibleTypes(fields, fieldCapabilitiesResponse);
+        includeAndExcludeFields(fields, desiredFields, index);
         List<String> sortedFields = new ArrayList<>(fields);
         // We sort the fields to ensure the checksum for each document is deterministic
         Collections.sort(sortedFields);
@@ -148,13 +155,45 @@ public class DataFrameDataExtractorFactory {
         }
     }
 
+    private static void includeAndExcludeFields(Set<String> fields, FetchSourceContext desiredFields, String index) {
+        if (desiredFields == null) {
+            return;
+        }
+        String includes = desiredFields.includes().length == 0 ? "*" : Strings.arrayToCommaDelimitedString(desiredFields.includes());
+        String excludes = Strings.arrayToCommaDelimitedString(desiredFields.excludes());
+
+        if (Regex.isMatchAllPattern(includes) && excludes.isEmpty()) {
+            return;
+        }
+        try {
+            // If the inclusion set does not match anything, that means the user's desired fields cannot be found in
+            // the collection of supported field types. We should let the user know.
+            Set<String> includedSet = NameResolver.newUnaliased(fields,
+                (ex) -> new ResourceNotFoundException(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, index, ex)))
+                .expand(includes, false);
+            // If the exclusion set does not match anything, that means the fields are already not present
+            // no need to raise if nothing matched
+            Set<String> excludedSet = NameResolver.newUnaliased(fields,
+                (ex) -> new ResourceNotFoundException(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, index, ex)))
+                .expand(excludes, true);
+
+            fields.retainAll(includedSet);
+            fields.removeAll(excludedSet);
+        } catch (ResourceNotFoundException ex) {
+            // Re-wrap our exception so that we throw the same exception type when there are no fields.
+            throw ExceptionsHelper.badRequestException(ex.getMessage());
+        }
+
+    }
+
     private static void validateIndexAndExtractFields(Client client,
                                                       Map<String, String> headers,
                                                       String index,
+                                                      FetchSourceContext desiredFields,
                                                       ActionListener<ExtractedFields> listener) {
         // Step 2. Extract fields (if possible) and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
-            fieldCapabilitiesResponse -> listener.onResponse(detectExtractedFields(index, fieldCapabilitiesResponse)),
+            fieldCapabilitiesResponse -> listener.onResponse(detectExtractedFields(index, desiredFields, fieldCapabilitiesResponse)),
             e -> {
                 if (e instanceof IndexNotFoundException) {
                     listener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "

@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -27,12 +29,13 @@ import static org.mockito.Mockito.when;
 public class DataFrameDataExtractorFactoryTests extends ESTestCase {
 
     private static final String INDEX = "source_index";
+    private static final FetchSourceContext EMPTY_CONTEXT = new FetchSourceContext(true, new String[0], new String[0]);
 
     public void testDetectExtractedFields_GivenFloatField() {
         FieldCapabilitiesResponse fieldCapabilities= new MockFieldCapsResponseBuilder()
             .addAggregatableField("some_float", "float").build();
 
-        ExtractedFields extractedFields = DataFrameDataExtractorFactory.detectExtractedFields(INDEX, fieldCapabilities);
+        ExtractedFields extractedFields = DataFrameDataExtractorFactory.detectExtractedFields(INDEX, EMPTY_CONTEXT, fieldCapabilities);
 
         List<ExtractedField> allFields = extractedFields.getAllFields();
         assertThat(allFields.size(), equalTo(1));
@@ -44,7 +47,7 @@ public class DataFrameDataExtractorFactoryTests extends ESTestCase {
             .addAggregatableField("some_number", "long", "integer", "short", "byte", "double", "float", "half_float", "scaled_float")
             .build();
 
-        ExtractedFields extractedFields = DataFrameDataExtractorFactory.detectExtractedFields(INDEX, fieldCapabilities);
+        ExtractedFields extractedFields = DataFrameDataExtractorFactory.detectExtractedFields(INDEX, EMPTY_CONTEXT, fieldCapabilities);
 
         List<ExtractedField> allFields = extractedFields.getAllFields();
         assertThat(allFields.size(), equalTo(1));
@@ -56,7 +59,7 @@ public class DataFrameDataExtractorFactoryTests extends ESTestCase {
             .addAggregatableField("some_keyword", "keyword").build();
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> DataFrameDataExtractorFactory.detectExtractedFields(INDEX, fieldCapabilities));
+            () -> DataFrameDataExtractorFactory.detectExtractedFields(INDEX, EMPTY_CONTEXT, fieldCapabilities));
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]"));
     }
 
@@ -65,7 +68,7 @@ public class DataFrameDataExtractorFactoryTests extends ESTestCase {
             .addAggregatableField("indecisive_field", "float", "keyword").build();
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> DataFrameDataExtractorFactory.detectExtractedFields(INDEX, fieldCapabilities));
+            () -> DataFrameDataExtractorFactory.detectExtractedFields(INDEX, EMPTY_CONTEXT, fieldCapabilities));
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]"));
     }
 
@@ -76,7 +79,7 @@ public class DataFrameDataExtractorFactoryTests extends ESTestCase {
             .addAggregatableField("some_keyword", "keyword")
             .build();
 
-        ExtractedFields extractedFields = DataFrameDataExtractorFactory.detectExtractedFields(INDEX, fieldCapabilities);
+        ExtractedFields extractedFields = DataFrameDataExtractorFactory.detectExtractedFields(INDEX, EMPTY_CONTEXT, fieldCapabilities);
 
         List<ExtractedField> allFields = extractedFields.getAllFields();
         assertThat(allFields.size(), equalTo(2));
@@ -89,7 +92,7 @@ public class DataFrameDataExtractorFactoryTests extends ESTestCase {
             .addAggregatableField("_id", "float").build();
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> DataFrameDataExtractorFactory.detectExtractedFields(INDEX, fieldCapabilities));
+            () -> DataFrameDataExtractorFactory.detectExtractedFields(INDEX, EMPTY_CONTEXT, fieldCapabilities));
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]"));
     }
 
@@ -108,11 +111,50 @@ public class DataFrameDataExtractorFactoryTests extends ESTestCase {
         }
         FieldCapabilitiesResponse fieldCapabilities = mockFieldCapsResponseBuilder.build();
 
-        ExtractedFields extractedFields = DataFrameDataExtractorFactory.detectExtractedFields(INDEX, fieldCapabilities);
+        ExtractedFields extractedFields = DataFrameDataExtractorFactory.detectExtractedFields(INDEX, EMPTY_CONTEXT, fieldCapabilities);
 
         List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
             .collect(Collectors.toList());
         assertThat(extractedFieldNames, equalTo(sortedFields));
+    }
+
+    public void testDetectedExtractedFields_GivenIncludeWithMissingField() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("my_field1", "float")
+            .addAggregatableField("my_field2", "float")
+            .build();
+
+        FetchSourceContext desiredFields = new FetchSourceContext(true, new String[]{"your_field1", "my*"}, new String[0]);
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+            () -> DataFrameDataExtractorFactory.detectExtractedFields(INDEX, desiredFields, fieldCapabilities));
+        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index] with name [your_field1]"));
+    }
+
+    public void testDetectedExtractedFields_GivenExcludeAllValidFields() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("my_field1", "float")
+            .addAggregatableField("my_field2", "float")
+            .build();
+
+        FetchSourceContext desiredFields = new FetchSourceContext(true, new String[0], new String[]{"my_*"});
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+            () -> DataFrameDataExtractorFactory.detectExtractedFields(INDEX, desiredFields, fieldCapabilities));
+        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]"));
+    }
+
+    public void testDetectedExtractedFields_GivenInclusionsAndExclusions() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("my_field1_nope", "float")
+            .addAggregatableField("my_field1", "float")
+            .addAggregatableField("your_field2", "float")
+            .addAggregatableField("your_keyword", "keyword")
+            .build();
+
+        FetchSourceContext desiredFields = new FetchSourceContext(true, new String[]{"your*", "my_*"}, new String[]{"*nope"});
+        ExtractedFields extractedFields = DataFrameDataExtractorFactory.detectExtractedFields(INDEX, desiredFields, fieldCapabilities);
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, equalTo(Arrays.asList("my_field1", "your_field2")));
     }
 
     private static class MockFieldCapsResponseBuilder {

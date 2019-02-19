@@ -56,7 +56,6 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.LongSupplier;
 
 public abstract class FilteredSearchContext extends SearchContext {
 
@@ -508,8 +507,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public LongSupplier timeEstimate() {
-        return in.timeEstimate();
+    public long getTimeInMillis() {
+        return in.getTimeInMillis();
     }
 
     @Override

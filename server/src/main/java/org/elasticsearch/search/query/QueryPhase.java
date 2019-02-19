@@ -212,11 +212,11 @@ public class QueryPhase implements SearchPhase {
 
             final Runnable timeoutRunnable;
             if (timeoutSet) {
-                final long startTime = searchContext.timeEstimate().getAsLong();
+                final long startTime = searchContext.getTimeInMillis();
                 final long timeout = searchContext.timeout().millis();
                 final long maxTime = startTime + timeout;
                 timeoutRunnable = () -> {
-                    final long time = searchContext.timeEstimate().getAsLong();
+                    final long time = searchContext.getTimeInMillis();
                     if (time > maxTime) {
                         throw new TimeExceededException();
                     }

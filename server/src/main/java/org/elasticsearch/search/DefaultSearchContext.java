@@ -88,7 +88,7 @@ final class DefaultSearchContext extends SearchContext {
     private final long id;
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
-    private final LongSupplier timeEstimate;
+    private final LongSupplier timeSupplier;
     private SearchType searchType;
     private final Engine.Searcher engineSearcher;
     private final BigArrays bigArrays;
@@ -159,7 +159,7 @@ final class DefaultSearchContext extends SearchContext {
 
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
-                         IndexShard indexShard, BigArrays bigArrays, LongSupplier timeEstimate, TimeValue timeout,
+                         IndexShard indexShard, BigArrays bigArrays, LongSupplier timeSupplier, TimeValue timeout,
                          FetchPhase fetchPhase, Version minNodeVersion) {
         this.id = id;
         this.request = request;
@@ -176,7 +176,7 @@ final class DefaultSearchContext extends SearchContext {
         this.indexService = indexService;
         this.clusterService = clusterService;
         this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
-        this.timeEstimate = timeEstimate;
+        this.timeSupplier = timeSupplier;
         this.timeout = timeout;
         this.minNodeVersion = minNodeVersion;
         queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis,
@@ -804,8 +804,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public LongSupplier timeEstimate() {
-        return timeEstimate;
+    public long getTimeInMillis() {
+        return timeSupplier.getAsLong();
     }
 
     @Override

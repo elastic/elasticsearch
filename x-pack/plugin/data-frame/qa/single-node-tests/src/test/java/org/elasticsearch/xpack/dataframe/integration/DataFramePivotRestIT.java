@@ -237,9 +237,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + " \"dest\": \"doesnot-matter\",";
 
         config += " \"pivot\": {"
-            + "   \"group_by\": ["
-            + "     {\"reviewer\": {\"terms\": { \"field\": \"user_id\" }}},"
-            + "     {\"by_day\": {\"date_histogram\": {\"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"}}}],"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {\"terms\": { \"field\": \"user_id\" }},"
+            + "     \"by_day\": {\"date_histogram\": {\"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"}}},"
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
             + "       \"avg\": {"

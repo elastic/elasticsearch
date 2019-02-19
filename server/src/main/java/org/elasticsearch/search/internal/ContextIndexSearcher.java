@@ -71,7 +71,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     public ContextIndexSearcher(Engine.Searcher searcher, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
         super(searcher.reader());
         engineSearcher = searcher;
-        in = new XIndexSearcher(searcher.searcher(), queryCache, queryCachingPolicy);
+        in = new XIndexSearcher(searcher.searcher());
         setSimilarity(searcher.searcher().getSimilarity());
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);

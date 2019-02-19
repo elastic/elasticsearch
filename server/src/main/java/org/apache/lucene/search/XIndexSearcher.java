@@ -31,12 +31,12 @@ import java.util.List;
 public class XIndexSearcher extends IndexSearcher {
     private final IndexSearcher in;
 
-    public XIndexSearcher(IndexSearcher in, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
+    public XIndexSearcher(IndexSearcher in) {
         super(in.getIndexReader());
         this.in = in;
         setSimilarity(in.getSimilarity());
-        setQueryCache(queryCache);
-        setQueryCachingPolicy(queryCachingPolicy);
+        setQueryCache(in.getQueryCache());
+        setQueryCachingPolicy(in.getQueryCachingPolicy());
     }
 
     @Override

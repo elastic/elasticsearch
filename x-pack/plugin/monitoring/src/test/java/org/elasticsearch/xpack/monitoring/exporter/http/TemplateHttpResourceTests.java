@@ -13,8 +13,11 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
+import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -77,11 +80,13 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void testDoPublishTrue() {
-        assertPublishSucceeds(resource, "/_template", templateName, StringEntity.class);
+        Map<String, String> parameters = Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        assertPublishSucceeds(resource, "/_template", templateName, parameters, StringEntity.class);
     }
 
     public void testDoPublishFalseWithException() {
-        assertPublishWithException(resource, "/_template", templateName, StringEntity.class);
+        Map<String, String> parameters = Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        assertPublishWithException(resource, "/_template", templateName, parameters, StringEntity.class);
     }
 
     public void testParameters() {

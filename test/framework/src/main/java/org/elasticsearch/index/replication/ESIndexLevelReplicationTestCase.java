@@ -283,9 +283,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public void startPrimary() throws IOException {
-            final DiscoveryNode pNode = getDiscoveryNode(primary.routingEntry().currentNodeId());
-            primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(), pNode, null));
-            primary.recoverFromStore();
+            recoverPrimary(primary);
             HashSet<String> activeIds = new HashSet<>();
             activeIds.addAll(activeIds());
             activeIds.add(primary.routingEntry().allocationId().getId());
@@ -318,6 +316,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             updateAllocationIDsOnPrimary();
         }
 
+        protected synchronized void recoverPrimary(IndexShard primary) {
+            final DiscoveryNode pNode = getDiscoveryNode(primary.routingEntry().currentNodeId());
+            primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(), pNode, null));
+            primary.recoverFromStore();
+        }
 
         public synchronized IndexShard addReplicaWithExistingPath(final ShardPath shardPath, final String nodeId) throws IOException {
             final ShardRouting shardRouting = TestShardRouting.newShardRouting(
@@ -542,12 +545,13 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             getPrimary().removeRetentionLease(id, listener);
         }
 
-        public void executeRetentionLeasesSyncRequestOnReplica(RetentionLeaseSyncAction.Request request, IndexShard replica) {
+        public void executeRetentionLeasesSyncRequestOnReplica(RetentionLeaseSyncAction.Request request,
+                                                        IndexShard replica) throws Exception {
             final PlainActionFuture<Releasable> acquirePermitFuture = new PlainActionFuture<>();
             replica.acquireReplicaOperationPermit(getPrimary().getOperationPrimaryTerm(), getPrimary().getGlobalCheckpoint(),
                 getPrimary().getMaxSeqNoOfUpdatesOrDeletes(), acquirePermitFuture, ThreadPool.Names.SAME, request);
             try (Releasable ignored = acquirePermitFuture.actionGet()) {
-                RetentionLeaseSyncAction.performOnReplica(request, replica, logger);
+                RetentionLeaseSyncAction.performOnReplica(request, replica);
             }
         }
     }
@@ -909,19 +913,19 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response> {
 
         SyncRetentionLeases(RetentionLeaseSyncAction.Request request, ReplicationGroup group,
-                            ActionListener<RetentionLeaseSyncAction.Response> listener) {
+                            ActionListener<RetentionLeaseSyncAction.Response> listener)  {
             super(request, listener, group, "sync-retention-leases");
         }
 
         @Override
-        protected PrimaryResult performOnPrimary(IndexShard primary, RetentionLeaseSyncAction.Request request) {
-            RetentionLeaseSyncAction.performOnPrimary(request, primary, logger);
+        protected PrimaryResult performOnPrimary(IndexShard primary, RetentionLeaseSyncAction.Request request) throws Exception {
+            RetentionLeaseSyncAction.performOnPrimary(request, primary);
             return new PrimaryResult(request, new RetentionLeaseSyncAction.Response());
         }
 
         @Override
-        protected void performOnReplica(RetentionLeaseSyncAction.Request request, IndexShard replica) {
-            RetentionLeaseSyncAction.performOnReplica(request, replica, logger);
+        protected void performOnReplica(RetentionLeaseSyncAction.Request request, IndexShard replica) throws Exception {
+            RetentionLeaseSyncAction.performOnReplica(request, replica);
         }
     }
 

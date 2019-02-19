@@ -844,15 +844,18 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized void close() {
+    public synchronized void close() throws IOException {
         if (this.open.compareAndSet(true, false)) {
             if (activeDisruptionScheme != null) {
                 activeDisruptionScheme.testClusterClosed();
                 activeDisruptionScheme = null;
             }
-            IOUtils.closeWhileHandlingException(nodes.values());
-            nodes.clear();
-            executor.shutdownNow();
+            try {
+                IOUtils.close(nodes.values());
+            } finally {
+                nodes.clear();
+                executor.shutdownNow();
+            }
         }
     }
 

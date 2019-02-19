@@ -92,7 +92,7 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
         id = in.readString();
         found = in.readBoolean();
         if (found) {
-            status = WatchStatus.read(in);
+            status = new WatchStatus(in);
             source = XContentSource.readFrom(in);
             version = in.readZLong();
             seqNo = in.readZLong();

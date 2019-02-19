@@ -22,7 +22,7 @@ public class MlDeprecationChecksTests extends ESTestCase {
     public void testCheckDataFeedQuery() {
         DatafeedConfig.Builder goodDatafeed = new DatafeedConfig.Builder("good-df", "job-id");
         goodDatafeed.setIndices(Collections.singletonList("some-index"));
-        goodDatafeed.setParsedQuery(new TermQueryBuilder("foo", "bar"));
+        goodDatafeed.setQuery(Collections.singletonMap(TermQueryBuilder.NAME, Collections.singletonMap("foo", "bar")));
         assertNull(MlDeprecationChecks.checkDataFeedQuery(goodDatafeed.build()));
 
         DatafeedConfig.Builder deprecatedDatafeed = new DatafeedConfig.Builder("df-with-deprecated-query", "job-id");

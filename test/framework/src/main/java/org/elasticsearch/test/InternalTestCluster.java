@@ -756,8 +756,7 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a node client to a data node in the cluster.
      * Note: use this with care tests should not rely on a certain nodes client.
      */
-    public synchronized Client dataNodeClient() {
-        ensureOpen();
+    public Client dataNodeClient() {
         /* Randomly return a client to one of the nodes in the cluster */
         return getRandomNodeAndClient(DATA_NODE_PREDICATE).client(random);
     }
@@ -766,8 +765,7 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a node client to the current master node.
      * Note: use this with care tests should not rely on a certain nodes client.
      */
-    public synchronized Client masterClient() {
-        ensureOpen();
+    public Client masterClient() {
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()));
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client master is requested
@@ -778,8 +776,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Returns a node client to random node but not the master. This method will fail if no non-master client is available.
      */
-    public synchronized Client nonMasterClient() {
-        ensureOpen();
+    public Client nonMasterClient() {
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()).negate());
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client non-master is requested
@@ -813,7 +810,6 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a transport client
      */
     public synchronized Client transportClient() {
-        ensureOpen();
         // randomly return a transport client going to one of the nodes in the cluster
         return getOrBuildRandomNode().transportClient();
     }
@@ -821,8 +817,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Returns a node client to a given node.
      */
-    public synchronized Client client(String nodeName) {
-        ensureOpen();
+    public Client client(String nodeName) {
         NodeAndClient nodeAndClient = nodes.get(nodeName);
         if (nodeAndClient != null) {
             return nodeAndClient.client(random);
@@ -834,7 +829,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Returns a "smart" node client to a random node in the cluster
      */
-    public synchronized Client smartClient() {
+    public Client smartClient() {
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient();
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient();
@@ -897,17 +892,19 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         Client client(Random random) {
-            if (closed.get()) {
-                throw new RuntimeException("already closed");
-            }
-            double nextDouble = random.nextDouble();
-            if (nextDouble < transportClientRatio) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Using transport client for node [{}] sniff: [{}]", node.settings().get("node.name"), false);
+            synchronized (InternalTestCluster.this) {
+                if (closed.get()) {
+                    throw new RuntimeException("already closed");
                 }
-                return getOrBuildTransportClient();
-            } else {
-                return getOrBuildNodeClient();
+                double nextDouble = random.nextDouble();
+                if (nextDouble < transportClientRatio) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("Using transport client for node [{}] sniff: [{}]", node.settings().get("node.name"), false);
+                    }
+                    return getOrBuildTransportClient();
+                } else {
+                    return getOrBuildNodeClient();
+                }
             }
         }
 
@@ -1260,7 +1257,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized void beforeIndexDeletion() throws Exception {
+    public void beforeIndexDeletion() throws Exception {
         // Check that the operations counter on index shard has reached 0.
         // The assumption here is that after a test there are no ongoing write operations.
         // test that have ongoing write operations after the test (for example because ttl is used
@@ -1274,7 +1271,6 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private void assertSameSyncIdSameDocs() {
-        assert Thread.holdsLock(this);
         Map<String, Long> docsOnShards = new HashMap<>();
         final Collection<NodeAndClient> nodesAndClients = nodes.values();
         for (NodeAndClient nodeAndClient : nodesAndClients) {
@@ -1303,10 +1299,8 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private void assertNoPendingIndexOperations() throws Exception {
-        assert Thread.holdsLock(this);
         assertBusy(() -> {
-            final Collection<NodeAndClient> nodesAndClients = nodes.values();
-            for (NodeAndClient nodeAndClient : nodesAndClients) {
+            for (NodeAndClient nodeAndClient : nodes.values()) {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
@@ -1324,10 +1318,8 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private void assertOpenTranslogReferences() throws Exception {
-        assert Thread.holdsLock(this);
         assertBusy(() -> {
-            final Collection<NodeAndClient> nodesAndClients = nodes.values();
-            for (NodeAndClient nodeAndClient : nodesAndClients) {
+            for (NodeAndClient nodeAndClient : nodes.values()) {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
@@ -1345,7 +1337,6 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private void assertNoSnapshottedIndexCommit() throws Exception {
-        assert Thread.holdsLock(this);
         assertBusy(() -> {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
@@ -1370,7 +1361,7 @@ public final class InternalTestCluster extends TestCluster {
      * Asserts that the document history in Lucene index is consistent with Translog's on every index shard of the cluster.
      * This assertion might be expensive, thus we prefer not to execute on every test but only interesting tests.
      */
-    public synchronized void assertConsistentHistoryBetweenTranslogAndLuceneIndex() throws IOException {
+    public void assertConsistentHistoryBetweenTranslogAndLuceneIndex() throws IOException {
         for (NodeAndClient nodeAndClient : nodes.values()) {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
@@ -2237,6 +2228,7 @@ public final class InternalTestCluster extends TestCluster {
         clearDisruptionScheme(true);
     }
 
+    // synchronized to prevent concurrently modifying the cluster.
     public synchronized void clearDisruptionScheme(boolean ensureHealthyCluster) {
         if (activeDisruptionScheme != null) {
             TimeValue expectedHealingTime = activeDisruptionScheme.expectedTimeToHeal();
@@ -2318,8 +2310,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized Iterable<Client> getClients() {
-        ensureOpen();
+    public Iterable<Client> getClients() {
         return () -> {
             ensureOpen();
             final Iterator<NodeAndClient> iterator = nodes.values().iterator();

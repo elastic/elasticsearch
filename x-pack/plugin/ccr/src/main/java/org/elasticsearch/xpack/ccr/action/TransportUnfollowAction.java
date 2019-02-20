@@ -7,11 +7,13 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,7 +45,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowAction.Request, UnfollowAction.Response> {
+public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowAction.Request, AcknowledgedResponse> {
 
     private final Client client;
 
@@ -72,15 +74,15 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
     }
 
     @Override
-    protected UnfollowAction.Response newResponse() {
-        return new UnfollowAction.Response();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
     protected void masterOperation(
             final UnfollowAction.Request request,
             final ClusterState state,
-            final ActionListener<UnfollowAction.Response> listener) {
+            final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("unfollow_action", new ClusterStateUpdateTask() {
 
             @Override
@@ -114,12 +116,12 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                         new ActionListener<Collection<RetentionLeaseActions.Response>>() {
 
                             @Override
-                            public void onResponse(Collection<RetentionLeaseActions.Response> responses) {
+                            public void onResponse(final Collection<RetentionLeaseActions.Response> responses) {
                                 logger.trace(
                                         "[{}] removed retention lease [{}] on all leader primary shards",
                                         indexMetaData.getIndex(),
                                         retentionLeaseId);
-                                listener.onResponse(new UnfollowAction.Response(true, true, null));
+                                listener.onResponse(new AcknowledgedResponse(true));
                             }
 
                             @Override
@@ -129,7 +131,9 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                                         indexMetaData.getIndex(),
                                         retentionLeaseId),
                                         e);
-                                listener.onResponse(new UnfollowAction.Response(true, false, e));
+                                final ElasticsearchException wrapper = new ElasticsearchException(e);
+                                wrapper.addMetadata("es.failed_to_remove_retention_leases", retentionLeaseId);
+                                listener.onFailure(wrapper);
                             }
 
                         },

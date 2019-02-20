@@ -48,6 +48,16 @@ public class CcrRetentionLeases {
                 leaderIndex.getUUID());
     }
 
+    /**
+     * Synchronously requests to add a retention lease with the specified retention lease ID on the specified leader shard using the given
+     * remote client. Note that this method will block up to the specified timeout.
+     *
+     * @param leaderShardId    the leader shard ID
+     * @param retentionLeaseId the retention lease ID
+     * @param remoteClient     the remote client on which to execute this request
+     * @param timeout          the timeout
+     * @return an optional exception indicating whether or not the retention lease already exists
+     */
     public static Optional<RetentionLeaseAlreadyExistsException> syncAddRetentionLease(
             final ShardId leaderShardId,
             final String retentionLeaseId,
@@ -63,6 +73,16 @@ public class CcrRetentionLeases {
         }
     }
 
+    /**
+     * Asynchronously requests to add a retention lease with the specified retention lease ID on the specified leader shard using the given
+     * remote client. Note that this method will return immediately, with the specified listener callback invoked to indicate a response
+     * or failure.
+     *
+     * @param leaderShardId    the leader shard ID
+     * @param retentionLeaseId the retention lease ID
+     * @param remoteClient     the remote client on which to execute this request
+     * @param listener         the listener
+     */
     public static void asyncAddRetentionLease(
             final ShardId leaderShardId,
             final String retentionLeaseId,
@@ -73,6 +93,16 @@ public class CcrRetentionLeases {
         remoteClient.execute(RetentionLeaseActions.Add.INSTANCE, request, listener);
     }
 
+    /**
+     * Synchronously requests to renew a retention lease with the specified retention lease ID on the specified leader shard using the given
+     * remote client. Note that this method will block up to the specified timeout.
+     *
+     * @param leaderShardId    the leader shard ID
+     * @param retentionLeaseId the retention lease ID
+     * @param remoteClient     the remote client on which to execute this request
+     * @param timeout          the timeout
+     * @return an optional exception indicating whether or not the retention lease already exists
+     */
     public static Optional<RetentionLeaseNotFoundException> syncRenewRetentionLease(
             final ShardId leaderShardId,
             final String retentionLeaseId,
@@ -88,6 +118,16 @@ public class CcrRetentionLeases {
         }
     }
 
+    /**
+     * Asynchronously requests to renew a retention lease with the specified retention lease ID on the specified leader shard using the
+     * given remote client. Note that this method will return immediately, with the specified listener callback invoked to indicate a
+     * response or failure.
+     *
+     * @param leaderShardId    the leader shard ID
+     * @param retentionLeaseId the retention lease ID
+     * @param remoteClient     the remote client on which to execute this request
+     * @param listener         the listener
+     */
     public static void asyncRenewRetentionLease(
             final ShardId leaderShardId,
             final String retentionLeaseId,
@@ -98,6 +138,16 @@ public class CcrRetentionLeases {
         remoteClient.execute(RetentionLeaseActions.Renew.INSTANCE, request, listener);
     }
 
+    /**
+     * Asynchronously requests to remove a retention lease with the specified retention lease ID on the specified leader shard using the
+     * given remote client. Note that this method will return immediately, with the specified listener callback invoked to indicate a
+     * response or failure.
+     *
+     * @param leaderShardId    the leader shard ID
+     * @param retentionLeaseId the retention lease ID
+     * @param remoteClient     the remote client on which to execute this request
+     * @param listener         the listener
+     */
     public static void asyncRemoveRetentionLease(
             final ShardId leaderShardId,
             final String retentionLeaseId,

@@ -20,7 +20,6 @@
 package org.elasticsearch.client.documentation;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -49,7 +48,6 @@ import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
-import org.elasticsearch.client.ccr.UnfollowResponse;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
@@ -340,15 +338,12 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ccr-unfollow-request
 
         // tag::ccr-unfollow-execute
-        UnfollowResponse response = client.ccr().unfollow(request, RequestOptions.DEFAULT);
+        AcknowledgedResponse response =
+            client.ccr().unfollow(request, RequestOptions.DEFAULT);
         // end::ccr-unfollow-execute
 
         // tag::ccr-unfollow-response
         boolean acknowledged = response.isAcknowledged(); // <1>
-        boolean retentionLeasesRemoved = response.isRetentionLeasesRemoved(); // <2>
-        if (retentionLeasesRemoved == false) {
-            ElasticsearchException retentionLeasesRemovalFailureCause = response.retentionLeasesRemovalFailureCause(); // <3>
-        }
         // end::ccr-unfollow-response
 
         // Delete, put follow index, pause and close, so that it can be unfollowed again:
@@ -371,20 +366,16 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         // tag::ccr-unfollow-execute-listener
-        ActionListener<UnfollowResponse> listener =
-            new ActionListener<UnfollowResponse>() {
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(UnfollowResponse response) {
+                public void onResponse(AcknowledgedResponse response) {
                     boolean acknowledged = response.isAcknowledged(); // <1>
-                    boolean retentionLeasesRemoved = response.isRetentionLeasesRemoved(); // <2>
-                    if (retentionLeasesRemoved == false) {
-                        ElasticsearchException retentionLeasesRemovalFailureCause = response.retentionLeasesRemovalFailureCause(); // <3>
-                    }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    // <4>
+                    // <2>
                 }
             };
         // end::ccr-unfollow-execute-listener
@@ -394,7 +385,8 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::ccr-unfollow-execute-async
-        client.ccr().unfollowAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        client.ccr()
+            .unfollowAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::ccr-unfollow-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));

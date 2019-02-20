@@ -33,7 +33,6 @@ import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
-import org.elasticsearch.client.ccr.UnfollowResponse;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 
 import java.io.IOException;
@@ -198,12 +197,12 @@ public final class CcrClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public UnfollowResponse unfollow(UnfollowRequest request, RequestOptions options) throws IOException {
+    public AcknowledgedResponse unfollow(UnfollowRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             CcrRequestConverters::unfollow,
             options,
-            UnfollowResponse::fromXContent,
+            AcknowledgedResponse::fromXContent,
             Collections.emptySet()
         );
     }
@@ -221,12 +220,12 @@ public final class CcrClient {
      */
     public void unfollowAsync(UnfollowRequest request,
                               RequestOptions options,
-                              ActionListener<UnfollowResponse> listener) {
+                              ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::unfollow,
             options,
-            UnfollowResponse::fromXContent,
+            AcknowledgedResponse::fromXContent,
             listener,
             Collections.emptySet()
         );

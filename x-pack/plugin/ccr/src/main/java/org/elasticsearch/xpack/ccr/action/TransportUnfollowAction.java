@@ -187,16 +187,16 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                             "{} retention lease [{}] not found on {} while unfollowing",
                             followerShardId,
                             retentionLeaseId,
-                            leaderShardId,
-                            e));
+                            leaderShardId),
+                            e);
                     listener.onResponse(new RetentionLeaseActions.Response());
                 } else {
                     logger.warn(new ParameterizedMessage(
                             "{} failed to remove retention lease [{}] on {} while unfollowing",
                             followerShardId,
                             retentionLeaseId,
-                            leaderShardId,
-                            e));
+                            leaderShardId),
+                            e);
                     listener.onFailure(e);
                 }
             }

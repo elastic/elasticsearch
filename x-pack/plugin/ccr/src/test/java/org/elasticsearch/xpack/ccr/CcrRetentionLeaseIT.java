@@ -459,7 +459,11 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
             }
         } finally {
-
+            for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getDataNodes().values()) {
+                final MockTransportService senderTransportService =
+                        (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
+                senderTransportService.clearAllRules();
+            }
         }
     }
 

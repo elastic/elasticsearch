@@ -1,5 +1,16 @@
 [testenv="platinum"]
 
+////////////
+Take us out of upgrade mode after running any snippets on this page.
+
+[source,js]
+--------------------------------------------------
+POST _ml/set_upgrade_mode?enabled=false
+--------------------------------------------------
+// CONSOLE
+// TEARDOWN
+////////////
+
 If your {ml} indices were created earlier than the previous major version, they
 must be reindexed. In those circumstances, there must be no machine learning
 jobs running during the upgrade. 
@@ -25,7 +36,6 @@ prevent new jobs from opening, use the <<ml-set-upgrade-mode,set upgrade mode AP
 POST _ml/set_upgrade_mode?enabled=true
 --------------------------------------------------
 // CONSOLE
-// TEARDOWN
 
 This method does not persist the absolute latest model state, rather it uses the
 last model state that was automatically saved. By halting the tasks, you avoid

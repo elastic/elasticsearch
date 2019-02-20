@@ -200,6 +200,8 @@ You can configure the following HipChat notification settings in
 `elasticsearch.yml`. For more information about sending notifications
 via HipChat, see {xpack-ref}/actions-hipchat.html#configuring-hipchat-actions[Configuring HipChat].
 
+deprecated[6.7.0,Hipchat notification has been deprecated as Hipchat has ceased operation]
+
 `xpack.notification.hipchat` ::
 Specifies account information for sending notifications
 via HipChat. You can specify the following HipChat account attributes:

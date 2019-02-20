@@ -154,7 +154,6 @@ public class NodeDeprecationChecks {
 
     static DeprecationIssue watcherNotificationsSecureSettingsCheck(Settings nodeSettings, PluginsAndModules plugins) {
         if (false == nodeSettings.getByPrefix("xpack.notification.email.account.").filter(s -> s.endsWith(".smtp.password")).isEmpty()
-            || false == nodeSettings.getByPrefix("xpack.notification.hipchat.account.").filter(s -> s.endsWith(".auth_token")).isEmpty()
             || false == nodeSettings.getByPrefix("xpack.notification.jira.account.")
                 .filter(s -> s.endsWith(".url") || s.endsWith(".user") || s.endsWith(".password")).isEmpty()
             || false == nodeSettings.getByPrefix("xpack.notification.pagerduty.account.")
@@ -165,6 +164,17 @@ public class NodeDeprecationChecks {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#watcher-notifications-account-settings",
                 "account authentication settings must use the keystore");
+        }
+        return null;
+    }
+
+    static DeprecationIssue watcherHipchatNotificationSettingsCheck(Settings nodeSettings, PluginsAndModules plugins) {
+        if (nodeSettings.getByPrefix("xpack.notification.hipchat.").size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Watcher Hipchat notifications will be removed in the next major release",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
+                    "#watcher-notifications-account-settings",
+                "[hipchat] actions are deprecated and should be removed from watch definitions");
         }
         return null;
     }

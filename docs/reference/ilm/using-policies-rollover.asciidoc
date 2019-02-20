@@ -31,8 +31,8 @@ The rollover action takes the following parameters:
 .`rollover` Action Parameters
 |===
 |Name |Description
-|max_size |The maximum estimated size the index is allowed to grow
-to. Defaults to `null`. Optional.
+|max_size |The maximum estimated size the primary shard of the index is allowed
+to grow to. Defaults to `null`. Optional.
 |max_docs |The maximum number of document the index should
 contain. Defaults to `null`. Optional.
 |max_age |The maximum age of the index. Defaults to `null`. Optional.

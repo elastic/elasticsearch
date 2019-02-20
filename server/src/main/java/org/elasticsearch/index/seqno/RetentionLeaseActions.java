@@ -115,7 +115,7 @@ public class RetentionLeaseActions {
         }
 
         @Override
-        protected Response shardOperation(final T request, final ShardId shardId) throws IOException {
+        protected Response shardOperation(final T request, final ShardId shardId) {
             throw new UnsupportedOperationException();
         }
 
@@ -136,10 +136,10 @@ public class RetentionLeaseActions {
     public static class Add extends Action<Response> {
 
         public static final Add INSTANCE = new Add();
-        public static final String NAME = "indices:admin/seq_no/add_retention_lease";
+        public static final String ACTION_NAME = "indices:admin/seq_no/add_retention_lease";
 
         private Add() {
-            super(NAME);
+            super(ACTION_NAME);
         }
 
         public static class TransportAction extends TransportRetentionLeaseAction<AddRequest> {
@@ -153,7 +153,7 @@ public class RetentionLeaseActions {
                     final IndexNameExpressionResolver indexNameExpressionResolver,
                     final IndicesService indicesService) {
                 super(
-                        NAME,
+                        ACTION_NAME,
                         threadPool,
                         clusterService,
                         transportService,
@@ -186,10 +186,10 @@ public class RetentionLeaseActions {
     public static class Renew extends Action<Response> {
 
         public static final Renew INSTANCE = new Renew();
-        public static final String NAME = "indices:admin/seq_no/renew_retention_lease";
+        public static final String ACTION_NAME = "indices:admin/seq_no/renew_retention_lease";
 
         private Renew() {
-            super(NAME);
+            super(ACTION_NAME);
         }
 
         public static class TransportAction extends TransportRetentionLeaseAction<RenewRequest> {
@@ -203,7 +203,7 @@ public class RetentionLeaseActions {
                     final IndexNameExpressionResolver indexNameExpressionResolver,
                     final IndicesService indicesService) {
                 super(
-                        NAME,
+                        ACTION_NAME,
                         threadPool,
                         clusterService,
                         transportService,
@@ -232,10 +232,10 @@ public class RetentionLeaseActions {
     public static class Remove extends Action<Response> {
 
         public static final Remove INSTANCE = new Remove();
-        public static final String NAME = "indices:admin/seq_no/remove_retention_lease";
+        public static final String ACTION_NAME = "indices:admin/seq_no/remove_retention_lease";
 
         private Remove() {
-            super(NAME);
+            super(ACTION_NAME);
         }
 
         public static class TransportAction extends TransportRetentionLeaseAction<RemoveRequest> {
@@ -249,7 +249,7 @@ public class RetentionLeaseActions {
                     final IndexNameExpressionResolver indexNameExpressionResolver,
                     final IndicesService indicesService) {
                 super(
-                        NAME,
+                        ACTION_NAME,
                         threadPool,
                         clusterService,
                         transportService,

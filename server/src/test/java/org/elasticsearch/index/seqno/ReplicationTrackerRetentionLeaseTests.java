@@ -24,16 +24,21 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.IndexSettingsModule;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -458,6 +463,109 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                     replicationTracker.getRetentionLeases().leases(),
                     contains(expectedLeases.toArray(new RetentionLease[0])));
         }
+    }
+
+    public void testLoadAndPersistRetentionLeases() throws IOException {
+        final AllocationId allocationId = AllocationId.newInitializing();
+        long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        final ReplicationTracker replicationTracker = new ReplicationTracker(
+                new ShardId("test", "_na", 0),
+                allocationId.getId(),
+                IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                primaryTerm,
+                UNASSIGNED_SEQ_NO,
+                value -> {},
+                () -> 0L,
+                (leases, listener) -> {});
+        replicationTracker.updateFromMaster(
+                randomNonNegativeLong(),
+                Collections.singleton(allocationId.getId()),
+                routingTable(Collections.emptySet(), allocationId),
+                Collections.emptySet());
+        replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
+        final int length = randomIntBetween(0, 8);
+        for (int i = 0; i < length; i++) {
+            if (rarely() && primaryTerm < Long.MAX_VALUE) {
+                primaryTerm = randomLongBetween(primaryTerm + 1, Long.MAX_VALUE);
+                replicationTracker.setOperationPrimaryTerm(primaryTerm);
+            }
+            final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+            replicationTracker.addRetentionLease(
+                    Integer.toString(i), retainingSequenceNumber, "test-" + i, ActionListener.wrap(() -> {}));
+        }
+
+        final Path path = createTempDir();
+        replicationTracker.persistRetentionLeases(path);
+        assertThat(replicationTracker.loadRetentionLeases(path), equalTo(replicationTracker.getRetentionLeases()));
+    }
+
+    /**
+     * Test that we correctly synchronize writing the retention lease state file in {@link ReplicationTracker#persistRetentionLeases(Path)}.
+     * This test can fail without the synchronization block in that method.
+     *
+     * @throws IOException if an I/O exception occurs loading the retention lease state file
+     */
+    public void testPersistRetentionLeasesUnderConcurrency() throws IOException {
+        final AllocationId allocationId = AllocationId.newInitializing();
+        long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        final ReplicationTracker replicationTracker = new ReplicationTracker(
+                new ShardId("test", "_na", 0),
+                allocationId.getId(),
+                IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                primaryTerm,
+                UNASSIGNED_SEQ_NO,
+                value -> {},
+                () -> 0L,
+                (leases, listener) -> {});
+        replicationTracker.updateFromMaster(
+                randomNonNegativeLong(),
+                Collections.singleton(allocationId.getId()),
+                routingTable(Collections.emptySet(), allocationId),
+                Collections.emptySet());
+        replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
+        final int length = randomIntBetween(0, 8);
+        for (int i = 0; i < length; i++) {
+            if (rarely() && primaryTerm < Long.MAX_VALUE) {
+                primaryTerm = randomLongBetween(primaryTerm + 1, Long.MAX_VALUE);
+                replicationTracker.setOperationPrimaryTerm(primaryTerm);
+            }
+            final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+            replicationTracker.addRetentionLease(
+                    Integer.toString(i), retainingSequenceNumber, "test-" + i, ActionListener.wrap(() -> {}));
+        }
+
+        final Path path = createTempDir();
+        final int numberOfThreads = randomIntBetween(1, 2 * Runtime.getRuntime().availableProcessors());
+        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
+        final Thread[] threads = new Thread[numberOfThreads];
+        for (int i = 0; i < numberOfThreads; i++) {
+            final String id = Integer.toString(length + i);
+            threads[i] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+                    replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test-" + id, ActionListener.wrap(() -> {}));
+                    replicationTracker.persistRetentionLeases(path);
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException | WriteStateException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            threads[i].start();
+        }
+
+        try {
+            // synchronize the threads invoking ReplicationTracker#persistRetentionLeases(Path path)
+            barrier.await();
+            // wait for all the threads to finish
+            barrier.await();
+            for (int i = 0; i < numberOfThreads; i++) {
+                threads[i].join();
+            }
+        } catch (final BrokenBarrierException | InterruptedException e) {
+            throw new AssertionError(e);
+        }
+        assertThat(replicationTracker.loadRetentionLeases(path), equalTo(replicationTracker.getRetentionLeases()));
     }
 
     private void assertRetentionLeases(

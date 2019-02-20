@@ -34,12 +34,14 @@ public abstract class GeoSqlSpecTestCase extends SpecBaseIntegrationTestCase {
         // Load GIS extensions
         H2GISExtension.load(c);
         c.createStatement().execute("RUNSCRIPT FROM 'classpath:/ogc/sqltsch.sql'");
+        c.createStatement().execute("RUNSCRIPT FROM 'classpath:/geo/setup_test_geo.sql'");
     });
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = new SqlSpecParser();
         List<Object[]> tests = new ArrayList<>();
+        tests.addAll(readScriptSpec("/geo/geosql.sql-spec", parser));
         tests.addAll(readScriptSpec("/ogc/ogc.sql-spec", parser));
         return tests;
     }
@@ -50,6 +52,9 @@ public abstract class GeoSqlSpecTestCase extends SpecBaseIntegrationTestCase {
                 "42".equals(NumberFormat.getInstance(Locale.getDefault()).format(42)));
         if (client().performRequest(new Request("HEAD", "/ogc")).getStatusLine().getStatusCode() == 404) {
             GeoDataLoader.loadOGCDatasetIntoEs(client(), "ogc");
+        }
+        if (client().performRequest(new Request("HEAD", "/geo")).getStatusLine().getStatusCode() == 404) {
+            GeoDataLoader.loadGeoDatasetIntoEs(client(), "geo");
         }
     }
 

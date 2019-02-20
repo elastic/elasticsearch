@@ -6,20 +6,20 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.io.ParseException;
-import com.vividsolutions.jts.io.WKTReader;
 import com.carrotsearch.hppc.IntObjectHashMap;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.relique.jdbc.csv.CsvResultSet;
 
+import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.text.ParseException;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -45,7 +45,6 @@ import static org.junit.Assert.fail;
  */
 public class JdbcAssert {
     private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-    private static final WKTReader wkt = new WKTReader();
 
     private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
 
@@ -269,11 +268,11 @@ public class JdbcAssert {
                     } else if (type == Types.FLOAT) {
                         assertEquals(msg, (float) expectedObject, (float) actualObject, lenientFloatingNumbers ? 1f : 0.0f);
                     } else if (type == Types.OTHER) {
-                        if (expectedObject instanceof Geometry && actualObject instanceof String) {
+                        if (actualObject instanceof org.elasticsearch.geo.geometry.Geometry) {
                             // We need to convert the actual object to Geometry for comparision
                             try {
-                                actualObject = wkt.read(actualObject.toString());
-                            } catch (ParseException ex) {
+                                expectedObject = WellKnownText.fromWKT(expectedObject.toString());
+                            } catch (IOException | ParseException ex) {
                                 fail(ex.getMessage());
                             }
                         }

@@ -834,7 +834,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Returns a "smart" node client to a random node in the cluster
      */
-    public Client smartClient() {
+    public synchronized Client smartClient() {
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient();
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient();

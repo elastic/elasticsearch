@@ -1575,7 +1575,8 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         //Search interval 24 hours
         SearchResponse r = client().prepareSearch("nanos")
-            .addAggregation(dateHistogram("histo").field("date").interval(1000 * 60 * 60 * 24).timeZone(ZoneId.of("Europe/Berlin")))
+            .addAggregation(dateHistogram("histo").field("date").
+                interval(1000 * 60 * 60 * 24).timeZone(ZoneId.of("Europe/Berlin")))
             .addDocValueField("date")
             .get();
         assertSearchResponse(r);
@@ -1589,7 +1590,8 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertEquals(1, buckets.get(1).getDocCount());
 
         r = client().prepareSearch("nanos")
-            .addAggregation(dateHistogram("histo").field("date").interval(1000 * 60 * 60 * 24).timeZone(ZoneId.of("UTC")))
+            .addAggregation(dateHistogram("histo").field("date")
+                .interval(1000 * 60 * 60 * 24).timeZone(ZoneId.of("UTC")))
             .addDocValueField("date")
             .get();
         assertSearchResponse(r);

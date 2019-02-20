@@ -271,12 +271,6 @@ POST /_aliases
                  "alias" : "alias1",
                  "is_write_index" : true
             }
-        },
-        {
-            "add" : {
-                 "index" : "test2",
-                 "alias" : "alias1"
-            }
         }
     ]
 }

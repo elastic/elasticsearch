@@ -154,7 +154,6 @@ public class NodeDeprecationChecks {
 
     static DeprecationIssue watcherNotificationsSecureSettingsCheck(Settings nodeSettings, PluginsAndModules plugins) {
         if (false == nodeSettings.getByPrefix("xpack.notification.email.account.").filter(s -> s.endsWith(".smtp.password")).isEmpty()
-            || false == nodeSettings.getByPrefix("xpack.notification.hipchat.account.").filter(s -> s.endsWith(".auth_token")).isEmpty()
             || false == nodeSettings.getByPrefix("xpack.notification.jira.account.")
                 .filter(s -> s.endsWith(".url") || s.endsWith(".user") || s.endsWith(".password")).isEmpty()
             || false == nodeSettings.getByPrefix("xpack.notification.pagerduty.account.")

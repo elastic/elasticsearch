@@ -162,19 +162,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
                         + "#watcher-notifications-account-settings",
                 "account authentication settings must use the keystore");
-        DeprecationIssue expectedHipchat = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-            "Watcher Hipchat notifications will be removed in the next major release",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
-                "#watcher-notifications-account-settings",
-            "[hipchat] actions are deprecated and should be removed from watch definitions");
-        assertSettingsAndIssues(Settings.builder().put("xpack.notification.hipchat.account." + randomAlphaOfLength(4) + ".auth_token",
-            randomAlphaOfLength(4)).build(),
-                expected, expectedHipchat);
-        expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "Watcher notification accounts' authentication settings must be defined securely",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
-                        + "#watcher-notifications-account-settings",
-                "account authentication settings must use the keystore");
         assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".url", randomAlphaOfLength(4), expected);
         assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".user", randomAlphaOfLength(4), expected);
         assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".password",

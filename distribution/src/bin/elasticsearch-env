@@ -36,7 +36,7 @@ ES_HOME=`dirname "$ES_HOME"`
 ES_CLASSPATH="$ES_HOME/lib/*"
 
 # now set the path to java
-if [ -x "$JAVA_HOME/bin/java" ]; then
+if [ ! -z "$JAVA_HOME" ]; then
   JAVA="$JAVA_HOME/bin/java"
 else
   if [ -x "$ES_HOME/jdk/bin/java" ]; then

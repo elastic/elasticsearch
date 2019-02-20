@@ -372,8 +372,9 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
     public void testUnfollowRemovesRetentionLeases() throws Exception {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
+        final int numberOfShards = randomIntBetween(1, 4);
         final String leaderIndexSettings =
-                getIndexSettings(randomIntBetween(1, 4), 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+                getIndexSettings(numberOfShards, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
@@ -394,7 +395,9 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         // we will sometimes fake that some of the retention leases are already removed on the leader shard
         final Set<Integer> shardIds =
-                new HashSet<>(randomSubsetOf(randomIntBetween(0, 4), IntStream.range(0, 4).boxed().collect(Collectors.toSet())));
+                new HashSet<>(randomSubsetOf(
+                        randomIntBetween(0, numberOfShards),
+                        IntStream.range(0, numberOfShards).boxed().collect(Collectors.toSet())));
 
         final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
         try {
@@ -456,11 +459,14 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
             }
         } finally {
-
+            for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getDataNodes().values()) {
+                final MockTransportService senderTransportService =
+                        (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
+                senderTransportService.clearAllRules();
+            }
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39185")
     public void testUnfollowFailsToRemoveRetentionLeases() throws Exception {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
@@ -478,7 +484,9 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         // we will disrupt requests to remove retention leases for these random shards
         final Set<Integer> shardIds =
-                new HashSet<>(randomSubsetOf(randomIntBetween(1, 4), IntStream.range(0, 4).boxed().collect(Collectors.toSet())));
+                new HashSet<>(randomSubsetOf(
+                                randomIntBetween(1, numberOfShards),
+                                IntStream.range(0, numberOfShards).boxed().collect(Collectors.toSet())));
 
         final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
         try {

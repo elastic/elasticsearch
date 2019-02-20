@@ -41,11 +41,12 @@ if [ -x "$JAVA_HOME/bin/java" ]; then
 else
   set +e
   JAVA=`which java`
+  echo "warning: Falling back to java on path. This behavior is deprecated. Specify JAVA_HOME"
   set -e
 fi
 
 if [ ! -x "$JAVA" ]; then
-  echo "could not find java; set JAVA_HOME or ensure java is in PATH" >&2
+  echo "could not find java; set JAVA_HOME" >&2
   exit 1
 fi
 

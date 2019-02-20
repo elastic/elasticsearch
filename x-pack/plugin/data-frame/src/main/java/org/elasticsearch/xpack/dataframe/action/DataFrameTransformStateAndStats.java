@@ -30,7 +30,9 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
 
     public static final ConstructingObjectParser<DataFrameTransformStateAndStats, Void> PARSER = new ConstructingObjectParser<>(
             GetDataFrameTransformsAction.NAME,
-            a -> new DataFrameTransformStateAndStats((String) a[0], (DataFrameTransformTaskState) a[1], (DataFrameIndexerTransformStats) a[2]));
+            a -> new DataFrameTransformStateAndStats((String) a[0],
+                (DataFrameTransformTaskState) a[1],
+                (DataFrameIndexerTransformStats) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameField.ID);

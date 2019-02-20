@@ -75,6 +75,6 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
             PersistentTasksCustomMetaData.PersistentTask<DataFrameTransform> persistentTask, Map<String, String> headers) {
         return new DataFrameTransformTask(id, type, action, parentTaskId, persistentTask.getParams(),
-                (DataFrameTransformTaskState) persistentTask.getState(), client, transformsConfigManager, schedulerEngine, threadPool, headers);
+            (DataFrameTransformTaskState) persistentTask.getState(), client, transformsConfigManager, schedulerEngine, threadPool, headers);
     }
 }

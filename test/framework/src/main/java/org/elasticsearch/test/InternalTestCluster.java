@@ -111,7 +111,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
-import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -551,8 +550,8 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private synchronized NodeAndClient getOrBuildRandomNode() {
-        ensureOpen();
+    private NodeAndClient getOrBuildRandomNode() {
+        assert Thread.holdsLock(this);
         final NodeAndClient randomNodeAndClient = getRandomNodeAndClient();
         if (randomNodeAndClient != null) {
             return randomNodeAndClient;
@@ -774,8 +773,7 @@ public final class InternalTestCluster extends TestCluster {
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client master is requested
         }
-        Assert.fail("No master client found");
-        return null; // can't happen
+        throw new AssertionError("No master client found");
     }
 
     /**
@@ -787,8 +785,7 @@ public final class InternalTestCluster extends TestCluster {
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client non-master is requested
         }
-        Assert.fail("No non-master client found");
-        return null; // can't happen
+        throw new AssertionError("No non-master client found");
     }
 
     /**
@@ -831,8 +828,7 @@ public final class InternalTestCluster extends TestCluster {
         if (nodeAndClient != null) {
             return nodeAndClient.client(random);
         }
-        Assert.fail("No node found with name: [" + nodeName + "]");
-        return null; // can't happen
+        throw new AssertionError("No node found with name: [" + nodeName + "]");
     }
 
 
@@ -844,8 +840,7 @@ public final class InternalTestCluster extends TestCluster {
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient();
         }
-        Assert.fail("No smart client found");
-        return null; // can't happen
+        throw new AssertionError("No smart client found");
     }
 
     @Override
@@ -1824,6 +1819,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private Set<String> excludeMasters(Collection<NodeAndClient> nodeAndClients) {
+        assert Thread.holdsLock(this);
         final Set<String> excludedNodeIds = new HashSet<>();
         if (autoManageMinMasterNodes && nodeAndClients.size() > 0) {
 
@@ -1856,6 +1852,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private void removeExclusions(Set<String> excludedNodeIds) {
+        assert Thread.holdsLock(this);
         if (excludedNodeIds.isEmpty() == false) {
             logger.info("removing voting config exclusions for {} after restart/shutdown", excludedNodeIds);
             try {
@@ -1944,11 +1941,8 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    synchronized Set<String> allDataNodesButN(int numNodes) {
-        return nRandomDataNodes(numDataNodes() - numNodes);
-    }
-
-    private synchronized Set<String> nRandomDataNodes(int numNodes) {
+    synchronized Set<String> allDataNodesButN(int count) {
+        final int numNodes = numDataNodes() - count;
         assert size() >= numNodes;
         Map<String, NodeAndClient> dataNodes =
             nodes
@@ -1991,6 +1985,7 @@ public final class InternalTestCluster extends TestCluster {
      * If {@link #bootstrapMasterNodeIndex} is -1 (default), this method does nothing.
      */
     private List<Settings> bootstrapMasterNodeWithSpecifiedIndex(List<Settings> allNodesSettings) {
+        assert Thread.holdsLock(this);
         if (bootstrapMasterNodeIndex == -1) { // fast-path
             return allNodesSettings;
         }
@@ -2277,15 +2272,15 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private static final class NodeNamePredicate implements Predicate<NodeAndClient> {
-        private final HashSet<String> nodeNames;
+        private final String nodeName;
 
-        NodeNamePredicate(String... nodeNames) {
-            this.nodeNames = Sets.newHashSet(nodeNames);
+        NodeNamePredicate(String nodeName) {
+            this.nodeName = nodeName;
         }
 
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
-            return nodeNames.contains(nodeAndClient.getName());
+            return nodeName.equals(nodeAndClient.getName());
         }
     }
 
@@ -2444,7 +2439,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public void assertAfterTest() throws IOException {
+    public synchronized void assertAfterTest() throws IOException {
         super.assertAfterTest();
         assertRequestsFinished();
         for (NodeAndClient nodeAndClient : nodes.values()) {
@@ -2461,6 +2456,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private void assertRequestsFinished() {
+        assert Thread.holdsLock(this);
         if (size() > 0) {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 CircuitBreaker inFlightRequestsBreaker = getInstance(CircuitBreakerService.class, nodeAndClient.name)

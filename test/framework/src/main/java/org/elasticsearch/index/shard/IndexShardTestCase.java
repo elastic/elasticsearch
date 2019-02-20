@@ -57,6 +57,7 @@ import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -854,35 +855,43 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * checkpoint of the safe commit to the global checkpoint are retained in both translog and Lucene.
      */
     public static void assertSafeCommitExists(IndexShard shard) throws IOException {
-        try (Closeable ignored = getTranslog(shard).acquireRetentionLock();
-             Engine.IndexCommitRef safeCommitRef = getEngine(shard).acquireSafeIndexCommit()) {
-            SequenceNumbers.CommitInfo commitInfo =
-                SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommitRef.getIndexCommit().getUserData().entrySet());
-            long globalCheckpoint = shard.getLastSyncedGlobalCheckpoint();
-            assertThat(commitInfo.localCheckpoint, lessThanOrEqualTo(commitInfo.maxSeqNo));
-            assertThat(commitInfo.maxSeqNo, lessThanOrEqualTo(globalCheckpoint));
-            if (commitInfo.maxSeqNo == globalCheckpoint) {
+        try {
+            Engine engine = getEngine(shard);
+            if (engine instanceof InternalEngine == false) {
                 return;
             }
-            CheckedConsumer<Translog.Snapshot, IOException> checkSnapshot = snapshot -> {
-                LocalCheckpointTracker checkpointTracker = new LocalCheckpointTracker(commitInfo.maxSeqNo, commitInfo.localCheckpoint + 1);
-                Translog.Operation op;
-                while ((op = snapshot.next()) != null) {
-                    checkpointTracker.markSeqNoAsCompleted(op.seqNo());
+            Translog translog = getTranslog(shard);
+            try (Closeable ignored = translog.acquireRetentionLock();
+                 Engine.IndexCommitRef safeCommitRef = engine.acquireSafeIndexCommit()) {
+                SequenceNumbers.CommitInfo commitInfo =
+                    SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommitRef.getIndexCommit().getUserData().entrySet());
+                long globalCheckpoint = shard.getLastSyncedGlobalCheckpoint();
+                assertThat(commitInfo.localCheckpoint, lessThanOrEqualTo(commitInfo.maxSeqNo));
+                assertThat(commitInfo.maxSeqNo, lessThanOrEqualTo(globalCheckpoint));
+                if (commitInfo.maxSeqNo == globalCheckpoint) {
+                    return;
                 }
-                assertThat(shard.routingEntry() + " commit [" + safeCommitRef.getIndexCommit().getUserData() + "]",
-                    checkpointTracker.getCheckpoint(), greaterThanOrEqualTo(globalCheckpoint));
-            };
-            try (Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshotFromMinSeqNo(commitInfo.localCheckpoint + 1)) {
-                checkSnapshot.accept(translogSnapshot);
-            }
-            if (shard.indexSettings.isSoftDeleteEnabled()) {
-                try (Translog.Snapshot luceneSnapshot =
-                         shard.newChangesSnapshot("test", commitInfo.localCheckpoint + 1, globalCheckpoint, true)) {
-                    checkSnapshot.accept(luceneSnapshot);
+                CheckedConsumer<Translog.Snapshot, IOException> checkSnapshot = snapshot -> {
+                    LocalCheckpointTracker checkpointTracker =
+                        new LocalCheckpointTracker(commitInfo.maxSeqNo, commitInfo.localCheckpoint + 1);
+                    Translog.Operation op;
+                    while ((op = snapshot.next()) != null) {
+                        checkpointTracker.markSeqNoAsCompleted(op.seqNo());
+                    }
+                    assertThat(shard.routingEntry() + " commit [" + safeCommitRef.getIndexCommit().getUserData() + "]",
+                        checkpointTracker.getCheckpoint(), greaterThanOrEqualTo(globalCheckpoint));
+                };
+                try (Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshotFromMinSeqNo(commitInfo.localCheckpoint + 1)) {
+                    checkSnapshot.accept(translogSnapshot);
+                }
+                if (shard.indexSettings.isSoftDeleteEnabled()) {
+                    try (Translog.Snapshot luceneSnapshot =
+                             shard.newChangesSnapshot("test", commitInfo.localCheckpoint + 1, globalCheckpoint, true)) {
+                        checkSnapshot.accept(luceneSnapshot);
+                    }
                 }
             }
-        } catch (AlreadyClosedException ignored) {
+        } catch (AlreadyClosedException e) {
 
         }
     }

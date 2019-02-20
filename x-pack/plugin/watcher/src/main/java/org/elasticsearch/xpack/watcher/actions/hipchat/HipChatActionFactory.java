@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.hipchat;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
@@ -18,6 +19,7 @@ public class HipChatActionFactory extends ActionFactory {
 
     private final TextTemplateEngine templateEngine;
     private final HipChatService hipchatService;
+    private final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(HipChatActionFactory.class));
 
     public HipChatActionFactory(TextTemplateEngine templateEngine, HipChatService hipchatService) {
         super(LogManager.getLogger(ExecutableHipChatAction.class));
@@ -27,6 +29,7 @@ public class HipChatActionFactory extends ActionFactory {
 
     @Override
     public ExecutableHipChatAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
+        deprecationLogger.deprecatedAndMaybeLog("hipchat_action", "hipchat actions are deprecated and will be removed in 7.0");
         HipChatAction action = HipChatAction.parse(watchId, actionId, parser);
         HipChatAccount account = hipchatService.getAccount(action.account);
         account.validateParsedTemplate(watchId, actionId, action.message);

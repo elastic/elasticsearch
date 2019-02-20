@@ -43,7 +43,6 @@ public final class FollowInfoResponse {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), FollowerInfo.PARSER, FOLLOWER_INDICES_FIELD);
     }
 
-
     public static FollowInfoResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }

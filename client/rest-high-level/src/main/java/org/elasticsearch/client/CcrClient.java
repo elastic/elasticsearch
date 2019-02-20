@@ -496,5 +496,4 @@ public final class CcrClient {
             Collections.emptySet()
         );
     }
-
 }

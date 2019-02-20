@@ -18,7 +18,11 @@ import java.util.Properties;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.CONNECT_TIMEOUT;
+import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.NETWORK_TIMEOUT;
+import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.PAGE_SIZE;
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.PAGE_TIMEOUT;
+import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.PROPERTIES_VALIDATION;
+import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.QUERY_TIMEOUT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -69,7 +73,7 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testTypeInParam() throws Exception {
         Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://a:1/foo/bar/tar?debug=true&debug.out=jdbc.out"));
-        assertEquals("Unknown parameter [debug.out] ; did you mean [debug.output]", e.getMessage());
+        assertEquals("Unknown parameter [debug.out]; did you mean [debug.output]", e.getMessage());
     }
 
     public void testDebugOutWithSuffix() throws Exception {
@@ -112,6 +116,66 @@ public class JdbcConfigurationTests extends ESTestCase {
     public void testHttpWithSSLDisabledFromPropertyAndEnabledFromProtocol() throws Exception {
         Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://https://test?ssl=false"));
         assertEquals("Cannot enable SSL: HTTPS protocol being used in the URL and SSL disabled in properties", e.getMessage());
+    }
+    
+    public void testValidatePropertiesDefault() {
+        Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://test:9200?pagee.size=12"));
+        assertEquals("Unknown parameter [pagee.size]; did you mean [page.size]", e.getMessage());
+        
+        e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://test:9200?foo=bar"));
+        assertEquals("Unknown parameter [foo]; did you mean [ssl]", e.getMessage());
+    }
+    
+    public void testValidateProperties() {
+        Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://test:9200?pagee.size=12&validate.properties=true"));
+        assertEquals("Unknown parameter [pagee.size]; did you mean [page.size]", e.getMessage());
+        
+        e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://test:9200?&validate.properties=true&something=some_value"));
+        assertEquals("Unknown parameter [something]; did you mean []", e.getMessage());
+        
+        Properties properties  = new Properties();
+        properties.setProperty(PROPERTIES_VALIDATION, "true");
+        e = expectThrows(JdbcSQLException.class, () -> JdbcConfiguration.create("jdbc:es://test:9200?something=some_value", properties, 0));
+        assertEquals("Unknown parameter [something]; did you mean []", e.getMessage());
+    }
+    
+    public void testNoPropertiesValidation() throws SQLException {
+        JdbcConfiguration ci = ci("jdbc:es://test:9200?pagee.size=12&validate.properties=false");
+        assertEquals(false, ci.validateProperties());
+        
+        // URL properties test
+        long queryTimeout = randomNonNegativeLong();
+        long connectTimeout = randomNonNegativeLong();
+        long networkTimeout = randomNonNegativeLong();
+        long pageTimeout = randomNonNegativeLong();
+        int pageSize = randomIntBetween(0, Integer.MAX_VALUE);
+        
+        ci = ci("jdbc:es://test:9200?validate.properties=false&something=some_value&query.timeout=" + queryTimeout + "&connect.timeout="
+                + connectTimeout + "&network.timeout=" + networkTimeout + "&page.timeout=" + pageTimeout + "&page.size=" + pageSize);
+        assertEquals(false, ci.validateProperties());
+        assertEquals(queryTimeout, ci.queryTimeout());
+        assertEquals(connectTimeout, ci.connectTimeout());
+        assertEquals(networkTimeout, ci.networkTimeout());
+        assertEquals(pageTimeout, ci.pageTimeout());
+        assertEquals(pageSize, ci.pageSize());
+        
+        // Properties test
+        Properties properties  = new Properties();
+        properties.setProperty(PROPERTIES_VALIDATION, "false");
+        properties.put(QUERY_TIMEOUT, Long.toString(queryTimeout));
+        properties.put(PAGE_TIMEOUT, Long.toString(pageTimeout));
+        properties.put(CONNECT_TIMEOUT, Long.toString(connectTimeout));
+        properties.put(NETWORK_TIMEOUT, Long.toString(networkTimeout));
+        properties.put(PAGE_SIZE, Integer.toString(pageSize));
+        
+        // also putting validate.properties in URL to be overriden by the properties value
+        ci = JdbcConfiguration.create("jdbc:es://test:9200?validate.properties=true&something=some_value", properties, 0);
+        assertEquals(false, ci.validateProperties());
+        assertEquals(queryTimeout, ci.queryTimeout());
+        assertEquals(connectTimeout, ci.connectTimeout());
+        assertEquals(networkTimeout, ci.networkTimeout());
+        assertEquals(pageTimeout, ci.pageTimeout());
+        assertEquals(pageSize, ci.pageSize());
     }
 
     public void testTimoutOverride() throws Exception {
@@ -284,6 +348,6 @@ public class JdbcConfigurationTests extends ESTestCase {
     private void assertJdbcSqlException(String wrongSetting, String correctSetting, String url, Properties props) {
         JdbcSQLException ex = expectThrows(JdbcSQLException.class, 
                 () -> JdbcConfiguration.create(url, props, 0));
-        assertEquals("Unknown parameter [" + wrongSetting + "] ; did you mean [" + correctSetting + "]", ex.getMessage());
+        assertEquals("Unknown parameter [" + wrongSetting + "]; did you mean [" + correctSetting + "]", ex.getMessage());
     }
 }

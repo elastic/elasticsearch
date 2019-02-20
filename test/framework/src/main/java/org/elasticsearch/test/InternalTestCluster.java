@@ -207,7 +207,7 @@ public final class InternalTestCluster extends TestCluster {
     static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
 
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
-    private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
+    private final NavigableMap<String, NodeAndClient> nodes = Collections.synchronizedNavigableMap(new TreeMap<>());
 
     private final Set<Path> dataDirToClean = new HashSet<>();
 
@@ -436,8 +436,8 @@ public final class InternalTestCluster extends TestCluster {
         return autoManageMinMasterNodes;
     }
 
-    public synchronized String[] getNodeNames() {
-        return nodes.keySet().toArray(Strings.EMPTY_ARRAY);
+    public String[] getNodeNames() {
+        return currentNodes().keySet().toArray(Strings.EMPTY_ARRAY);
     }
 
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
@@ -687,13 +687,12 @@ public final class InternalTestCluster extends TestCluster {
         Collection<Class<? extends Plugin>> plugins = getPlugins();
         String name = settings.get("node.name");
 
-        if (reuseExisting && nodes.containsKey(name)) {
+        final NodeAndClient nodeAndClient = nodes.get(name);
+        if (reuseExisting && nodeAndClient != null) {
             onTransportServiceStarted.run(); // reusing an existing node implies its transport service already started
-            return nodes.get(name);
-        } else {
-            assert reuseExisting == true || nodes.containsKey(name) == false :
-                    "node name [" + name + "] already exists but not allowed to use it";
+            return nodeAndClient;
         }
+        assert reuseExisting == true || nodeAndClient == null : "node name [" + name + "] already exists but not allowed to use it";
 
         SecureSettings secureSettings = Settings.builder().put(settings).getSecureSettings();
         if (secureSettings instanceof MockSecureSettings) {
@@ -835,7 +834,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Returns a "smart" node client to a random node in the cluster
      */
-    public synchronized Client smartClient() {
+    public Client smartClient() {
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient();
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient();
@@ -1261,7 +1260,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public void beforeIndexDeletion() throws Exception {
+    public synchronized void beforeIndexDeletion() throws Exception {
         // Check that the operations counter on index shard has reached 0.
         // The assumption here is that after a test there are no ongoing write operations.
         // test that have ongoing write operations after the test (for example because ttl is used
@@ -1275,6 +1274,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private void assertSameSyncIdSameDocs() {
+        assert Thread.holdsLock(this);
         Map<String, Long> docsOnShards = new HashMap<>();
         final Collection<NodeAndClient> nodesAndClients = nodes.values();
         for (NodeAndClient nodeAndClient : nodesAndClients) {
@@ -1303,6 +1303,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private void assertNoPendingIndexOperations() throws Exception {
+        assert Thread.holdsLock(this);
         assertBusy(() -> {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
             for (NodeAndClient nodeAndClient : nodesAndClients) {
@@ -1323,6 +1324,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private void assertOpenTranslogReferences() throws Exception {
+        assert Thread.holdsLock(this);
         assertBusy(() -> {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
             for (NodeAndClient nodeAndClient : nodesAndClients) {
@@ -1343,9 +1345,9 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private void assertNoSnapshottedIndexCommit() throws Exception {
+        assert Thread.holdsLock(this);
         assertBusy(() -> {
-            final Collection<NodeAndClient> nodesAndClients = nodes.values();
-            for (NodeAndClient nodeAndClient : nodesAndClients) {
+            for (NodeAndClient nodeAndClient : nodes.values()) {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
@@ -1368,9 +1370,8 @@ public final class InternalTestCluster extends TestCluster {
      * Asserts that the document history in Lucene index is consistent with Translog's on every index shard of the cluster.
      * This assertion might be expensive, thus we prefer not to execute on every test but only interesting tests.
      */
-    public void assertConsistentHistoryBetweenTranslogAndLuceneIndex() throws IOException {
-        final Collection<NodeAndClient> nodesAndClients = nodes.values();
-        for (NodeAndClient nodeAndClient : nodesAndClients) {
+    public synchronized void assertConsistentHistoryBetweenTranslogAndLuceneIndex() throws IOException {
+        for (NodeAndClient nodeAndClient : nodes.values()) {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
@@ -1381,6 +1382,12 @@ public final class InternalTestCluster extends TestCluster {
                     }
                 }
             }
+        }
+    }
+
+    private NavigableMap<String, NodeAndClient> currentNodes() {
+        synchronized (nodes) {
+            return new TreeMap<>(nodes);
         }
     }
 
@@ -1476,6 +1483,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private void randomlyResetClients() {
+        assert Thread.holdsLock(this);
         // only reset the clients on nightly tests, it causes heavy load...
         if (RandomizedTest.isNightly() && rarely(random)) {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
@@ -1519,12 +1527,10 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Returns an Iterable to all instances for the given class &gt;T&lt; across all nodes in the cluster.
      */
-    public synchronized <T> Iterable<T> getInstances(Class<T> clazz) {
-        List<T> instances = new ArrayList<>(nodes.size());
-        for (NodeAndClient nodeAndClient : nodes.values()) {
-            instances.add(getInstanceFromNode(clazz, nodeAndClient.node));
+    public <T> Iterable<T> getInstances(Class<T> clazz) {
+        synchronized (nodes) {
+            return nodes.values().stream().map(node -> getInstanceFromNode(clazz, node.node)).collect(Collectors.toList());
         }
-        return instances;
     }
 
     /**
@@ -1546,8 +1552,8 @@ public final class InternalTestCluster extends TestCluster {
         return getInstances(clazz, DATA_NODE_PREDICATE.or(MASTER_NODE_PREDICATE));
     }
 
-    private synchronized <T> Iterable<T> getInstances(Class<T> clazz, Predicate<NodeAndClient> predicate) {
-        Iterable<NodeAndClient> filteredNodes = nodes.values().stream().filter(predicate)::iterator;
+    private <T> Iterable<T> getInstances(Class<T> clazz, Predicate<NodeAndClient> predicate) {
+        Iterable<NodeAndClient> filteredNodes = currentNodes().values().stream().filter(predicate)::iterator;
         List<T> instances = new ArrayList<>();
         for (NodeAndClient nodeAndClient : filteredNodes) {
             instances.add(getInstanceFromNode(clazz, nodeAndClient.node));
@@ -1588,8 +1594,8 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized int size() {
-        return this.nodes.size();
+    public int size() {
+        return nodes.size();
     }
 
     @Override
@@ -1635,9 +1641,10 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen();
         assert size() > 0;
         String masterNodeName = getMasterName();
-        assert nodes.containsKey(masterNodeName);
+        final NodeAndClient masterNode = nodes.get(masterNodeName);
+        assert masterNode != null;
         logger.info("Closing master node [{}] ", masterNodeName);
-        stopNodesAndClient(nodes.get(masterNodeName));
+        stopNodesAndClient(masterNode);
     }
 
     /**
@@ -1691,19 +1698,21 @@ public final class InternalTestCluster extends TestCluster {
         // cannot be a synchronized method since it's called on other threads from within synchronized startAndPublishNodesAndClients()
         synchronized (discoveryFileMutex) {
             try {
-                Stream<NodeAndClient> unicastHosts = Stream.concat(nodes.values().stream(), newNodes.stream());
-                List<String> discoveryFileContents = unicastHosts.map(
+                synchronized (nodes) {
+                    Stream<NodeAndClient> unicastHosts = Stream.concat(nodes.values().stream(), newNodes.stream());
+                    List<String> discoveryFileContents = unicastHosts.map(
                         nac -> nac.node.injector().getInstance(TransportService.class)
                     ).filter(Objects::nonNull)
-                    .map(TransportService::getLocalNode).filter(Objects::nonNull).filter(DiscoveryNode::isMasterNode)
-                    .map(n -> n.getAddress().toString())
-                    .distinct().collect(Collectors.toList());
-                Set<Path> configPaths = Stream.concat(nodes.values().stream(), newNodes.stream())
-                    .map(nac -> nac.node.getEnvironment().configFile()).collect(Collectors.toSet());
-                logger.debug("configuring discovery with {} at {}", discoveryFileContents, configPaths);
-                for (final Path configPath : configPaths) {
-                    Files.createDirectories(configPath);
-                    Files.write(configPath.resolve(UNICAST_HOSTS_FILE), discoveryFileContents);
+                        .map(TransportService::getLocalNode).filter(Objects::nonNull).filter(DiscoveryNode::isMasterNode)
+                        .map(n -> n.getAddress().toString())
+                        .distinct().collect(Collectors.toList());
+                    Set<Path> configPaths = Stream.concat(nodes.values().stream(), newNodes.stream())
+                        .map(nac -> nac.node.getEnvironment().configFile()).collect(Collectors.toSet());
+                    logger.debug("configuring discovery with {} at {}", discoveryFileContents, configPaths);
+                    for (final Path configPath : configPaths) {
+                        Files.createDirectories(configPath);
+                        Files.write(configPath.resolve(UNICAST_HOSTS_FILE), discoveryFileContents);
+                    }
                 }
             } catch (IOException e) {
                 throw new AssertionError("failed to configure file-based discovery", e);
@@ -1871,7 +1880,7 @@ public final class InternalTestCluster extends TestCluster {
         int numNodesRestarted = 0;
         final Settings[] newNodeSettings = new Settings[nextNodeId.get()];
         Map<Set<Role>, List<NodeAndClient>> nodesByRoles = new HashMap<>();
-        Set[] rolesOrderedByOriginalStartupOrder =  new Set[nextNodeId.get()];
+        Set[] rolesOrderedByOriginalStartupOrder = new Set[nextNodeId.get()];
         final int minMasterNodes = autoManageMinMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1;
         for (NodeAndClient nodeAndClient : nodes.values()) {
             callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
@@ -2213,11 +2222,11 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public int numDataAndMasterNodes() {
-        return filterNodes(nodes, DATA_NODE_PREDICATE.or(MASTER_NODE_PREDICATE)).size();
+        return filterNodes(currentNodes(), DATA_NODE_PREDICATE.or(MASTER_NODE_PREDICATE)).size();
     }
 
     public int numMasterNodes() {
-      return filterNodes(nodes, NodeAndClient::isMasterEligible).size();
+      return filterNodes(currentNodes(), NodeAndClient::isMasterEligible).size();
     }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
@@ -2258,11 +2267,11 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private synchronized Collection<NodeAndClient> dataNodeAndClients() {
-        return filterNodes(nodes, DATA_NODE_PREDICATE);
+    private Collection<NodeAndClient> dataNodeAndClients() {
+        return filterNodes(currentNodes(), DATA_NODE_PREDICATE);
     }
 
-    private synchronized Collection<NodeAndClient> filterNodes(Map<String, InternalTestCluster.NodeAndClient> map,
+    private static Collection<NodeAndClient> filterNodes(Map<String, InternalTestCluster.NodeAndClient> map,
             Predicate<NodeAndClient> predicate) {
         return map
             .values()
@@ -2394,7 +2403,7 @@ public final class InternalTestCluster extends TestCluster {
             // Checks that the breakers have been reset without incurring a
             // network request, because a network request can increment one
             // of the breakers
-            for (NodeAndClient nodeAndClient : nodes.values()) {
+            for (NodeAndClient nodeAndClient : currentNodes().values()) {
                 final IndicesFieldDataCache fdCache =
                         getInstanceFromNode(IndicesService.class, nodeAndClient.node).getIndicesFieldDataCache();
                 // Clean up the cache, ensuring that entries' listeners have been called

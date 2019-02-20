@@ -206,8 +206,8 @@ public final class InternalTestCluster extends TestCluster {
     static final int DEFAULT_MIN_NUM_CLIENT_NODES = 0;
     static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
 
-    /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
-    private final NavigableMap<String, NodeAndClient> nodes = Collections.synchronizedNavigableMap(new TreeMap<>());
+    /* sorted map to make traverse order reproducible.*/
+    private volatile NavigableMap<String, NodeAndClient> nodes = Collections.emptyNavigableMap();
 
     private final Set<Path> dataDirToClean = new HashSet<>();
 
@@ -437,7 +437,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public String[] getNodeNames() {
-        return currentNodes().keySet().toArray(Strings.EMPTY_ARRAY);
+        return nodes.keySet().toArray(Strings.EMPTY_ARRAY);
     }
 
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
@@ -852,7 +852,7 @@ public final class InternalTestCluster extends TestCluster {
             try {
                 IOUtils.close(nodes.values());
             } finally {
-                nodes.clear();
+                nodes = Collections.emptyNavigableMap();
                 executor.shutdownNow();
             }
         }
@@ -1385,12 +1385,6 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private NavigableMap<String, NodeAndClient> currentNodes() {
-        synchronized (nodes) {
-            return new TreeMap<>(nodes);
-        }
-    }
-
     private IndexShard getShardOrNull(ClusterState clusterState, ShardRouting shardRouting) {
         if (shardRouting == null || shardRouting.assignedToNode() == false) {
             return null;
@@ -1528,9 +1522,7 @@ public final class InternalTestCluster extends TestCluster {
      * Returns an Iterable to all instances for the given class &gt;T&lt; across all nodes in the cluster.
      */
     public <T> Iterable<T> getInstances(Class<T> clazz) {
-        synchronized (nodes) {
-            return nodes.values().stream().map(node -> getInstanceFromNode(clazz, node.node)).collect(Collectors.toList());
-        }
+        return nodes.values().stream().map(node -> getInstanceFromNode(clazz, node.node)).collect(Collectors.toList());
     }
 
     /**
@@ -1553,7 +1545,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private <T> Iterable<T> getInstances(Class<T> clazz, Predicate<NodeAndClient> predicate) {
-        Iterable<NodeAndClient> filteredNodes = currentNodes().values().stream().filter(predicate)::iterator;
+        Iterable<NodeAndClient> filteredNodes = nodes.values().stream().filter(predicate)::iterator;
         List<T> instances = new ArrayList<>();
         for (NodeAndClient nodeAndClient : filteredNodes) {
             instances.add(getInstanceFromNode(clazz, nodeAndClient.node));
@@ -1698,21 +1690,20 @@ public final class InternalTestCluster extends TestCluster {
         // cannot be a synchronized method since it's called on other threads from within synchronized startAndPublishNodesAndClients()
         synchronized (discoveryFileMutex) {
             try {
-                synchronized (nodes) {
-                    Stream<NodeAndClient> unicastHosts = Stream.concat(nodes.values().stream(), newNodes.stream());
-                    List<String> discoveryFileContents = unicastHosts.map(
-                        nac -> nac.node.injector().getInstance(TransportService.class)
-                    ).filter(Objects::nonNull)
-                        .map(TransportService::getLocalNode).filter(Objects::nonNull).filter(DiscoveryNode::isMasterNode)
-                        .map(n -> n.getAddress().toString())
-                        .distinct().collect(Collectors.toList());
-                    Set<Path> configPaths = Stream.concat(nodes.values().stream(), newNodes.stream())
-                        .map(nac -> nac.node.getEnvironment().configFile()).collect(Collectors.toSet());
-                    logger.debug("configuring discovery with {} at {}", discoveryFileContents, configPaths);
-                    for (final Path configPath : configPaths) {
-                        Files.createDirectories(configPath);
-                        Files.write(configPath.resolve(UNICAST_HOSTS_FILE), discoveryFileContents);
-                    }
+                final Collection<NodeAndClient> currentNodes = nodes.values();
+                Stream<NodeAndClient> unicastHosts = Stream.concat(currentNodes.stream(), newNodes.stream());
+                List<String> discoveryFileContents = unicastHosts.map(
+                    nac -> nac.node.injector().getInstance(TransportService.class)
+                ).filter(Objects::nonNull)
+                    .map(TransportService::getLocalNode).filter(Objects::nonNull).filter(DiscoveryNode::isMasterNode)
+                    .map(n -> n.getAddress().toString())
+                    .distinct().collect(Collectors.toList());
+                Set<Path> configPaths = Stream.concat(currentNodes.stream(), newNodes.stream())
+                    .map(nac -> nac.node.getEnvironment().configFile()).collect(Collectors.toSet());
+                logger.debug("configuring discovery with {} at {}", discoveryFileContents, configPaths);
+                for (final Path configPath : configPaths) {
+                    Files.createDirectories(configPath);
+                    Files.write(configPath.resolve(UNICAST_HOSTS_FILE), discoveryFileContents);
                 }
             } catch (IOException e) {
                 throw new AssertionError("failed to configure file-based discovery", e);
@@ -1729,7 +1720,9 @@ public final class InternalTestCluster extends TestCluster {
 
         for (NodeAndClient nodeAndClient: nodeAndClients) {
             removeDisruptionSchemeFromNode(nodeAndClient);
-            NodeAndClient previous = nodes.remove(nodeAndClient.name);
+            final NavigableMap<String, NodeAndClient> newNodes = new TreeMap<>(nodes);
+            final NodeAndClient previous = newNodes.remove(nodeAndClient.name);
+            nodes = Collections.unmodifiableNavigableMap(newNodes);
             assert previous == nodeAndClient;
             nodeAndClient.close();
         }
@@ -1787,6 +1780,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private void restartNode(NodeAndClient nodeAndClient, RestartCallback callback) throws Exception {
+        assert Thread.holdsLock(this);
         logger.info("Restarting node [{}] ", nodeAndClient.name);
 
         if (activeDisruptionScheme != null) {
@@ -1806,8 +1800,11 @@ public final class InternalTestCluster extends TestCluster {
             nodeAndClient.startNode();
             success = true;
         } finally {
-            if (success == false)
-                nodes.remove(nodeAndClient.name);
+            if (success == false) {
+                final NavigableMap<String, NodeAndClient> newNodes = new TreeMap<>(nodes);
+                newNodes.remove(nodeAndClient.name);
+                nodes = Collections.unmodifiableNavigableMap(newNodes);
+            }
         }
 
         if (activeDisruptionScheme != null) {
@@ -2140,12 +2137,10 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public List<String> startDataOnlyNodes(int numNodes) {
-        Settings settings1 = Settings.builder()
-            .put(Settings.EMPTY)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .put(Node.NODE_DATA_SETTING.getKey(), true)
-            .build();
-        return startNodes(numNodes, settings1);
+        return startNodes(
+            numNodes,
+            Settings.builder().put(Settings.EMPTY).put(Node.NODE_MASTER_SETTING.getKey(), false)
+                .put(Node.NODE_DATA_SETTING.getKey(), true).build());
     }
 
     /**
@@ -2176,7 +2171,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private int getMasterNodesCount() {
-        return (int)nodes.values().stream().filter(n -> Node.NODE_MASTER_SETTING.get(n.node().settings())).count();
+        return (int) nodes.values().stream().filter(n -> Node.NODE_MASTER_SETTING.get(n.node().settings())).count();
     }
 
     public String startMasterOnlyNode() {
@@ -2207,7 +2202,9 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized void publishNode(NodeAndClient nodeAndClient) {
         assert !nodeAndClient.node().isClosed();
-        nodes.put(nodeAndClient.name, nodeAndClient);
+        final NavigableMap<String, NodeAndClient> newNodes = new TreeMap<>(nodes);
+        newNodes.put(nodeAndClient.name, nodeAndClient);
+        nodes = Collections.unmodifiableNavigableMap(newNodes);
         applyDisruptionSchemeToNode(nodeAndClient);
     }
 
@@ -2222,11 +2219,11 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public int numDataAndMasterNodes() {
-        return filterNodes(currentNodes(), DATA_NODE_PREDICATE.or(MASTER_NODE_PREDICATE)).size();
+        return filterNodes(nodes, DATA_NODE_PREDICATE.or(MASTER_NODE_PREDICATE)).size();
     }
 
     public int numMasterNodes() {
-      return filterNodes(currentNodes(), NodeAndClient::isMasterEligible).size();
+      return filterNodes(nodes, NodeAndClient::isMasterEligible).size();
     }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
@@ -2268,7 +2265,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private Collection<NodeAndClient> dataNodeAndClients() {
-        return filterNodes(currentNodes(), DATA_NODE_PREDICATE);
+        return filterNodes(nodes, DATA_NODE_PREDICATE);
     }
 
     private static Collection<NodeAndClient> filterNodes(Map<String, InternalTestCluster.NodeAndClient> map,
@@ -2403,7 +2400,7 @@ public final class InternalTestCluster extends TestCluster {
             // Checks that the breakers have been reset without incurring a
             // network request, because a network request can increment one
             // of the breakers
-            for (NodeAndClient nodeAndClient : currentNodes().values()) {
+            for (NodeAndClient nodeAndClient : nodes.values()) {
                 final IndicesFieldDataCache fdCache =
                         getInstanceFromNode(IndicesService.class, nodeAndClient.node).getIndicesFieldDataCache();
                 // Clean up the cache, ensuring that entries' listeners have been called

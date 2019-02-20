@@ -91,9 +91,10 @@ public class UnfollowAction extends Action<UnfollowAction.Response> {
         }
 
         public Response(
+                final boolean acknowledged,
                 final boolean retentionLeasesRemoved,
                 final Exception retentionLeasesRemovalFailureCause) {
-            super(true);
+            super(acknowledged);
             this.retentionLeasesRemoved = retentionLeasesRemoved;
             if (retentionLeasesRemoved && retentionLeasesRemovalFailureCause != null) {
                 throw new IllegalArgumentException(
@@ -110,12 +111,15 @@ public class UnfollowAction extends Action<UnfollowAction.Response> {
             super.readFrom(in);
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
                 retentionLeasesRemoved = in.readBoolean();
-                // noinspection StatementWithEmptyBody
                 if (retentionLeasesRemoved) {
-
+                    retentionLeasesRemovalFailureCause = null;
                 } else {
                     retentionLeasesRemovalFailureCause = in.readException();
                 }
+            } else {
+                // the response is from an old version that did not attempt to remove retention leases, treat as success
+                retentionLeasesRemoved = true;
+                retentionLeasesRemovalFailureCause = null;
             }
         }
 

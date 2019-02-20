@@ -119,7 +119,7 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                                         "[{}] removed retention lease [{}] on all leader primary shards",
                                         indexMetaData.getIndex(),
                                         retentionLeaseId);
-                                listener.onResponse(new UnfollowAction.Response(true, null));
+                                listener.onResponse(new UnfollowAction.Response(true, true, null));
                             }
 
                             @Override
@@ -129,7 +129,7 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                                         indexMetaData.getIndex(),
                                         retentionLeaseId),
                                         e);
-                                listener.onResponse(new UnfollowAction.Response(false, e));
+                                listener.onResponse(new UnfollowAction.Response(true, false, e));
                             }
 
                         },

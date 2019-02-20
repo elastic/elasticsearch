@@ -44,6 +44,7 @@ import org.elasticsearch.client.ccr.PutFollowRequest;
 import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
+import org.elasticsearch.client.ccr.UnfollowResponse;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
@@ -177,7 +178,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(closeIndexReponse.isAcknowledged(), is(true));
 
         UnfollowRequest unfollowRequest = new UnfollowRequest("follower");
-        AcknowledgedResponse unfollowResponse = execute(unfollowRequest, ccrClient::unfollow, ccrClient::unfollowAsync);
+        UnfollowResponse unfollowResponse = execute(unfollowRequest, ccrClient::unfollow, ccrClient::unfollowAsync);
         assertThat(unfollowResponse.isAcknowledged(), is(true));
     }
 

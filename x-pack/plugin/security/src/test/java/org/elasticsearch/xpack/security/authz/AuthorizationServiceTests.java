@@ -262,6 +262,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 "indices:admin/seq_no/retention_lease_sync",
                 "indices:admin/seq_no/retention_lease_background_sync",
                 "indices:admin/seq_no/add_retention_lease",
+                "indices:admin/seq_no/remove_retention_lease",
                 "indices:admin/seq_no/renew_retention_lease",
                 "indices:admin/settings/update" };
         for (String action : actions) {

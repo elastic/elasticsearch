@@ -19,8 +19,8 @@
 
 package org.elasticsearch.repositories.s3;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -155,8 +155,6 @@ class S3Repository extends BlobStoreRepository {
 
     private final ByteSizeValue chunkSize;
 
-    private final boolean compress;
-
     private final BlobPath basePath;
 
     private final boolean serverSideEncryption;
@@ -174,7 +172,7 @@ class S3Repository extends BlobStoreRepository {
                  final Settings settings,
                  final NamedXContentRegistry namedXContentRegistry,
                  final S3Service service) {
-        super(metadata, settings, namedXContentRegistry);
+        super(metadata, settings, COMPRESS_SETTING.get(metadata.settings()), namedXContentRegistry);
         this.service = service;
 
         this.repositoryMetaData = metadata;
@@ -187,7 +185,6 @@ class S3Repository extends BlobStoreRepository {
 
         this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
         this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
-        this.compress = COMPRESS_SETTING.get(metadata.settings());
 
         // We make sure that chunkSize is bigger or equal than/to bufferSize
         if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
@@ -243,11 +240,6 @@ class S3Repository extends BlobStoreRepository {
     @Override
     protected BlobPath basePath() {
         return basePath;
-    }
-
-    @Override
-    protected boolean isCompress() {
-        return compress;
     }
 
     @Override

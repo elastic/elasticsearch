@@ -1711,9 +1711,7 @@ public final class InternalTestCluster extends TestCluster {
 
         for (NodeAndClient nodeAndClient: nodeAndClients) {
             removeDisruptionSchemeFromNode(nodeAndClient);
-            final NavigableMap<String, NodeAndClient> newNodes = new TreeMap<>(nodes);
-            final NodeAndClient previous = newNodes.remove(nodeAndClient.name);
-            nodes = Collections.unmodifiableNavigableMap(newNodes);
+            final NodeAndClient previous = removeNode(nodeAndClient);
             assert previous == nodeAndClient;
             nodeAndClient.close();
         }
@@ -1792,9 +1790,7 @@ public final class InternalTestCluster extends TestCluster {
             success = true;
         } finally {
             if (success == false) {
-                final NavigableMap<String, NodeAndClient> newNodes = new TreeMap<>(nodes);
-                newNodes.remove(nodeAndClient.name);
-                nodes = Collections.unmodifiableNavigableMap(newNodes);
+                removeNode(nodeAndClient);
             }
         }
 
@@ -1813,6 +1809,13 @@ public final class InternalTestCluster extends TestCluster {
         if (excludedNodeIds.isEmpty() == false) {
             updateMinMasterNodes(getMasterNodesCount());
         }
+    }
+
+    private NodeAndClient removeNode(NodeAndClient nodeAndClient) {
+        final NavigableMap<String, NodeAndClient> newNodes = new TreeMap<>(nodes);
+        final NodeAndClient previous = newNodes.remove(nodeAndClient.name);
+        nodes = Collections.unmodifiableNavigableMap(newNodes);
+        return previous;
     }
 
     private Set<String> excludeMasters(Collection<NodeAndClient> nodeAndClients) {

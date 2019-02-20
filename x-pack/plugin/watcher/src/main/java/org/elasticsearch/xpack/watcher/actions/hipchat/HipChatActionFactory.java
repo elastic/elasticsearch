@@ -29,7 +29,7 @@ public class HipChatActionFactory extends ActionFactory {
 
     @Override
     public ExecutableHipChatAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
-        deprecationLogger.deprecated("hipchat actions are deprecated and will be removed in 7.0");
+        deprecationLogger.deprecatedAndMaybeLog("hipchat_action", "hipchat actions are deprecated and will be removed in 7.0");
         HipChatAction action = HipChatAction.parse(watchId, actionId, parser);
         HipChatAccount account = hipchatService.getAccount(action.account);
         account.validateParsedTemplate(watchId, actionId, action.message);

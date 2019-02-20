@@ -3162,4 +3162,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void verifyShardBeforeIndexClosing() throws IllegalStateException {
         getEngine().verifyEngineBeforeIndexClosing();
     }
+
+    RetentionLeaseSyncer getRetentionLeaseSyncer() {
+        return retentionLeaseSyncer;
+    }
 }

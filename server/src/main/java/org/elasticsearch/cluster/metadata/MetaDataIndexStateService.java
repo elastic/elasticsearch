@@ -52,6 +52,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -90,6 +92,8 @@ public class MetaDataIndexStateService {
     public static final int INDEX_CLOSED_BLOCK_ID = 4;
     public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false,
         false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE);
+    public static final Setting<Boolean> INDEX_CLOSED_SETTING =
+        Setting.boolSetting("index.closed", false, Setting.Property.IndexScope, Setting.Property.PrivateIndex);
 
     private final ClusterService clusterService;
     private final AllocationService allocationService;
@@ -402,15 +406,22 @@ public class MetaDataIndexStateService {
                     continue;
                 }
 
-                logger.debug("closing index {} succeeded", index);
-                metadata.put(IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE));
                 blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
                 blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
+                final IndexMetaData.Builder updatedMetaData = IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE);
                 if (removeRoutingTable) {
+                    metadata.put(updatedMetaData);
                     routingTable.remove(index.getName());
                 } else {
+                    metadata.put(updatedMetaData
+                        .settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                        .settings(Settings.builder()
+                            .put(indexMetaData.getSettings())
+                            .put(INDEX_CLOSED_SETTING.getKey(), true)));
                     routingTable.addAsFromOpenToClose(metadata.getSafe(index));
                 }
+
+                logger.debug("closing index {} succeeded", index);
                 closedIndices.add(index.getName());
             } catch (final IndexNotFoundException e) {
                 logger.debug("index {} has been deleted since it was blocked before closing, ignoring", index);
@@ -490,7 +501,15 @@ public class MetaDataIndexStateService {
         for (IndexMetaData indexMetaData : indicesToOpen) {
             final Index index = indexMetaData.getIndex();
             if (indexMetaData.getState() != IndexMetaData.State.OPEN) {
-                IndexMetaData updatedIndexMetaData = IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.OPEN).build();
+                final Settings.Builder updatedSettings = Settings.builder().put(indexMetaData.getSettings());
+                updatedSettings.remove(INDEX_CLOSED_SETTING.getKey());
+
+                IndexMetaData updatedIndexMetaData = IndexMetaData.builder(indexMetaData)
+                    .state(IndexMetaData.State.OPEN)
+                    .settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                    .settings(updatedSettings)
+                    .build();
+
                 // The index might be closed because we couldn't import it due to old incompatible version
                 // We need to check that this index can be upgraded to the current version
                 updatedIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(updatedIndexMetaData, minIndexCompatibilityVersion);
@@ -554,4 +573,8 @@ public class MetaDataIndexStateService {
             EnumSet.of(ClusterBlockLevel.WRITE));
     }
 
+    public static boolean isIndexMetaDataClosed(final IndexMetaData indexMetaData) {
+        return indexMetaData.getState() == IndexMetaData.State.CLOSE
+            && indexMetaData.getSettings().getAsBoolean(INDEX_CLOSED_SETTING.getKey(), false);
+    }
 }

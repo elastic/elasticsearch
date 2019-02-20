@@ -308,7 +308,10 @@ public class CloseIndexIT extends ESIntegTestCase {
     static void assertIndexIsClosed(final String... indices) {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         for (String index : indices) {
-            assertThat(clusterState.metaData().indices().get(index).getState(), is(IndexMetaData.State.CLOSE));
+            final IndexMetaData indexMetaData = clusterState.metaData().indices().get(index);
+            assertThat(indexMetaData.getState(), is(IndexMetaData.State.CLOSE));
+            assertThat(indexMetaData.getSettings().hasValue(MetaDataIndexStateService.INDEX_CLOSED_SETTING.getKey()), is(true));
+            assertThat(indexMetaData.getSettings().getAsBoolean(MetaDataIndexStateService.INDEX_CLOSED_SETTING.getKey(), false), is(true));
             assertThat(clusterState.routingTable().index(index), notNullValue());
             assertThat(clusterState.blocks().hasIndexBlock(index, MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
             assertThat("Index " + index + " must have only 1 block with [id=" + MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
@@ -320,7 +323,9 @@ public class CloseIndexIT extends ESIntegTestCase {
     static void assertIndexIsOpened(final String... indices) {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         for (String index : indices) {
-            assertThat(clusterState.metaData().indices().get(index).getState(), is(IndexMetaData.State.OPEN));
+            final IndexMetaData indexMetaData = clusterState.metaData().indices().get(index);
+            assertThat(indexMetaData.getState(), is(IndexMetaData.State.OPEN));
+            assertThat(indexMetaData.getSettings().hasValue(MetaDataIndexStateService.INDEX_CLOSED_SETTING.getKey()), is(false));
             assertThat(clusterState.routingTable().index(index), notNullValue());
             assertThat(clusterState.blocks().hasIndexBlock(index, MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(false));
         }

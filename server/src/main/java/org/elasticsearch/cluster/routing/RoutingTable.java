@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -499,9 +500,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         public Builder addAsRecovery(IndexMetaData indexMetaData) {
-            if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
+            if (indexMetaData.getState() == IndexMetaData.State.OPEN || MetaDataIndexStateService.isIndexMetaDataClosed(indexMetaData)) {
                 IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
-                        .initializeAsRecovery(indexMetaData);
+                    .initializeAsRecovery(indexMetaData);
                 add(indexRoutingBuilder);
             }
             return this;
@@ -526,7 +527,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         public Builder addAsFromOpenToClose(IndexMetaData indexMetaData) {
-            assert indexMetaData.getState() == IndexMetaData.State.CLOSE;
+            assert MetaDataIndexStateService.isIndexMetaDataClosed(indexMetaData);
             IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
                 .initializeAsFromOpenToClose(indexMetaData);
             return add(indexRoutingBuilder);

@@ -48,7 +48,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
@@ -344,7 +344,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertAcked(xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest(index)));
         assertIndexFrozen(index);
         assertThat(client().admin().cluster().prepareState().get().getState().metaData().index(index).getSettingsVersion(),
-            equalTo(settingsVersion + 1));
+            greaterThan(settingsVersion));
     }
 
     public void testFreezeEmptyIndexWithTranslogOps() throws Exception {

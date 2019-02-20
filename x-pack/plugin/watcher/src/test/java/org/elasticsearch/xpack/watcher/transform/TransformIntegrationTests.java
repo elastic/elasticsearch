@@ -15,6 +15,7 @@ import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -156,7 +157,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37882")
+    @TestLogging("org.elasticsearch.xpack.watcher:DEBUG")
     public void testSearchTransform() throws Exception {
         createIndex("my-condition-index", "my-payload-index");
         ensureGreen("my-condition-index", "my-payload-index");

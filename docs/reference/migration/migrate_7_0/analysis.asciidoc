@@ -43,7 +43,8 @@ but it will not be possible to create new indexes using it.
 [float]
 ==== The deprecated `nGram` and `edgeNGram` token filter cannot be used on new indices
 
-The `nGram` and `edgeNGram` token filter names have been deprecated since version 6.4.
-Indexes created using these token filters will still be readable in elasticsearch 7.0.
-Using them on new indices from version 7.0.0 on however will throw an error when indexing
+The `nGram` and `edgeNGram` token filter names have been deprecated in an earlier 6.x version.
+Indexes created using these token filters will still be readable in elasticsearch 7.0 but indexing
+documents using those filter names will issue a deprecation warning. Using the deprecated names on
+new indices starting with version 7.0.0 on will be prohibited and throw an error when indexing
 or analyzing documents. Both names should be replaces by `ngram` or `edge_ngram` respectively.

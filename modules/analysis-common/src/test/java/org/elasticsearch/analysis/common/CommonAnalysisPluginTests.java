@@ -41,11 +41,12 @@ import java.util.Map;
 public class CommonAnalysisPluginTests extends ESTestCase {
 
     /**
-     * Check that the deprecated name "nGram" issues a deprecation warning for indices created since 6.3.0
+     * Check that the deprecated name "nGram" issues a deprecation warning for indices created since 6.0.0
      */
     public void testNGramDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, Version.V_6_7_0))
+                .put(IndexMetaData.SETTING_VERSION_CREATED,
+                        VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
                 .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
@@ -84,31 +85,12 @@ public class CommonAnalysisPluginTests extends ESTestCase {
     }
 
     /**
-     * Check that the deprecated name "nGram" does NOT issues a deprecation warning for indices created before 6.4.0
-     */
-    public void testNGramNoDeprecationWarningPre6_4() throws IOException {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(IndexMetaData.SETTING_VERSION_CREATED,
-                        VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_3_0))
-                .build();
-
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            Map<String, TokenFilterFactory> tokenFilters = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).tokenFilter;
-            TokenFilterFactory tokenFilterFactory = tokenFilters.get("nGram");
-            Tokenizer tokenizer = new MockTokenizer();
-            tokenizer.setReader(new StringReader("foo bar"));
-            assertNotNull(tokenFilterFactory.create(tokenizer));
-        }
-    }
-
-
-    /**
-     * Check that the deprecated name "edgeNGram" issues a deprecation warning for indices created since 6.3.0
+     * Check that the deprecated name "edgeNGram" issues a deprecation warning for indices created since 6.0.0
      */
     public void testEdgeNGramDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, Version.V_6_7_0))
+                .put(IndexMetaData.SETTING_VERSION_CREATED,
+                        VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
                 .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
@@ -145,26 +127,6 @@ public class CommonAnalysisPluginTests extends ESTestCase {
                     ex.getMessage());
         }
     }
-
-    /**
-     * Check that the deprecated name "edgeNGram" does NOT issues a deprecation warning for indices created before 6.4.0
-     */
-    public void testEdgeNGramNoDeprecationWarningPre6_4() throws IOException {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(IndexMetaData.SETTING_VERSION_CREATED,
-                        VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_3_0))
-                .build();
-
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            Map<String, TokenFilterFactory> tokenFilters = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).tokenFilter;
-            TokenFilterFactory tokenFilterFactory = tokenFilters.get("edgeNGram");
-            Tokenizer tokenizer = new MockTokenizer();
-            tokenizer.setReader(new StringReader("foo bar"));
-            assertNotNull(tokenFilterFactory.create(tokenizer));
-        }
-    }
-
 
     /**
      * Check that the deprecated analyzer name "standard_html_strip" throws exception for indices created since 7.0.0

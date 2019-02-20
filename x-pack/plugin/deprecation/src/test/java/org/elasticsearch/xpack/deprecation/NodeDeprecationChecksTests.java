@@ -184,7 +184,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testWatcherHipchatSettings() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Watcher Hipchat notifications will be removed in the next major release",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#watcher-notifications-account-settings",
             "[hipchat] actions are deprecated and should be removed from watch definitions");
         assertSettingsAndIssues(Settings.builder().put("xpack.notification.hipchat.account.profile", randomAlphaOfLength(4)).build(),

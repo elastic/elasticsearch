@@ -28,7 +28,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -58,7 +57,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -70,7 +68,6 @@ public class TestSearchContext extends SearchContext {
     final BigArrays bigArrays;
     final IndexService indexService;
     final BitsetFilterCache fixedBitSetFilterCache;
-    final ThreadPool threadPool;
     final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     final IndexShard indexShard;
     final Counter timeEstimateCounter = Counter.newCounter();
@@ -94,11 +91,10 @@ public class TestSearchContext extends SearchContext {
     private final long originNanoTime = System.nanoTime();
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
-    public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, IndexService indexService) {
+    public TestSearchContext(BigArrays bigArrays, IndexService indexService) {
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
-        this.threadPool = threadPool;
         this.indexShard = indexService.getShardOrNull(0);
         queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L, null);
     }
@@ -110,7 +106,6 @@ public class TestSearchContext extends SearchContext {
     public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard) {
         this.bigArrays = null;
         this.indexService = null;
-        this.threadPool = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = indexShard;
         this.queryShardContext = queryShardContext;
@@ -267,10 +262,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public ContextIndexSearcher searcher() {
         return searcher;
-    }
-
-    public void setSearcher(Engine.Searcher searcher) {
-        this.searcher = new ContextIndexSearcher(searcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
     }
 
     @Override

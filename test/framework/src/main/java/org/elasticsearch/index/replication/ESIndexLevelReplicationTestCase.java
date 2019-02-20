@@ -67,6 +67,10 @@ import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
+import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
@@ -177,9 +181,25 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 }
             });
 
+        private final RetentionLeaseSyncer retentionLeaseSyncer = new RetentionLeaseSyncer() {
+            @Override
+            public void sync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<ReplicationResponse> listener) {
+                syncRetentionLeases(shardId, retentionLeases, listener);
+            }
+
+            @Override
+            public void backgroundSync(ShardId shardId, RetentionLeases retentionLeases) {
+                sync(shardId, retentionLeases, ActionListener.wrap(
+                    r -> { },
+                    e -> {
+                        throw new AssertionError("failed to backgroun sync retention lease", e);
+                    }));
+            }
+        };
+
         protected ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            primary = newShard(primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting), () -> {});
+            primary = newShard(primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);
             replicas = new CopyOnWriteArrayList<>();
             this.indexMetaData = indexMetaData;
             updateAllocationIDsOnPrimary();
@@ -284,7 +304,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public IndexShard addReplica() throws IOException {
             final ShardRouting replicaRouting = createShardRouting("s" + replicaId.incrementAndGet(), false);
             final IndexShard replica =
-                newShard(replicaRouting, indexMetaData, null, getEngineFactory(replicaRouting), () -> {});
+                newShard(replicaRouting, indexMetaData, null, getEngineFactory(replicaRouting), () -> {}, retentionLeaseSyncer);
             addReplica(replica);
             return replica;
         }
@@ -315,7 +335,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
             final IndexShard newReplica =
                     newShard(shardRouting, shardPath, indexMetaData, null, null, getEngineFactory(shardRouting),
-                            () -> {}, EMPTY_EVENT_LISTENER);
+                            () -> {}, retentionLeaseSyncer, EMPTY_EVENT_LISTENER);
             replicas.add(newReplica);
             if (replicationTargets != null) {
                 replicationTargets.addReplica(newReplica);
@@ -479,7 +499,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return Iterators.concat(replicas.iterator(), Collections.singleton(primary).iterator());
         }
 
-        public IndexShard getPrimary() {
+        public synchronized IndexShard getPrimary() {
             return primary;
         }
 
@@ -511,6 +531,34 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         private synchronized ReplicationTargets getReplicationTargets() {
             return replicationTargets;
+        }
+
+        protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
+            RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(shardId, leases);
+            ActionListener<RetentionLeaseSyncAction.Response> wrappedListener = ActionListener.wrap(
+                r -> listener.onResponse(new ReplicationResponse()), listener::onFailure);
+            new SyncRetentionLeases(request, ReplicationGroup.this, wrappedListener).execute();
+        }
+
+        public RetentionLease addRetentionLease(String id, long retainingSequenceNumber, String source,
+                                                ActionListener<ReplicationResponse> listener) {
+            return getPrimary().addRetentionLease(id, retainingSequenceNumber, source, listener);
+        }
+
+        public void removeRetentionLease(String id, ActionListener<ReplicationResponse> listener) {
+            getPrimary().removeRetentionLease(id, listener);
+        }
+
+        public void executeRetentionLeasesSyncRequestOnReplica(RetentionLeaseSyncAction.Request request, IndexShard replica) {
+            final PlainActionFuture<Releasable> acquirePermitFuture = new PlainActionFuture<>();
+            replica.acquireReplicaOperationPermit(getPrimary().getOperationPrimaryTerm(), getPrimary().getGlobalCheckpoint(),
+                getPrimary().getMaxSeqNoOfUpdatesOrDeletes(), acquirePermitFuture, ThreadPool.Names.SAME, request);
+            try (Releasable ignored = acquirePermitFuture.actionGet()) {
+                replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
+                replica.persistRetentionLeases();
+            } catch (Exception e) {
+                throw new AssertionError("failed to execute retention lease request on replica [" + replica.routingEntry() + "]", e);
+            }
         }
     }
 
@@ -866,4 +914,26 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
         TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
     }
+
+    class SyncRetentionLeases extends ReplicationAction<
+        RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response> {
+
+        SyncRetentionLeases(RetentionLeaseSyncAction.Request request, ReplicationGroup group,
+                            ActionListener<RetentionLeaseSyncAction.Response> listener)  {
+            super(request, listener, group, "sync-retention-leases");
+        }
+
+        @Override
+        protected PrimaryResult performOnPrimary(IndexShard primary, RetentionLeaseSyncAction.Request request) throws Exception {
+            primary.persistRetentionLeases();
+            return new PrimaryResult(request, new RetentionLeaseSyncAction.Response());
+        }
+
+        @Override
+        protected void performOnReplica(RetentionLeaseSyncAction.Request request, IndexShard replica) throws Exception {
+            replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
+            replica.persistRetentionLeases();
+        }
+    }
+
 }

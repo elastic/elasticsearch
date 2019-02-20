@@ -16,11 +16,16 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
+import org.junit.Assert;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -110,6 +115,10 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
             client().prepareDelete("index", "_doc", "1").get();
             client().admin().indices().flush(new FlushRequest("index").force(true)).actionGet();
         }
+
+        final IndexShard primary = getInstanceFromNode(IndicesService.class).getShardOrNull(new ShardId(resolveIndex("index"), 0));
+        primary.runUnderPrimaryPermit(primary::renewPeerRecoveryRetentionLeaseForPrimary, Assert::assertNull, Names.SAME, "");
+
         client().admin().indices().refresh(new RefreshRequest("index")).actionGet();
         ForceMergeRequest forceMergeRequest = new ForceMergeRequest("index");
         forceMergeRequest.maxNumSegments(1);
@@ -117,7 +126,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
 
         ShardStats shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
-        ShardChangesAction.Request request =  new ShardChangesAction.Request(shardStats.getShardRouting().shardId(), historyUUID);
+        ShardChangesAction.Request request = new ShardChangesAction.Request(shardStats.getShardRouting().shardId(), historyUUID);
         request.setFromSeqNo(0L);
         request.setMaxOperationCount(1);
 

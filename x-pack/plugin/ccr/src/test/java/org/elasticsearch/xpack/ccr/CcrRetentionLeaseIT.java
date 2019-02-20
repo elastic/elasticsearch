@@ -460,6 +460,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39185")
     public void testUnfollowFailsToRemoveRetentionLeases() throws Exception {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";

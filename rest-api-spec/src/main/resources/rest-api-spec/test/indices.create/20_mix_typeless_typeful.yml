@@ -118,6 +118,8 @@
                       properties:
                           foo:
                               type: keyword
+                          bar:
+                              type: long
 
  - do:
       index:

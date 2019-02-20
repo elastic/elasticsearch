@@ -37,10 +37,12 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -159,6 +161,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -219,7 +222,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final RetentionLeaseSyncer retentionLeaseSyncer;
 
-    private final Runnable peerRecoveryRetentionLeaseRenewer;
+    private final Consumer<ActionListener<Void>> peerRecoveryRetentionLeaseRenewer;
 
     @Nullable
     private RecoveryState recoveryState;
@@ -280,7 +283,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final Runnable globalCheckpointSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
             final CircuitBreakerService circuitBreakerService,
-            final Runnable peerRecoveryRetentionLeaseRenewer) throws IOException {
+            final Consumer<ActionListener<Void>> peerRecoveryRetentionLeaseRenewer) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -2049,6 +2052,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public Future<Void> foregroundSyncRetentionLeases() {
+        // TODO merge this with syncRetentionLeases, allowing to wait until completion of a backgroundSync too.
+        assert assertPrimaryMode();
+        verifyNotClosed();
+        final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
+        logger.trace("foreground syncing retention leases [{}] after expiration check", retentionLeases.v2());
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        retentionLeaseSyncer.sync(
+            shardId,
+            retentionLeases.v2(),
+            ActionListener.wrap(
+                r -> future.onResponse(null),
+                e -> {
+                    logger.warn(new ParameterizedMessage(
+                            "failed to sync retention leases [{}] after expiration check",
+                            retentionLeases),
+                        e);
+                    future.onFailure(e);
+                }));
+        return future;
+    }
+
     /**
      * Waits for all operations up to the provided sequence number to complete.
      *
@@ -2445,11 +2470,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.renewPeerRecoveryRetentionLease(routingEntry(), getLocalCheckpointOfSafeCommit());
     }
 
-    public void renewPeerRecoveryRetentionLeases() {
+    public Future<Void> renewPeerRecoveryRetentionLeases() {
         assert assertPrimaryMode();
+        final PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
         if (replicationTracker.peerRetentionLeasesNeedRenewal(getLocalCheckpointOfSafeCommit())) {
-            peerRecoveryRetentionLeaseRenewer.run();
+            peerRecoveryRetentionLeaseRenewer.accept(plainActionFuture);
+        } else {
+            plainActionFuture.onResponse(null);
         }
+        return plainActionFuture;
     }
 
     public long getLocalCheckpointOfSafeCommit() {

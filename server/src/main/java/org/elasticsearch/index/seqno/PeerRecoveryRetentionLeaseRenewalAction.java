@@ -101,16 +101,8 @@ public class PeerRecoveryRetentionLeaseRenewalAction extends TransportReplicatio
             .renewPeerRecoveryRetentionLeaseForReplica(shard, shardCopyResponse.localCheckpointOfSafeCommit);
     }
 
-    public void renewPeerRecoveryRetentionLease(ShardId shardId) {
-        execute(new Request(shardId), new ActionListener<ReplicationResponse>() {
-            @Override
-            public void onResponse(ReplicationResponse response) {
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-            }
-        });
+    public void renewPeerRecoveryRetentionLease(ShardId shardId, ActionListener<Void> listener) {
+        execute(new Request(shardId), ActionListener.wrap(v -> listener.onResponse(null), listener::onFailure));
     }
 
     static final class ShardCopyResponse extends ReplicaResponse {

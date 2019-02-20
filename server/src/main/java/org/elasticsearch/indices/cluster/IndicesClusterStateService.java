@@ -128,7 +128,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final PrimaryReplicaSyncer primaryReplicaSyncer;
     private final Consumer<ShardId> globalCheckpointSyncer;
     private final RetentionLeaseSyncer retentionLeaseSyncer;
-    private final Consumer<ShardId> peerRecoveryRetentionLeaseRenewer;
+    private final BiConsumer<ShardId, ActionListener<Void>> peerRecoveryRetentionLeaseRenewer;
 
     @Inject
     public IndicesClusterStateService(
@@ -197,7 +197,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final PrimaryReplicaSyncer primaryReplicaSyncer,
             final Consumer<ShardId> globalCheckpointSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
-            final Consumer<ShardId> peerRecoveryRetentionLeaseRenewer) {
+            final BiConsumer<ShardId, ActionListener<Void>> peerRecoveryRetentionLeaseRenewer) {
         this.settings = settings;
         this.buildInIndexListener =
                 Arrays.asList(
@@ -926,7 +926,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 Consumer<IndexShard.ShardFailure> onShardFailure,
                 Consumer<ShardId> globalCheckpointSyncer,
                 RetentionLeaseSyncer retentionLeaseSyncer,
-                Consumer<ShardId> peerRecoveryRetentionLeaseRenewer) throws IOException;
+                BiConsumer<ShardId, ActionListener<Void>> peerRecoveryRetentionLeaseRenewer) throws IOException;
 
         /**
          * Returns shard for the specified id if it exists otherwise returns <code>null</code>.

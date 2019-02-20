@@ -59,9 +59,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
@@ -1087,6 +1090,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         leaderClient().prepareDelete("index1", "doc", "1").get();
         leaderClient().admin().indices().refresh(new RefreshRequest("index1")).actionGet();
         leaderClient().admin().indices().flush(new FlushRequest("index1").force(true)).actionGet();
+        getLeaderCluster().renewAndSyncPeerRecoveryRetentionLeases(resolveLeaderIndex("index1"));
+
         ForceMergeRequest forceMergeRequest = new ForceMergeRequest("index1");
         forceMergeRequest.maxNumSegments(1);
         leaderClient().admin().indices().forceMerge(forceMergeRequest).actionGet();

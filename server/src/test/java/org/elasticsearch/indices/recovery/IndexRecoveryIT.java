@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -32,6 +33,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -853,12 +855,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         final IndexShard primary = requireNonNull(indexShardsByPrimary.get(true));
         assertThat(client().admin().indices().prepareFlush().setForce(true).get().getFailedShards(), equalTo(0)); // make a safe commit
-        primary.syncRetentionLeases(); // happens periodically, removes retention leases for old shard copies
-        primary.renewPeerRecoveryRetentionLeases(); // happens periodically, advances retention leases according to last safe commit
-        assertBusy(() -> assertThat(primary.getMinRetainedSeqNo(), equalTo(primary.seqNoStats().getMaxSeqNo() + 1)));
-        primary.syncRetentionLeases(); // happens periodically, pushes updated retention leases to replica
+        primary.getRetentionLeases(true); // happens periodically, expires leases for unassigned shards
+        primary.renewPeerRecoveryRetentionLeases().get(); // happens periodically, advances retention leases according to last safe commit
+        assertThat(primary.getMinRetainedSeqNo(), equalTo(primary.seqNoStats().getMaxSeqNo() + 1));
 
+        primary.foregroundSyncRetentionLeases().get(); // happens periodically, pushes updated retention leases to replica
         final IndexShard replica = requireNonNull(indexShardsByPrimary.get(false));
-        assertBusy(() -> assertThat(replica.getMinRetainedSeqNo(), equalTo(replica.seqNoStats().getMaxSeqNo() + 1)));
+        assertThat(replica.getMinRetainedSeqNo(), equalTo(replica.seqNoStats().getMaxSeqNo() + 1));
     }
 }

@@ -31,6 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
@@ -139,6 +140,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -860,6 +862,37 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public static final int REMOVED_MINIMUM_MASTER_NODES = Integer.MAX_VALUE;
+
+    /**
+     * Renews the peer recovery retention leases for the given indices (updating each lease to the local checkpoint of the safe commit)
+     * and pushes the updated leases out to all the replicas.
+     */
+    public void renewAndSyncPeerRecoveryRetentionLeases(Index... indices) {
+        final List<IndexShard> indexShards = new ArrayList<>();
+        for (final IndicesService indicesService : getInstances(IndicesService.class)) {
+            for (final Index index : indices) {
+                final IndexService indexService = indicesService.indexService(index);
+                if (indexService != null) {
+                    for (IndexShard indexShard : indexService) {
+                        if (indexShard.routingEntry().primary()) {
+                            indexShards.add(indexShard);
+                        }
+                    }
+                }
+            }
+        }
+
+        final Consumer<Future<Void>> futureConsumer = f -> {
+            try {
+                f.get();
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        };
+
+        indexShards.stream().map(IndexShard::renewPeerRecoveryRetentionLeases).forEach(futureConsumer);
+        indexShards.stream().map(IndexShard::foregroundSyncRetentionLeases).forEach(futureConsumer);
+    }
 
     private final class NodeAndClient implements Closeable {
         private MockNode node;

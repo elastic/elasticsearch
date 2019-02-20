@@ -26,6 +26,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -88,6 +89,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -321,7 +323,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             final ShardRouting routing,
             final Consumer<ShardId> globalCheckpointSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
-            final Consumer<ShardId> peerRecoveryRetentionLeaseRenewer) throws IOException {
+            final BiConsumer<ShardId, ActionListener<Void>> peerRecoveryRetentionLeaseRenewer) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         Objects.requireNonNull(peerRecoveryRetentionLeaseRenewer);
         /*
@@ -414,7 +416,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     () -> globalCheckpointSyncer.accept(shardId),
                     retentionLeaseSyncer,
                     circuitBreakerService,
-                    () -> peerRecoveryRetentionLeaseRenewer.accept(shardId));
+                    listener -> peerRecoveryRetentionLeaseRenewer.accept(shardId, listener));
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();

@@ -1057,7 +1057,16 @@ public class IndexStatsIT extends ESIntegTestCase {
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
             persistGlobalCheckpoint("index");
             flush("index");
-            releaseHistory("index");
+            internalCluster().renewAndSyncPeerRecoveryRetentionLeases(resolveIndex("index"));
+            for (String node : internalCluster().nodesInclude("index")) {
+                final IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
+                for (IndexService indexService : indexServices) {
+                    for (IndexShard indexShard : indexService) {
+                        assertFalse(indexShard.routingEntry().toString(),
+                            indexShard.hasCompleteHistoryOperations("test", indexShard.getLocalCheckpointOfSafeCommit()));
+                    }
+                }
+            }
         }
         ForceMergeResponse forceMergeResponse =
             client().admin().indices().prepareForceMerge("index").setFlush(true).setMaxNumSegments(1).get();
@@ -1213,31 +1222,5 @@ public class IndexStatsIT extends ESIntegTestCase {
                 }
             }
         }
-    }
-
-    private void releaseHistory(String index) throws Exception {
-        // TODO maybe we want an (internal) API to await the release of history, rather than busy-waiting like this?
-        final Set<String> nodes = internalCluster().nodesInclude(index);
-        for (String node : nodes) {
-            final IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
-            for (IndexService indexService : indexServices) {
-                for (IndexShard indexShard : indexService) {
-                    if (indexShard.routingEntry().primary()) {
-                        indexShard.renewPeerRecoveryRetentionLeases();
-                    }
-                }
-            }
-        }
-        assertBusy(() -> {
-            for (String node : nodes) {
-                final IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
-                for (IndexService indexService : indexServices) {
-                    for (IndexShard indexShard : indexService) {
-                        assertFalse(indexShard.routingEntry().toString(),
-                            indexShard.hasCompleteHistoryOperations("test", indexShard.getLocalCheckpointOfSafeCommit()));
-                    }
-                }
-            }
-        });
     }
 }

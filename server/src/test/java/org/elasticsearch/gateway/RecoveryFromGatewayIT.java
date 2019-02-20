@@ -474,14 +474,12 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                     // expire retention lease for replica; since number_of_replicas is 0 it is no longer needed
                     internalCluster().getInstance(IndicesService.class, primaryNode).indexServiceSafe(resolveIndex("test", primaryNode))
                         .forEach(is -> {
-                            is.renewPeerRecoveryRetentionLeases();
-                            is.syncRetentionLeases();
                             try {
-                                assertBusy(() -> {
-                                    assertThat(is.getRetentionLeases().leases().stream()
-                                        .filter(l -> PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(l.source())).count(), equalTo(1L));
-                                    assertEquals(is.getMinRetainedSeqNo(), is.getLocalCheckpointOfSafeCommit() + 1);
-                                });
+                                is.renewPeerRecoveryRetentionLeases().get();
+                                is.foregroundSyncRetentionLeases().get();
+                                assertThat(is.getRetentionLeases().leases().stream()
+                                    .filter(l -> PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(l.source())).count(), equalTo(1L));
+                                assertEquals(is.getMinRetainedSeqNo(), is.getLocalCheckpointOfSafeCommit() + 1);
                             } catch (Exception e) {
                                 throw new AssertionError(e);
                             }

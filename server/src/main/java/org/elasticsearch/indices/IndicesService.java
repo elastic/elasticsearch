@@ -30,6 +30,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -143,6 +144,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -629,7 +631,7 @@ public class IndicesService extends AbstractLifecycleComponent
             final Consumer<IndexShard.ShardFailure> onShardFailure,
             final Consumer<ShardId> globalCheckpointSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
-            final Consumer<ShardId> peerRecoveryRetentionLeaseRenewer) throws IOException {
+            final BiConsumer<ShardId, ActionListener<Void>> peerRecoveryRetentionLeaseRenewer) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());

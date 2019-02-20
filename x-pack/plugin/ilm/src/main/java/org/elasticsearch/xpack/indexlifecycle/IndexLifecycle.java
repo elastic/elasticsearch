@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
@@ -137,6 +138,12 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         }
         indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
                 getClock(), System::currentTimeMillis, xContentRegistry));
+        clusterService.addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void beforeStop() {
+                indexLifecycleInitialisationService.get().close();
+            }
+        });
         return Collections.singletonList(indexLifecycleInitialisationService.get());
     }
 

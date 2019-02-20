@@ -671,6 +671,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
         }
 
+        @Override
+        public void close() {
+        }
+
         void setMaxConcurrentJobAllocations(int maxConcurrentJobAllocations) {
             logger.info("Changing [{}] from [{}] to [{}]", MachineLearning.CONCURRENT_JOB_ALLOCATIONS.getKey(),
                     this.maxConcurrentJobAllocations, maxConcurrentJobAllocations);

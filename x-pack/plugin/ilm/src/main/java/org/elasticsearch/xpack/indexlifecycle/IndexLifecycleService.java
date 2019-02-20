@@ -53,23 +53,20 @@ public class IndexLifecycleService
     private final PolicyStepsRegistry policyRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
     private final Settings settings;
-    private final ThreadPool threadPool;
-    private Client client;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
+    private boolean closed = false;
 
     public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool, Clock clock,
                                  LongSupplier nowSupplier, NamedXContentRegistry xContentRegistry) {
         super();
         this.settings = settings;
-        this.client = client;
         this.clusterService = clusterService;
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
         this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client);
-        this.threadPool = threadPool;
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, threadPool, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         clusterService.addStateApplier(this);
@@ -158,8 +155,8 @@ public class IndexLifecycleService
         return scheduledJob;
     }
 
-    private void maybeScheduleJob() {
-        if (this.isMaster) {
+    private synchronized void maybeScheduleJob() {
+        if (this.isMaster && closed == false) {
             if (scheduler.get() == null) {
                 scheduler.set(new SchedulerEngine(settings, clock));
                 scheduler.get().register(this);
@@ -254,7 +251,8 @@ public class IndexLifecycleService
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        closed = true;
         SchedulerEngine engine = scheduler.get();
         if (engine != null) {
             engine.stop();

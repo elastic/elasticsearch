@@ -66,6 +66,10 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
                     protected void nodeOperation(AllocatedPersistentTask task, Params params, PersistentTaskState state) {
                         logger.debug("Executing task {}", task);
                     }
+
+                    @Override
+                    public void close() {
+                    }
                 };
             }
         };

@@ -103,7 +103,6 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         final CountDownLatch closeLatch = new CountDownLatch(1);
         try {
             final AtomicBoolean success = new AtomicBoolean(true);
-            final List<Socket> openMockSockets = Collections.synchronizedList(new ArrayList<>());
             for (InMemoryDirectoryServer ldapServerToKill : ldapServersToKill) {
                 final int index = ldapServersList.indexOf(ldapServerToKill);
                 assertThat(index, greaterThanOrEqualTo(0));
@@ -119,59 +118,8 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 // NOTE: this is not perfect as there is a small amount of time between the shutdown
                 // of the ldap server and the opening of the socket
                 logger.debug("opening mock client sockets bound to [{}]", port);
-                Runnable runnable = () -> {
-                    final List<Socket> openedSockets = new ArrayList<>();
-                    final List<InetAddress> blacklistedAddress = new ArrayList<>();
-                    try {
-                        final boolean allSocketsOpened = awaitBusy(() -> {
-                            try {
-                                final List<InetAddress> inetAddressesToBind = Arrays.stream(InetAddressHelper.getAllAddresses())
-                                    .filter(addr -> openedSockets.stream().noneMatch(s -> addr.equals(s.getLocalAddress())))
-                                    .filter(addr -> blacklistedAddress.contains(addr) == false)
-                                    .collect(Collectors.toList());
-                                for (InetAddress localAddress : inetAddressesToBind) {
-                                    try {
-                                        Socket socket = openMockSocket(mockServerSocket.getInetAddress(), mockServerSocket.getLocalPort(),
-                                            localAddress, port);
-                                        openedSockets.add(socket);
-                                        openMockSockets.add(socket);
-                                        logger.debug("opened socket [{}]", socket);
-                                    } catch (NoRouteToHostException e) {
-                                        logger.debug(new ParameterizedMessage("blacklisting address [{}] due to:", localAddress), e);
-                                        blacklistedAddress.add(localAddress);
-                                    }
-                                }
-                                return true;
-                            } catch (IOException e) {
-                                logger.debug(new ParameterizedMessage("caught exception while opening socket on [{}]", port), e);
-                                return false;
-                            }
-                        });
-
-                        if (allSocketsOpened) {
-                            latch.countDown();
-                        } else {
-                            success.set(false);
-                            IOUtils.closeWhileHandlingException(openedSockets);
-                            openedSockets.clear();
-                            latch.countDown();
-                            return;
-                        }
-                    } catch (InterruptedException e) {
-                        logger.debug(new ParameterizedMessage("interrupted while trying to open sockets on [{}]", port), e);
-                        Thread.currentThread().interrupt();
-                    }
-
-                    try {
-                        closeLatch.await();
-                    } catch (InterruptedException e) {
-                        logger.debug("caught exception while waiting for close latch", e);
-                        Thread.currentThread().interrupt();
-                    } finally {
-                        logger.debug("closing sockets on [{}]", port);
-                        IOUtils.closeWhileHandlingException(openedSockets);
-                    }
-                };
+                Runnable runnable = new PortBlockingRunnable(mockServerSocket.getInetAddress(), mockServerSocket.getLocalPort(), port,
+                    latch, closeLatch, success);
                 Thread thread = new Thread(runnable);
                 thread.start();
                 listenThreads.add(thread);
@@ -251,11 +199,9 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         // one server to use!
         InMemoryDirectoryServer[] allButFirstServer = Arrays.copyOfRange(ldapServers, 1, ldapServers.length);
         final List<InMemoryDirectoryServer> ldapServersToKill;
-        int numberToKill = 1;
         if (ldapServers.length > 2) {
-            numberToKill = randomIntBetween(1, numberOfLdapServers - 2);
+            final int numberToKill = randomIntBetween(1, numberOfLdapServers - 2);
             ldapServersToKill = randomSubsetOf(numberToKill, allButFirstServer);
-            numberToKill++; // since we kill the first automatically
             ldapServersToKill.add(ldapServers[0]); // always kill the first one
         } else {
             ldapServersToKill = Collections.singletonList(ldapServers[0]);
@@ -265,7 +211,6 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         final List<Thread> listenThreads = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(ldapServersToKill.size());
         final CountDownLatch closeLatch = new CountDownLatch(1);
-        final List<Socket> openMockSockets = Collections.synchronizedList(new ArrayList<>());
         final AtomicBoolean success = new AtomicBoolean(true);
         for (InMemoryDirectoryServer ldapServerToKill : ldapServersToKill) {
             final int index = ldapServersList.indexOf(ldapServerToKill);
@@ -280,59 +225,8 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             // NOTE: this is not perfect as there is a small amount of time between the shutdown
             // of the ldap server and the opening of the socket
             logger.debug("opening mock server socket listening on [{}]", port);
-            Runnable runnable = () -> {
-                final List<Socket> openedSockets = new ArrayList<>();
-                final List<InetAddress> blacklistedAddress = new ArrayList<>();
-                try {
-                    final boolean allSocketsOpened = awaitBusy(() -> {
-                        try {
-                            final List<InetAddress> inetAddressesToBind = Arrays.stream(InetAddressHelper.getAllAddresses())
-                                .filter(addr -> openedSockets.stream().noneMatch(s -> addr.equals(s.getLocalAddress())))
-                                .filter(addr -> blacklistedAddress.contains(addr) == false)
-                                .collect(Collectors.toList());
-                            for (InetAddress localAddress : inetAddressesToBind) {
-                                try {
-                                    Socket socket = openMockSocket(mockServerSocket.getInetAddress(), mockServerSocket.getLocalPort(),
-                                        localAddress, port);
-                                    openedSockets.add(socket);
-                                    openMockSockets.add(socket);
-                                    logger.debug("opened socket [{}]", socket);
-                                } catch (NoRouteToHostException e) {
-                                    logger.debug(new ParameterizedMessage("blacklisting address [{}] due to:", localAddress), e);
-                                    blacklistedAddress.add(localAddress);
-                                }
-                            }
-                            return true;
-                        } catch (IOException e) {
-                            logger.debug(new ParameterizedMessage("caught exception while opening socket on [{}]", port), e);
-                            return false;
-                        }
-                    });
-
-                    if (allSocketsOpened) {
-                        latch.countDown();
-                    } else {
-                        success.set(false);
-                        IOUtils.closeWhileHandlingException(openedSockets);
-                        openedSockets.clear();
-                        latch.countDown();
-                        return;
-                    }
-                } catch (InterruptedException e) {
-                    logger.debug(new ParameterizedMessage("interrupted while trying to open sockets on [{}]", port), e);
-                    Thread.currentThread().interrupt();
-                }
-
-                try {
-                    closeLatch.await();
-                } catch (InterruptedException e) {
-                    logger.debug("caught exception while waiting for close latch", e);
-                    Thread.currentThread().interrupt();
-                } finally {
-                    logger.debug("closing sockets on [{}]", port);
-                    IOUtils.closeWhileHandlingException(openedSockets);
-                }
-            };
+            Runnable runnable = new PortBlockingRunnable(mockServerSocket.getInetAddress(), mockServerSocket.getLocalPort(), port,
+                latch, closeLatch, success);
             Thread thread = new Thread(runnable);
             thread.start();
             listenThreads.add(thread);
@@ -400,6 +294,79 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         return new TestSessionFactory(config, new SSLService(Settings.EMPTY, TestEnvironment.newEnvironment(config.settings())),
                 threadPool);
+    }
+
+    private class PortBlockingRunnable implements Runnable {
+
+        private final InetAddress serverAddress;
+        private final int serverPort;
+        private final int portToBind;
+        private final CountDownLatch latch;
+        private final CountDownLatch closeLatch;
+        private final AtomicBoolean success;
+
+        private PortBlockingRunnable(InetAddress serverAddress, int serverPort, int portToBind, CountDownLatch latch,
+                                     CountDownLatch closeLatch, AtomicBoolean success) {
+            this.serverAddress = serverAddress;
+            this.serverPort = serverPort;
+            this.portToBind = portToBind;
+            this.latch = latch;
+            this.closeLatch = closeLatch;
+            this.success = success;
+        }
+
+        @Override
+        public void run() {
+            final List<Socket> openedSockets = new ArrayList<>();
+            final List<InetAddress> blacklistedAddress = new ArrayList<>();
+            try {
+                final boolean allSocketsOpened = awaitBusy(() -> {
+                    try {
+                        final List<InetAddress> inetAddressesToBind = Arrays.stream(InetAddressHelper.getAllAddresses())
+                            .filter(addr -> openedSockets.stream().noneMatch(s -> addr.equals(s.getLocalAddress())))
+                            .filter(addr -> blacklistedAddress.contains(addr) == false)
+                            .collect(Collectors.toList());
+                        for (InetAddress localAddress : inetAddressesToBind) {
+                            try {
+                                final Socket socket = openMockSocket(serverAddress, serverPort, localAddress, portToBind);
+                                openedSockets.add(socket);
+                                logger.debug("opened socket [{}]", socket);
+                            } catch (NoRouteToHostException e) {
+                                logger.debug(new ParameterizedMessage("blacklisting address [{}] due to:", localAddress), e);
+                                blacklistedAddress.add(localAddress);
+                            }
+                        }
+                        return true;
+                    } catch (IOException e) {
+                        logger.debug(new ParameterizedMessage("caught exception while opening socket on [{}]", portToBind), e);
+                        return false;
+                    }
+                });
+
+                if (allSocketsOpened) {
+                    latch.countDown();
+                } else {
+                    success.set(false);
+                    IOUtils.closeWhileHandlingException(openedSockets);
+                    openedSockets.clear();
+                    latch.countDown();
+                    return;
+                }
+            } catch (InterruptedException e) {
+                logger.debug(new ParameterizedMessage("interrupted while trying to open sockets on [{}]", portToBind), e);
+                Thread.currentThread().interrupt();
+            }
+
+            try {
+                closeLatch.await();
+            } catch (InterruptedException e) {
+                logger.debug("caught exception while waiting for close latch", e);
+                Thread.currentThread().interrupt();
+            } finally {
+                logger.debug("closing sockets on [{}]", portToBind);
+                IOUtils.closeWhileHandlingException(openedSockets);
+            }
+        }
     }
 
     static class TestSessionFactory extends SessionFactory {

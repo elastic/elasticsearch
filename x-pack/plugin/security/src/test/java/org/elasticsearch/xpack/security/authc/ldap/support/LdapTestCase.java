@@ -92,8 +92,7 @@ public abstract class LdapTestCase extends ESTestCase {
                 context.init(new KeyManager[] { keyManager }, null, null);
                 SSLServerSocketFactory serverSocketFactory = context.getServerSocketFactory();
                 SSLSocketFactory clientSocketFactory = context.getSocketFactory();
-                listeners.add(InMemoryListenerConfig.createLDAPSConfig("ldaps", InetAddress.getLoopbackAddress(), 0,
-                    serverSocketFactory, clientSocketFactory));
+                listeners.add(InMemoryListenerConfig.createLDAPSConfig("ldaps", null, 0, serverSocketFactory, clientSocketFactory));
             }
             serverConfig.setListenerConfigs(listeners);
             InMemoryDirectoryServer ldapServer = new InMemoryDirectoryServer(serverConfig);

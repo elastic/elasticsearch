@@ -36,6 +36,8 @@ import org.elasticsearch.client.ccr.AutoFollowStats;
 import org.elasticsearch.client.ccr.CcrStatsRequest;
 import org.elasticsearch.client.ccr.CcrStatsResponse;
 import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.FollowInfoRequest;
+import org.elasticsearch.client.ccr.FollowInfoResponse;
 import org.elasticsearch.client.ccr.FollowStatsRequest;
 import org.elasticsearch.client.ccr.FollowStatsResponse;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
@@ -58,6 +60,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -687,6 +690,74 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         client.ccr().getFollowStatsAsync(request,
             RequestOptions.DEFAULT, listener); // <1>
         // end::ccr-get-follow-stats-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        {
+            PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
+            AcknowledgedResponse pauseFollowResponse =  client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+            assertThat(pauseFollowResponse.isAcknowledged(), is(true));
+        }
+    }
+
+    public void testGetFollowInfos() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // Create leader index:
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
+            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
+            CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+            assertThat(response.isAcknowledged(), is(true));
+        }
+        {
+            // Follow index, so that we can query for follow stats:
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", "follower", ActiveShardCount.ONE);
+            PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
+            assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
+            assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
+            assertThat(putFollowResponse.isIndexFollowingStarted(), is(true));
+        }
+
+        // tag::ccr-get-follow-info-request
+        FollowInfoRequest request =
+            new FollowInfoRequest("follower"); // <1>
+        // end::ccr-get-follow-info-request
+
+        // tag::ccr-get-follow-info-execute
+        FollowInfoResponse response = client.ccr()
+            .getFollowInfo(request, RequestOptions.DEFAULT);
+        // end::ccr-get-follow-info-execute
+
+        // tag::ccr-get-follow-info-response
+        List<FollowInfoResponse.FollowerInfo> infos =
+            response.getInfos(); // <1>
+        // end::ccr-get-follow-info-response
+
+        // tag::ccr-get-follow-info-execute-listener
+        ActionListener<FollowInfoResponse> listener =
+            new ActionListener<FollowInfoResponse>() {
+                @Override
+                public void onResponse(FollowInfoResponse response) { // <1>
+                    List<FollowInfoResponse.FollowerInfo> infos =
+                        response.getInfos();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ccr-get-follow-info-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ccr-get-follow-info-execute-async
+        client.ccr().getFollowInfoAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ccr-get-follow-info-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
 

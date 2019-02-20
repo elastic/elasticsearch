@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class RetentionLeaseIT extends ESIntegTestCase  {
@@ -407,7 +408,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                          * way for the current retention leases to end up written to disk so we assume that if they are written to disk, it
                          * implies that the background sync was able to execute under a block.
                          */
-                        assertBusy(() -> assertThat(primary.loadRetentionLeases().leases(), contains(retentionLease.get())));
+                        assertBusy(() -> assertThat(primary.loadRetentionLeases().leases(), hasItem(retentionLease.get())));
                     } catch (final Exception e) {
                         fail(e.toString());
                     }

@@ -665,6 +665,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             // a newly-recovered primary creates its own retention lease when entering primaryMode, which is done later, so it doesn't
             // exist yet
 
+            // TODO also expect to have a lease for tracked shard copies
+            // TODO what about relocating shards?
             for (ShardRouting shardRouting : routingTable.activeShards()) {
                 assert retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting)) :
                     "no retention lease for active shard " + shardRouting + " in " + retentionLeases + " on " + shardAllocationId;

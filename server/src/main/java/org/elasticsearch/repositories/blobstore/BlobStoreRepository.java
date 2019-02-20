@@ -195,6 +195,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final Settings settings;
 
+    private final boolean compress;
+
     private final RateLimiter snapshotRateLimiter;
 
     private final RateLimiter restoreRateLimiter;
@@ -226,33 +228,37 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *
      * @param metadata       The metadata for this repository including name and settings
      * @param settings Settings for the node this repository object is created on
+     * @param compress true if metadata and snapshot files should be compressed
      */
-    protected BlobStoreRepository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry) {
+    protected BlobStoreRepository(RepositoryMetaData metadata, Settings settings, boolean compress,
+                                  NamedXContentRegistry namedXContentRegistry) {
         this.settings = settings;
+        this.compress = compress;
         this.metadata = metadata;
         this.namedXContentRegistry = namedXContentRegistry;
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         readOnly = metadata.settings().getAsBoolean("readonly", false);
 
+
         indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
-            BlobStoreIndexShardSnapshot::fromXContent, namedXContentRegistry, isCompress());
+            BlobStoreIndexShardSnapshot::fromXContent, namedXContentRegistry, compress);
         indexShardSnapshotsFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_INDEX_CODEC, SNAPSHOT_INDEX_NAME_FORMAT,
-            BlobStoreIndexShardSnapshots::fromXContent, namedXContentRegistry, isCompress());
-        ByteSizeValue chunkSize = chunkSize();
-        if (chunkSize != null && chunkSize.getBytes() <= 0) {
-            throw new IllegalArgumentException("the chunk size cannot be negative: [" + chunkSize + "]");
-        }
+            BlobStoreIndexShardSnapshots::fromXContent, namedXContentRegistry, compress);
     }
 
     @Override
     protected void doStart() {
+        ByteSizeValue chunkSize = chunkSize();
+        if (chunkSize != null && chunkSize.getBytes() <= 0) {
+            throw new IllegalArgumentException("the chunk size cannot be negative: [" + chunkSize + "]");
+        }
         globalMetaDataFormat = new ChecksumBlobStoreFormat<>(METADATA_CODEC, METADATA_NAME_FORMAT,
-            MetaData::fromXContent, namedXContentRegistry, isCompress());
+            MetaData::fromXContent, namedXContentRegistry, compress);
         indexMetaDataFormat = new ChecksumBlobStoreFormat<>(INDEX_METADATA_CODEC, METADATA_NAME_FORMAT,
-            IndexMetaData::fromXContent, namedXContentRegistry, isCompress());
+            IndexMetaData::fromXContent, namedXContentRegistry, compress);
         snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
-            SnapshotInfo::fromXContentInternal, namedXContentRegistry, isCompress());
+            SnapshotInfo::fromXContentInternal, namedXContentRegistry, compress);
     }
 
     @Override
@@ -347,8 +353,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *
      * @return true if compression is needed
      */
-    protected boolean isCompress() {
-        return false;
+    protected final boolean isCompress() {
+        return compress;
     }
 
     /**

@@ -426,6 +426,19 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws Exception {
+
+        // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
+        // so we need to fully shut them down first otherwise a job might stall waiting
+        // for a bulk to finish against a non-existing index (and then fail tests)
+        // 
+        // Rollups were introduced in 6.3.0 so any cluster that contains older
+        // nodes won't be able to do *anything* with rollups, including cleanup.
+        if (hasXPack && nodeVersions.first().onOrAfter(Version.V_6_3_0)
+                && false == preserveRollupJobsUponCompletion()) {
+            wipeRollupJobs();
+            waitForPendingRollupTasks();
+        }
+
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
@@ -471,16 +484,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         // wipe cluster settings
         if (preserveClusterSettings() == false) {
             wipeClusterSettings();
-        }
-
-        /*
-         * Rollups were introduced in 6.3.0 so any cluster that contains older
-         * nodes won't be able to do *anything* with rollups, including cleanup.
-         */
-        if (hasXPack && nodeVersions.first().onOrAfter(Version.V_6_3_0)
-                && false == preserveRollupJobsUponCompletion()) {
-            wipeRollupJobs();
-            waitForPendingRollupTasks();
         }
 
         if (hasXPack && false == preserveILMPoliciesUponCompletion()) {

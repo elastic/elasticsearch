@@ -123,6 +123,7 @@
       index:
           index: test-1
           body: { bar: 42 }
+          refresh: true
 
  - do:
       indices.get_mapping:

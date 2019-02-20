@@ -393,8 +393,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         }
 
         // we will sometimes fake that some of the retention leases are already removed on the leader shard
-        final Set<Integer> shardIds = new HashSet<>(Arrays.asList(0, 1, 2, 3));
-            //    new HashSet<>(randomSubsetOf(randomIntBetween(0, 4), IntStream.range(0, 4).boxed().collect(Collectors.toSet())));
+        final Set<Integer> shardIds =
+                new HashSet<>(randomSubsetOf(randomIntBetween(0, 4), IntStream.range(0, 4).boxed().collect(Collectors.toSet())));
 
         final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
         try {

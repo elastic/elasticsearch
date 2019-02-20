@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
@@ -437,9 +436,13 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         // users and roles are retrievable
         getUsersResponse = securityClient().prepareGetUsers("joe").get();
         assertThat(getUsersResponse.users().length, is(1));
-        assertThat(getUsersResponse.users()[0].roles().length, is(2));
+        assertThat(Arrays.asList(getUsersResponse.users()[0].roles()), contains("test_role", "snapshot_user"));
         getRolesResponse = securityClient().prepareGetRoles("test_role").get();
         assertThat(getRolesResponse.roles().length, is(1));
+        assertThat(Arrays.asList(getRolesResponse.roles()[0].getClusterPrivileges()), contains("all"));
+        assertThat(getRolesResponse.roles()[0].getIndicesPrivileges().length, is(1));
+        assertThat(Arrays.asList(getRolesResponse.roles()[0].getIndicesPrivileges()[0].getPrivileges()), contains("create_index"));
+        assertThat(Arrays.asList(getRolesResponse.roles()[0].getIndicesPrivileges()[0].getIndices()), contains("*"));
         // joe can create indices
         CreateIndexResponse createIndexResponse = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin()
                 .indices().prepareCreate("idx").get();

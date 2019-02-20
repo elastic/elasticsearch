@@ -1584,9 +1584,9 @@ public class DateHistogramIT extends ESIntegTestCase {
         Histogram histogram = r.getAggregations().get("histo");
         List<? extends Bucket> buckets = histogram.getBuckets();
         assertEquals(2, buckets.size());
-        assertEquals(946681200000l,  ((ZonedDateTime)buckets.get(0).getKey()).toEpochSecond() * 1000);
+        assertEquals(946681200000L,  ((ZonedDateTime)buckets.get(0).getKey()).toEpochSecond() * 1000);
         assertEquals(1, buckets.get(0).getDocCount());
-        assertEquals(946767600000l, ((ZonedDateTime)buckets.get(1).getKey()).toEpochSecond() * 1000);
+        assertEquals(946767600000L, ((ZonedDateTime)buckets.get(1).getKey()).toEpochSecond() * 1000);
         assertEquals(1, buckets.get(1).getDocCount());
 
         r = client().prepareSearch("nanos")
@@ -1599,9 +1599,9 @@ public class DateHistogramIT extends ESIntegTestCase {
         histogram = r.getAggregations().get("histo");
         buckets = histogram.getBuckets();
         assertEquals(2, buckets.size());
-        assertEquals(946684800000l,  ((ZonedDateTime)buckets.get(0).getKey()).toEpochSecond() * 1000);
+        assertEquals(946684800000L,  ((ZonedDateTime)buckets.get(0).getKey()).toEpochSecond() * 1000);
         assertEquals(1, buckets.get(0).getDocCount());
-        assertEquals(946771200000l, ((ZonedDateTime)buckets.get(1).getKey()).toEpochSecond() * 1000);
+        assertEquals(946771200000L, ((ZonedDateTime)buckets.get(1).getKey()).toEpochSecond() * 1000);
         assertEquals(1, buckets.get(1).getDocCount());
     }
 }

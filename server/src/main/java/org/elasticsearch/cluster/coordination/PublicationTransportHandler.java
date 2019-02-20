@@ -306,7 +306,7 @@ public class PublicationTransportHandler {
                     if (diff == null) {
                         diff = clusterState.diff(previousState);
                     }
-                    if (serializedStates.containsKey(node.getVersion()) == false) {
+                    if (serializedDiffs.containsKey(node.getVersion()) == false) {
                         serializedDiffs.put(node.getVersion(), serializeDiffClusterState(diff, node.getVersion()));
                     }
                 }

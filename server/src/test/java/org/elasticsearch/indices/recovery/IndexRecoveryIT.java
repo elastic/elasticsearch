@@ -116,6 +116,11 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
+    @After
+    void assertSafeCommitExists() throws Exception {
+        internalCluster().assertSafeCommitExists();
+    }
+
     private void assertRecoveryStateWithoutStage(RecoveryState state, int shardId, RecoverySource recoverySource, boolean primary,
                                                  String sourceNode, String targetNode) {
         assertThat(state.getShardId().getId(), equalTo(shardId));

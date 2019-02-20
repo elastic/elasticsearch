@@ -108,6 +108,7 @@ public class RelocationIT extends ESIntegTestCase {
         super.beforeIndexDeletion();
         internalCluster().assertSeqNos();
         internalCluster().assertSameDocIdsOnShards();
+        internalCluster().assertSafeCommitExists();
     }
 
     @Override

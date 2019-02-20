@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.After;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,6 +42,11 @@ import static org.hamcrest.Matchers.equalTo;
 @TestLogging("_root:DEBUG")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class IndexPrimaryRelocationIT extends ESIntegTestCase {
+
+    @After
+    void assertSafeCommitExists() throws Exception {
+        internalCluster().assertSafeCommitExists();
+    }
 
     private static final int RELOCATION_COUNT = 15;
 

@@ -197,6 +197,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             clusterGroup.followerCluster.assertSeqNos();
             clusterGroup.followerCluster.assertSameDocIdsOnShards();
             clusterGroup.followerCluster.assertConsistentHistoryBetweenTranslogAndLuceneIndex();
+            clusterGroup.followerCluster.assertSafeCommitExists();
         } finally {
             clusterGroup.leaderCluster.wipe(Collections.emptySet());
             clusterGroup.followerCluster.wipe(Collections.emptySet());

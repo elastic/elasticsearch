@@ -19,6 +19,7 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.IndexNotFoundException;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -33,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
@@ -58,6 +60,7 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -82,6 +85,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -99,7 +103,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * A base class for unit tests that need to create and shutdown {@link IndexShard} instances easily,
@@ -516,6 +522,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         try {
             if (assertConsistencyBetweenTranslogAndLucene) {
                 assertConsistentHistoryBetweenTranslogAndLucene(shard);
+                assertSafeCommitExists(shard);
             }
         } finally {
             IOUtils.close(() -> shard.close("test", false), shard.store());
@@ -839,5 +846,44 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     public static ReplicationTracker getReplicationTracker(IndexShard indexShard) {
         return indexShard.getReplicationTracker();
+    }
+
+    /**
+     * Asserts that there is a safe commit in the given shard. The max_seq_no of the safe commit must not
+     * be greater the global checkpoint in the translog checkpoint, and all operations since the local
+     * checkpoint of the safe commit to the global checkpoint are retained in both translog and Lucene.
+     */
+    public static void assertSafeCommitExists(IndexShard shard) throws IOException {
+        try (Closeable ignored = getTranslog(shard).acquireRetentionLock();
+             Engine.IndexCommitRef safeCommitRef = getEngine(shard).acquireSafeIndexCommit()) {
+            SequenceNumbers.CommitInfo commitInfo =
+                SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommitRef.getIndexCommit().getUserData().entrySet());
+            long globalCheckpoint = shard.getLastSyncedGlobalCheckpoint();
+            assertThat(commitInfo.localCheckpoint, lessThanOrEqualTo(commitInfo.maxSeqNo));
+            assertThat(commitInfo.maxSeqNo, lessThanOrEqualTo(globalCheckpoint));
+            if (commitInfo.maxSeqNo == globalCheckpoint) {
+                return;
+            }
+            CheckedConsumer<Translog.Snapshot, IOException> checkSnapshot = snapshot -> {
+                LocalCheckpointTracker checkpointTracker = new LocalCheckpointTracker(commitInfo.maxSeqNo, commitInfo.localCheckpoint + 1);
+                Translog.Operation op;
+                while ((op = snapshot.next()) != null) {
+                    checkpointTracker.markSeqNoAsCompleted(op.seqNo());
+                }
+                assertThat(shard.routingEntry() + " commit [" + safeCommitRef.getIndexCommit().getUserData() + "]",
+                    checkpointTracker.getCheckpoint(), greaterThanOrEqualTo(globalCheckpoint));
+            };
+            try (Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshotFromMinSeqNo(commitInfo.localCheckpoint + 1)) {
+                checkSnapshot.accept(translogSnapshot);
+            }
+            if (shard.indexSettings.isSoftDeleteEnabled()) {
+                try (Translog.Snapshot luceneSnapshot =
+                         shard.newChangesSnapshot("test", commitInfo.localCheckpoint + 1, globalCheckpoint, true)) {
+                    checkSnapshot.accept(luceneSnapshot);
+                }
+            }
+        } catch (AlreadyClosedException ignored) {
+
+        }
     }
 }

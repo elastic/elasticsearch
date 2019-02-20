@@ -1371,6 +1371,22 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public void assertSafeCommitExists() throws IOException {
+        final Collection<NodeAndClient> nodesAndClients = nodes.values();
+        for (NodeAndClient nodeAndClient : nodesAndClients) {
+            IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+            for (IndexService indexService : indexServices) {
+                for (IndexShard indexShard : indexService) {
+                    try {
+                        IndexShardTestCase.assertSafeCommitExists(indexShard);
+                    } catch (AlreadyClosedException ignored) {
+                        // shard is closed
+                    }
+                }
+            }
+        }
+    }
+
     private IndexShard getShardOrNull(ClusterState clusterState, ShardRouting shardRouting) {
         if (shardRouting == null || shardRouting.assignedToNode() == false) {
             return null;

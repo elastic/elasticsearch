@@ -407,13 +407,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 }
             }
             Randomness.shuffle(ops);
-            int recoveredOps = 0;
-            for (int i = 0; i < ops.size(); i++) {
-                leader.getPrimary().advanceMaxSeqNoOfUpdatesOrDeletes(ops.get(i).seqNo());
-                leader.getPrimary().applyTranslogOperation(ops.get(i), Engine.Operation.Origin.LOCAL_RESET);
+            for (Translog.Operation op : ops) {
+                leader.getPrimary().advanceMaxSeqNoOfUpdatesOrDeletes(op.seqNo());
+                leader.getPrimary().applyTranslogOperation(op, Engine.Operation.Origin.LOCAL_RESET);
                 if (randomInt(100) < 10) {
                     leader.getPrimary().flush(new FlushRequest());
-                    recoveredOps = i + 1;
                 }
             }
             leader.getPrimary().updateLocalCheckpointForShard(leader.getPrimary().routingEntry().allocationId().getId(), numOps - 1);
@@ -447,6 +445,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 });
                 followTask.markAsCompleted();
             }
+            leader.flush(); // leader does not have translog - need to flush to pass safeCommit assertion
         }
     }
 

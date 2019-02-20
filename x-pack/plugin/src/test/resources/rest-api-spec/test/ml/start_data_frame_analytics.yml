@@ -44,3 +44,15 @@
       catch: /No compatible fields could be detected in index \[empty-index\]/
       ml.start_data_frame_analytics:
         id: "foo"
+
+---
+"Test start with inconsistent body/param ids":
+
+  - do:
+      catch: /Inconsistent id; 'body_id' specified in the body differs from 'url_id' specified as a URL argument/
+      ml.start_data_frame_analytics:
+        id: "url_id"
+        body: >
+          {
+            "id": "body_id"
+          }

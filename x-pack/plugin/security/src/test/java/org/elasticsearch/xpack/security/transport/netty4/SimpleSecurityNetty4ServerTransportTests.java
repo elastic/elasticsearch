@@ -20,6 +20,7 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.core.security.transport.DualStackCoordinator;
 import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTransportTestCase;
 
 import java.util.Collections;
@@ -33,9 +34,10 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
         Settings settings1 = Settings.builder()
             .put(settings)
             .put("xpack.security.transport.ssl.enabled", true).build();
+        final DualStackCoordinator coordinator = new DualStackCoordinator(clusterSettings);
         Transport transport = new SecurityNetty4ServerTransport(settings1, version, threadPool,
             networkService, PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
-            new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
+            new NoneCircuitBreakerService(), null, createSSLService(settings1), coordinator) {
 
             @Override
             public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,

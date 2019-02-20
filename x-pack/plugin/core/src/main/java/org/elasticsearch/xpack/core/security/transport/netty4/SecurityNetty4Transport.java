@@ -56,7 +56,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     private final SSLService sslService;
     private final SSLConfiguration sslConfiguration;
-    private final DualStackCoordinator coordinator = null;
+    private final DualStackCoordinator coordinator;
     private final Map<String, SSLConfiguration> profileConfiguration;
     private final boolean sslEnabled;
 
@@ -68,10 +68,12 @@ public class SecurityNetty4Transport extends Netty4Transport {
             final PageCacheRecycler pageCacheRecycler,
             final NamedWriteableRegistry namedWriteableRegistry,
             final CircuitBreakerService circuitBreakerService,
-            final SSLService sslService) {
+            final SSLService sslService,
+            final DualStackCoordinator coordinator) {
         super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
+        this.coordinator = coordinator;
         if (sslEnabled) {
             this.sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
             Map<String, SSLConfiguration> profileConfiguration = getTransportProfileConfigurations(settings, sslService, sslConfiguration);

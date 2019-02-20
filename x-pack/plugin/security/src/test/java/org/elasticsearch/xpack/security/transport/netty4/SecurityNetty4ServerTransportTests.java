@@ -11,6 +11,7 @@ import io.netty.handler.ssl.SslHandler;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -19,6 +20,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.transport.DualStackCoordinator;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -73,7 +75,8 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
                 mock(NamedWriteableRegistry.class),
                 mock(CircuitBreakerService.class),
                 null,
-                sslService);
+                sslService,
+                new DualStackCoordinator(new ClusterSettings(Settings.EMPTY, Collections.emptySet())));
     }
 
     public void testThatProfileTakesDefaultSSLSetting() throws Exception {

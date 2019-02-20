@@ -38,6 +38,7 @@ import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -71,6 +72,7 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -121,12 +123,19 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return 6;
     }
 
+    protected Collection<Setting<?>> additionalSupportedSettings() {
+        return Collections.emptyList();
+    }
+
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
-        clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Set<Setting<?>> builtInClusterSettings = ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+        HashSet<Setting<?>> availableSettings = new HashSet<>(builtInClusterSettings);
+        availableSettings.addAll(additionalSupportedSettings());
+        clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings);
         Settings connectionSettings = Settings.builder()
             .put(TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.getKey(), 1)
             .put(TransportSettings.CONNECTIONS_PER_NODE_BULK.getKey(), 1)
@@ -168,6 +177,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
                                               Settings settings, boolean acceptRequests, boolean doHandshake) {
+        if (clusterSettings == null) {
+            clusterSettings = this.clusterSettings;
+        }
         MockTransportService service = build(
                 Settings.builder()
                         .put(settings)
@@ -2430,7 +2442,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testTransportStatsWithException() throws Exception {
-        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
+        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, clusterSettings, true);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
         Exception ex = new RuntimeException("boom");

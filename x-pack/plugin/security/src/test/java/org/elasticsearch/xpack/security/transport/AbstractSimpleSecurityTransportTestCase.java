@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -32,6 +33,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -53,6 +55,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -90,6 +93,11 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
     }
 
+    @Override
+    protected Collection<Setting<?>> additionalSupportedSettings() {
+        return XPackSettings.getAllSettings();
+    }
+
     public void testConnectException() throws UnknownHostException {
         try {
             serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
@@ -114,7 +122,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService = build(settings, Version.CURRENT, clusterSettings, true);
+            MockTransportService transportService = buildService("TS_C", Version.CURRENT, clusterSettings, settings);
             try {
                 transportService.start();
             } finally {

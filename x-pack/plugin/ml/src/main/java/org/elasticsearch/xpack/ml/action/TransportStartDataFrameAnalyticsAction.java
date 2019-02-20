@@ -115,7 +115,7 @@ public class TransportStartDataFrameAnalyticsAction
             new ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task) {
-                    waitForAnalyticsStarted(task, listener);
+                    waitForAnalyticsStarted(task, request.getTimeout(), listener);
                 }
 
                 @Override
@@ -147,10 +147,10 @@ public class TransportStartDataFrameAnalyticsAction
     }
 
     private void waitForAnalyticsStarted(PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task,
-                                         ActionListener<AcknowledgedResponse> listener) {
+                                         TimeValue timeout, ActionListener<AcknowledgedResponse> listener) {
         AnalyticsPredicate predicate = new AnalyticsPredicate();
-        // TODO Add timeout parameter to the start analytics request and use it here instead of hardcoded value
-        persistentTasksService.waitForPersistentTaskCondition(task.getId(), predicate, TimeValue.timeValueSeconds(10),
+        persistentTasksService.waitForPersistentTaskCondition(task.getId(), predicate, timeout,
+
             new PersistentTasksService.WaitForPersistentTaskListener<PersistentTaskParams>() {
 
                 @Override
@@ -280,6 +280,7 @@ public class TransportStartDataFrameAnalyticsAction
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, StartDataFrameAnalyticsAction.TaskParams params,
                                      PersistentTaskState state) {
+            LOGGER.info("[{}] Starting data frame analytics", params.getId());
             DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
                 task.getAllocationId());
             task.updatePersistentTaskState(startedState, ActionListener.wrap(

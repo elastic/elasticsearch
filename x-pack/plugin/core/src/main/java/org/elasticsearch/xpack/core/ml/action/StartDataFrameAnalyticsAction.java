@@ -13,10 +13,13 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -24,6 +27,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -45,21 +49,53 @@ public class StartDataFrameAnalyticsAction extends Action<AcknowledgedResponse> 
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
+        public static final ParseField TIMEOUT = new ParseField("timeout");
+
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+
+        static {
+            PARSER.declareString((request, id) -> request.id = id, DataFrameAnalyticsConfig.ID);
+            PARSER.declareString((request, val) -> request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+        }
+
+        public static Request parseRequest(String id, XContentParser parser) {
+            Request request = PARSER.apply(parser, null);
+            if (request.getId() == null) {
+                request.setId(id);
+            } else if (!Strings.isNullOrEmpty(id) && !id.equals(request.getId())) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID,
+                    request.getId(), id));
+            }
+            return request;
+        }
+
         private String id;
+        private TimeValue timeout = TimeValue.timeValueSeconds(20);
 
         public Request(String id) {
-            this.id = ExceptionsHelper.requireNonNull(id, DataFrameAnalyticsConfig.ID);
+            setId(id);
         }
 
         public Request(StreamInput in) throws IOException {
             readFrom(in);
         }
 
-        public Request() {
+        public Request() {}
+
+        public final void setId(String id) {
+            this.id = ExceptionsHelper.requireNonNull(id, DataFrameAnalyticsConfig.ID);
         }
 
         public String getId() {
             return id;
+        }
+
+        public void setTimeout(TimeValue timeout) {
+            this.timeout = timeout;
+        }
+
+        public TimeValue getTimeout() {
+            return timeout;
         }
 
         @Override
@@ -71,12 +107,14 @@ public class StartDataFrameAnalyticsAction extends Action<AcknowledgedResponse> 
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             id = in.readString();
+            timeout = in.readTimeValue();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            out.writeTimeValue(timeout);
         }
 
         @Override
@@ -84,12 +122,13 @@ public class StartDataFrameAnalyticsAction extends Action<AcknowledgedResponse> 
             if (id != null) {
                 builder.field(DataFrameAnalyticsConfig.ID.getPreferredName(), id);
             }
+            builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id);
+            return Objects.hash(id, timeout);
         }
 
         @Override
@@ -101,7 +140,7 @@ public class StartDataFrameAnalyticsAction extends Action<AcknowledgedResponse> 
                 return false;
             }
             StartDataFrameAnalyticsAction.Request other = (StartDataFrameAnalyticsAction.Request) obj;
-            return Objects.equals(id, other.id);
+            return Objects.equals(id, other.id) && Objects.equals(timeout, other.timeout);
         }
 
         @Override

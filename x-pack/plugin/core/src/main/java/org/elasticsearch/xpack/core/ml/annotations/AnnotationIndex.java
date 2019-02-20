@@ -71,7 +71,7 @@ public class AnnotationIndex {
 
                 CreateIndexRequest createIndexRequest = new CreateIndexRequest(INDEX_NAME);
                 try (XContentBuilder annotationsMapping = AnnotationIndex.annotationsMapping()) {
-                    createIndexRequest.mapping(ElasticsearchMappings.DOC_TYPE, annotationsMapping);
+                    createIndexRequest.mapping("_doc", annotationsMapping);
                     createIndexRequest.settings(Settings.builder()
                         .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
@@ -110,8 +110,7 @@ public class AnnotationIndex {
 
     public static XContentBuilder annotationsMapping() throws IOException {
         XContentBuilder builder = jsonBuilder()
-            .startObject()
-                .startObject(ElasticsearchMappings.DOC_TYPE);
+            .startObject();
         ElasticsearchMappings.addMetaInformation(builder);
         builder.startObject(ElasticsearchMappings.PROPERTIES)
                         .startObject(Annotation.ANNOTATION.getPreferredName())
@@ -142,8 +141,7 @@ public class AnnotationIndex {
                             .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
                         .endObject()
                     .endObject()
-                .endObject()
-            .endObject();
+                .endObject();
         return builder;
     }
 }

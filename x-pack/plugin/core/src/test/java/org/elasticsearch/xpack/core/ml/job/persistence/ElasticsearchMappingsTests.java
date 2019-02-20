@@ -117,7 +117,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testTermFieldMapping() throws IOException {
 
-        XContentBuilder builder = ElasticsearchMappings.termFieldsMapping(null, Arrays.asList("apple", "strawberry",
+        XContentBuilder builder = ElasticsearchMappings.termFieldsMapping(Arrays.asList("apple", "strawberry",
                 AnomalyRecord.BUCKET_SPAN.getPreferredName()));
 
         XContentParser parser = createParser(builder);
@@ -217,7 +217,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             }
             mapping.put("_meta", meta);
 
-            indexMetaData.putMapping(new MappingMetaData(ElasticsearchMappings.DOC_TYPE, mapping));
+            indexMetaData.putMapping(new MappingMetaData("_doc", mapping));
 
             metaDataBuilder.put(indexMetaData);
         }

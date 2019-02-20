@@ -86,8 +86,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class ElasticsearchMappings {
 
-    public static final String DOC_TYPE = "doc";
-
     /**
      * String constants used in mappings
      */
@@ -137,7 +135,6 @@ public class ElasticsearchMappings {
     public static XContentBuilder configMapping() throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject(DOC_TYPE);
         addMetaInformation(builder);
         addDefaultMapping(builder);
         builder.startObject(PROPERTIES);
@@ -146,7 +143,6 @@ public class ElasticsearchMappings {
         addDatafeedConfigFields(builder);
 
         builder.endObject()
-               .endObject()
                .endObject();
         return builder;
     }
@@ -427,7 +423,6 @@ public class ElasticsearchMappings {
     public static XContentBuilder resultsMapping(Collection<String> extraTermFields) throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject(DOC_TYPE);
         addMetaInformation(builder);
         addDefaultMapping(builder);
         builder.startObject(PROPERTIES);
@@ -457,8 +452,6 @@ public class ElasticsearchMappings {
         // end properties
         builder.endObject();
         // end mapping
-        builder.endObject();
-        // end doc
         builder.endObject();
 
         return builder;
@@ -575,18 +568,12 @@ public class ElasticsearchMappings {
         addModelSizeStatsFieldsToMapping(builder);
     }
 
-    public static XContentBuilder termFieldsMapping(String type, Collection<String> termFields) {
+    public static XContentBuilder termFieldsMapping(Collection<String> termFields) {
         try {
             XContentBuilder builder = jsonBuilder().startObject();
-            if (type != null) {
-                builder.startObject(type);
-            }
             builder.startObject(PROPERTIES);
             addTermFields(builder, termFields);
             builder.endObject();
-            if (type != null) {
-                builder.endObject();
-            }
             return builder.endObject();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -872,10 +859,8 @@ public class ElasticsearchMappings {
     public static XContentBuilder stateMapping() throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject(DOC_TYPE);
         addMetaInformation(builder);
         builder.field(ENABLED, false);
-        builder.endObject();
         builder.endObject();
 
         return builder;
@@ -994,12 +979,12 @@ public class ElasticsearchMappings {
         List<String> indicesToUpdate = new ArrayList<>();
 
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> currentMapping = state.metaData().findMappings(concreteIndices,
-                new String[] {DOC_TYPE}, MapperPlugin.NOOP_FIELD_FILTER);
+                new String[0], MapperPlugin.NOOP_FIELD_FILTER);
 
         for (String index : concreteIndices) {
             ImmutableOpenMap<String, MappingMetaData> innerMap = currentMapping.get(index);
             if (innerMap != null) {
-                MappingMetaData metaData = innerMap.get(DOC_TYPE);
+                MappingMetaData metaData = innerMap.valuesIt().next();
                 try {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");
@@ -1060,7 +1045,6 @@ public class ElasticsearchMappings {
         if (indicesThatRequireAnUpdate.length > 0) {
             try (XContentBuilder mapping = mappingSupplier.get()) {
                 PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
-                putMappingRequest.type(DOC_TYPE);
                 putMappingRequest.source(mapping);
                 executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
                     ActionListener.wrap(response -> {

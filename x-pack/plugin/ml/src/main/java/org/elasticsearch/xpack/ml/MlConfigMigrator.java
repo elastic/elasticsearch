@@ -17,7 +17,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
@@ -414,7 +413,7 @@ public class MlConfigMigrator {
     }
 
     private IndexRequest indexRequest(ToXContentObject source, String documentId, ToXContent.Params params) {
-        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName(), ElasticsearchMappings.DOC_TYPE, documentId);
+        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName()).id(documentId);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             indexRequest.source(source.toXContent(builder, params));
@@ -439,9 +438,9 @@ public class MlConfigMigrator {
 
         logger.debug("taking a snapshot of ml_metadata");
         String documentId = "ml-config";
-        IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
-                ElasticsearchMappings.DOC_TYPE, documentId)
-                .setOpType(DocWriteRequest.OpType.CREATE);
+        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
+                .id(documentId)
+                .opType(DocWriteRequest.OpType.CREATE);
 
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -449,7 +448,7 @@ public class MlConfigMigrator {
             mlMetadata.toXContent(builder, params);
             builder.endObject();
 
-            indexRequest.setSource(builder);
+            indexRequest.source(builder);
         } catch (IOException e) {
             logger.error("failed to serialise ml_metadata", e);
             listener.onFailure(e);
@@ -458,7 +457,7 @@ public class MlConfigMigrator {
 
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterService.state(), ActionListener.wrap(
             r -> {
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest.request(),
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest,
                     ActionListener.<IndexResponse>wrap(
                         indexResponse -> {
                             listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
@@ -489,7 +488,7 @@ public class MlConfigMigrator {
                             .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                             .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
             );
-            createIndexRequest.mapping(ElasticsearchMappings.DOC_TYPE, ElasticsearchMappings.configMapping());
+            createIndexRequest.mapping("_all", ElasticsearchMappings.configMapping());
         } catch (Exception e) {
             logger.error("error writing the .ml-config mappings", e);
             listener.onFailure(e);

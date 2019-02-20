@@ -289,8 +289,8 @@ public class JobResultsProvider {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
             // This assumes the requested mapping will be merged with mappings from the template,
             // and may need to be revisited if template merging is ever refactored
-            try (XContentBuilder termFieldsMapping = ElasticsearchMappings.termFieldsMapping(ElasticsearchMappings.DOC_TYPE, termFields)) {
-                createIndexRequest.mapping(ElasticsearchMappings.DOC_TYPE, termFieldsMapping);
+            try (XContentBuilder termFieldsMapping = ElasticsearchMappings.termFieldsMapping(termFields)) {
+                createIndexRequest.mapping("_doc", termFieldsMapping);
             }
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
                     ActionListener.<CreateIndexResponse>wrap(
@@ -356,7 +356,8 @@ public class JobResultsProvider {
     private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields, ActionListener<Boolean> listener) {
         // Put the whole "doc" mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
         try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(termFields)) {
-            final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName).setType(ElasticsearchMappings.DOC_TYPE)
+            final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName)
+                    .setType("_doc")
                     .setSource(termFieldsMapping).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
                 @Override

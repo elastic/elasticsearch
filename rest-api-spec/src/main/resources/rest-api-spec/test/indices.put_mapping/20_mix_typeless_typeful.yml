@@ -57,8 +57,8 @@
 "PUT mapping with _doc on an index that has types":
 
  - skip:
-      version: "all"
-      reason: 5.x indices can have types that start with an `_` # AwaitsFix: https://github.com/elastic/elasticsearch/issues/38202
+      version: " - 6.1.99"
+      reason: _doc as a type name was only allowed as of 6.2
 
 
  - do:

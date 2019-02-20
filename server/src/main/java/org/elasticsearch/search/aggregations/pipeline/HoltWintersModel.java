@@ -196,10 +196,6 @@ public class HoltWintersModel extends MovAvgModel {
         return seasonalityType.equals(SeasonalityType.MULTIPLICATIVE) && pad ? 0.0000000001 : 0;
     }
 
-    public int getPeriod() {
-        return period;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeDouble(alpha);

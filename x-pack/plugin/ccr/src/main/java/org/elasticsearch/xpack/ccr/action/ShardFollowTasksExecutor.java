@@ -282,7 +282,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     shardFollowNodeTask), e);
                 threadPool.schedule(() -> nodeOperation(task, params, state), params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME);
             } else {
-                shardFollowNodeTask.markAsFailed(e);
+                shardFollowNodeTask.setFatalException(e);
             }
         };
 

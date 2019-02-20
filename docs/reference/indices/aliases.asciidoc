@@ -280,7 +280,7 @@ POST /_aliases
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT test\n/]
+// TEST[s/^/PUT test\nPUT test2\n/]
 
 In this example, we associate the alias `alias1` to both `test` and `test2`, where
 `test` will be the index chosen for writing to.

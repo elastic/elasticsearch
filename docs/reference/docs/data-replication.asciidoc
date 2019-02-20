@@ -18,7 +18,7 @@ validating them and making sure they are correct. Once an index operation has be
 responsible for replicating the operation to the other copies.
 
 This purpose of this section is to give a high level overview of the Elasticsearch replication model and discuss the implications
-it has for various interactions between write and read operations.
+it has four various interactions between write and read operations.
 
 [float]
 === Basic write model

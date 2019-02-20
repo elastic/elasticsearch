@@ -944,7 +944,7 @@ public final class InternalTestCluster extends TestCluster {
                  * since it might throw NoNodeAvailableException if nodes are
                  * shut down. we first need support of transportClientRatio
                  * as annotations or so */
-                transportClient = new TransportClientFactory(false, nodeConfigurationSource.transportClientSettings(),
+                transportClient = new TransportClientFactory(nodeConfigurationSource.transportClientSettings(),
                         baseDir, nodeConfigurationSource.transportClientPlugins()).client(node, clusterName);
             }
             return clientWrapper.apply(transportClient);
@@ -1073,13 +1073,11 @@ public final class InternalTestCluster extends TestCluster {
     public static final String TRANSPORT_CLIENT_PREFIX = "transport_client_";
 
     private static class TransportClientFactory {
-        private final boolean sniff;
         private final Settings settings;
         private final Path baseDir;
         private final Collection<Class<? extends Plugin>> plugins;
 
-        TransportClientFactory(boolean sniff, Settings settings, Path baseDir, Collection<Class<? extends Plugin>> plugins) {
-            this.sniff = sniff;
+        TransportClientFactory(Settings settings, Path baseDir, Collection<Class<? extends Plugin>> plugins) {
             this.settings = settings != null ? settings : Settings.EMPTY;
             this.baseDir = baseDir;
             this.plugins = plugins;
@@ -1092,7 +1090,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put("client.transport.nodes_sampler_interval", "1s")
                 .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
                 .put("node.name", TRANSPORT_CLIENT_PREFIX + node.settings().get("node.name"))
-                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", sniff)
+                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", false)
                 .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                 .put("logger.level", nodeSettings.get("logger.level", "INFO"))
                 .put(settings);
@@ -1745,16 +1743,9 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Restarts a random data node in the cluster and calls the callback during restart.
      */
-    public void restartRandomDataNode(RestartCallback callback) throws Exception {
-        restartRandomNode(DATA_NODE_PREDICATE, callback);
-    }
-
-    /**
-     * Restarts a random node in the cluster and calls the callback during restart.
-     */
-    private synchronized void restartRandomNode(Predicate<NodeAndClient> predicate, RestartCallback callback) throws Exception {
+    public synchronized void restartRandomDataNode(RestartCallback callback) throws Exception {
         ensureOpen();
-        NodeAndClient nodeAndClient = getRandomNodeAndClient(predicate);
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(InternalTestCluster.DATA_NODE_PREDICATE);
         if (nodeAndClient != null) {
             restartNode(nodeAndClient, callback);
         }
@@ -1851,7 +1842,7 @@ public final class InternalTestCluster extends TestCluster {
                 logger.info("adding voting config exclusions {} prior to restart/shutdown", excludedNodeIds);
                 try {
                     client().execute(AddVotingConfigExclusionsAction.INSTANCE,
-                            new AddVotingConfigExclusionsRequest(excludedNodeIds.toArray(new String[0]))).get();
+                            new AddVotingConfigExclusionsRequest(excludedNodeIds.toArray(Strings.EMPTY_ARRAY))).get();
                 } catch (InterruptedException | ExecutionException e) {
                     throw new AssertionError("unexpected", e);
                 }
@@ -2158,7 +2149,7 @@ public final class InternalTestCluster extends TestCluster {
      *
      * @param eligibleMasterNodeCount the number of master eligible nodes to use as basis for the min master node setting
      */
-    private int updateMinMasterNodes(int eligibleMasterNodeCount) {
+    private void updateMinMasterNodes(int eligibleMasterNodeCount) {
         assert autoManageMinMasterNodes;
         final int minMasterNodes = getMinMasterNodes(eligibleMasterNodeCount);
         if (getMasterNodesCount() > 0) {
@@ -2173,7 +2164,6 @@ public final class InternalTestCluster extends TestCluster {
                     minMasterNodes, getMasterNodesCount());
             }
         }
-        return minMasterNodes;
     }
 
     /** calculates a min master nodes value based on the given number of master nodes */

@@ -13,16 +13,24 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -31,6 +39,13 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
 
     public static final PreviewDataFrameTransformAction INSTANCE = new PreviewDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/preview";
+
+    // We need this registry for parsing out Aggregations and Searches
+    private static NamedXContentRegistry searchRegistry;
+    static {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        searchRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
 
     private PreviewDataFrameTransformAction() {
         super(NAME);
@@ -52,7 +67,17 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
         public Request() { }
 
         public static Request fromXContent(final XContentParser parser) throws IOException {
-            return new Request(DataFrameTransformConfig.fromXContent(parser, null, false));
+            Map<String, Object> content = parser.map();
+            // Destination and ID are not required for Preview, so we just supply our own
+            content.put(DataFrameTransformConfig.DESTINATION.getPreferredName(), "unused-transform-preview-index");
+            try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
+                XContentParser newParser = XContentType.JSON
+                    .xContent()
+                    .createParser(searchRegistry,
+                        LoggingDeprecationHandler.INSTANCE,
+                        BytesReference.bytes(xContentBuilder).streamInput())) {
+                return new Request(DataFrameTransformConfig.fromXContent(newParser, "transform-preview", true));
+            }
         }
 
         @Override
@@ -113,11 +138,11 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private List<Map<String, Object>> docs;
-        public static ParseField DATA_FRAME_PREVIEW = new ParseField("data_frame_preview");
+        public static ParseField PREVIEW = new ParseField("preview");
 
         static ObjectParser<Response, Void> PARSER = new ObjectParser<>("data_frame_transform_preview", Response::new);
         static {
-            PARSER.declareObjectArray(Response::setDocs, (p, c) -> p.mapOrdered(), DATA_FRAME_PREVIEW);
+            PARSER.declareObjectArray(Response::setDocs, (p, c) -> p.mapOrdered(), PREVIEW);
         }
         public Response() {}
 
@@ -157,7 +182,7 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(DATA_FRAME_PREVIEW.getPreferredName(), docs);
+            builder.field(PREVIEW.getPreferredName(), docs);
             builder.endObject();
             return builder;
         }

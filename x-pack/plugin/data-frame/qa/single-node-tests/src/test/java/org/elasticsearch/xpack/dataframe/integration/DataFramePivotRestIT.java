@@ -232,9 +232,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         final Request createPreviewRequest = new Request("POST", DATAFRAME_ENDPOINT + "_preview");
 
         String config = "{"
-            + " \"source\": \"reviews\","
-            + " \"id\": \"doesnot-matter\","
-            + " \"dest\": \"doesnot-matter\",";
+            + " \"source\": \"reviews\",";
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"

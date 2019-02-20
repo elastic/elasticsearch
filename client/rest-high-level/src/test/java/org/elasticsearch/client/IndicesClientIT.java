@@ -1261,7 +1261,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,
                     highLevelClient().indices()::getAliasAsync);
 
-            assertThat(getAliasesResponse.getAliases().size(), equalTo(3));
+            assertThat("Unexpected number of aliases, got: " + getAliasesResponse.getAliases().toString(),
+                    getAliasesResponse.getAliases().size(), equalTo(3));
             assertThat(getAliasesResponse.getAliases().get("index1").size(), equalTo(1));
             AliasMetaData aliasMetaData1 = getAliasesResponse.getAliases().get("index1").iterator().next();
             assertThat(aliasMetaData1, notNullValue());

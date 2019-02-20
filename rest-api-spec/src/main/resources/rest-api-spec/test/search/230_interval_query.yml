@@ -326,7 +326,7 @@ setup:
 ---
 "Test overlapping":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.0.99"
       reason: "Implemented in 7.1"
   - do:
       search:
@@ -349,7 +349,7 @@ setup:
 ---
 "Test before":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.0.99"
       reason: "Implemented in 7.1"
   - do:
       search:
@@ -369,7 +369,7 @@ setup:
 ---
 "Test after":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.0.99"
       reason: "Implemented in 7.1"
   - do:
       search:

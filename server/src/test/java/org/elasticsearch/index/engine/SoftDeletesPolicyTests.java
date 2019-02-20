@@ -37,8 +37,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -119,30 +117,6 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
                 Math.min(1 + safeCommitCheckpoint, Math.min(minimumRetainingSequenceNumber, 1 + globalCheckpoint.get() - retainedOps));
         minRetainedSeqNo = Math.max(minRetainedSeqNo, retainedSeqNo);
         assertThat(policy.getMinRetainedSeqNo(), equalTo(minRetainedSeqNo));
-    }
-
-    public void testAlwaysFetchLatestRetentionLeases() {
-        final AtomicLong globalCheckpoint = new AtomicLong(NO_OPS_PERFORMED);
-        final Collection<RetentionLease> leases = new ArrayList<>();
-        final int numLeases = randomIntBetween(0, 10);
-        for (int i = 0; i < numLeases; i++) {
-            leases.add(new RetentionLease(Integer.toString(i), randomLongBetween(0, 1000), randomNonNegativeLong(), "test"));
-        }
-        final Supplier<RetentionLeases> leasesSupplier =
-                () -> new RetentionLeases(
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        Collections.unmodifiableCollection(new ArrayList<>(leases)));
-        final SoftDeletesPolicy policy =
-                new SoftDeletesPolicy(globalCheckpoint::get, randomIntBetween(1, 1000), randomIntBetween(0, 1000), leasesSupplier);
-        if (randomBoolean()) {
-            policy.acquireRetentionLock();
-        }
-        if (numLeases == 0) {
-            assertThat(policy.getRetentionPolicy().v2().leases(), empty());
-        } else {
-            assertThat(policy.getRetentionPolicy().v2().leases(), contains(leases.toArray(new RetentionLease[0])));
-        }
     }
 
     public void testWhenGlobalCheckpointDictatesThePolicy() {

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -26,9 +27,8 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -58,6 +58,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig.QUERY_TRANSFORMER;
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig.lazyQueryParser;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -89,7 +91,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(randomValidDatafeedId(), jobId);
         builder.setIndices(randomStringList(1, 10));
         if (randomBoolean()) {
-            builder.setParsedQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            builder.setQuery(Collections.singletonMap(TermQueryBuilder.NAME,
+                Collections.singletonMap(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))));
         }
         boolean addScriptFields = randomBoolean();
         if (addScriptFields) {
@@ -214,6 +217,41 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         "  }\n" +
         "}";
 
+    private static final String MULTIPLE_AGG_DEF_DATAFEED = "{\n" +
+        "    \"datafeed_id\": \"farequote-datafeed\",\n" +
+        "    \"job_id\": \"farequote\",\n" +
+        "    \"frequency\": \"1h\",\n" +
+        "    \"indices\": [\"farequote1\", \"farequote2\"],\n" +
+        "    \"aggregations\": {\n" +
+        "    \"buckets\": {\n" +
+        "      \"date_histogram\": {\n" +
+        "        \"field\": \"time\",\n" +
+        "        \"interval\": \"360s\",\n" +
+        "        \"time_zone\": \"UTC\"\n" +
+        "      },\n" +
+        "      \"aggregations\": {\n" +
+        "        \"time\": {\n" +
+        "          \"max\": {\"field\": \"time\"}\n" +
+        "        }\n" +
+        "      }\n" +
+        "    }\n" +
+        "  }," +
+        "    \"aggs\": {\n" +
+        "    \"buckets2\": {\n" +
+        "      \"date_histogram\": {\n" +
+        "        \"field\": \"time\",\n" +
+        "        \"interval\": \"360s\",\n" +
+        "        \"time_zone\": \"UTC\"\n" +
+        "      },\n" +
+        "      \"aggregations\": {\n" +
+        "        \"time\": {\n" +
+        "          \"max\": {\"field\": \"time\"}\n" +
+        "        }\n" +
+        "      }\n" +
+        "    }\n" +
+        "  }\n" +
+        "}";
+
     public void testFutureConfigParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
@@ -228,7 +266,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
             DatafeedConfig config = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> config.getParsedQuery());
-            assertEquals("[match] query doesn't support multiple fields, found [query] and [type]", e.getMessage());
+            assertNotNull(e.getCause());
+            assertEquals("[match] query doesn't support multiple fields, found [query] and [type]", e.getCause().getMessage());
         }
 
         try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
@@ -236,7 +275,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
             XContentParseException e = expectThrows(XContentParseException.class,
                 () -> DatafeedConfig.STRICT_PARSER.apply(parser, null).build());
-            assertEquals("[6:25] [datafeed_config] failed to parse field [query]", e.getMessage());
+            assertEquals("[6:64] [datafeed_config] failed to parse field [query]", e.getMessage());
         }
     }
 
@@ -246,9 +285,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
             DatafeedConfig.Builder configBuilder = DatafeedConfig.LENIENT_PARSER.apply(parser, null);
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> configBuilder.build());
+            assertNotNull(e.getCause());
             assertEquals(
-                "Datafeed [farequote-datafeed] aggregations are not parsable: [size] must be greater than 0. Found [0] in [airline]",
-                e.getMessage());
+                "[size] must be greater than 0. Found [0] in [airline]",
+                e.getCause().getMessage());
         }
 
         try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
@@ -256,7 +296,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
             XContentParseException e = expectThrows(XContentParseException.class,
                 () -> DatafeedConfig.STRICT_PARSER.apply(parser, null).build());
-            assertEquals("[8:25] [datafeed_config] failed to parse field [aggregations]", e.getMessage());
+            assertEquals("[25:3] [datafeed_config] failed to parse field [aggregations]", e.getMessage());
         }
     }
 
@@ -265,6 +305,25 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
         // Unlike the config version of this test, the metadata parser should tolerate the unknown future field
         assertNotNull(DatafeedConfig.LENIENT_PARSER.apply(parser, null).build());
+    }
+
+    public void testMultipleDefinedAggParse() throws IOException {
+        try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MULTIPLE_AGG_DEF_DATAFEED)) {
+            XContentParseException ex = expectThrows(XContentParseException.class,
+                () -> DatafeedConfig.LENIENT_PARSER.apply(parser, null));
+            assertThat(ex.getMessage(), equalTo("[32:3] [datafeed_config] failed to parse field [aggs]"));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause().getMessage(), equalTo("Found two aggregation definitions: [aggs] and [aggregations]"));
+        }
+        try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MULTIPLE_AGG_DEF_DATAFEED)) {
+            XContentParseException ex = expectThrows(XContentParseException.class,
+                () -> DatafeedConfig.STRICT_PARSER.apply(parser, null));
+            assertThat(ex.getMessage(), equalTo("[32:3] [datafeed_config] failed to parse field [aggs]"));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause().getMessage(), equalTo("Found two aggregation definitions: [aggs] and [aggregations]"));
+        }
     }
 
     public void testToXContentForInternalStorage() throws IOException {
@@ -443,7 +502,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::build);
 
-        assertThat(e.getMessage(), containsString("[interval] must be >0 for histogram aggregation [time]"));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause().getMessage(), containsString("[interval] must be >0 for histogram aggregation [time]"));
     }
 
     public void testBuild_GivenDateHistogramWithInvalidTimeZone() {
@@ -636,7 +696,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
         DatafeedConfig spiedConfig = spy(datafeed);
         spiedConfig.getQueryDeprecations();
-        verify(spiedConfig).getQueryDeprecations(DatafeedConfig.lazyQueryParser);
+        verify(spiedConfig).getQueryDeprecations(lazyQueryParser);
     }
 
     public void testSerializationOfComplexAggs() throws IOException {
@@ -656,9 +716,11 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 .subAggregation(derivativePipelineAggregationBuilder)
                 .subAggregation(bucketScriptPipelineAggregationBuilder);
         DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilderWithDateHistogram(dateHistogram);
-        QueryBuilder terms =
-            new BoolQueryBuilder().filter(new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
-        datafeedConfigBuilder.setParsedQuery(terms);
+        Map<String, Object> terms = Collections.singletonMap(BoolQueryBuilder.NAME,
+            Collections.singletonMap("filter",
+                    Collections.singletonMap(TermQueryBuilder.NAME,
+                        Collections.singletonMap(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)))));
+        datafeedConfigBuilder.setQuery(terms);
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder().addAggregator(dateHistogram);
 
@@ -675,7 +737,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
         // Assert that the parsed versions of our aggs and queries work as well
         assertEquals(aggBuilder, parsedDatafeedConfig.getParsedAggregations());
-        assertEquals(terms, parsedDatafeedConfig.getParsedQuery());
+        assertEquals(terms, parsedDatafeedConfig.getQuery());
 
         try(BytesStreamOutput output = new BytesStreamOutput()) {
             datafeedConfig.writeTo(output);
@@ -685,7 +747,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
                 // Assert that the parsed versions of our aggs and queries work as well
                 assertEquals(aggBuilder, streamedDatafeedConfig.getParsedAggregations());
-                assertEquals(terms, streamedDatafeedConfig.getParsedQuery());
+                assertEquals(terms, streamedDatafeedConfig.getQuery());
             }
         }
     }
@@ -707,9 +769,15 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 .subAggregation(derivativePipelineAggregationBuilder)
                 .subAggregation(bucketScriptPipelineAggregationBuilder);
         DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilderWithDateHistogram(dateHistogram);
-        QueryBuilder terms =
-            new BoolQueryBuilder().filter(new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
-        datafeedConfigBuilder.setParsedQuery(terms);
+        Map<String, Object> terms = Collections.singletonMap(BoolQueryBuilder.NAME,
+            Collections.singletonMap("filter",
+                Collections.singletonList(
+                    Collections.singletonMap(TermQueryBuilder.NAME,
+                        Collections.singletonMap(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))))));
+        // So equality check between the streamed and current passes
+        // Streamed DatafeedConfigs when they are before 6.6.0 require a parsed object for aggs and queries, consequently all the default
+        // values are added between them
+        datafeedConfigBuilder.setQuery(QUERY_TRANSFORMER.toMap(QUERY_TRANSFORMER.fromMap(terms)));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
 
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
@@ -726,7 +794,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 // Assert that the parsed versions of our aggs and queries work as well
                 assertEquals(new AggregatorFactories.Builder().addAggregator(dateHistogram),
                     streamedDatafeedConfig.getParsedAggregations());
-                assertEquals(terms, streamedDatafeedConfig.getParsedQuery());
+                assertEquals(datafeedConfig.getParsedQuery(), streamedDatafeedConfig.getParsedQuery());
             }
         }
     }
@@ -736,6 +804,22 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         for (int i = 0; i < 100000; i++) {
             datafeed = new DatafeedConfig.Builder(datafeed).build();
         }
+    }
+
+    public void testEmptyQueryMap() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("empty_query_map", "job1");
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> builder.setQuery(Collections.emptyMap(), false));
+        assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ex.getMessage(), equalTo("Datafeed [empty_query_map] query is not parsable"));
+    }
+
+    public void testEmptyAggMap() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("empty_agg_map", "job1");
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> builder.setAggregations(Collections.emptyMap(), false));
+        assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ex.getMessage(), equalTo("Datafeed [empty_agg_map] aggregations are not parsable"));
     }
 
     public static String randomValidDatafeedId() {
@@ -800,12 +884,14 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             builder.setIndices(indices);
             break;
         case 5:
-            BoolQueryBuilder query = new BoolQueryBuilder();
-            if (instance.getParsedQuery() != null) {
-               query.must(instance.getParsedQuery());
+            Map<String, Object> query = new HashMap<>();
+            if (instance.getQuery() != null) {
+                query.put("must", instance.getQuery());
             }
-            query.filter(new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
-            builder.setParsedQuery(query);
+            query.put("filter", Collections.singletonList(
+                Collections.singletonMap(TermQueryBuilder.NAME,
+                    Collections.singletonMap(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)))));
+            builder.setQuery(query);
             break;
         case 6:
             if (instance.hasAggregations()) {

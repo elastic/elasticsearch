@@ -18,6 +18,10 @@ cli_or_drivers_minimal:
       privileges: [read, "indices:admin/get"]
 # end::cli_drivers
 
+read_nothing:
+  cluster:
+    - "cluster:monitor/main"
+
 read_something_else:
   cluster:
     - "cluster:monitor/main"

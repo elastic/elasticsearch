@@ -266,28 +266,6 @@ public class JdbcConfigurationTests extends ESTestCase {
         }
     }
     
-    public void testDataSourceConfigurationWithSSLInURL() throws SQLException, URISyntaxException {
-        Map<String, String> urlPropMap = sslProperties();
-        
-        Properties allProps = new Properties();
-        allProps.putAll(urlPropMap);
-        String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
-        
-        EsDataSource dataSource = new EsDataSource();
-        String address = "jdbc:es://test?" + sslUrlProps;
-        dataSource.setUrl(address);
-        JdbcConnection connection = null;
-        
-        try {
-            connection = (JdbcConnection) dataSource.getConnection();
-        } catch (SQLException sqle) {
-            fail("Connection creation should have been successful. Error: " + sqle);
-        }
-        
-        assertEquals(address, connection.getURL());
-        assertSslConfig(allProps, connection.cfg.sslConfig());
-    }
-    
     public void testTyposInSslConfigInUrl(){
         assertJdbcSqlExceptionFromUrl("ssl.protocl", "ssl.protocol");
         assertJdbcSqlExceptionFromUrl("sssl", "ssl");
@@ -310,7 +288,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertJdbcSqlExceptionFromProperties("ssl.ruststore.type", "ssl.truststore.type");
     }
     
-    private Map<String, String> sslProperties() {
+    static Map<String, String> sslProperties() {
         Map<String, String> sslPropertiesMap = new HashMap<>(8);
         // always using "false" so that the SSLContext doesn't actually start verifying the keystore and trustore
         // locations, as we don't have file permissions to access them.
@@ -326,7 +304,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         return sslPropertiesMap;
     }
     
-    private void assertSslConfig(Properties allProperties, SslConfig sslConfig) throws URISyntaxException {
+    static void assertSslConfig(Properties allProperties, SslConfig sslConfig) throws URISyntaxException {
         // because SslConfig doesn't expose its internal properties (and it shouldn't),
         // we compare a newly created SslConfig with the one from the JdbcConfiguration with the equals() method
         SslConfig mockSslConfig = new SslConfig(allProperties, new URI("http://test:9200/"));

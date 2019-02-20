@@ -17,16 +17,21 @@
  * under the License.
  */
 
-grant {
-  // needed because of problems in ClientConfiguration
-  // TODO: get these fixed in aws sdk
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-  // NOTE: no tests fail without this, but we know the problem
-  // exists in AWS sdk, and tests here are not thorough
-  permission java.lang.RuntimePermission "getClassLoader";
+package org.elasticsearch.client.ccr;
 
-  // ec2 client opens socket connections for discovery
-  permission java.net.SocketPermission "*", "connect";
+import org.elasticsearch.client.Validatable;
 
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
+import java.util.Objects;
+
+public final class FollowInfoRequest implements Validatable {
+
+    private final String followerIndex;
+
+    public FollowInfoRequest(String followerIndex) {
+        this.followerIndex = Objects.requireNonNull(followerIndex);
+    }
+
+    public String getFollowerIndex() {
+        return followerIndex;
+    }
+}

@@ -29,10 +29,7 @@ The returned +{response}+ indicates if the unfollow request was received.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> Whether or not the unfollow was acknowledged.
-<2> Whether or not the retention leases on the leader were successfully removed.
-<3> Indicates the cause of the failure to remove the retention leases on the
-    leader, in case of failure.
+<1> Whether or not the unfollow was acknowledge.
 
 include::../execution.asciidoc[]
 

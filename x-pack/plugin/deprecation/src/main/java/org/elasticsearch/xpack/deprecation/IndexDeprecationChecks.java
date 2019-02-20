@@ -93,7 +93,7 @@ public class IndexDeprecationChecks {
         }
         if (issues.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Use of 'delimited_payload_filter'.",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                     "#_literal_delimited_payload_filter_literal_renaming", issues.toString());
         }
         return null;
@@ -107,7 +107,7 @@ public class IndexDeprecationChecks {
             if (".tasks".equals(indexMetaData.getIndex().getName())) {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                     ".tasks index must be re-created",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                         "#_indices_created_before_7_0",
                     "The .tasks index was created before version 6.0 and cannot be opened in 7.0. " +
                         "You must delete this index and allow it to be re-created by Elasticsearch. If you wish to preserve task history, "+
@@ -117,7 +117,7 @@ public class IndexDeprecationChecks {
                 || mappingCount > 2) {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                     "Index has more than one mapping type",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html" +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/removal-of-types.html" +
                         "#_migrating_multi_type_indices_to_single_type",
                     "This index has more than one mapping type, which is not supported in 7.0. " +
                         "This index must be reindexed into one or more single-type indices. Mapping types in use: " +
@@ -125,7 +125,7 @@ public class IndexDeprecationChecks {
             } else {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                     "Index created before 6.0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                         "#_indices_created_before_7_0",
                     "This index was created using version: " + createdWith);
             }
@@ -139,7 +139,7 @@ public class IndexDeprecationChecks {
         if (clusterName.contains(":")) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Index name cannot contain ':'",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                     "#_literal_literal_is_no_longer_allowed_in_index_name",
                 "This index is named [" + clusterName + "], which contains the illegal character ':'.");
         }
@@ -151,7 +151,7 @@ public class IndexDeprecationChecks {
             String settingValue = indexMetaData.getSettings().get("index.percolator.map_unmapped_fields_as_text");
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Setting index.percolator.map_unmapped_fields_as_text has been renamed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                     "#_percolator",
                 "The index setting [index.percolator.map_unmapped_fields_as_text] currently set to [" + settingValue +
                     "] been removed in favor of [index.percolator.map_unmapped_fields_as_text].");
@@ -167,7 +167,7 @@ public class IndexDeprecationChecks {
         if (issues.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Classic similarity has been removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                     "#_the_literal_classic_literal_similarity_has_been_removed",
                 "Fields which use classic similarity: " + issues.toString());
         }
@@ -183,7 +183,7 @@ public class IndexDeprecationChecks {
         if (classicSimilarities.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Classic similarity has been removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                     "#_the_literal_classic_literal_similarity_has_been_removed",
                 "Custom similarities defined using classic similarity: " + classicSimilarities.toString());
         }
@@ -198,7 +198,7 @@ public class IndexDeprecationChecks {
             if (parsedValue.getNanos() < 0) {
                 return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                     "Negative values for " + setting + " are deprecated and should be set to 0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                         "#_literal_index_unassigned_node_left_delayed_timeout_literal_may_no_longer_be_negative",
                     "The index [" + indexMetaData.getIndex().getName() + "] has [" + setting + "] set to [" + value +
                         "], but negative values are not allowed");
@@ -214,7 +214,7 @@ public class IndexDeprecationChecks {
             if ("fix".equalsIgnoreCase(value)) {
                 return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                     "The value [fix] for setting [" + setting + "] is no longer valid",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                         "#_literal_fix_literal_value_for_literal_index_shard_check_on_startup_literal_is_removed",
                     "The index [" + indexMetaData.getIndex().getName() + "] has the setting [" + setting + "] set to value [fix]" +
                         ", but [fix] is no longer a valid value. Valid values are true, false, and checksum");

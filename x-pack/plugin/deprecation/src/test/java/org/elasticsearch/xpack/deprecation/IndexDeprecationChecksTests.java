@@ -37,7 +37,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Index created before 6.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_indices_created_before_7_0",
             "This index was created using version: " + createdWith);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
@@ -54,7 +54,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             ".tasks index must be re-created",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_indices_created_before_7_0",
             "The .tasks index was created before version 6.0 and cannot be opened in 7.0. " +
                 "You must delete this index and allow it to be re-created by Elasticsearch. If you wish to preserve task history, " +
@@ -92,7 +92,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Index created before 6.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_indices_created_before_7_0",
             "This index was created using version: " + createdWith);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
@@ -144,7 +144,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertEquals("Index has more than one mapping type", issue.getMessage());
         assertEquals(DeprecationIssue.Level.CRITICAL, issue.getLevel());
         assertEquals(
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/removal-of-types.html" +
                 "#_migrating_multi_type_indices_to_single_type",
             issue.getUrl());
         assertThat(issue.getDetails(), allOf(
@@ -162,7 +162,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .put("index.analysis.filter.my_delimited_payload_filter.encoding", "identity").build();
         IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING, "Use of 'delimited_payload_filter'.",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_literal_delimited_payload_filter_literal_renaming",
             "[The filter [my_delimited_payload_filter] is of deprecated 'delimited_payload_filter' type. "
                 + "The filter type should be changed to 'delimited_payload'.]");
@@ -179,7 +179,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .build();
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING, "Index name cannot contain ':'",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_literal_literal_is_no_longer_allowed_in_index_name",
             "This index is named [" + badIndexName + "], which contains the illegal character ':'.");
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(badIndex));
@@ -208,7 +208,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Setting index.percolator.map_unmapped_fields_as_text has been renamed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_percolator",
             "The index setting [index.percolator.map_unmapped_fields_as_text] currently set to [" + settingValue +
                 "] been removed in favor of [index.percolator.map_unmapped_fields_as_text].");
@@ -245,7 +245,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Classic similarity has been removed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_the_literal_classic_literal_similarity_has_been_removed",
             "Fields which use classic similarity: [[type: _doc, field: classic_sim_field]]");
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(index));
@@ -264,7 +264,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Classic similarity has been removed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_the_literal_classic_literal_similarity_has_been_removed",
             "Custom similarities defined using classic similarity: [my_classic_similarity]");
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(index));
@@ -283,7 +283,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Negative values for " + setting + " are deprecated and should be set to 0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_literal_index_unassigned_node_left_delayed_timeout_literal_may_no_longer_be_negative",
             "The index [" + indexName + "] has [" + setting + "] set to [" + negativeTimeValue +
                 "], but negative values are not allowed");
@@ -310,7 +310,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "The value [fix] for setting [" + setting + "] is no longer valid",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_literal_fix_literal_value_for_literal_index_shard_check_on_startup_literal_is_removed",
             "The index [" + indexName + "] has the setting [" + setting + "] set to value [fix]" +
                 ", but [fix] is no longer a valid value. Valid values are true, false, and checksum");

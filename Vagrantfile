@@ -346,6 +346,11 @@ def sh_install_deps(config,
       echo "==> Java is not installed"
       return 1
     }
+    cat \<\<JAVA > /etc/profile.d/java_home.sh
+if [ -z "\\\$JAVA_HOME" ]; then
+  export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+fi
+JAVA
     ensure tar
     ensure curl
     ensure unzip
@@ -382,6 +387,7 @@ Defaults   env_keep += "BATS_UTILS"
 Defaults   env_keep += "BATS_TESTS"
 Defaults   env_keep += "PACKAGING_ARCHIVES"
 Defaults   env_keep += "PACKAGING_TESTS"
+Defaults   env_keep += "JAVA_HOME"
 SUDOERS_VARS
     chmod 0440 /etc/sudoers.d/elasticsearch_vars
   SHELL

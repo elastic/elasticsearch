@@ -25,7 +25,7 @@ else
 fi
 
 if [ -z "$JAVA" ]; then
-    err_exit "could not find java; set JAVA_HOME or ensure java is in PATH"
+    err_exit "could not find java; set JAVA_HOME"
 fi
 
 case "$1" in

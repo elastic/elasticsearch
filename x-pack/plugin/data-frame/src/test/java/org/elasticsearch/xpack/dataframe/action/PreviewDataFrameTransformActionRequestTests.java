@@ -14,7 +14,8 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.dataframe.action.PreviewDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.dataframe.transforms.QueryConfigTests;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -61,7 +62,8 @@ public class PreviewDataFrameTransformActionRequestTests extends AbstractStreama
 
     @Override
     protected Request createTestInstance() {
-        DataFrameTransformConfig config = DataFrameTransformConfigTests.randomDataFrameTransformConfig();
+        DataFrameTransformConfig config = new DataFrameTransformConfig("transform-preview", randomAlphaOfLength(10),
+            "unused-transform-preview-index", QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
         return new Request(config);
     }
 

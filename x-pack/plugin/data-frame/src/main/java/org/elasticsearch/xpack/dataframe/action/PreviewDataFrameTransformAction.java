@@ -16,21 +16,17 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,13 +35,6 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
 
     public static final PreviewDataFrameTransformAction INSTANCE = new PreviewDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/preview";
-
-    // We need this registry for parsing out Aggregations and Searches
-    private static NamedXContentRegistry searchRegistry;
-    static {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        searchRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
-    }
 
     private PreviewDataFrameTransformAction() {
         super(NAME);
@@ -73,7 +62,7 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
             try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
                 XContentParser newParser = XContentType.JSON
                     .xContent()
-                    .createParser(searchRegistry,
+                    .createParser(parser.getXContentRegistry(),
                         LoggingDeprecationHandler.INSTANCE,
                         BytesReference.bytes(xContentBuilder).streamInput())) {
                 return new Request(DataFrameTransformConfig.fromXContent(newParser, "transform-preview", true));

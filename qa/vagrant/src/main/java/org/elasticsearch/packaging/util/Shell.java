@@ -104,7 +104,7 @@ public class Shell {
     private Result runScriptIgnoreExitCode(String[] command) {
         ProcessBuilder builder = new ProcessBuilder();
         builder.command(command);
-        System.err.println(String.join(" ", command));
+
 
         if (workingDirectory != null) {
             setWorkingDirectory(builder, workingDirectory);
@@ -112,9 +112,11 @@ public class Shell {
 
         if (env != null && env.isEmpty() == false) {
             for (Map.Entry<String, String> entry : env.entrySet()) {
+                System.err.println("ENV: " + entry.getKey() + "=" + entry.getValue());
                 builder.environment().put(entry.getKey(), entry.getValue());
             }
         }
+        System.err.println(String.join(" ", command));
 
         try {
 

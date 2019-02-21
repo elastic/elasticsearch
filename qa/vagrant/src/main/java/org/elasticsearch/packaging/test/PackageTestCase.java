@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -92,13 +93,14 @@ public abstract class PackageTestCase extends PackagingTestCase {
         Shell sh = new Shell();
 
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+        byte[] originalEnvFile = Files.readAllBytes(installation.envFile);
         try {
-            Files.write(installation.envFile, ("export JAVA_HOME=" + systemJavaHome).getBytes(StandardCharsets.UTF_8));
-
+            Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome).getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
+            System.err.println("ENV FILE: " + new String(Files.readAllBytes(installation.envFile), StandardCharsets.UTF_8));
             startElasticsearch();
             runElasticsearchTests();
         } finally {
-            Files.delete(installation.envFile);
+            Files.write(installation.envFile, originalEnvFile);
         }
 
         Path log = installation.logs.resolve("elasticsearch.log");

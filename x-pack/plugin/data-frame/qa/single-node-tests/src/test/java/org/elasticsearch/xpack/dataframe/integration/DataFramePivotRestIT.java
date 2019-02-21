@@ -246,7 +246,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "}";
         createPreviewRequest.setJsonEntity(config);
         Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
-        List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("data_frame_preview");
+        List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
         assertThat(preview.size(), equalTo(393));
         Set<String> expectedFields = new HashSet<>(Arrays.asList("reviewer", "by_day", "avg_rating"));
         preview.forEach(p -> {

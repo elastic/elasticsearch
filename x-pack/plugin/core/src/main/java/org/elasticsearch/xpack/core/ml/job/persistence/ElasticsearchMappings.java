@@ -1057,8 +1057,13 @@ public class ElasticsearchMappings {
         }
 
         if (indicesThatRequireAnUpdate.length > 0) {
+            // Use the mapping type of the first index in the update
+            IndexMetaData indexMetaData = state.metaData().index(indicesThatRequireAnUpdate[0]);
+            String mappingType = indexMetaData.mapping().type();
+
             try (XContentBuilder mapping = mappingSupplier.get()) {
                 PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
+                putMappingRequest.type(mappingType);
                 putMappingRequest.source(mapping);
                 executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
                     ActionListener.wrap(response -> {

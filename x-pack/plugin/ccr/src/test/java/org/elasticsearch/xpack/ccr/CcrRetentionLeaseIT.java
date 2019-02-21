@@ -337,8 +337,23 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             }
         });
 
+        /*
+         * We want to ensure that the background renewal is cancelled at the end of recovery. To do this, we will sleep a small multiple
+         * of the renew interval. If the renews are not cancelled, we expect that a renewal would have been sent while we were sleeping.
+         * After we wake up, it should be the case that the retention leases are the same (same timestamp) as that indicates that they were
+         * not renewed while we were sleeping.
+         */
+        final TimeValue renewIntervalSetting = CcrRepository.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(
+                followerClient()
+                        .admin()
+                        .indices()
+                        .prepareGetSettings(followerIndex)
+                        .get()
+                        .getIndexToSettings()
+                        .get(followerIndex));
+
         final long end = System.nanoTime();
-        Thread.sleep(Math.max(0, randomIntBetween(2, 4) * 200 - TimeUnit.NANOSECONDS.toMillis(end - start)));
+        Thread.sleep(Math.max(0, randomIntBetween(2, 4) * renewIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(end - start)));
 
         // now ensure that the retention leases are the same
         assertBusy(() -> {

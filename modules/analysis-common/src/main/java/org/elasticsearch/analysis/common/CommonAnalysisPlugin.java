@@ -415,7 +415,11 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("edge_ngram", false, false, input ->
                 new EdgeNGramTokenFilter(input, 1)));
         filters.add(PreConfiguredTokenFilter.singletonWithVersion("edgeNGram", false, false, (reader, version) -> {
-            if (version.onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
+            if (version.onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
+                throw new IllegalArgumentException(
+                        "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
+                                + "Please change the filter name to [edge_ngram] instead.");
+            } else {
                 deprecationLogger.deprecatedAndMaybeLog("edgeNGram_deprecation",
                         "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
                                 + "Please change the filter name to [edge_ngram] instead.");
@@ -439,7 +443,10 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                         LimitTokenCountFilterFactory.DEFAULT_CONSUME_ALL_TOKENS)));
         filters.add(PreConfiguredTokenFilter.singleton("ngram", false, false, reader -> new NGramTokenFilter(reader, 1, 2, false)));
         filters.add(PreConfiguredTokenFilter.singletonWithVersion("nGram", false, false, (reader, version) -> {
-            if (version.onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
+            if (version.onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
+                throw new IllegalArgumentException("The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
+                        + "Please change the filter name to [ngram] instead.");
+            } else {
                 deprecationLogger.deprecatedAndMaybeLog("nGram_deprecation",
                         "The [nGram] token filter name is deprecated and will be removed in a future version. "
                                 + "Please change the filter name to [ngram] instead.");

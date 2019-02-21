@@ -21,8 +21,8 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -43,11 +43,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -56,6 +56,8 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class RetentionLeaseIT extends ESIntegTestCase  {
@@ -99,7 +101,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
             final CountDownLatch latch = new CountDownLatch(1);
-            final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+            final ActionListener<Void> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             // simulate a peer recovery which locks the soft deletes policy on the primary
             final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLock() : () -> {};
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
@@ -146,7 +148,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
             final CountDownLatch latch = new CountDownLatch(1);
-            final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+            final ActionListener<Void> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             // simulate a peer recovery which locks the soft deletes policy on the primary
             final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLock() : () -> {};
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
@@ -189,18 +191,22 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         final long estimatedTimeIntervalMillis = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(Settings.EMPTY).millis();
         final TimeValue retentionLeaseTimeToLive =
                 TimeValue.timeValueMillis(randomLongBetween(estimatedTimeIntervalMillis, 2 * estimatedTimeIntervalMillis));
-        final Settings settings = Settings.builder()
+        final boolean relyOnPeriodicSync = rarely();
+        final Settings.Builder settings = Settings.builder()
                 .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", numberOfReplicas)
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
-                .build();
-        createIndex("index", settings);
+                .put("index.number_of_replicas", numberOfReplicas);
+        if (relyOnPeriodicSync) {
+            settings.put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+        }
+        createIndex("index", settings.build());
         ensureGreen("index");
         final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
         final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();
         final IndexShard primary = internalCluster()
                 .getInstance(IndicesService.class, primaryShardNodeName)
                 .getShardOrNull(new ShardId(resolveIndex("index"), 0));
+        final LongSupplier getCurrentMillisOnPrimary
+            = internalCluster().getInstance(ThreadPool.class, primaryShardNodeName)::absoluteTimeInMillis;
         // we will add multiple retention leases, wait for some to expire, and assert a consistent view between the primary and the replicas
         final int length = randomIntBetween(1, 8);
         for (int i = 0; i < length; i++) {
@@ -219,10 +225,11 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
             final CountDownLatch latch = new CountDownLatch(1);
-            final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+            final ActionListener<Void> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             final RetentionLease currentRetentionLease = primary.addRetentionLease(id, retainingSequenceNumber, source, listener);
-            final long now = System.nanoTime();
             latch.await();
+            final long leaseCreatedBeforeMillis = getCurrentMillisOnPrimary.getAsLong();
+            assertThat(currentRetentionLease.timestamp(), lessThanOrEqualTo(leaseCreatedBeforeMillis));
 
             // check current retention leases have been synced to all replicas
             for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
@@ -246,12 +253,10 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             assertTrue(shortTtlResponse.isAcknowledged());
 
             // sleep long enough that the current retention lease has expired
-            final long later = System.nanoTime();
-            Thread.sleep(Math.max(0, retentionLeaseTimeToLive.millis() - TimeUnit.NANOSECONDS.toMillis(later - now)));
-            assertBusy(() -> assertThat(primary.getRetentionLeases().leases(), empty()));
+            assertBusy(() -> assertThat(getCurrentMillisOnPrimary.getAsLong(),
+                greaterThan(leaseCreatedBeforeMillis + retentionLeaseTimeToLive.millis())));
 
-            // now that all retention leases are expired should have been synced to all replicas
-            assertBusy(() -> {
+            final CheckedRunnable<Exception> assertNoLeasesOnReplicas = () -> {
                 for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
                     final String replicaShardNodeId = replicaShard.currentNodeId();
                     final String replicaShardNodeName = clusterService().state().nodes().get(replicaShardNodeId).getName();
@@ -260,19 +265,29 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                             .getShardOrNull(new ShardId(resolveIndex("index"), 0));
                     assertThat(replica.getRetentionLeases().leases(), empty());
                 }
-            });
+            };
+            if (relyOnPeriodicSync) {
+                assertBusy(() -> assertThat(primary.getRetentionLeases().leases(), empty()));
+                assertBusy(assertNoLeasesOnReplicas);
+            } else {
+                internalCluster().syncRetentionLeases(resolveIndex("index"));
+                assertThat(primary.getRetentionLeases().leases(), empty());
+                assertNoLeasesOnReplicas.run();
+            }
         }
     }
 
     public void testBackgroundRetentionLeaseSync() throws Exception {
         final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);
-        final Settings settings = Settings.builder()
+        final boolean relyOnPeriodicSync = rarely();
+        final Settings.Builder settings = Settings.builder()
                 .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", numberOfReplicas)
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
-                .build();
-        createIndex("index", settings);
+                .put("index.number_of_replicas", numberOfReplicas);
+        if (relyOnPeriodicSync) {
+            settings.put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+        }
+        createIndex("index", settings.build());
         ensureGreen("index");
         final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
         final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();
@@ -303,7 +318,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                                 randomLongBetween(currentRetentionLeases.get(ids.get(j)).retainingSequenceNumber(), Long.MAX_VALUE),
                                 source));
             }
-            assertBusy(() -> {
+            final CheckedRunnable<Exception> assertReplicasSyncedWithPrimaries = () -> {
                 // check all retention leases have been synced to all replicas
                 for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
                     final String replicaShardNodeId = replicaShard.currentNodeId();
@@ -313,7 +328,14 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                             .getShardOrNull(new ShardId(resolveIndex("index"), 0));
                     assertThat(replica.getRetentionLeases(), equalTo(primary.getRetentionLeases()));
                 }
-            });
+            };
+
+            if (relyOnPeriodicSync) {
+                assertBusy(assertReplicasSyncedWithPrimaries);
+            } else {
+                internalCluster().syncRetentionLeases(resolveIndex("index"));
+                assertReplicasSyncedWithPrimaries.run();
+            }
         }
     }
 
@@ -349,7 +371,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
             final CountDownLatch latch = new CountDownLatch(1);
-            final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+            final ActionListener<Void> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
             latch.await();
             currentRetentionLeases.put(id, primary.renewRetentionLease(id, retainingSequenceNumber, source));
@@ -385,13 +407,14 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     final String nextSource = randomAlphaOfLength(8);
                     primary.addRetentionLease(nextId, nextRetainingSequenceNumber, nextSource, listener);
                 },
-                primary -> {});
+                primary -> {}, false);
     }
 
     public void testCanRenewRetentionLeaseUnderBlock() throws InterruptedException {
         final String idForInitialRetentionLease = randomAlphaOfLength(8);
         final long initialRetainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
         final AtomicReference<RetentionLease> retentionLease = new AtomicReference<>();
+        final boolean relyOnPeriodicSync = rarely();
         runUnderBlockTest(
                 idForInitialRetentionLease,
                 initialRetainingSequenceNumber,
@@ -399,7 +422,11 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     final long nextRetainingSequenceNumber = randomLongBetween(initialRetainingSequenceNumber, Long.MAX_VALUE);
                     final String nextSource = randomAlphaOfLength(8);
                     retentionLease.set(primary.renewRetentionLease(idForInitialRetentionLease, nextRetainingSequenceNumber, nextSource));
-                    listener.onResponse(new ReplicationResponse());
+                    if (relyOnPeriodicSync) {
+                        listener.onResponse(null);
+                    } else {
+                        primary.syncRetentionLeases(listener);
+                    }
                 },
                 primary -> {
                     try {
@@ -408,11 +435,15 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                          * way for the current retention leases to end up written to disk so we assume that if they are written to disk, it
                          * implies that the background sync was able to execute under a block.
                          */
-                        assertBusy(() -> assertThat(primary.loadRetentionLeases().leases(), contains(retentionLease.get())));
+                        if (relyOnPeriodicSync) {
+                            assertBusy(() -> assertThat(primary.loadRetentionLeases().leases(), contains(retentionLease.get())));
+                        } else {
+                            assertThat(primary.loadRetentionLeases().leases(), contains(retentionLease.get()));
+                        }
                     } catch (final Exception e) {
                         fail(e.toString());
                     }
-                });
+                }, relyOnPeriodicSync);
 
     }
 
@@ -422,19 +453,23 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                 idForInitialRetentionLease,
                 randomLongBetween(0, Long.MAX_VALUE),
                 (primary, listener) -> primary.removeRetentionLease(idForInitialRetentionLease, listener),
-                indexShard -> {});
+                indexShard -> {},
+                false);
     }
 
     private void runUnderBlockTest(
             final String idForInitialRetentionLease,
             final long initialRetainingSequenceNumber,
-            final BiConsumer<IndexShard, ActionListener<ReplicationResponse>> indexShard,
-            final Consumer<IndexShard> afterSync) throws InterruptedException {
-        final Settings settings = Settings.builder()
+            final BiConsumer<IndexShard, ActionListener<Void>> indexShard,
+            final Consumer<IndexShard> afterSync,
+            final boolean relyOnPeriodicSync) throws InterruptedException {
+
+        final Settings.Builder settings = Settings.builder()
                 .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
-                .build();
+                .put("index.number_of_replicas", 0);
+        if (relyOnPeriodicSync) {
+            settings.put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+        }
         assertAcked(prepareCreate("index").setSettings(settings));
         ensureGreen("index");
 
@@ -448,7 +483,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         final long retainingSequenceNumber = initialRetainingSequenceNumber;
         final String source = randomAlphaOfLength(8);
         final CountDownLatch latch = new CountDownLatch(1);
-        final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+        final ActionListener<Void> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
         primary.addRetentionLease(id, retainingSequenceNumber, source, listener);
         latch.await();
 
@@ -467,10 +502,10 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
 
             indexShard.accept(
                     primary,
-                    new ActionListener<ReplicationResponse>() {
+                    new ActionListener<Void>() {
 
                         @Override
-                        public void onResponse(final ReplicationResponse replicationResponse) {
+                        public void onResponse(final Void aVoid) {
                             success.set(true);
                             actionLatch.countDown();
                         }

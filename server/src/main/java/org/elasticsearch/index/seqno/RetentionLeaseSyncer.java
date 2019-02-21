@@ -37,19 +37,27 @@ public interface RetentionLeaseSyncer {
      * @param retentionLeases the retention leases to sync
      * @param listener        the callback when sync completes
      */
-    void sync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<ReplicationResponse> listener);
+    void sync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<Void> listener);
 
-    void backgroundSync(ShardId shardId, RetentionLeases retentionLeases);
+    /**
+     * Represents a method that when invoked syncs retention leases to replica shards in the background.
+     * The specified listener is invoked when the syncing completes with success or failure.
+     *
+     * @param shardId         the shard ID
+     * @param retentionLeases the retention leases to sync
+     * @param listener        the callback when sync completes
+     */
+    void backgroundSync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<Void> listener);
 
     RetentionLeaseSyncer EMPTY = new RetentionLeaseSyncer() {
         @Override
-        public void sync(final ShardId shardId, final RetentionLeases retentionLeases, final ActionListener<ReplicationResponse> listener) {
-
+        public void sync(final ShardId shardId, final RetentionLeases retentionLeases, final ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
 
         @Override
-        public void backgroundSync(final ShardId shardId, final RetentionLeases retentionLeases) {
-
+        public void backgroundSync(final ShardId shardId, final RetentionLeases retentionLeases, ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
     };
 

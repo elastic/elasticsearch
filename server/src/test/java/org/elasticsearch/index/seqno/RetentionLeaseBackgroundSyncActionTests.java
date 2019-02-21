@@ -224,7 +224,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
             }
         };
 
-        action.backgroundSync(indexShard.shardId(), retentionLeases);
+        action.backgroundSync(indexShard.shardId(), retentionLeases, ActionListener.wrap(() -> {}));
         assertTrue(invoked.get());
     }
 

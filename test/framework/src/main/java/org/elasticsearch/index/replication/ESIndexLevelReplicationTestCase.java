@@ -183,16 +183,16 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         private final RetentionLeaseSyncer retentionLeaseSyncer = new RetentionLeaseSyncer() {
             @Override
-            public void sync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<ReplicationResponse> listener) {
+            public void sync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<Void> listener) {
                 syncRetentionLeases(shardId, retentionLeases, listener);
             }
 
             @Override
-            public void backgroundSync(ShardId shardId, RetentionLeases retentionLeases) {
+            public void backgroundSync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<Void> listener) {
                 sync(shardId, retentionLeases, ActionListener.wrap(
-                    r -> { },
+                    r -> listener.onResponse(null),
                     e -> {
-                        throw new AssertionError("failed to backgroun sync retention lease", e);
+                        throw new AssertionError("failed to background sync retention lease", e);
                     }));
             }
         };
@@ -533,19 +533,19 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return replicationTargets;
         }
 
-        protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
+        protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<Void> listener) {
             RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(shardId, leases);
             ActionListener<RetentionLeaseSyncAction.Response> wrappedListener = ActionListener.wrap(
-                r -> listener.onResponse(new ReplicationResponse()), listener::onFailure);
+                r -> listener.onResponse(null), listener::onFailure);
             new SyncRetentionLeases(request, ReplicationGroup.this, wrappedListener).execute();
         }
 
         public RetentionLease addRetentionLease(String id, long retainingSequenceNumber, String source,
-                                                ActionListener<ReplicationResponse> listener) {
+                                                ActionListener<Void> listener) {
             return getPrimary().addRetentionLease(id, retainingSequenceNumber, source, listener);
         }
 
-        public void removeRetentionLease(String id, ActionListener<ReplicationResponse> listener) {
+        public void removeRetentionLease(String id, ActionListener<Void> listener) {
             getPrimary().removeRetentionLease(id, listener);
         }
 

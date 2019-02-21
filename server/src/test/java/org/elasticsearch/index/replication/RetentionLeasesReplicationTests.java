@@ -21,7 +21,6 @@ package org.elasticsearch.index.replication;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +34,8 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -75,19 +76,20 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
         Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         int numberOfReplicas = between(1, 2);
         IndexMetaData indexMetaData = buildIndexMetaData(numberOfReplicas, settings, indexMapping);
+        final List<RetentionLeaseSyncAction.Request> requests = new ArrayList<>();
         try (ReplicationGroup group = new ReplicationGroup(indexMetaData) {
             @Override
-            protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
-                listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(shardId, leases)));
+            protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<Void> listener) {
+                requests.add(new RetentionLeaseSyncAction.Request(shardId, leases));
+                listener.onResponse(null);
             }
         }) {
             group.startAll();
             int numLeases = between(1, 10);
-            List<RetentionLeaseSyncAction.Request> requests = new ArrayList<>();
             for (int i = 0; i < numLeases; i++) {
-                PlainActionFuture<ReplicationResponse> future = new PlainActionFuture<>();
+                PlainActionFuture<Void> future = new PlainActionFuture<>();
                 group.addRetentionLease(Integer.toString(i), randomNonNegativeLong(), "test-" + i, future);
-                requests.add(((SyncRetentionLeasesResponse) future.actionGet()).syncRequest);
+                future.get();
             }
             RetentionLeases leasesOnPrimary = group.getPrimary().getRetentionLeases();
             for (IndexShard replica : group.getReplicas()) {
@@ -102,50 +104,56 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
         Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         int numberOfReplicas = between(2, 4);
         IndexMetaData indexMetaData = buildIndexMetaData(numberOfReplicas, settings, indexMapping);
+        final AtomicReference<Consumer<RetentionLeaseSyncAction.Request>> onRequest = new AtomicReference<>();
         try (ReplicationGroup group = new ReplicationGroup(indexMetaData) {
             @Override
-            protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
-                listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(shardId, leases)));
+            protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<Void> listener) {
+                onRequest.get().accept(new RetentionLeaseSyncAction.Request(shardId, leases));
+                listener.onResponse(null);
             }
         }) {
             group.startAll();
             int numLeases = between(1, 100);
-            IndexShard newPrimary = randomFrom(group.getReplicas());
-            RetentionLeases latestRetentionLeasesOnNewPrimary = RetentionLeases.EMPTY;
-            for (int i = 0; i < numLeases; i++) {
-                PlainActionFuture<ReplicationResponse> addLeaseFuture = new PlainActionFuture<>();
-                group.addRetentionLease(Integer.toString(i), randomNonNegativeLong(), "test-" + i, addLeaseFuture);
-                RetentionLeaseSyncAction.Request request = ((SyncRetentionLeasesResponse) addLeaseFuture.actionGet()).syncRequest;
+            final IndexShard newPrimary = randomFrom(group.getReplicas());
+            final AtomicReference<RetentionLeases> latestRetentionLeasesOnNewPrimary = new AtomicReference<>(RetentionLeases.EMPTY);
+
+            onRequest.set(request -> {
+                final RetentionLeases newRetentionLeases = request.getRetentionLeases();
                 for (IndexShard replica : randomSubsetOf(group.getReplicas())) {
                     group.executeRetentionLeasesSyncRequestOnReplica(request, replica);
                     if (newPrimary == replica) {
-                        latestRetentionLeasesOnNewPrimary = request.getRetentionLeases();
+                        latestRetentionLeasesOnNewPrimary.updateAndGet(currentRetentionLeases
+                            -> newRetentionLeases.supersedes(currentRetentionLeases) ? newRetentionLeases : currentRetentionLeases);
                     }
                 }
+            });
+
+            for (int i = 0; i < numLeases; i++) {
+                PlainActionFuture<Void> addLeaseFuture = new PlainActionFuture<>();
+                group.addRetentionLease(Integer.toString(i), randomNonNegativeLong(), "test-" + i, addLeaseFuture);
+                addLeaseFuture.get();
             }
             group.promoteReplicaToPrimary(newPrimary).get();
+
             // we need to make changes to retention leases to sync it to replicas
             // since we don't sync retention leases when promoting a new primary.
-            PlainActionFuture<ReplicationResponse> newLeaseFuture = new PlainActionFuture<>();
+
+            onRequest.set(request -> {
+                for (IndexShard replica : group.getReplicas()) {
+                    group.executeRetentionLeasesSyncRequestOnReplica(request, replica);
+                }
+            });
+
+            final PlainActionFuture<Void> newLeaseFuture = new PlainActionFuture<>();
             group.addRetentionLease("new-lease-after-promotion", randomNonNegativeLong(), "test", newLeaseFuture);
-            RetentionLeases leasesOnPrimary = group.getPrimary().getRetentionLeases();
+            final RetentionLeases leasesOnPrimary = group.getPrimary().getRetentionLeases();
             assertThat(leasesOnPrimary.primaryTerm(), equalTo(group.getPrimary().getOperationPrimaryTerm()));
-            assertThat(leasesOnPrimary.version(), equalTo(latestRetentionLeasesOnNewPrimary.version() + 1L));
-            assertThat(leasesOnPrimary.leases(), hasSize(latestRetentionLeasesOnNewPrimary.leases().size() + 1));
-            RetentionLeaseSyncAction.Request request = ((SyncRetentionLeasesResponse) newLeaseFuture.actionGet()).syncRequest;
-            for (IndexShard replica : group.getReplicas()) {
-                group.executeRetentionLeasesSyncRequestOnReplica(request, replica);
-            }
+            assertThat(leasesOnPrimary.version(), equalTo(latestRetentionLeasesOnNewPrimary.get().version() + 1L));
+            assertThat(leasesOnPrimary.leases(), hasSize(latestRetentionLeasesOnNewPrimary.get().leases().size() + 1));
+            newLeaseFuture.get();
             for (IndexShard replica : group.getReplicas()) {
                 assertThat(replica.getRetentionLeases(), equalTo(leasesOnPrimary));
             }
-        }
-    }
-
-    static final class SyncRetentionLeasesResponse extends ReplicationResponse {
-        final RetentionLeaseSyncAction.Request syncRequest;
-        SyncRetentionLeasesResponse(RetentionLeaseSyncAction.Request syncRequest) {
-            this.syncRequest = syncRequest;
         }
     }
 }

@@ -1939,7 +1939,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final String id,
             final long retainingSequenceNumber,
             final String source,
-            final ActionListener<ReplicationResponse> listener) {
+            final ActionListener<Void> listener) {
         Objects.requireNonNull(listener);
         assert assertPrimaryMode();
         verifyNotClosed();
@@ -1979,7 +1979,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param id       the identifier of the retention lease
      * @param listener the callback when the retention lease is successfully removed and synced to replicas
      */
-    public void removeRetentionLease(final String id, final ActionListener<ReplicationResponse> listener) {
+    public void removeRetentionLease(final String id, final ActionListener<Void> listener) {
         Objects.requireNonNull(listener);
         assert assertPrimaryMode();
         verifyNotClosed();
@@ -2021,7 +2021,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Syncs the current retention leases to all replicas.
      */
-    public void syncRetentionLeases() {
+    public void syncRetentionLeases(ActionListener<Void> listener) {
         assert assertPrimaryMode();
         verifyNotClosed();
         final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
@@ -2031,14 +2031,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     shardId,
                     retentionLeases.v2(),
                     ActionListener.wrap(
-                            r -> {},
-                            e -> logger.warn(new ParameterizedMessage(
-                                            "failed to sync retention leases [{}] after expiration check",
-                                            retentionLeases),
-                                    e)));
+                            r -> listener.onResponse(null),
+                            e -> {
+                                logger.warn(new ParameterizedMessage(
+                                        "failed to sync retention leases [{}] after expiration check",
+                                        retentionLeases),
+                                        e);
+                                listener.onFailure(e);
+                            }));
         } else {
             logger.trace("background syncing retention leases [{}] after expiration check", retentionLeases.v2());
-            retentionLeaseSyncer.backgroundSync(shardId, retentionLeases.v2());
+            retentionLeaseSyncer.backgroundSync(shardId, retentionLeases.v2(),
+                ActionListener.wrap(
+                    r -> listener.onResponse(null),
+                    e -> {
+                        logger.warn(new ParameterizedMessage(
+                                "failed to background sync retention leases [{}] after expiration check",
+                                retentionLeases),
+                            e);
+                        listener.onFailure(e);
+                    }));
         }
     }
 

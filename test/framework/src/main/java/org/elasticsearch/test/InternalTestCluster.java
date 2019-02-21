@@ -31,6 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
@@ -38,6 +39,7 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -2527,5 +2529,30 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
         }
+    }
+
+    public void syncRetentionLeases(Index... indices) {
+        final List<PlainActionFuture<Void>> futures = new ArrayList<>();
+        for (final Index index : indices) {
+            for (final IndicesService indicesService : getInstances(IndicesService.class)) {
+                final IndexService indexService = indicesService.indexService(index);
+                if (indexService != null) {
+                    for (final IndexShard indexShard : indexService) {
+                        if (indexShard.routingEntry().primary()) {
+                            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+                            futures.add(future);
+                            indexShard.syncRetentionLeases(future);
+                        }
+                    }
+                }
+            }
+        }
+        futures.forEach(f -> {
+            try {
+                f.get();
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 }

@@ -87,20 +87,11 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
     }
 
-    public static final class RetentionLeaseSyncIntervalSettingPlugin extends Plugin {
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Collections.singletonList(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING);
-        }
-
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(
                 super.nodePlugins().stream(),
-                Stream.of(RetentionLeaseRenewIntervalSettingPlugin.class, RetentionLeaseSyncIntervalSettingPlugin.class))
+                Stream.of(RetentionLeaseRenewIntervalSettingPlugin.class))
                 .collect(Collectors.toList());
     }
 
@@ -121,7 +112,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         final Map<String, String> additionalSettings = new HashMap<>();
         additionalSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true");
-        additionalSettings.put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200).getStringRep());
         final String leaderIndexSettings = getIndexSettings(numberOfShards, numberOfReplicas, additionalSettings);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen(leaderIndex);
@@ -163,24 +153,21 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         final PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
         restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
+        final RestoreInfo restoreInfo = future.actionGet();
 
         // ensure that a retention lease has been put in place on each shard
-        assertBusy(() -> {
-            final IndicesStatsResponse stats =
-                    leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
-            assertNotNull(stats.getShards());
-            assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
-            final List<ShardStats> shardsStats = getShardsStats(stats);
-            for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
-                final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
-                final RetentionLease retentionLease =
-                        currentRetentionLeases.leases().iterator().next();
-                assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, leaderIndex)));
-            }
-        });
-
-        final RestoreInfo restoreInfo = future.actionGet();
+        final IndicesStatsResponse stats =
+                leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
+        assertNotNull(stats.getShards());
+        assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
+        final List<ShardStats> shardsStats = getShardsStats(stats);
+        for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
+            final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
+            assertThat(currentRetentionLeases.leases(), hasSize(1));
+            final RetentionLease retentionLease =
+                    currentRetentionLeases.leases().iterator().next();
+            assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, leaderIndex)));
+        }
 
         assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
         assertEquals(0, restoreInfo.failedShards());
@@ -313,8 +300,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         // sample the leases after recovery
         final List<RetentionLeases> retentionLeases = new ArrayList<>();
-        assertBusy(() -> {
-            retentionLeases.clear();
+        {
             final IndicesStatsResponse stats =
                     leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
             assertNotNull(stats.getShards());
@@ -336,13 +322,13 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 assertThat(retentionLease.id(), equalTo(expectedRetentionLeaseId));
                 retentionLeases.add(currentRetentionLeases);
             }
-        });
+        }
 
         final long end = System.nanoTime();
         Thread.sleep(Math.max(0, randomIntBetween(2, 4) * 200 - TimeUnit.NANOSECONDS.toMillis(end - start)));
 
         // now ensure that the retention leases are the same
-        assertBusy(() -> {
+        {
             final IndicesStatsResponse stats =
                     leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
             assertNotNull(stats.getShards());
@@ -360,7 +346,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 // we assert that retention leases are being renewed by an increase in the timestamp
                 assertThat(retentionLease.timestamp(), equalTo(retentionLeases.get(i).leases().iterator().next().timestamp()));
             }
-        });
+        }
 
         assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
         assertEquals(0, restoreInfo.failedShards());

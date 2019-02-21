@@ -127,6 +127,15 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertTokenWorks(accessToken);
             assertNotEquals(accessToken, updatedAccessToken);
             assertNotEquals(refreshToken, updatedRefreshToken);
+            // Invalidate the new access token and ensure that it no longer works
+            Request invalidateTokenRequest = new Request("DELETE", "/_security/oauth2/token");
+            invalidateTokenRequest.setJsonEntity(
+                "{\n" +
+                    "    \"token\": \"" + updatedAccessToken + "\"\n" +
+                    "}");
+            Response invalidateTokenResponse = client.performRequest(invalidateTokenRequest);
+            assertOK(invalidateTokenResponse);
+            assertTokenDoesNotWork(updatedAccessToken);
         }
     }
 
@@ -177,6 +186,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         response = client().performRequest(new Request("GET", "_nodes"));
         assertOK(response);
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        logger.info("Master node is on version: " + objectPath.evaluate("nodes." + masterNodeId + ".version"));
         return Version.CURRENT.equals(Version.fromString(objectPath.evaluate("nodes." + masterNodeId + ".version")));
     }
 

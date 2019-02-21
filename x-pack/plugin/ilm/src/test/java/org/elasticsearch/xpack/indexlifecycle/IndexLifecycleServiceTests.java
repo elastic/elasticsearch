@@ -110,7 +110,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     @After
     public void cleanup() {
-        when(clusterService.lifecycleState()).thenReturn(State.STOPPED);
+        when(clusterService.lifecycleState()).thenReturn(randomFrom(State.STOPPED, State.CLOSED));
         indexLifecycleService.close();
         threadPool.shutdownNow();
     }

@@ -159,7 +159,7 @@ public class IndexLifecycleService
         if (this.isMaster) {
             if (scheduler.get() == null) {
                 // don't create scheduler if the node is shutting down
-                if (isStoppedOrClosed(clusterService.lifecycleState()) == false) {
+                if (isClusterServiceStoppedOrClosed() == false) {
                     scheduler.set(new SchedulerEngine(settings, clock));
                     scheduler.get().register(this);
                 }
@@ -259,7 +259,10 @@ public class IndexLifecycleService
 
     @Override
     public synchronized void close() {
-        assert isStoppedOrClosed(clusterService.lifecycleState());
+        // this assertion is here to ensure that the check we use in maybeScheduleJob is accurate for detecting a shutdown in
+        // progress, which is that the cluster service is stopped and closed at some point prior to closing plugins
+        assert isClusterServiceStoppedOrClosed() : "close is called by closing the plugin, which is expected to happen after " +
+            "the cluster service is stopped";
         SchedulerEngine engine = scheduler.get();
         if (engine != null) {
             engine.stop();
@@ -271,7 +274,12 @@ public class IndexLifecycleService
             new OperationModeUpdateTask(mode));
     }
 
-    private static boolean isStoppedOrClosed(State state) {
+    /**
+     * Method that checks if the lifecycle state of the cluster service is stopped or closed. This
+     * enhances the readability of the code.
+     */
+    private boolean isClusterServiceStoppedOrClosed() {
+        final State state = clusterService.lifecycleState();
         return state == State.STOPPED || state == State.CLOSED;
     }
 }

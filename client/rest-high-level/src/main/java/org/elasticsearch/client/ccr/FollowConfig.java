@@ -22,8 +22,10 @@ package org.elasticsearch.client.ccr;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -40,6 +42,44 @@ public class FollowConfig {
     static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
     static final ParseField MAX_RETRY_DELAY_FIELD = new ParseField("max_retry_delay");
     static final ParseField READ_POLL_TIMEOUT = new ParseField("read_poll_timeout");
+
+    private static final ObjectParser<FollowConfig, Void> PARSER = new ObjectParser<>(
+        "follow_config",
+        true,
+        FollowConfig::new);
+
+    static {
+        PARSER.declareInt(FollowConfig::setMaxReadRequestOperationCount, MAX_READ_REQUEST_OPERATION_COUNT);
+        PARSER.declareInt(FollowConfig::setMaxOutstandingReadRequests, MAX_OUTSTANDING_READ_REQUESTS);
+        PARSER.declareField(
+            FollowConfig::setMaxReadRequestSize,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()),
+            MAX_READ_REQUEST_SIZE,
+            ObjectParser.ValueType.STRING);
+        PARSER.declareInt(FollowConfig::setMaxWriteRequestOperationCount, MAX_WRITE_REQUEST_OPERATION_COUNT);
+        PARSER.declareField(
+            FollowConfig::setMaxWriteRequestSize,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_REQUEST_SIZE.getPreferredName()),
+            MAX_WRITE_REQUEST_SIZE,
+            ObjectParser.ValueType.STRING);
+        PARSER.declareInt(FollowConfig::setMaxOutstandingWriteRequests, MAX_OUTSTANDING_WRITE_REQUESTS);
+        PARSER.declareInt(FollowConfig::setMaxWriteBufferCount, MAX_WRITE_BUFFER_COUNT);
+        PARSER.declareField(
+            FollowConfig::setMaxWriteBufferSize,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()),
+            MAX_WRITE_BUFFER_SIZE,
+            ObjectParser.ValueType.STRING);
+        PARSER.declareField(FollowConfig::setMaxRetryDelay,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY_FIELD.getPreferredName()),
+            MAX_RETRY_DELAY_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareField(FollowConfig::setReadPollTimeout,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), READ_POLL_TIMEOUT.getPreferredName()),
+            READ_POLL_TIMEOUT, ObjectParser.ValueType.STRING);
+    }
+
+    static FollowConfig fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
 
     private Integer maxReadRequestOperationCount;
     private Integer maxOutstandingReadRequests;

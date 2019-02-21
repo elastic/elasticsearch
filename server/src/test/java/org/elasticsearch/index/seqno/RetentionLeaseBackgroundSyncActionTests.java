@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -91,7 +92,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testRetentionLeaseBackgroundSyncActionOnPrimary() {
+    public void testRetentionLeaseBackgroundSyncActionOnPrimary() throws WriteStateException {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -120,13 +121,13 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
 
         final ReplicationOperation.PrimaryResult<RetentionLeaseBackgroundSyncAction.Request> result =
                 action.shardOperationOnPrimary(request, indexShard);
-        // the retention leases on the shard should be periodically flushed
-        verify(indexShard).afterWriteOperation();
+        // the retention leases on the shard should be persisted
+        verify(indexShard).persistRetentionLeases();
         // we should forward the request containing the current retention leases to the replica
         assertThat(result.replicaRequest(), sameInstance(request));
     }
 
-    public void testRetentionLeaseBackgroundSyncActionOnReplica() {
+    public void testRetentionLeaseBackgroundSyncActionOnReplica() throws WriteStateException {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -156,8 +157,8 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         final TransportReplicationAction.ReplicaResult result = action.shardOperationOnReplica(request, indexShard);
         // the retention leases on the shard should be updated
         verify(indexShard).updateRetentionLeasesOnReplica(retentionLeases);
-        // the retention leases on the shard should be periodically flushed
-        verify(indexShard).afterWriteOperation();
+        // the retention leases on the shard should be persisted
+        verify(indexShard).persistRetentionLeases();
         // the result should indicate success
         final AtomicBoolean success = new AtomicBoolean();
         result.respond(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));
@@ -225,6 +226,33 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
 
         action.backgroundSync(indexShard.shardId(), retentionLeases);
         assertTrue(invoked.get());
+    }
+
+    public void testBlocks() {
+        final IndicesService indicesService = mock(IndicesService.class);
+
+        final Index index = new Index("index", "uuid");
+        final IndexService indexService = mock(IndexService.class);
+        when(indicesService.indexServiceSafe(index)).thenReturn(indexService);
+
+        final int id = randomIntBetween(0, 4);
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexService.getShard(id)).thenReturn(indexShard);
+
+        final ShardId shardId = new ShardId(index, id);
+        when(indexShard.shardId()).thenReturn(shardId);
+
+        final RetentionLeaseBackgroundSyncAction action = new RetentionLeaseBackgroundSyncAction(
+                Settings.EMPTY,
+                transportService,
+                clusterService,
+                indicesService,
+                threadPool,
+                shardStateAction,
+                new ActionFilters(Collections.emptySet()),
+                new IndexNameExpressionResolver());
+
+        assertNull(action.indexBlockLevel());
     }
 
 }

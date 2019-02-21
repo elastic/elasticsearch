@@ -19,6 +19,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class XPackUsageIT extends ESCCRRestTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39126")
     public void testXPackCcrUsage() throws Exception {
         if ("follow".equals(targetCluster) == false) {
             logger.info("skipping test, waiting for target cluster [follow]" );

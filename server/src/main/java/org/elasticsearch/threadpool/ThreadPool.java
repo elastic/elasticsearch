@@ -162,7 +162,8 @@ public class ThreadPool implements Scheduler, Closeable {
     }
 
     public static Setting<TimeValue> ESTIMATED_TIME_INTERVAL_SETTING =
-        Setting.timeSetting("thread_pool.estimated_time_interval", TimeValue.timeValueMillis(200), Setting.Property.NodeScope);
+        Setting.timeSetting("thread_pool.estimated_time_interval",
+            TimeValue.timeValueMillis(200), TimeValue.ZERO, Setting.Property.NodeScope);
 
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
         assert Node.NODE_NAME_SETTING.exists(settings);

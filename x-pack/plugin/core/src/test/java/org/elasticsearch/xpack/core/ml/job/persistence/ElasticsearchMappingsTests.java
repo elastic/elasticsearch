@@ -45,6 +45,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+
 
 public class ElasticsearchMappingsTests extends ESTestCase {
 
@@ -121,7 +123,8 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 AnomalyRecord.BUCKET_SPAN.getPreferredName()));
 
         XContentParser parser = createParser(builder);
-        Map<String, Object> properties = (Map<String, Object>) parser.map().get(ElasticsearchMappings.PROPERTIES);
+        Map<String, Object> mapping = (Map<String, Object>) parser.map().get(SINGLE_MAPPING_NAME);
+        Map<String, Object> properties = (Map<String, Object>) mapping.get(ElasticsearchMappings.PROPERTIES);
 
         Map<String, Object> instanceMapping = (Map<String, Object>) properties.get("apple");
         assertNotNull(instanceMapping);

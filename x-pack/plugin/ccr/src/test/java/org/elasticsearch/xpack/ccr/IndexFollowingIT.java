@@ -1139,7 +1139,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertTrue(response.isIndexFollowingStarted());
 
         logger.info("Indexing [{}] docs while updateing remote config", firstBatchNumDocs);
-        try (BackgroundIndexer indexer = new BackgroundIndexer("index1", "_doc", leaderClient(), firstBatchNumDocs,
+        try (BackgroundIndexer indexer = new BackgroundIndexer("index1", "doc", leaderClient(), firstBatchNumDocs,
             randomIntBetween(1, 5))) {
 
             ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
@@ -1166,7 +1166,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             for (String docId : indexer.getIds()) {
                 assertBusy(() -> {
-                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    final GetResponse getResponse = followerClient().prepareGet("index2", "doc", docId).get();
                     assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
                 });
             }

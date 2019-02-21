@@ -26,6 +26,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -108,7 +109,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
             execute(
-                    new Request(shardId, retentionLeases),
+                    new Request(shardId, retentionLeases).waitForActiveShards(ActiveShardCount.NONE),
                     ActionListener.wrap(
                             r -> {},
                             e -> {
@@ -123,6 +124,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     protected PrimaryResult<Request, ReplicationResponse> shardOperationOnPrimary(
             final Request request,
             final IndexShard primary) throws WriteStateException {
+        assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
         Objects.requireNonNull(request);
         Objects.requireNonNull(primary);
         primary.persistRetentionLeases();

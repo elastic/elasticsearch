@@ -894,19 +894,14 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         Client client(Random random) {
-            synchronized (InternalTestCluster.this) {
-                if (closed.get()) {
-                    throw new RuntimeException("already closed");
+            double nextDouble = random.nextDouble();
+            if (nextDouble < transportClientRatio) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Using transport client for node [{}] sniff: [{}]", node.settings().get("node.name"), false);
                 }
-                double nextDouble = random.nextDouble();
-                if (nextDouble < transportClientRatio) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("Using transport client for node [{}] sniff: [{}]", node.settings().get("node.name"), false);
-                    }
-                    return getOrBuildTransportClient();
-                } else {
-                    return getOrBuildNodeClient();
-                }
+                return getOrBuildTransportClient();
+            } else {
+                return getOrBuildNodeClient();
             }
         }
 
@@ -925,22 +920,32 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         private Client getOrBuildNodeClient() {
-            if (nodeClient == null) {
-                nodeClient = node.client();
+            synchronized (InternalTestCluster.this) {
+                if (closed.get()) {
+                    throw new RuntimeException("already closed");
+                }
+                if (nodeClient == null) {
+                    nodeClient = node.client();
+                }
+                return clientWrapper.apply(nodeClient);
             }
-            return clientWrapper.apply(nodeClient);
         }
 
         private Client getOrBuildTransportClient() {
-            if (transportClient == null) {
-                /* don't sniff client for now - doesn't work will all tests
-                 * since it might throw NoNodeAvailableException if nodes are
-                 * shut down. we first need support of transportClientRatio
-                 * as annotations or so */
-                transportClient = new TransportClientFactory(nodeConfigurationSource.transportClientSettings(),
+            synchronized (InternalTestCluster.this) {
+                if (closed.get()) {
+                    throw new RuntimeException("already closed");
+                }
+                if (transportClient == null) {
+                    /* don't sniff client for now - doesn't work will all tests
+                     * since it might throw NoNodeAvailableException if nodes are
+                     * shut down. we first need support of transportClientRatio
+                     * as annotations or so */
+                    transportClient = new TransportClientFactory(nodeConfigurationSource.transportClientSettings(),
                         baseDir, nodeConfigurationSource.transportClientPlugins()).client(node, clusterName);
+                }
+                return clientWrapper.apply(transportClient);
             }
-            return clientWrapper.apply(transportClient);
         }
 
         void resetClient() {
@@ -1037,6 +1042,7 @@ public final class InternalTestCluster extends TestCluster {
 
         @Override
         public void close() throws IOException {
+            assert Thread.holdsLock(InternalTestCluster.this);
             try {
                 resetClient();
             } finally {
@@ -1814,6 +1820,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private NodeAndClient removeNode(NodeAndClient nodeAndClient) {
+        assert Thread.holdsLock(this);
         final NavigableMap<String, NodeAndClient> newNodes = new TreeMap<>(nodes);
         final NodeAndClient previous = newNodes.remove(nodeAndClient.name);
         nodes = Collections.unmodifiableNavigableMap(newNodes);

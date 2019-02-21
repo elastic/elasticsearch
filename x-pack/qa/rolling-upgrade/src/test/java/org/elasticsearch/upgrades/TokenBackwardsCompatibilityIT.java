@@ -73,6 +73,23 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertTokenWorks((String) source.get("token"));
     }
 
+    public void testInvalidatingTokenInMixedCluster() throws Exception {
+        // Verify that we can invalidate a token in a mixed cluster
+        assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
+        Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token2");
+        Response getResponse = client().performRequest(getRequest);
+        assertOK(getResponse);
+        Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
+        String token = (String) source.get("token");
+        // The token might be already invalidated by running testInvalidatingTokenInMixedCluster in a previous stage
+        // we don't try to assert it works before invalidating. This case is handled by testTokenWorksInMixedCluster
+        Request invalidateRequest = new Request("DELETE", "/_security/oauth2/token");
+        invalidateRequest.setJsonEntity("{\"token\": \"" + token + "\"}");
+        invalidateRequest.addParameter("error_trace", "true");
+        client().performRequest(invalidateRequest);
+        assertTokenDoesNotWork(token);
+    }
+
     public void testMixedClusterWithUpgradedMaster() throws Exception {
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         assumeTrue("the master must be on the latest version before we can write", isMasterOnLatestVersion());

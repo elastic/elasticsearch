@@ -176,27 +176,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
                         }
                         targetStore.directory().copyFrom(sourceStore.directory(), file, file, IOContext.DEFAULT);
                     }
-                    return new Translog.Snapshot() {
-                        boolean drained = false;
-                        @Override
-                        public int totalOperations() {
-                            return 1;
-                        }
-                        @Override
-                        public Translog.Operation next() {
-                            if (drained == false) {
-                                drained = true;
-                                // String type, String id, long seqNo, long primaryTerm, Term uid
-                                return new Translog.Index("_doc", "1", 1L, 1L, 2L, "{}".getBytes(Charsets.UTF_8), null, -1L);
-                            }
-                            return null;
-                        }
-
-                        @Override
-                        public void close() {
-
-                        }
-                    };
+                    return EngineTestCase.snapshotOf(new Translog.Index("_doc", "1", 1L, 1L, 2L, "{}".getBytes(Charsets.UTF_8), null, -1L));
                 } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }

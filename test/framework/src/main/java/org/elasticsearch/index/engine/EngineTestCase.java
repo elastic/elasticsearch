@@ -1109,6 +1109,30 @@ public abstract class EngineTestCase extends ESTestCase {
         return internalEngine.getTranslog();
     }
 
+    public static Translog.Snapshot snapshotOf(Translog.Operation... operations) {
+        return new Translog.Snapshot() {
+            int index = 0;
+
+            @Override
+            public int totalOperations() {
+                return operations.length;
+            }
+
+            @Override
+            public Translog.Operation next() {
+                if (index < operations.length) {
+                    return operations[index++];
+                }
+                return null;
+            }
+
+            @Override
+            public void close() {
+
+            }
+        };
+    }
+
     public static boolean hasSnapshottedCommits(Engine engine) {
         assert engine instanceof InternalEngine : "only InternalEngines have snapshotted commits, got: " + engine.getClass();
         InternalEngine internalEngine = (InternalEngine) engine;

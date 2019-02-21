@@ -80,9 +80,8 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         bitsetFilterCache.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32457")
     public void testSearch() throws Exception {
-        IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig());
+        IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(newLogMergePolicy(random())));
 
         Document document = new Document();
         document.add(new StringField("field", "value1", Field.Store.NO));

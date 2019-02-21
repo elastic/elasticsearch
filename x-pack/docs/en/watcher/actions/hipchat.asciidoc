@@ -1,6 +1,8 @@
 [[actions-hipchat]]
 === HipChat Action
 
+deprecated[6.7.0,Hipchat actions have been deprecated as Hipchat has ceased operation]
+
 Use the `hipchat` action to send messages to https://www.hipchat.com[HipChat]
 rooms or users. To send HipChat messages, you must
 <<configuring-hipchat, configure at least one HipChat account>> in `elasticsearch.yml`. 

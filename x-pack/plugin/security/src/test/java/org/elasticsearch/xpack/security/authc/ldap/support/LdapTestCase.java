@@ -18,6 +18,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import com.unboundid.util.ssl.SSLUtil;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -42,6 +43,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
+import java.net.InetAddress;
 import java.security.AccessController;
 import java.security.KeyStore;
 import java.security.PrivilegedAction;
@@ -71,7 +73,7 @@ public abstract class LdapTestCase extends ESTestCase {
         for (int i = 0; i < numberOfLdapServers; i++) {
             InMemoryDirectoryServerConfig serverConfig = new InMemoryDirectoryServerConfig("o=sevenSeas");
             List<InMemoryListenerConfig> listeners = new ArrayList<>(2);
-            listeners.add(InMemoryListenerConfig.createLDAPConfig("ldap"));
+            listeners.add(InMemoryListenerConfig.createLDAPConfig("ldap", null, 0, null));
             if (openLdapsPort()) {
                 listeners.add(buildSslListener("ldaps", "TLSv1.2"));
                 listeners.add(buildSslListener("ldaps-tls1", "TLSv1"));
@@ -110,7 +112,7 @@ public abstract class LdapTestCase extends ESTestCase {
     }
 
     @After
-    public void stopLdap() throws Exception {
+    public void stopLdap() {
         for (int i = 0; i < numberOfLdapServers; i++) {
             ldapServers[i].shutDown(true);
         }
@@ -119,7 +121,11 @@ public abstract class LdapTestCase extends ESTestCase {
     protected String[] ldapUrls() throws LDAPException {
         List<String> urls = new ArrayList<>(numberOfLdapServers);
         for (int i = 0; i < numberOfLdapServers; i++) {
-            LDAPURL url = new LDAPURL("ldap", "localhost", ldapServers[i].getListenPort(), null, null, null, null);
+            InetAddress listenAddress = ldapServers[i].getListenAddress();
+            if (listenAddress == null) {
+                listenAddress = InetAddress.getLoopbackAddress();
+            }
+            LDAPURL url = new LDAPURL("ldap", NetworkAddress.format(listenAddress), ldapServers[i].getListenPort(), null, null, null, null);
             urls.add(url.toString());
         }
         return urls.toArray(Strings.EMPTY_ARRAY);

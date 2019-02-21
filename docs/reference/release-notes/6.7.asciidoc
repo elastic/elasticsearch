@@ -140,6 +140,7 @@ Authorization::
 * Create snapshot role {pull}35820[#35820] (issue: {issue}34454[#34454])
 
 CCR::
+* Integrate retention leases to recovery from remote {pull}38829[#38829] (issue: {issue}37165[#37165])
 * Enable removal of retention leases {pull}38751[#38751] (issue: {issue}37165[#37165])
 * Concurrent file chunk fetching for CCR restore {pull}38495[#38495]
 * Tighten mapping syncing in ccr remote restore {pull}38071[#38071] (issues: {issue}36879[#36879], {issue}37887[#37887])
@@ -157,6 +158,8 @@ CRUD::
 * Set acking timeout to 0 on dynamic mapping update {pull}31140[#31140] (issues: {issue}30672[#30672], {issue}30844[#30844])
 
 Distributed::
+* Allow retention lease operations under blocks {pull}39089[#39089] (issues: {issue}34648[#34648], {issue}37165[#37165])
+* Introduce retention lease state file {pull}39004[#39004] (issues: {issue}37165[#37165], {issue}38588[#38588], {issue}39032[#39032])
 * Introduce retention lease actions {pull}38756[#38756] (issue: {issue}37165[#37165])
 * Add dedicated retention lease exceptions {pull}38754[#38754] (issue: {issue}37165[#37165])
 * Recover retention leases during peer recovery {pull}38435[#38435] (issue: {issue}37165[#37165])
@@ -244,6 +247,7 @@ License::
 * Handle malformed license signatures {pull}37137[#37137] (issue: {issue}35340[#35340])
 
 Machine Learning::
+* [ML] Allow stop unassigned datafeed and relax unset upgrade mode wait {pull}39034[#39034]
 * Move ML Optimistic Concurrency Control to Seq No {pull}38278[#38278] (issues: {issue}10708[#10708], {issue}36148[#36148])
 * [ML] Add explanation so far to file structure finder exceptions {pull}38191[#38191] (issue: {issue}29821[#29821])
 * ML: Add upgrade mode docs, hlrc, and fix bug {pull}37942[#37942]
@@ -252,6 +256,7 @@ Machine Learning::
 * [ML] Migrate unallocated jobs and datafeeds {pull}37536[#37536] (issues: {issue}32905[#32905], {issue}36810[#36810], {issue}37430[#37430], {issue}37656[#37656])
 
 Mapping::
+* Only issue a deprecation warning if include_type_name is not set. {pull}38825[#38825] (issue: {issue}35190[#35190])
 * Log document id when MapperParsingException occurs {pull}37800[#37800] (issue: {issue}37658[#37658])
 * Types removal - add constants for include_type_names {pull}37304[#37304]
 * Deprecation check for index_options on numeric fields {pull}37026[#37026] (issue: {issue}36024[#36024])
@@ -334,17 +339,26 @@ Allocation::
 * Ignore obsolete dangling indices {pull}37824[#37824] (issue: {issue}27073[#27073])
 * ALLOC: Fail Stale Primary Alloc. Req. without Data {pull}37226[#37226] (issue: {issue}37098[#37098])
 
+Analysis::
+* Fix PreConfiguredTokenFilters getSynonymFilter() implementations {pull}38858[#38858] (issues: {issue}38793[#38793], {issue}38839[#38839])
+* Fix PreConfiguredTokenFilters getSynonymFilter() implementations {pull}38839[#38839] (issue: {issue}38793[#38793])
+
 Audit::
 * Fix IndexAuditTrail rolling upgrade on rollover edge - take 2 {pull}38286[#38286] (issues: {issue}33867[#33867], {issue}35988[#35988], {issue}37062[#37062])
 * Fix NPE in Logfile Audit Filter {pull}38120[#38120] (issue: {issue}38097[#38097])
 
 Authentication::
+* Use consistent view of realms for authentication {pull}38815[#38815] (issue: {issue}30301[#30301])
 *  Enhance parsing of StatusCode in SAML Responses {pull}38628[#38628]
 * Limit token expiry to 1 hour maximum {pull}38244[#38244]
 * Fix expired token message in Exception header {pull}37196[#37196]
 * Fix NPE in CachingUsernamePasswordRealm {pull}36953[#36953] (issue: {issue}36951[#36951])
 
 CCR::
+* Fix shard follow task startup error handling {pull}39053[#39053] (issue: {issue}38779[#38779])
+* Filter out upgraded version index settings when starting index following {pull}38838[#38838] (issue: {issue}38835[#38835])
+* Handle the fact that `ShardStats` instance may have no commit or seqno stats {pull}38782[#38782] (issue: {issue}38779[#38779])
+* Fix LocalIndexFollowingIT#testRemoveRemoteConnection() test {pull}38709[#38709] (issue: {issue}38695[#38695])
 * Prevent CCR recovery from missing documents {pull}38237[#38237]
 * Fix file reading in ccr restore service {pull}38117[#38117]
 * Correct argument names in update mapping/settings from leader {pull}38063[#38063]
@@ -356,6 +370,7 @@ CCR::
 * [CCR] Resume follow Api should not require a request body {pull}37217[#37217] (issue: {issue}37022[#37022])
 
 CRUD::
+* ShardBulkAction ignore primary response on primary {pull}38901[#38901]
 * Fix Reindex from remote query logic {pull}36908[#36908]
 
 Distributed::
@@ -365,6 +380,9 @@ Distributed::
 * Close Index API should force a flush if a sync is needed {pull}37961[#37961] (issues: {issue}33888[#33888], {issue}37426[#37426])
 * Force Refresh Listeners when Acquiring all Operation Permits {pull}36835[#36835]
 * Replaced the word 'shards' with 'replicas' in an error message. (#36234) {pull}36275[#36275] (issue: {issue}36234[#36234])
+
+Engine::
+* Advance max_seq_no before add operation to Lucene {pull}38879[#38879] (issue: {issue}31629[#31629])
 
 Features/Features::
 * Handle Null in FetchSourceContext#fetchSource {pull}36839[#36839] (issue: {issue}29293[#29293])
@@ -398,12 +416,17 @@ Features/Java High Level REST Client::
 * Fix weighted_avg parser not found for RestHighLevelClient {pull}37027[#37027] (issue: {issue}36861[#36861])
 
 Features/Monitoring::
+* Specify include_type_name in HTTP monitoring. {pull}38927[#38927] (issue: {issue}37442[#37442])
 * Allow built-in monitoring_user role to call GET _xpack API {pull}38060[#38060] (issue: {issue}37970[#37970])
+
+Features/Watcher::
+* Only flush Watcher's bulk processor if Watcher is enabled {pull}38803[#38803] (issue: {issue}38798[#38798])
 
 Geo::
 * Geo: Do not normalize the longitude with value -180 for Lucene shapes {pull}37299[#37299] (issue: {issue}37297[#37297])
 
 Infra/Core::
+* Fix DateFormatters.parseMillis when no timezone is given {pull}39100[#39100] (issue: {issue}39067[#39067])
 * Prefix java formatter patterns with '8' {pull}38712[#38712] (issue: {issue}38567[#38567])
 * Bubble-up exceptions from scheduler {pull}38317[#38317] (issue: {issue}38014[#38014])
 * Core: Revert back to joda's multi date formatters {pull}36814[#36814] (issues: {issue}36447[#36447], {issue}36602[#36602])
@@ -423,6 +446,8 @@ Infra/Settings::
 * Fix handling of fractional time value settings {pull}37171[#37171]
 
 Machine Learning::
+* [ML] Stop the ML memory tracker before closing node {pull}39111[#39111] (issue: {issue}37117[#37117])
+* ML allow aliased .ml-anomalies* index on PUT Job {pull}38821[#38821] (issue: {issue}38773[#38773])
 * [ML] Report index unavailable instead of waiting for lazy node {pull}38423[#38423]
 * ML: Fix error race condition on stop _all datafeeds and close _all jobs {pull}38113[#38113] (issue: {issue}37959[#37959])
 * [ML] Update ML results mappings on process start {pull}37706[#37706] (issue: {issue}37607[#37607])
@@ -451,6 +476,7 @@ Recovery::
 * RecoveryMonitor#lastSeenAccessTime should be volatile {pull}36781[#36781]
 
 SQL::
+* SQL: fall back to using the field name for column label {pull}38842[#38842] (issue: {issue}38831[#38831])
 * SQL: Prevent grouping over grouping functions {pull}38649[#38649] (issue: {issue}38308[#38308])
 * SQL: Relax StackOverflow circuit breaker for constants {pull}38572[#38572] (issue: {issue}38571[#38571])
 * SQL: Fix issue with IN not resolving to underlying keyword field {pull}38440[#38440] (issue: {issue}38424[#38424])
@@ -474,6 +500,9 @@ SQL::
 * SQL: Enhance Verifier to prevent aggregate or grouping functions from {pull}36799[#36799] (issue: {issue}36798[#36798])
 
 Search::
+* Fix simple query string serialization conditional {pull}38960[#38960] (issues: {issue}21504[#21504], {issue}38889[#38889])
+* Ensure that maxConcurrentShardRequests is never defaulted to 0 {pull}38734[#38734]
+* Look up connection using the right cluster alias when releasing contexts {pull}38570[#38570]
 * Fix fetch source option in expand search phase {pull}37908[#37908] (issue: {issue}23829[#23829])
 * Throw if two inner_hits have the same name {pull}37645[#37645] (issue: {issue}37584[#37584])
 * Ensure either success or failure path for SearchOperationListener is called {pull}37467[#37467] (issue: {issue}37185[#37185])

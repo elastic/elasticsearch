@@ -175,6 +175,11 @@ setup:
 
 ---
 "Sparse vectors should error with dense vector functions":
+
+- skip:
+    version: "all"
+    reason: "awaits fix in #39218"
+
 - do:
     index:
       index: test-index

@@ -127,6 +127,7 @@ public class DissectParserTests extends ESTestCase {
         assertMatch(delimiterFirstPattern, delimiterFirstInput, expectedKeys, expectedValues);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39244")
     public void testBasicMatchUnicode() {
         String valueFirstInput = "";
         String keyFirstPattern = "";

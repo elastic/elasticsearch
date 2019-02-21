@@ -150,7 +150,7 @@ public class UserAgentProcessor extends AbstractProcessor {
                 }
             }
         } else {
-            // Deprecated format, removed in 7.0
+            // Deprecated format, removed in 8.0
             for (Property property : this.properties) {
                 switch (property) {
                     case NAME:
@@ -316,7 +316,7 @@ public class UserAgentProcessor extends AbstractProcessor {
 
             if (useECS == false) {
                 deprecationLogger.deprecated("setting [ecs] to false for non-common schema " +
-                    "format is deprecated and will be removed in 7.0, set to true to use the non-deprecated format");
+                    "format is deprecated and will be removed in 8.0, set to true to use the non-deprecated format");
             }
 
             return new UserAgentProcessor(processorTag, field, targetField, parser, properties, ignoreMissing, useECS);
@@ -326,12 +326,12 @@ public class UserAgentProcessor extends AbstractProcessor {
     enum Property {
 
         NAME,
-        // Deprecated in 6.7 (superceded by VERSION), to be removed in 7.0
+        // Deprecated in 6.7 (superceded by VERSION), to be removed in 8.0
         @Deprecated MAJOR,
         @Deprecated MINOR,
         @Deprecated PATCH,
         OS,
-        // Deprecated in 6.7 (superceded by just using OS), to be removed in 7.0
+        // Deprecated in 6.7 (superceded by just using OS), to be removed in 8.0
         @Deprecated OS_NAME,
         @Deprecated OS_MAJOR,
         @Deprecated OS_MINOR,

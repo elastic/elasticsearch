@@ -207,7 +207,7 @@ public final class InternalTestCluster extends TestCluster {
     static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
 
     /* Sorted map to make traverse order reproducible.
-     * The map of nodes is never mutated so it is safe to read without synchronization.
+     * The map of nodes is never mutated so individual reads are safe without synchronization.
      * Updates are intended to follow a copy-on-write approach. */
     private volatile NavigableMap<String, NodeAndClient> nodes = Collections.emptyNavigableMap();
 

@@ -50,8 +50,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
             }
         };
         MockTransportService mockTransportService =
-            MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings,
-                Collections.emptySet());
+            MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings, Collections.emptySet());
         mockTransportService.start();
         return mockTransportService;
     }

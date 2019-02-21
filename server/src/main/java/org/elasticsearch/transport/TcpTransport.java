@@ -300,6 +300,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                                                  ActionListener<Transport.Connection> listener) {
         ConnectionContext context = new ConnectionContext(node, connectionProfile, listener, supportRetry());
         List<TcpChannel> pendingChannels = initiateConnection(node, connectionProfile, context, false);
+        // TODO: RACE!
         context.setPendingChannels(pendingChannels);
         return context;
     }

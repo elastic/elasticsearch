@@ -193,7 +193,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         protected void initChannel(Channel ch) throws Exception {
             SSLEngine serverEngine = sslService.createSSLEngine(configuration, null, -1);
             serverEngine.setUseClientMode(false);
-            final DualStackHandler sslHandler = new DualStackHandler(serverEngine, null);
+            final DualStackHandler sslHandler = new DualStackHandler(serverEngine, coordinator);
             ch.pipeline().addFirst(DualStackHandler.HANDLER_NAME, sslHandler);
             super.initChannel(ch);
             assert ch.pipeline().first() == sslHandler : "SSL handler must be first handler in pipeline";

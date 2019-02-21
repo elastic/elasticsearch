@@ -12,7 +12,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.BindTransportException;
@@ -55,10 +53,11 @@ import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -94,8 +93,10 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
     }
 
     @Override
-    protected Collection<Setting<?>> additionalSupportedSettings() {
-        return XPackSettings.getAllSettings();
+    protected Set<Setting<?>> getSupportedSettings() {
+        HashSet<Setting<?>> availableSettings = new HashSet<>(super.getSupportedSettings());
+        availableSettings.addAll(XPackSettings.getAllSettings());
+        return availableSettings;
     }
 
     public void testConnectException() throws UnknownHostException {
@@ -115,14 +116,10 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         // this is on a lower level since it needs access to the TransportService before it's started
         int port = serviceA.boundAddress().publishAddress().getPort();
         Settings settings = Settings.builder()
-            .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
-            .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-            .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
             .put(TransportSettings.PORT.getKey(), port)
             .build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService = buildService("TS_C", Version.CURRENT, clusterSettings, settings);
+            MockTransportService transportService = buildService("TS_C", Version.CURRENT, settings);
             try {
                 transportService.start();
             } finally {
@@ -139,7 +136,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
-        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null)) {
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, Settings.EMPTY)) {
             DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
                 version0);
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
@@ -245,10 +242,10 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
             InetSocketAddress serverAddress = (InetSocketAddress) SocketAccess.doPrivileged(sslServerSocket::getLocalSocketAddress);
 
-            Settings settings = Settings.builder().put("name", "TS_TEST")
+            Settings settings = Settings.builder()
                 .put("xpack.security.transport.ssl.verification_mode", "none")
                 .build();
-            try (MockTransportService serviceC = build(settings, version0, null, true)) {
+            try (MockTransportService serviceC = buildService("TS_C", version0, settings)) {
                 serviceC.acceptIncomingRequests();
 
                 HashMap<String, String> attributes = new HashMap<>();
@@ -292,10 +289,10 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
             InetSocketAddress serverAddress = (InetSocketAddress) SocketAccess.doPrivileged(sslServerSocket::getLocalSocketAddress);
 
-            Settings settings = Settings.builder().put("name", "TS_TEST")
+            Settings settings = Settings.builder()
                 .put("xpack.security.transport.ssl.verification_mode", "none")
                 .build();
-            try (MockTransportService serviceC = build(settings, version0, null, true)) {
+            try (MockTransportService serviceC = buildService("TS_C", version0, settings)) {
                 serviceC.acceptIncomingRequests();
 
                 HashMap<String, String> attributes = new HashMap<>();
@@ -318,16 +315,20 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool, new NetworkService(Collections.emptyList()),
             new MockPageCacheRecycler(Settings.EMPTY), namedWriteableRegistry, new NoneCircuitBreakerService());
 
+        clusterSettingsA.applySettings(Settings.builder().put(XPackSettings.DUAL_STACK_ENABLED.getKey(), true).build());
         try (MockTransportService plainTextService = MockTransportService.createNewService(Settings.EMPTY, transport, expectedVersion,
             threadPool, null, Collections.emptySet())) {
             plainTextService.start();
             plainTextService.acceptIncomingRequests();
+
             try (Transport.Connection connection = plainTextService.openConnection(serviceA.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
                 // Would throw if failed
             }
 
             try (Transport.Connection connection = serviceA.openConnection(plainTextService.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
                 // Would throw if failed
+            } finally {
+                clusterSettingsA.applySettings(Settings.builder().put(XPackSettings.DUAL_STACK_ENABLED.getKey(), false).build());
             }
         }
     }

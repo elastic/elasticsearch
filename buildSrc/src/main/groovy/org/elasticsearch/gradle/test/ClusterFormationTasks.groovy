@@ -351,7 +351,7 @@ class ClusterFormationTasks {
           the elasticsearch source tree then this should be the version of elasticsearch built by the source tree.
           If it isn't then Bad Things(TM) will happen. */
         Task extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
-            if (getOs().equals("windows") || distribution.equals("integ-test-zip")) {
+            if (getOs().equals("windows") || distribution.equals("integ-test-zip") || node.nodeVersion.before("7.0.0")) {
                 from {
                     project.zipTree(configuration.singleFile)
                 }

@@ -31,6 +31,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -46,6 +47,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateSettingsIT extends ESIntegTestCase {
@@ -123,6 +125,16 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         public List<Setting<?>> getSettings() {
             return Collections.singletonList(FINAL_SETTING);
         }
+    }
+
+    /**
+     * Needed by {@link UpdateSettingsIT#testEngineGCDeletesSetting()}
+     */
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put("thread_pool.estimated_time_interval", 0)
+            .build();
     }
 
     public void testUpdateDependentClusterSettings() {
@@ -434,7 +446,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting("test", "index.final"), nullValue());
     }
 
-    public void testEngineGCDeletesSetting() throws InterruptedException {
+    public void testEngineGCDeletesSetting() throws Exception {
         createIndex("test");
         client().prepareIndex("test", "type", "1").setSource("f", 1).get(); // set version to 1
         client().prepareDelete("test", "type", "1").get(); // sets version to 2
@@ -443,11 +455,16 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.gc_deletes", 0)).get();
 
         client().prepareDelete("test", "type", "1").get(); // sets version to 4
-        Thread.sleep(300); // wait for cache time to change TODO: this needs to be solved better. To be discussed.
-        // delete is should not be in cache
-        assertThrows(client().prepareIndex("test", "type", "1").setSource("f", 3)
-            .setVersion(4), VersionConflictEngineException.class);
 
+        // Make sure the time has advanced for InternalEngine#resolveDocVersion()
+        for (ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
+            long startTime = threadPool.relativeTimeInMillis();
+            assertBusy(() -> assertThat(threadPool.relativeTimeInMillis(), greaterThan(startTime)));
+        }
+
+        // delete is should not be in cache
+        assertThrows(
+            client().prepareIndex("test", "type", "1").setSource("f", 3).setVersion(4), VersionConflictEngineException.class);
     }
 
     public void testUpdateSettingsWithBlocks() {

@@ -56,7 +56,6 @@ public class IndexLifecycleService
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
-    private boolean closed = false;
 
     public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool, Clock clock,
                                  LongSupplier nowSupplier, NamedXContentRegistry xContentRegistry) {
@@ -155,14 +154,15 @@ public class IndexLifecycleService
         return scheduledJob;
     }
 
-    private synchronized void maybeScheduleJob() {
-        if (this.isMaster && closed == false) {
+    private void maybeScheduleJob() {
+        if (this.isMaster) {
             if (scheduler.get() == null) {
                 scheduler.set(new SchedulerEngine(settings, clock));
                 scheduler.get().register(this);
+            } else if (scheduler.get().isStopped() == false) {
+                scheduledJob = new SchedulerEngine.Job(XPackField.INDEX_LIFECYCLE, new TimeValueSchedule(pollInterval));
+                scheduler.get().add(scheduledJob);
             }
-            scheduledJob = new SchedulerEngine.Job(XPackField.INDEX_LIFECYCLE, new TimeValueSchedule(pollInterval));
-            scheduler.get().add(scheduledJob);
         }
     }
 
@@ -251,8 +251,7 @@ public class IndexLifecycleService
     }
 
     @Override
-    public synchronized void close() {
-        closed = true;
+    public void close() {
         SchedulerEngine engine = scheduler.get();
         if (engine != null) {
             engine.stop();

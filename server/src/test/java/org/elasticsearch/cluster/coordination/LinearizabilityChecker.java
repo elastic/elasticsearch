@@ -21,6 +21,8 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.collect.Tuple;
 
+// we only use serializable to be able to debug test failures, circumventing the checkstyle check using spaces.
+import java . io . Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -31,7 +33,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -112,13 +118,12 @@ public class LinearizabilityChecker {
     /**
      * Sequence of invocations and responses, recording the run of a concurrent system.
      */
-    public static class History {
-        private final List<Event> events;
-        private int nextId;
+    public static class History implements Serializable {
+        private final Queue<Event> events;
+        private AtomicInteger nextId = new AtomicInteger();
 
         public History() {
-            events = new ArrayList<>();
-            nextId = 0;
+            events = new ConcurrentLinkedQueue<>();
         }
 
         /**
@@ -128,9 +133,20 @@ public class LinearizabilityChecker {
          * @return an id that can be used to record the corresponding response event
          */
         public int invoke(Object input) {
-            final int id = nextId++;
+            final int id = nextId.getAndIncrement();
             events.add(new Event(EventType.INVOCATION, input, id));
             return id;
+        }
+
+        /**
+         * Appends a new invocation event to the history
+         *
+         * @param input the input value associated with the invocation event
+         * @return a future object that should receive the response once/if it is available.
+         */
+        public Consumer<Object> invoke2(Object input) {
+            final int id = invoke(input);
+            return output -> respond(id, output);
         }
 
         /**
@@ -178,7 +194,7 @@ public class LinearizabilityChecker {
         public History clone() {
             final History history = new History();
             history.events.addAll(events);
-            history.nextId = nextId;
+            history.nextId = new AtomicInteger(nextId.get());
             return history;
         }
 
@@ -209,7 +225,7 @@ public class LinearizabilityChecker {
     public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
         history = history.clone(); // clone history before completing it
         history.complete(missingResponseGenerator); // complete history
-        final Collection<List<Event>> partitions = spec.partition(history.events);
+        final Collection<List<Event>> partitions = spec.partition(new ArrayList<>(history.events));
         return partitions.stream().allMatch(h -> isLinearizable(spec, h));
     }
 
@@ -318,7 +334,7 @@ public class LinearizabilityChecker {
         RESPONSE
     }
 
-    public static class Event {
+    public static class Event implements Serializable {
         public final EventType type;
         public final Object value;
         public final int id;

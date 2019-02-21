@@ -39,6 +39,7 @@ import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -82,8 +83,10 @@ public class IndicesServiceCloseTests extends ESTestCase {
         Node node = startNode();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
         assertEquals(1, indicesService.indicesRefCount.refCount());
+        assertFalse(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
         node.close();
         assertEquals(0, indicesService.indicesRefCount.refCount());
+        assertTrue(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
     }
 
     public void testCloseNonEmptyIndicesService() throws Exception {
@@ -95,9 +98,11 @@ public class IndicesServiceCloseTests extends ESTestCase {
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
+        assertFalse(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
 
         node.close();
         assertEquals(0, indicesService.indicesRefCount.refCount());
+        assertTrue(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
     }
 
     public void testCloseWhileOngoingRequest() throws Exception {
@@ -113,12 +118,15 @@ public class IndicesServiceCloseTests extends ESTestCase {
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         shard.store().incRef();
+        assertFalse(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
 
         node.close();
         assertEquals(1, indicesService.indicesRefCount.refCount());
+        assertFalse(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
 
         shard.store().decRef();
         assertEquals(0, indicesService.indicesRefCount.refCount());
+        assertTrue(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
     }
 
 }

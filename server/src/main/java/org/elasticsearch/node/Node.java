@@ -833,20 +833,11 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(ScriptService.class));
 
         toClose.add(() -> stopWatch.stop().start("thread_pool"));
-        // TODO this should really use ThreadPool.terminate()
         toClose.add(() -> injector.getInstance(ThreadPool.class).shutdown());
-        toClose.add(() -> {
-            try {
-                injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                // ignore
-            }
-        });
-
-        toClose.add(() -> stopWatch.stop().start("thread_pool_force_shutdown"));
-        toClose.add(() -> injector.getInstance(ThreadPool.class).shutdownNow());
+        // Don't call shutdownNow here, it might break ongoing operations on Lucene indices.
+        // See https://issues.apache.org/jira/browse/LUCENE-7248. We call shutdownNow in
+        // awaitClose if the node doesn't finish closing within the specified time.
         toClose.add(() -> stopWatch.stop());
-
 
         toClose.add(injector.getInstance(NodeEnvironment.class));
         toClose.add(injector.getInstance(PageCacheRecycler.class));
@@ -858,6 +849,23 @@ public class Node implements Closeable {
         logger.info("closed");
     }
 
+    /**
+     * Wait for this node to be effectively closed.
+     */
+    // synchronized to prevent running concurrently with close()
+    public synchronized boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        if (lifecycle.closed() == false) {
+            // We don't want to shutdown the threadpool or interrupt threads on a node that is not
+            // closed yet.
+            throw new IllegalStateException("Call close() first");
+        }
+
+        // In theory we might wait 2x longer than what the caller asked. In practice it's unlikely
+        // since indices should all be closed once there are no running threads anymore.
+        ThreadPool threadPool = injector.getInstance(ThreadPool.class);
+        return ThreadPool.terminate(threadPool, timeout, timeUnit) &&
+                nodeService.awaitClose(timeout, timeUnit);
+    }
 
     /**
      * Returns {@code true} if the node is closed.

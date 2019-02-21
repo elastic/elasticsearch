@@ -503,7 +503,7 @@ public class JobResultsProvider {
                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             return objectParser.apply(parser, null);
         } catch (IOException e) {
-            errorHandler.accept(new ElasticsearchParseException("failed to parse " + hit.getType(), e));
+            errorHandler.accept(new ElasticsearchParseException("failed to parse " + hit.getId(), e));
             return null;
         }
     }

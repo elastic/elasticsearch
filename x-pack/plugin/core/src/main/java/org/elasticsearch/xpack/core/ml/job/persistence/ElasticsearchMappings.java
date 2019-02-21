@@ -569,6 +569,17 @@ public class ElasticsearchMappings {
         addModelSizeStatsFieldsToMapping(builder);
     }
 
+    /**
+     * Generate a keyword mapping for {@code termFields} for the default type
+     * {@link org.elasticsearch.index.mapper.MapperService#SINGLE_MAPPING_NAME}
+     *
+     * If the returned mapping is used in index creation and the new index has a matching template
+     * then the mapping type ({@link org.elasticsearch.index.mapper.MapperService#SINGLE_MAPPING_NAME})
+     * must match the mapping type of the template otherwise the mappings will not be merged correctly.
+     *
+     * @param termFields Fields to generate mapping for
+     * @return The mapping
+     */
     public static XContentBuilder termFieldsMapping(Collection<String> termFields) {
         try {
             XContentBuilder builder = jsonBuilder().startObject();

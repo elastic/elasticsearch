@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -54,8 +55,9 @@ public class CcrRequestConvertersTests extends ESTestCase {
         Request result = CcrRequestConverters.putFollow(putFollowRequest);
         assertThat(result.getMethod(), equalTo(HttpPut.METHOD_NAME));
         assertThat(result.getEndpoint(), equalTo("/" + putFollowRequest.getFollowerIndex() + "/_ccr/follow"));
-        if (putFollowRequest.waitForActiveShards() != null) {
-            assertThat(result.getParameters().get("wait_for_active_shards"), equalTo(putFollowRequest.waitForActiveShards().toString()));
+        if (putFollowRequest.waitForActiveShards() != null && putFollowRequest.waitForActiveShards() != ActiveShardCount.DEFAULT) {
+            String expectedValue = putFollowRequest.waitForActiveShards().toString().toLowerCase(Locale.ROOT);
+            assertThat(result.getParameters().get("wait_for_active_shards"), equalTo(expectedValue));
         } else {
             assertThat(result.getParameters().size(), equalTo(0));
         }

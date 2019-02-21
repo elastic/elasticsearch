@@ -844,10 +844,6 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 protected void nodeOperation(AllocatedPersistentTask task, P params, PersistentTaskState state) {
                     throw new UnsupportedOperationException();
                 }
-
-                @Override
-                public void close() {
-                }
             }));
         return new PersistentTasksClusterService(Settings.EMPTY, registry, clusterService, threadPool);
     }

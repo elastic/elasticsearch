@@ -68,9 +68,4 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         return new DataFrameTransformTask(id, type, action, parentTaskId, persistentTask.getParams(),
                 (DataFrameTransformState) persistentTask.getState(), client, transformsConfigManager, schedulerEngine, threadPool, headers);
     }
-
-    @Override
-    public void close() {
-        schedulerEngine.stop();
-    }
 }

@@ -375,10 +375,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 Map<String, String> headers) {
             return new DatafeedTask(id, type, action, parentTaskId, persistentTask.getParams(), headers);
         }
-
-        @Override
-        public void close() {
-        }
     }
 
     public static class DatafeedTask extends AllocatedPersistentTask implements StartDatafeedAction.DatafeedTaskMatcher {

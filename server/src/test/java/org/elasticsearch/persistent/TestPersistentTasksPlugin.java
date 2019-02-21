@@ -394,10 +394,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                                                      PersistentTask<TestParams> task, Map<String, String> headers) {
             return new TestTask(id, type, action, getDescription(task), parentTaskId, headers);
         }
-
-        @Override
-        public void close() {
-        }
     }
 
     public static class TestTaskAction extends Action<TestTasksResponse> {

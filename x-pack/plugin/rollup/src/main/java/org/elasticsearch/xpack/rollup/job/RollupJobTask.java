@@ -83,11 +83,6 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
             return new RollupJobTask(id, type, action, parentTaskId, persistentTask.getParams(),
                     (RollupJobStatus) persistentTask.getState(), client, schedulerEngine, threadPool, headers);
         }
-
-        @Override
-        public void close() {
-            schedulerEngine.stop();
-        }
     }
 
     /**

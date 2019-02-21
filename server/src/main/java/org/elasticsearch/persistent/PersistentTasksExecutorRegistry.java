@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.core.internal.io.IOUtils;
-
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,7 +26,7 @@ import java.util.Map;
 /**
  * Components that registers all persistent task executors
  */
-public class PersistentTasksExecutorRegistry implements Closeable {
+public class PersistentTasksExecutorRegistry {
 
     private final Map<String, PersistentTasksExecutor<?>> taskExecutors;
 
@@ -49,10 +45,5 @@ public class PersistentTasksExecutorRegistry implements Closeable {
             throw new IllegalStateException("Unknown persistent executor [" + taskName + "]");
         }
         return executor;
-    }
-
-    @Override
-    public void close() throws IOException {
-        IOUtils.close(taskExecutors.values());
     }
 }

@@ -26,7 +26,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
 
-import java.io.Closeable;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -34,7 +33,7 @@ import java.util.function.Predicate;
  * An executor of tasks that can survive restart of requesting or executing node.
  * These tasks are using cluster state rather than only transport service to send requests and responses.
  */
-public abstract class PersistentTasksExecutor<Params extends PersistentTaskParams> implements Closeable {
+public abstract class PersistentTasksExecutor<Params extends PersistentTaskParams> {
 
     private final String executor;
     private final String taskName;

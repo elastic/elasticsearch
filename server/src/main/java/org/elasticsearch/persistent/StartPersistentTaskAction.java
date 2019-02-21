@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.persistent;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -35,7 +33,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -192,8 +189,6 @@ public class StartPersistentTaskAction extends Action<PersistentTaskResponse> {
 
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
-        private static final Logger logger = LogManager.getLogger(TransportAction.class);
-
         private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
@@ -207,19 +202,8 @@ public class StartPersistentTaskAction extends Action<PersistentTaskResponse> {
                     indexNameExpressionResolver, Request::new);
             this.persistentTasksClusterService = persistentTasksClusterService;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
-            final PersistentTasksNodeService nodeService = new PersistentTasksNodeService(persistentTasksService,
-                persistentTasksExecutorRegistry, transportService.getTaskManager(), executor);
-            clusterService.addListener(nodeService);
-            clusterService.addLifecycleListener(new LifecycleListener() {
-                @Override
-                public void beforeStop() {
-                    try {
-                        nodeService.close();
-                    } catch (IOException e) {
-                        logger.warn("caught exception while closing the persistent tasks node service", e);
-                    }
-                }
-            });
+            clusterService.addListener(new PersistentTasksNodeService(persistentTasksService, persistentTasksExecutorRegistry,
+                transportService.getTaskManager(), executor));
         }
 
         @Override

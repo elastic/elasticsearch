@@ -23,23 +23,6 @@
     - match:  { detail.tokenizer.tokens.0.token: Foo Bar! }
 
 ---
-"ngram":
-    - do:
-        indices.analyze:
-          body:
-            text: good
-            explain: true
-            tokenizer:
-              type: ngram
-              min_gram: 2
-              max_gram: 2
-    - length: { detail.tokenizer.tokens: 3 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
-    - match:  { detail.tokenizer.tokens.0.token: go }
-    - match:  { detail.tokenizer.tokens.1.token: oo }
-    - match:  { detail.tokenizer.tokens.2.token: od }
-
----
 "ngram_exception":
     - skip:
         version: " - 6.99.99"

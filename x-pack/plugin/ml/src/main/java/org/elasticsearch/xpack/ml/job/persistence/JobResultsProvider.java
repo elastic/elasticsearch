@@ -1186,7 +1186,7 @@ public class JobResultsProvider {
                     currentJobs.removeAll(jobIdsToRemove);
                     Calendar updatedCalendar = new Calendar(calendar.getId(), new ArrayList<>(currentJobs), calendar.getDescription());
 
-                    UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, updatedCalendar.documentId());
+                    UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, updatedCalendar.documentId());
                     updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
                     try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -1254,8 +1254,7 @@ public class JobResultsProvider {
                                 ids.remove(jobId);
                                 return new Calendar(c.getId(), new ArrayList<>(ids), c.getDescription());
                             }).forEach(c -> {
-                                UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE,
-                                        c.documentId());
+                                UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, c.documentId());
                                 try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                                     updateRequest.doc(c.toXContent(builder, ToXContent.EMPTY_PARAMS));
                                 } catch (IOException e) {
@@ -1278,7 +1277,7 @@ public class JobResultsProvider {
     }
 
     public void calendar(String calendarId, ActionListener<Calendar> listener) {
-        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, Calendar.documentId(calendarId));
+        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, Calendar.documentId(calendarId));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getDocResponse) {

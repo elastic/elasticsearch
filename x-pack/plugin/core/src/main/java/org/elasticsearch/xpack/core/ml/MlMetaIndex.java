@@ -21,32 +21,28 @@ public final class MlMetaIndex {
      */
     public static final String INDEX_NAME = ".ml-meta";
 
-    public static final String TYPE = "doc";
-
     private MlMetaIndex() {}
 
     public static XContentBuilder docMapping() throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-            builder.startObject(TYPE);
-                ElasticsearchMappings.addMetaInformation(builder);
-                ElasticsearchMappings.addDefaultMapping(builder);
-                builder.startObject(ElasticsearchMappings.PROPERTIES)
-                    .startObject(Calendar.ID.getPreferredName())
-                        .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
-                    .endObject()
-                    .startObject(Calendar.JOB_IDS.getPreferredName())
-                        .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
-                    .endObject()
-                    .startObject(Calendar.DESCRIPTION.getPreferredName())
-                        .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
-                    .endObject()
-                    .startObject(ScheduledEvent.START_TIME.getPreferredName())
-                        .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
-                    .endObject()
-                    .startObject(ScheduledEvent.END_TIME.getPreferredName())
-                        .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
-                    .endObject()
+            ElasticsearchMappings.addMetaInformation(builder);
+            ElasticsearchMappings.addDefaultMapping(builder);
+            builder.startObject(ElasticsearchMappings.PROPERTIES)
+                .startObject(Calendar.ID.getPreferredName())
+                    .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
+                .endObject()
+                .startObject(Calendar.JOB_IDS.getPreferredName())
+                    .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
+                .endObject()
+                .startObject(Calendar.DESCRIPTION.getPreferredName())
+                    .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
+                .endObject()
+                .startObject(ScheduledEvent.START_TIME.getPreferredName())
+                    .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
+                .endObject()
+                .startObject(ScheduledEvent.END_TIME.getPreferredName())
+                    .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.DATE)
                 .endObject()
             .endObject()
         .endObject();

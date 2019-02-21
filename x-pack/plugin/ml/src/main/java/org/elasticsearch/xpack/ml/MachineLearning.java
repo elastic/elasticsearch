@@ -676,7 +676,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
                         .version(Version.CURRENT.id)
-                        .putMapping(MlMetaIndex.TYPE, Strings.toString(docMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
                         .build();
                 templates.put(MlMetaIndex.INDEX_NAME, metaTemplate);
             } catch (IOException e) {

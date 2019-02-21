@@ -1,7 +1,7 @@
 [[search-exists]]
 == Search Exists API
 
-deprecated[2.1.0, use regular `_search` with `size` set to `0` and `terminate_after` set to `1` instead]
+deprecated[2.1.0, use regular `_search` with `size` set to `1` and `terminate_after` set to `1` instead]
 
 The exists API allows to easily determine if any
 matching documents exist for a provided query. It can be executed across one or more indices

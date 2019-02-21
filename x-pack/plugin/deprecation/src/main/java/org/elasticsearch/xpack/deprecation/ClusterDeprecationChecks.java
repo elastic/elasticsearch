@@ -87,7 +87,7 @@ public class ClusterDeprecationChecks {
                 "User-Agent ingest plugin will use ECS-formatted output",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#ingest-user-agent-ecs-always",
-                "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig + " will change to using ECS output format in 7.0");
+                "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig + " will change to using ECS output format by default in 7.0");
         }
         return null;
 

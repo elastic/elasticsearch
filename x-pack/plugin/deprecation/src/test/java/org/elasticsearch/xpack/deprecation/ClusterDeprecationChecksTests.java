@@ -157,7 +157,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             "User-Agent ingest plugin will use ECS-formatted output",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#ingest-user-agent-ecs-always",
-            "Ingest pipelines [ecs_false, ecs_null] will change to using ECS output format in 7.0");
+            "Ingest pipelines [ecs_null] will change to using ECS output format in 7.0");
         assertEquals(singletonList(expected), issues);
     }
 }

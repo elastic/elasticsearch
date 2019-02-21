@@ -78,8 +78,7 @@ public class ClusterDeprecationChecks {
                     .filter(Objects::nonNull)
                     .filter(processor -> processor.containsKey("user_agent"))
                     .map(processor -> processor.get("user_agent"))
-                    .anyMatch(processorConfig ->
-                        false == ConfigurationUtils.readBooleanProperty(null, null, processorConfig, "ecs", false));
+                    .anyMatch(processorConfig -> processorConfig.containsKey("ecs") == false);
             })
             .map(PipelineConfiguration::getId)
             .sorted() // Make the warning consistent for testing purposes

@@ -1292,22 +1292,22 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public void onFailure(Exception e) {
-            if (e.getMessage().contains("connect_timeout")) {
-                // We do not retry timeouts
-                if (state.compareAndSet(PENDING, DONE)) {
-                    listener.onFailure(e);
+            if (retry.compareAndSet(true, false) && state.get() == PENDING) {
+                setCancellable(initiateConnection(node, connectionProfile, this, true));
+                // We must check if the connection has been cancelled to prevent a race while we are
+                // setting the cancellable
+                if (state.get() == CANCELLED) {
+                    cancellable.run();
                 }
-            } else {
-                if (retry.compareAndSet(true, false) && state.get() == PENDING) {
-                    setCancellable(initiateConnection(node, connectionProfile, this, true));
-                    // We must check if the connection has been cancelled to prevent a race while we are
-                    // setting the cancellable
-                    if (state.get() == CANCELLED) {
-                        cancellable.run();
-                    }
-                } else if (state.compareAndSet(PENDING, DONE)) {
-                    listener.onFailure(e);
-                }
+            } else if (state.compareAndSet(PENDING, DONE)) {
+                listener.onFailure(e);
+            }
+        }
+
+        public void onTimeout(ConnectTransportException e) {
+            // We do not retry timeouts
+            if (state.compareAndSet(PENDING, DONE)) {
+                listener.onFailure(e);
             }
         }
 
@@ -1330,11 +1330,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final ConnectionProfile connectionProfile;
         private final TcpChannel handshakeChannel;
         private final List<TcpChannel> channels;
-        private final ActionListener<NodeChannels> listener;
+        private final ConnectionContext listener;
         private final CountDown countDown;
 
         private ChannelsConnectedListener(DiscoveryNode node, ConnectionProfile connectionProfile, List<TcpChannel> channels,
-                                          ActionListener<NodeChannels> listener) {
+                                          ConnectionContext listener) {
             this.node = node;
             this.connectionProfile = connectionProfile;
             this.handshakeChannel = channels.get(0);
@@ -1383,7 +1383,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         public void onTimeout() {
             if (countDown.fastForward()) {
                 CloseableChannel.closeChannels(channels, false);
-                listener.onFailure(new ConnectTransportException(node, "connect_timeout[" + connectionProfile.getConnectTimeout() + "]"));
+                listener.onTimeout(new ConnectTransportException(node, "connect_timeout[" + connectionProfile.getConnectTimeout() + "]"));
             }
         }
     }

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -154,12 +155,18 @@ public class IndexLifecycleService
         return scheduledJob;
     }
 
-    private void maybeScheduleJob() {
+    private synchronized void maybeScheduleJob() {
         if (this.isMaster) {
             if (scheduler.get() == null) {
-                scheduler.set(new SchedulerEngine(settings, clock));
-                scheduler.get().register(this);
-            } else if (scheduler.get().isStopped() == false) {
+                // don't create scheduler if the node is shutting down
+                if (isStoppedOrClosed(clusterService.lifecycleState()) == false) {
+                    scheduler.set(new SchedulerEngine(settings, clock));
+                    scheduler.get().register(this);
+                }
+            }
+
+            // scheduler could be null if the node might be shutting down
+            if (scheduler.get() != null) {
                 scheduledJob = new SchedulerEngine.Job(XPackField.INDEX_LIFECYCLE, new TimeValueSchedule(pollInterval));
                 scheduler.get().add(scheduledJob);
             }
@@ -251,7 +258,8 @@ public class IndexLifecycleService
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        assert isStoppedOrClosed(clusterService.lifecycleState());
         SchedulerEngine engine = scheduler.get();
         if (engine != null) {
             engine.stop();
@@ -261,5 +269,9 @@ public class IndexLifecycleService
     public void submitOperationModeUpdate(OperationMode mode) {
         clusterService.submitStateUpdateTask("ilm_operation_mode_update",
             new OperationModeUpdateTask(mode));
+    }
+
+    private static boolean isStoppedOrClosed(State state) {
+        return state == State.STOPPED || state == State.CLOSED;
     }
 }

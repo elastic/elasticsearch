@@ -123,7 +123,7 @@ public class SchedulerEngine {
         jobs.forEach(this::add);
     }
 
-    public synchronized void stop() {
+    public void stop() {
         scheduler.shutdownNow();
         try {
             final boolean terminated = scheduler.awaitTermination(5L, TimeUnit.SECONDS);
@@ -134,10 +134,6 @@ public class SchedulerEngine {
             logger.warn("interrupted while waiting for scheduler engine termination");
             Thread.currentThread().interrupt();
         }
-    }
-
-    public synchronized boolean isStopped() {
-        return scheduler.isShutdown();
     }
 
     public void add(Job job) {

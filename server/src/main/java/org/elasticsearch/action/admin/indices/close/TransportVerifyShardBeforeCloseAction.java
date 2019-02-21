@@ -158,7 +158,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
-            clusterBlock = ClusterBlock.readClusterBlock(in);
+            clusterBlock = new ClusterBlock(in);
         }
 
         @Override

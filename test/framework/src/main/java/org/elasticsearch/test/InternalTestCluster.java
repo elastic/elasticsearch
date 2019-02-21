@@ -855,7 +855,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private static final int REMOVED_MINIMUM_MASTER_NODES = Integer.MAX_VALUE;
+    public static final int REMOVED_MINIMUM_MASTER_NODES = Integer.MAX_VALUE;
 
     private final class NodeAndClient implements Closeable {
         private MockNode node;

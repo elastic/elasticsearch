@@ -231,14 +231,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         w.addDocument(doc);
         docValuesField.setLongValue(1459641600000L);
         w.addDocument(doc);
-        w.flush();
         // Create the doc values reader
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        QueryShardContext context = new QueryShardContext(0,
-            new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
-            null, null, null, null, null, xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null);
-        SortedNumericDVIndexFieldData fieldData = new SortedNumericDVIndexFieldData(context.index(), "my_date",
+        IndexSettings indexSettings =  new IndexSettings(IndexMetaData.builder("foo").settings(settings).build(), settings);
+        SortedNumericDVIndexFieldData fieldData = new SortedNumericDVIndexFieldData(indexSettings.getIndex(), "my_date",
             IndexNumericFieldData.NumericType.DATE_NANOSECONDS);
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);

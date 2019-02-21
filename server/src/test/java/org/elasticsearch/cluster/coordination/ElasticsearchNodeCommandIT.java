@@ -250,6 +250,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         expectThrows(() -> detachCluster(environment, 0, true), ElasticsearchNodeCommand.ABORTED_BY_USER_MSG);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39220")
     public void test3MasterNodes2Failed() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(2);
         List<String> masterNodes = new ArrayList<>();

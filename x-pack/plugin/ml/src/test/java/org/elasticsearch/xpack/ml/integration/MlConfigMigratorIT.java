@@ -213,6 +213,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         future.actionGet();
 
         IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).id("ml-config")
+                .source(Collections.singletonMap("a_field", "a_value"))
                 .opType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 

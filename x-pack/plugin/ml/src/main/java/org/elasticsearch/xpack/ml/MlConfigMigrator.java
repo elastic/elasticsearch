@@ -65,6 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -488,7 +489,7 @@ public class MlConfigMigrator {
                             .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                             .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
             );
-            createIndexRequest.mapping("_all", ElasticsearchMappings.configMapping());
+            createIndexRequest.mapping(SINGLE_MAPPING_NAME, ElasticsearchMappings.configMapping());
         } catch (Exception e) {
             logger.error("error writing the .ml-config mappings", e);
             listener.onFailure(e);

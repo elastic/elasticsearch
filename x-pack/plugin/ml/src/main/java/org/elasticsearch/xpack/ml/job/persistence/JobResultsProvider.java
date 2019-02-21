@@ -310,26 +310,22 @@ public class JobResultsProvider {
                     ), client.admin().indices()::create);
         } else {
             long fieldCountLimit = MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.get(settings);
-            if (violatedFieldCountLimit(indexName, termFields.size(), fieldCountLimit, state)) {
+            IndexMetaData indexMetaData = state.metaData().index(indexName);
+
+            if (violatedFieldCountLimit(termFields.size(), fieldCountLimit, indexMetaData)) {
                 String message = "Cannot create job in index '" + indexName + "' as the " +
                         MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey() + " setting will be violated";
                 finalListener.onFailure(new IllegalArgumentException(message));
             } else {
-                updateIndexMappingWithTermFields(indexName, termFields,
+                updateIndexMappingWithTermFields(indexName, indexMetaData.mapping().type(), termFields,
                         ActionListener.wrap(createAliasListener::onResponse, finalListener::onFailure));
             }
         }
     }
 
-    public static boolean violatedFieldCountLimit(
-            String indexName, long additionalFieldCount, long fieldCountLimit, ClusterState clusterState) {
-        long numFields = 0;
-        IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
-        Iterator<MappingMetaData> mappings = indexMetaData.getMappings().valuesIt();
-        while (mappings.hasNext()) {
-            MappingMetaData mapping = mappings.next();
-            numFields += countFields(mapping.sourceAsMap());
-        }
+    public static boolean violatedFieldCountLimit(long additionalFieldCount, long fieldCountLimit, IndexMetaData indexMetaData) {
+        MappingMetaData mapping = indexMetaData.mapping();
+        long numFields = countFields(mapping.sourceAsMap());
         return numFields + additionalFieldCount > fieldCountLimit;
     }
 
@@ -354,11 +350,12 @@ public class JobResultsProvider {
         return count;
     }
 
-    private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields, ActionListener<Boolean> listener) {
+    private void updateIndexMappingWithTermFields(String indexName, String mappingType, Collection<String> termFields,
+                                                  ActionListener<Boolean> listener) {
         // Put the whole mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
         try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(termFields)) {
             final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName)
-                    .setType(SINGLE_MAPPING_NAME)   // TODO check current mapping name
+                    .setType(mappingType)
                     .setSource(termFieldsMapping).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
                 @Override

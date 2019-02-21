@@ -136,8 +136,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().trigger("_id1");
-        timeWarp().trigger("_id2");
+        executeWatch("_id1");
+        executeWatch("_id2");
         refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
@@ -184,8 +184,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 ).get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().trigger("_id1");
-        timeWarp().trigger("_id2");
+        executeWatch("_id1");
+        executeWatch("_id2");
         refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
@@ -228,8 +228,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().trigger("_id1");
-        timeWarp().trigger("_id2");
+        executeWatch("_id1");
+        executeWatch("_id2");
         refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
@@ -247,5 +247,11 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
+    }
+
+    private void executeWatch(String watchId) {
+        watcherClient().prepareExecuteWatch(watchId)
+            .setRecordExecution(true)
+            .get();
     }
 }

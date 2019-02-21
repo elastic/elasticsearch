@@ -33,6 +33,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -86,6 +87,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -289,20 +291,18 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         closeLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
             ensureOpen();
-            ConnectionContext pendingChannels = initiateConnection(node, finalProfile, listener);
-            return pendingChannels::cancel;
+            return initiateConnection(node, finalProfile, listener);
         } finally {
             closeLock.readLock().unlock();
         }
     }
 
-    private ConnectionContext initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
+    private Releasable initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
                                                  ActionListener<Transport.Connection> listener) {
         ConnectionContext context = new ConnectionContext(node, connectionProfile, listener, supportRetry());
         List<TcpChannel> pendingChannels = initiateConnection(node, connectionProfile, context, false);
-        // TODO: RACE!
-        context.setPendingChannels(pendingChannels);
-        return context;
+        context.setCancellable(pendingChannels);
+        return context::cancel;
     }
 
     private List<TcpChannel> initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
@@ -330,14 +330,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
         }
 
-        ActionListener<Void> channelsConnectedListener = new ChannelsConnectedListener(node, connectionProfile, channels, context);
+        ChannelsConnectedListener channelsConnectedListener = new ChannelsConnectedListener(node, connectionProfile, channels, context);
 
         for (TcpChannel channel : channels) {
             channel.addConnectListener(channelsConnectedListener);
         }
 
         TimeValue connectTimeout = connectionProfile.getConnectTimeout();
-        threadPool.schedule(context::onTimeout, connectTimeout, ThreadPool.Names.GENERIC);
+        threadPool.schedule(channelsConnectedListener::onTimeout, connectTimeout, ThreadPool.Names.GENERIC);
+
         return channels;
     }
 
@@ -1253,15 +1254,19 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return requestHandlers.get(action);
     }
 
-    private final class ConnectionContext implements ActionListener<Version> {
+    private final class ConnectionContext implements ActionListener<NodeChannels> {
+
+        private static final int PENDING = 0;
+        private static final int DONE = 1;
+        private static final int CANCELLED = 2;
 
         private final DiscoveryNode node;
         private final ConnectionProfile connectionProfile;
         private final ActionListener<Connection> listener;
 
+        private final AtomicInteger state = new AtomicInteger(PENDING);
         private final AtomicBoolean retry;
-        private final AtomicBoolean isDone = new AtomicBoolean(false);
-        private volatile List<TcpChannel> channels = Collections.emptyList();
+        private volatile Runnable cancellable;
 
         private ConnectionContext(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Connection> listener,
                                   boolean retry) {
@@ -1272,9 +1277,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public void onResponse(Version version) {
-            if (isDone.compareAndSet(false, true)) {
-                NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
+        public void onResponse(NodeChannels nodeChannels) {
+            if (state.compareAndSet(PENDING, DONE)) {
                 long relativeMillisTime = threadPool.relativeTimeInMillis();
                 nodeChannels.channels.forEach(ch -> {
                     // Mark the channel init time
@@ -1288,37 +1292,35 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public void onFailure(Exception e) {
-            if (retry.compareAndSet(true, false) && isDone.get() == false) {
-                closePendingChannels();
-                setPendingChannels(initiateConnection(node, connectionProfile, this, true));
-            } else if (isDone.compareAndSet(false, true)) {
-                listener.onFailure(e);
-            }
-        }
-
-        private void onTimeout() {
-            if (isDone.compareAndSet(false, true)) {
-                closePendingChannels();
-                listener.onFailure(new ConnectTransportException(node, "connect_timeout[" + connectionProfile.getConnectTimeout() + "]"));
+            if (e.getMessage().contains("connect_timeout")) {
+                // We do not retry timeouts
+                if (state.compareAndSet(PENDING, DONE)) {
+                    listener.onFailure(e);
+                }
+            } else {
+                if (retry.compareAndSet(true, false) && state.get() == PENDING) {
+                    setCancellable(initiateConnection(node, connectionProfile, this, true));
+                    // We must check if the connection has been cancelled to prevent a race while we are
+                    // setting the cancellable
+                    if (state.get() == CANCELLED) {
+                        cancellable.run();
+                    }
+                } else if (state.compareAndSet(PENDING, DONE)) {
+                    listener.onFailure(e);
+                }
             }
         }
 
         private void cancel() {
-            if (isDone.compareAndSet(false, true)) {
-                closePendingChannels();
+            if (state.compareAndSet(PENDING, CANCELLED)) {
+                assert cancellable != null : "Cancellable should always we set before an attempt to cancel";
+                cancellable.run();
                 listener.onFailure(new ElasticsearchException("connection process cancelled"));
             }
         }
 
-        private void setPendingChannels(List<TcpChannel> channels) {
-            this.channels = channels;
-            if (isDone.get()) {
-                closePendingChannels();
-            }
-        }
-
-        private void closePendingChannels() {
-            CloseableChannel.closeChannels(channels, false);
+        private void setCancellable(List<TcpChannel> channels) {
+            cancellable = () -> CloseableChannel.closeChannels(channels, false);
         }
     }
 
@@ -1327,14 +1329,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final DiscoveryNode node;
         private final ConnectionProfile connectionProfile;
         private final TcpChannel handshakeChannel;
-        private final ActionListener<Version> listener;
+        private final List<TcpChannel> channels;
+        private final ActionListener<NodeChannels> listener;
         private final CountDown countDown;
 
         private ChannelsConnectedListener(DiscoveryNode node, ConnectionProfile connectionProfile, List<TcpChannel> channels,
-                                          ActionListener<Version> listener) {
+                                          ActionListener<NodeChannels> listener) {
             this.node = node;
             this.connectionProfile = connectionProfile;
             this.handshakeChannel = channels.get(0);
+            this.channels = channels;
             this.listener = listener;
             this.countDown = new CountDown(channels.size());
         }
@@ -1347,11 +1351,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     executeHandshake(node, handshakeChannel, connectionProfile, new ActionListener<Version>() {
                         @Override
                         public void onResponse(Version version) {
-                            listener.onResponse(version);
+                            NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
+                            listener.onResponse(nodeChannels);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
+                            CloseableChannel.closeChannels(channels, false);
                             if (e instanceof ConnectTransportException) {
                                 listener.onFailure(e);
                             } else {
@@ -1360,6 +1366,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         }
                     });
                 } catch (Exception ex) {
+                    CloseableChannel.closeChannels(channels, false);
                     listener.onFailure(ex);
                 }
             }
@@ -1368,7 +1375,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         @Override
         public void onFailure(Exception ex) {
             if (countDown.fastForward()) {
+                CloseableChannel.closeChannels(channels, false);
                 listener.onFailure(new ConnectTransportException(node, "connect_exception", ex));
+            }
+        }
+
+        public void onTimeout() {
+            if (countDown.fastForward()) {
+                CloseableChannel.closeChannels(channels, false);
+                listener.onFailure(new ConnectTransportException(node, "connect_timeout[" + connectionProfile.getConnectTimeout() + "]"));
             }
         }
     }

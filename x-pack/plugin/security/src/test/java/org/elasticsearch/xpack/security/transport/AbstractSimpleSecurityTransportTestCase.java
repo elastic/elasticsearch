@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSimpleTransportTestCase {
 
-    protected SSLService createSSLService() {
+    private SSLService createSSLService() {
         return createSSLService(Settings.EMPTY);
     }
 

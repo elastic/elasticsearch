@@ -9,12 +9,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
@@ -49,8 +52,10 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class FrozenIndexTests extends ESSingleNodeTestCase {
 
@@ -371,5 +376,37 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         assertAcked(new XPackClient(client()).freeze(new TransportFreezeIndexAction.FreezeRequest(indexName)));
         assertIndexFrozen(indexName);
+    }
+
+    public void testRecoveryState() throws ExecutionException, InterruptedException {
+        final String indexName = "index_recovery_state";
+        createIndex(indexName, Settings.builder()
+            .put("index.number_of_replicas", 0)
+            .build());
+
+        final long nbDocs = randomIntBetween(0, 50);
+        for (long i = 0; i < nbDocs; i++) {
+            final IndexResponse indexResponse = client().prepareIndex(indexName, "_doc", Long.toString(i)).setSource("field", i).get();
+            assertThat(indexResponse.status(), is(RestStatus.CREATED));
+        }
+
+        assertAcked(new XPackClient(client()).freeze(new TransportFreezeIndexAction.FreezeRequest(indexName)));
+        assertIndexFrozen(indexName);
+
+        final IndexMetaData indexMetaData = client().admin().cluster().prepareState().get().getState().metaData().index(indexName);
+        final IndexService indexService = getInstanceFromNode(IndicesService.class).indexService(indexMetaData.getIndex());
+        for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
+            final IndexShard indexShard = indexService.getShardOrNull(i);
+            assertThat("Shard [" + i + "] is missing for index " + indexMetaData.getIndex(), indexShard, notNullValue());
+            final RecoveryState recoveryState = indexShard.recoveryState();
+            assertThat(recoveryState.getRecoverySource(), is(RecoverySource.ExistingStoreRecoverySource.INSTANCE));
+            assertThat(recoveryState.getStage(), is(RecoveryState.Stage.DONE));
+            assertThat(recoveryState.getTargetNode(), notNullValue());
+            assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
+            assertThat(recoveryState.getIndex().reusedFileCount(), greaterThan(0));
+            assertThat(recoveryState.getTranslog().recoveredOperations(), equalTo(0));
+            assertThat(recoveryState.getTranslog().totalOperations(), equalTo(0));
+            assertThat(recoveryState.getTranslog().recoveredPercent(), equalTo(100.0f));
+        }
     }
 }

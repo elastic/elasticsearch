@@ -125,9 +125,9 @@
           \d+         \s+                                 # bytes_recovered
           \d+\.\d+%   \s+                                 # bytes_percent
           \d+         \s+                                 # bytes_total
-          -1          \s+                                 # translog_ops (always -1 for closed indices)
+          0          \s+                                  # translog_ops (always 0 for closed indices)
           0           \s+                                 # translog_ops_recovered (always 0 for closed indices)
-          -1\.0%                                          # translog_ops_percent (always -1.0% for closed indices)
+          100\.0%                                         # translog_ops_percent (always 100.0% for closed indices)
           \n
         )+
         $/

@@ -84,8 +84,8 @@
   - gte:   { test_2.shards.0.index.source_throttle_time_in_millis: 0                       }
   - gte:   { test_2.shards.0.index.target_throttle_time_in_millis: 0                       }
   - gte:   { test_2.shards.0.translog.recovered:                   0                       }
-  - gte:   { test_2.shards.0.translog.total:                       -1                      }
-  - gte:   { test_2.shards.0.translog.total_on_start:              -1                      }
+  - gte:   { test_2.shards.0.translog.total:                       0                       }
+  - gte:   { test_2.shards.0.translog.total_on_start:              0                       }
   - gte:   { test_2.shards.0.translog.total_time_in_millis:        0                       }
   - gte:   { test_2.shards.0.verify_index.check_index_time_in_millis:     0                }
   - gte:   { test_2.shards.0.verify_index.total_time_in_millis:           0                }

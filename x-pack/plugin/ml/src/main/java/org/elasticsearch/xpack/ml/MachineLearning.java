@@ -250,6 +250,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
 public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, PersistentTaskPlugin {
     public static final String NAME = "ml";
@@ -694,7 +695,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
                                         AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW))
                         .version(Version.CURRENT.id)
-                        .putMapping("_doc", Strings.toString(configMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(configMapping))
                         .build();
                 templates.put(AnomalyDetectorsIndex.configIndexName(), configTemplate);
             } catch (IOException e) {
@@ -708,7 +709,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
-                        .putMapping("_doc", Strings.toString(stateMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(stateMapping))
                         .version(Version.CURRENT.id)
                         .build();
 
@@ -729,7 +730,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async")
                                 // set the default all search field
                                 .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), ElasticsearchMappings.ALL_FIELD_VALUES))
-                        .putMapping("_doc", Strings.toString(docMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
                         .version(Version.CURRENT.id)
                         .build();
                 templates.put(AnomalyDetectorsIndex.jobResultsIndexPrefix(), jobResultsTemplate);

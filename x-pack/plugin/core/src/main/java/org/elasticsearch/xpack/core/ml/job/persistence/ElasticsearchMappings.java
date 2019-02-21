@@ -62,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -571,7 +572,7 @@ public class ElasticsearchMappings {
     public static XContentBuilder termFieldsMapping(Collection<String> termFields) {
         try {
             XContentBuilder builder = jsonBuilder().startObject();
-            builder.startObject("_doc");
+            builder.startObject(SINGLE_MAPPING_NAME);
             builder.startObject(PROPERTIES);
             addTermFields(builder, termFields);
             builder.endObject();

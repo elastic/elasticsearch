@@ -1,0 +1,8 @@
+= go-elasticsearch
+
+== Overview
+
+* https://github.com/elastic/go-elasticsearch
+* https://godoc.org/github.com/elastic/go-elasticsearch
+* https://github.com/elastic/go-elasticsearch/tree/master/_examples
+

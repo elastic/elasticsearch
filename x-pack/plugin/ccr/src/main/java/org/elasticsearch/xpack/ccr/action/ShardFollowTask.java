@@ -96,24 +96,7 @@ public class ShardFollowTask extends ImmutableFollowParameters implements XPackP
         String remoteCluster = in.readString();
         ShardId followShardId = ShardId.readShardId(in);
         ShardId leaderShardId = ShardId.readShardId(in);
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            return new ShardFollowTask(remoteCluster, followShardId, leaderShardId, in);
-        } else {
-            int maxReadRequestOperationCount = in.readVInt();
-            ByteSizeValue maxReadRequestSize = new ByteSizeValue(in);
-            int maxOutstandingReadRequests = in.readVInt();
-            int maxWriteRequestOperationCount = in.readVInt();
-            ByteSizeValue maxWriteRequestSize = new ByteSizeValue(in);
-            int maxOutstandingWriteRequests = in.readVInt();
-            int maxWriteBufferCount = in.readVInt();
-            ByteSizeValue maxWriteBufferSize = new ByteSizeValue(in);
-            TimeValue maxRetryDelay = in.readTimeValue();
-            TimeValue readPollTimeout = in.readTimeValue();
-            Map<String, String> headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
-            return new ShardFollowTask(remoteCluster, followShardId, leaderShardId, maxReadRequestOperationCount,
-                maxWriteRequestOperationCount, maxOutstandingReadRequests, maxOutstandingWriteRequests, maxReadRequestSize,
-                maxWriteRequestSize, maxWriteBufferCount, maxWriteBufferSize, maxRetryDelay, readPollTimeout, headers);
-        }
+        return new ShardFollowTask(remoteCluster, followShardId, leaderShardId, in);
     }
 
     private ShardFollowTask(String remoteCluster, ShardId followShardId, ShardId leaderShardId, StreamInput in) throws IOException {
@@ -150,20 +133,7 @@ public class ShardFollowTask extends ImmutableFollowParameters implements XPackP
         out.writeString(remoteCluster);
         followShardId.writeTo(out);
         leaderShardId.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            super.writeTo(out);
-        } else {
-            out.writeVLong(getMaxReadRequestOperationCount());
-            getMaxReadRequestSize().writeTo(out);
-            out.writeVInt(getMaxOutstandingReadRequests());
-            out.writeVLong(getMaxWriteRequestOperationCount());
-            getMaxWriteRequestSize().writeTo(out);
-            out.writeVInt(getMaxOutstandingWriteRequests());
-            out.writeVInt(getMaxWriteBufferCount());
-            getMaxWriteBufferSize().writeTo(out);
-            out.writeTimeValue(getMaxRetryDelay());
-            out.writeTimeValue(getReadPollTimeout());
-        }
+        super.writeTo(out);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 

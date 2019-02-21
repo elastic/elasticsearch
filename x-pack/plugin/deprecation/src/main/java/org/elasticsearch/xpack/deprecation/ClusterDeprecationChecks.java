@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;

@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.plugins.Plugin;
@@ -50,6 +51,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -160,13 +162,15 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
             final List<ShardStats> shardStats = getShardStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
-                final RetentionLeases currentRetentionLeases = shardStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
+                final List<RetentionLease> ccrLeases
+                    = shardStats.get(i).getRetentionLeaseStats().retentionLeases()
+                    .leases().stream().filter(RetentionLease::isNotPeerRecoveryRetentionLease)
+                    .collect(Collectors.toList());
+                assertThat(ccrLeases, hasSize(1));
                 final ClusterStateResponse followerIndexClusterState =
                         followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
-                final RetentionLease retentionLease =
-                        currentRetentionLeases.leases().iterator().next();
+                final RetentionLease retentionLease = ccrLeases.iterator().next();
                 assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, followerUUID, leaderIndex, leaderUUID)));
             }
         });
@@ -314,7 +318,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String leaderUUID = leaderIndexClusterState.getState().metaData().index(leaderIndex).getIndexUUID();
 
         // sample the leases after recovery
-        final List<RetentionLeases> retentionLeases = new ArrayList<>();
+        final List<Supplier<RetentionLease>> retentionLeases = new ArrayList<>();
         assertBusy(() -> {
             retentionLeases.clear();
             final IndicesStatsResponse stats =
@@ -323,20 +327,23 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
             final List<ShardStats> shardStats = getShardStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
-                final RetentionLeases currentRetentionLeases = shardStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
+                final List<RetentionLease> ccrLeases
+                    = shardStats.get(i).getRetentionLeaseStats().retentionLeases()
+                    .leases().stream().filter(RetentionLease::isNotPeerRecoveryRetentionLease)
+                    .collect(Collectors.toList());
+                assertThat(ccrLeases, hasSize(1));
                 final ClusterStateResponse followerIndexClusterState =
                         followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
-                final RetentionLease retentionLease =
-                        currentRetentionLeases.leases().iterator().next();
+                final RetentionLease retentionLease = ccrLeases.iterator().next();
+                assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, followerUUID, leaderIndex, leaderUUID)));
                 final String expectedRetentionLeaseId = retentionLeaseId(
                         getFollowerCluster().getClusterName(),
                         new Index(followerIndex, followerUUID),
                         getLeaderCluster().getClusterName(),
                         new Index(leaderIndex, leaderUUID));
                 assertThat(retentionLease.id(), equalTo(expectedRetentionLeaseId));
-                retentionLeases.add(currentRetentionLeases);
+                retentionLeases.add(() -> retentionLease);
             }
         });
 
@@ -351,16 +358,18 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
             final List<ShardStats> shardStats = getShardStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
-                final RetentionLeases currentRetentionLeases = shardStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
+                final List<RetentionLease> ccrLeases
+                    = shardStats.get(i).getRetentionLeaseStats().retentionLeases()
+                    .leases().stream().filter(RetentionLease::isNotPeerRecoveryRetentionLease)
+                    .collect(Collectors.toList());
+                assertThat(ccrLeases, hasSize(1));
                 final ClusterStateResponse followerIndexClusterState =
                         followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
-                final RetentionLease retentionLease =
-                        currentRetentionLeases.leases().iterator().next();
+                final RetentionLease retentionLease = ccrLeases.iterator().next();
                 assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, followerUUID, leaderIndex, leaderUUID)));
                 // we assert that retention leases are being renewed by an increase in the timestamp
-                assertThat(retentionLease.timestamp(), equalTo(retentionLeases.get(i).leases().iterator().next().timestamp()));
+                assertThat(retentionLease.timestamp(), equalTo(retentionLeases.get(i).get().timestamp()));
             }
         });
 

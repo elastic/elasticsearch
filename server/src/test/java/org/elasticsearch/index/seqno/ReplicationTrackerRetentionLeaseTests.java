@@ -43,6 +43,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.seqno.ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE;
@@ -602,13 +603,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         }
         assertThat(retentionLeases.primaryTerm(), equalTo(primaryTerm));
         assertThat(retentionLeases.version(), equalTo(version));
-        final Map<String, RetentionLease> idToRetentionLease = new HashMap<>();
-        for (final RetentionLease retentionLease : retentionLeases.leases()) {
-            if (PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(retentionLease.source()) == false) {
-                idToRetentionLease.put(retentionLease.id(), retentionLease);
-            }
-        }
-
+        final Map<String, RetentionLease> idToRetentionLease = retentionLeases.leases().stream()
+            .filter(RetentionLease::isNotPeerRecoveryRetentionLease).collect(Collectors.toMap(RetentionLease::id, Function.identity()));
         assertThat(idToRetentionLease.entrySet(), hasSize(size));
         for (int i = 0; i < size; i++) {
             assertThat(idToRetentionLease.keySet(), hasItem(Integer.toString(i)));

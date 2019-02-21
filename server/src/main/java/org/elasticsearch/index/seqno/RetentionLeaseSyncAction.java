@@ -110,7 +110,7 @@ public class RetentionLeaseSyncAction extends
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
             execute(
-                    new RetentionLeaseSyncAction.Request(shardId, retentionLeases).waitForActiveShards(ActiveShardCount.NONE),
+                    new RetentionLeaseSyncAction.Request(shardId, retentionLeases),
                     ActionListener.wrap(
                             listener::onResponse,
                             e -> {
@@ -164,6 +164,7 @@ public class RetentionLeaseSyncAction extends
         public Request(final ShardId shardId, final RetentionLeases retentionLeases) {
             super(Objects.requireNonNull(shardId));
             this.retentionLeases = Objects.requireNonNull(retentionLeases);
+            waitForActiveShards(ActiveShardCount.NONE);
         }
 
         @Override

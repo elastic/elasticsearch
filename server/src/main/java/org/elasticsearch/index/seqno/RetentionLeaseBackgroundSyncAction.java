@@ -109,7 +109,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
             execute(
-                    new Request(shardId, retentionLeases).waitForActiveShards(ActiveShardCount.NONE),
+                    new Request(shardId, retentionLeases),
                     ActionListener.wrap(
                             r -> {},
                             e -> {
@@ -155,6 +155,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         public Request(final ShardId shardId, final RetentionLeases retentionLeases) {
             super(Objects.requireNonNull(shardId));
             this.retentionLeases = Objects.requireNonNull(retentionLeases);
+            waitForActiveShards(ActiveShardCount.NONE);
         }
 
         @Override

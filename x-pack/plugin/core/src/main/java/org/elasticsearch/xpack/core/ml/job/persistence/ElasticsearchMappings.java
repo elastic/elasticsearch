@@ -571,8 +571,10 @@ public class ElasticsearchMappings {
     public static XContentBuilder termFieldsMapping(Collection<String> termFields) {
         try {
             XContentBuilder builder = jsonBuilder().startObject();
+            builder.startObject("_doc");
             builder.startObject(PROPERTIES);
             addTermFields(builder, termFields);
+            builder.endObject();
             builder.endObject();
             return builder.endObject();
         } catch (IOException e) {

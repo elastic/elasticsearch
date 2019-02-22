@@ -83,11 +83,12 @@
       reason: closed indices are replicated starting version 8.0.0
 
   - do:
-      index:
+      indices.create:
         index:  index2
-        id:     1
-        body:   { foo: bar }
-        refresh: true
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
 
   - do:
       indices.close:
@@ -97,7 +98,7 @@
   - do:
       cluster.health:
         index: index2
-        wait_for_status: yellow
+        wait_for_status: green
 
   - do:
       cat.recovery:

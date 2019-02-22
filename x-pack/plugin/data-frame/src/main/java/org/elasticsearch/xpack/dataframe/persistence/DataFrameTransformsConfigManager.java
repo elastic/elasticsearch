@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
 
@@ -51,7 +52,7 @@ public class DataFrameTransformsConfigManager {
     public static final Map<String, String> TO_XCONTENT_PARAMS;
     static {
         Map<String, String> modifiable = new HashMap<>();
-        modifiable.put("for_internal_storage", "true");
+        modifiable.put(DataFrameField.FOR_INTERNAL_STORAGE, "true");
         TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
     }
 

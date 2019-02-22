@@ -36,6 +36,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class EvilNodeTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39302")
     public void testDefaultPathDataIncludedInPathData() throws IOException {
         final Path zero = createTempDir().toAbsolutePath();
         final Path one = createTempDir().toAbsolutePath();

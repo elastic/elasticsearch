@@ -428,7 +428,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
     private void runUnderBlockTest(
             final String idForInitialRetentionLease,
             final long initialRetainingSequenceNumber,
-            final BiConsumer<IndexShard, ActionListener<ReplicationResponse>> indexShard,
+            final BiConsumer<IndexShard, ActionListener<ReplicationResponse>> primaryConsumer,
             final Consumer<IndexShard> afterSync) throws InterruptedException {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
@@ -463,7 +463,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final CountDownLatch actionLatch = new CountDownLatch(1);
             final AtomicBoolean success = new AtomicBoolean();
 
-            indexShard.accept(
+            primaryConsumer.accept(
                     primary,
                     new ActionListener<ReplicationResponse>() {
 
@@ -524,7 +524,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                         /*
                          * If the background renew was able to execute, then the retention leases were persisted to disk. There is no other
                          * way for the current retention leases to end up written to disk so we assume that if they are written to disk, it
-                         * implies that the background sync was able to execute under a block.
+                         * implies that the background sync was able to execute despite wait for shards being set on the index.
                          */
                         assertBusy(() -> assertThat(primary.loadRetentionLeases().leases(), contains(retentionLease.get())));
                     } catch (final Exception e) {
@@ -540,23 +540,23 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                 idForInitialRetentionLease,
                 randomLongBetween(0, Long.MAX_VALUE),
                 (primary, listener) -> primary.removeRetentionLease(idForInitialRetentionLease, listener),
-                indexShard -> {});
+                primary -> {});
     }
 
     private void runWaitForShardsTest(
             final String idForInitialRetentionLease,
             final long initialRetainingSequenceNumber,
-            final BiConsumer<IndexShard, ActionListener<ReplicationResponse>> indexShard,
+            final BiConsumer<IndexShard, ActionListener<ReplicationResponse>> primaryConsumer,
             final Consumer<IndexShard> afterSync) throws InterruptedException {
+        final int numDataNodes = internalCluster().numDataNodes();
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", internalCluster().numDataNodes())
+                .put("index.number_of_replicas", numDataNodes == 1 ? 0 : numDataNodes - 1)
                 .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
                 .build();
         assertAcked(prepareCreate("index").setSettings(settings));
         ensureYellowAndNoInitializingShards("index");
-        assertFalse(client().admin().cluster()
-            .prepareHealth("index").setWaitForActiveShards(internalCluster().numDataNodes()).get().isTimedOut());
+        assertFalse(client().admin().cluster().prepareHealth("index").setWaitForActiveShards(numDataNodes).get().isTimedOut());
 
         final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
         final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();
@@ -570,7 +570,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         primary.addRetentionLease(idForInitialRetentionLease, initialRetainingSequenceNumber, source, listener);
         latch.await();
 
-        final String waitForActiveValue = randomBoolean() ? "all" : Integer.toString(internalCluster().numDataNodes() + 1);
+        final String waitForActiveValue = randomBoolean() ? "all" : Integer.toString(numDataNodes);
 
         client()
                 .admin()
@@ -579,37 +579,28 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                 .setSettings(Settings.builder().put("index.write.wait_for_active_shards", waitForActiveValue).build())
                 .get();
 
-        try {
-            final CountDownLatch actionLatch = new CountDownLatch(1);
-            final AtomicBoolean success = new AtomicBoolean();
+        final CountDownLatch actionLatch = new CountDownLatch(1);
+        final AtomicBoolean success = new AtomicBoolean();
 
-            indexShard.accept(
-                    primary,
-                    new ActionListener<ReplicationResponse>() {
+        primaryConsumer.accept(
+                primary,
+                new ActionListener<ReplicationResponse>() {
 
-                        @Override
-                        public void onResponse(final ReplicationResponse replicationResponse) {
-                            success.set(true);
-                            actionLatch.countDown();
-                        }
+                    @Override
+                    public void onResponse(final ReplicationResponse replicationResponse) {
+                        success.set(true);
+                        actionLatch.countDown();
+                    }
 
-                        @Override
-                        public void onFailure(final Exception e) {
-                            fail(e.toString());
-                        }
+                    @Override
+                    public void onFailure(final Exception e) {
+                        fail(e.toString());
+                    }
 
-                    });
-            actionLatch.await();
-            assertTrue(success.get());
-            afterSync.accept(primary);
-        } finally {
-            client()
-                    .admin()
-                    .indices()
-                    .prepareUpdateSettings("index")
-                    .setSettings(Settings.builder().putNull("index.write.wait_for_active_shards").build())
-                    .get();
-        }
+                });
+        actionLatch.await();
+        assertTrue(success.get());
+        afterSync.accept(primary);
     }
 
 }

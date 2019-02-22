@@ -34,6 +34,7 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -60,6 +61,11 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
     protected void afterCreationCheck(Repository repository) {
 
+    }
+
+    @After
+    public void assertSafeCommitExists() throws Exception {
+        internalCluster().assertSafeCommitExists();
     }
 
     protected void createAndCheckTestRepository(String name) {

@@ -2201,7 +2201,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(2L));
 
         assertDocs(target, "0", "2");
-
+        IndexShardTestCase.assertSafeCommitExists(target);
         closeShard(source, false);
         closeShards(target);
     }

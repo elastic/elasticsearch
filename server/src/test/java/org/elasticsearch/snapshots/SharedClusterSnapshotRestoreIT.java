@@ -95,6 +95,7 @@ import org.elasticsearch.script.StoredScriptsIT;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.channels.SeekableByteChannel;
@@ -157,6 +158,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         return Arrays.asList(IngestTestPlugin.class,
             StoredScriptsIT.CustomScriptPlugin.class,
             MockRepository.Plugin.class);
+    }
+
+    @After
+    public void assertSafeCommitExists() throws Exception {
+        internalCluster().assertSafeCommitExists();
     }
 
     private Settings randomRepoSettings() {

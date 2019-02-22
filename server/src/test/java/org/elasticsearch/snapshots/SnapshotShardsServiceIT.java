@@ -29,6 +29,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -43,6 +44,11 @@ import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
+
+    @After
+    public void assertSafeCommitExists() throws Exception {
+        internalCluster().assertSafeCommitExists();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

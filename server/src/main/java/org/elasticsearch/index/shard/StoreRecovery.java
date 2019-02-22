@@ -32,6 +32,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -480,10 +481,17 @@ final class StoreRecovery {
                         translogState.incrementRecoveredOperations();
                     }
                     indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
-                    final long checkpoint = indexShard.seqNoStats().getLocalCheckpoint();
-                    if (checkpoint < commitInfo.maxSeqNo) {
+                    /*
+                     * If there're gaps in the restoring commit, we won't have every translog entry from the local_checkpoint
+                     * to the max_seq_no. Then we won't have a safe commit for the restoring commit is not safe (missing translog).
+                     * To maintain the safe commit assumption, we have to forcefully flush a new commit here.
+                     */
+                    indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+                    final SequenceNumbers.CommitInfo newCommitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+                        store.readLastCommittedSegmentsInfo().userData.entrySet());
+                    if (newCommitInfo.localCheckpoint < newCommitInfo.maxSeqNo) {
                         throw new IndexShardRestoreFailedException(shardId, "history is not restored " +
-                            "checkpoint=" + indexShard.seqNoStats().getGlobalCheckpoint() + " max_seq_no=" + commitInfo.maxSeqNo);
+                            "checkpoint=" + newCommitInfo.localCheckpoint + " max_seq_no=" + newCommitInfo.maxSeqNo);
                     }
                 }
             }

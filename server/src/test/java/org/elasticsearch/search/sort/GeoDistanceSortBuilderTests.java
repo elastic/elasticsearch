@@ -18,8 +18,6 @@
  */
 
 package org.elasticsearch.search.sort;
-import org.elasticsearch.common.geo.GeoUtils;
-
 
 
 import org.apache.lucene.document.LatLonDocValuesField;

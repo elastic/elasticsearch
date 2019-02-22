@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -33,7 +32,6 @@ import org.elasticsearch.test.geo.RandomShapeGenerator;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAggregationBuilder> {
 

@@ -301,6 +301,21 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final RestoreInfo restoreInfo = future.actionGet();
         final long start = System.nanoTime();
 
+        /*
+         * We want to ensure that the retention leases have been synced to all shard copies, as otherwise they might sync between the two
+         * times that we sample the retention leases, which would cause our check to fail.
+         */
+        final TimeValue syncIntervalSetting = IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(
+                leaderClient()
+                        .admin()
+                        .indices()
+                        .prepareGetSettings(leaderIndex)
+                        .get()
+                        .getIndexToSettings()
+                        .get(leaderIndex));
+        final long syncEnd = System.nanoTime();
+        Thread.sleep(Math.max(0, randomIntBetween(2, 4) * syncIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(syncEnd - start)));
+
         final ClusterStateResponse leaderIndexClusterState =
                 leaderClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(leaderIndex).get();
         final String leaderUUID = leaderIndexClusterState.getState().metaData().index(leaderIndex).getIndexUUID();
@@ -347,8 +362,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                         .getIndexToSettings()
                         .get(followerIndex));
 
-        final long end = System.nanoTime();
-        Thread.sleep(Math.max(0, randomIntBetween(2, 4) * renewIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(end - start)));
+        final long renewEnd = System.nanoTime();
+        Thread.sleep(Math.max(0, randomIntBetween(2, 4) * renewIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(renewEnd - start)));
 
         // now ensure that the retention leases are the same
         assertBusy(() -> {
@@ -358,6 +373,9 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
+                if (shardsStats.get(i).getShardRouting().primary() == false) {
+                    continue;
+                }
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
                 assertThat(currentRetentionLeases.leases(), hasSize(1));
                 final ClusterStateResponse followerIndexClusterState =

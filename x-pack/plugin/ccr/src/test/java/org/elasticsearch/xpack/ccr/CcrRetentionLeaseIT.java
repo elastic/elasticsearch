@@ -568,7 +568,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         return Arrays.stream(stats.getShards())
                 .sorted((s, t) -> {
                     if (s.getShardRouting().shardId().id() == t.getShardRouting().shardId().id()) {
-                        return Boolean.compare(s.getShardRouting().primary(), t.getShardRouting().primary());
+                        return -Boolean.compare(s.getShardRouting().primary(), t.getShardRouting().primary());
                     } else {
                         return Integer.compare(s.getShardRouting().shardId().id(), t.getShardRouting().shardId().id());
                     }

@@ -88,7 +88,7 @@ public class TransportPutDataFrameTransformAction
         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
                     .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-logger.info("Headers:" + filteredHeaders);
+
         DataFrameTransformConfig config = request.getConfig();
         config.setHeaders(filteredHeaders);
 

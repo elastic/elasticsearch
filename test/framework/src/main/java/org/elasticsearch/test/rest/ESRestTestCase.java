@@ -292,6 +292,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     @After
     public final void cleanUpCluster() throws Exception {
         if (preserveClusterUponCompletion() == false) {
+            ensureNoInitializingShards();
             wipeCluster();
             waitForClusterStateUpdatesToFinish();
             logIfThereAreRunningTasks();

@@ -312,8 +312,9 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Version expectedVersion = serviceA.getLocalNode().getVersion();
 
-        MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool, new NetworkService(Collections.emptyList()),
-            new MockPageCacheRecycler(Settings.EMPTY), namedWriteableRegistry, new NoneCircuitBreakerService());
+        MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
+            new NetworkService(Collections.emptyList()), new MockPageCacheRecycler(Settings.EMPTY), namedWriteableRegistry,
+            new NoneCircuitBreakerService());
 
         clusterSettingsA.applySettings(Settings.builder().put(XPackSettings.DUAL_STACK_ENABLED.getKey(), true).build());
         try (MockTransportService plainTextService = MockTransportService.createNewService(Settings.EMPTY, transport, expectedVersion,

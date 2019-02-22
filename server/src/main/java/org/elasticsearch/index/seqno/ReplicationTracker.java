@@ -32,6 +32,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -39,6 +41,7 @@ import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -315,6 +318,40 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert primaryMode == false;
         if (retentionLeases.supersedes(this.retentionLeases)) {
             this.retentionLeases = retentionLeases;
+        }
+    }
+
+    /**
+     * Loads the latest retention leases from their dedicated state file.
+     *
+     * @param path the path to the directory containing the state file
+     * @return the retention leases
+     * @throws IOException if an I/O exception occurs reading the retention leases
+     */
+    public RetentionLeases loadRetentionLeases(final Path path) throws IOException {
+        final RetentionLeases retentionLeases = RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+        if (retentionLeases == null) {
+            return RetentionLeases.EMPTY;
+        }
+        return retentionLeases;
+    }
+
+    private final Object retentionLeasePersistenceLock = new Object();
+
+    /**
+     * Persists the current retention leases to their dedicated state file.
+     *
+     * @param path the path to the directory containing the state file
+     * @throws WriteStateException if an exception occurs writing the state file
+     */
+    public void persistRetentionLeases(final Path path) throws WriteStateException {
+        synchronized (retentionLeasePersistenceLock) {
+            final RetentionLeases currentRetentionLeases;
+            synchronized (this) {
+                currentRetentionLeases = retentionLeases;
+            }
+            logger.trace("persisting retention leases [{}]", currentRetentionLeases);
+            RetentionLeases.FORMAT.writeAndCleanup(currentRetentionLeases, path);
         }
     }
 

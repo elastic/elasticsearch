@@ -100,6 +100,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     private final Settings settings;
     private final boolean transportClientMode;
     private final SetOnce<DataFrameTransformsConfigManager> dataFrameTransformsConfigManager = new SetOnce<>();
+    private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
 
     public DataFrame(Settings settings) {
         this.settings = settings;
@@ -201,12 +202,12 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
             return emptyList();
         }
 
-        SchedulerEngine schedulerEngine = new SchedulerEngine(settings, Clock.systemUTC());
+        schedulerEngine.set(new SchedulerEngine(settings, Clock.systemUTC()));
 
         // the transforms config manager should have been created
         assert dataFrameTransformsConfigManager.get() != null;
-        return Collections.singletonList(
-                new DataFrameTransformPersistentTasksExecutor(client, dataFrameTransformsConfigManager.get(), schedulerEngine, threadPool));
+        return Collections.singletonList(new DataFrameTransformPersistentTasksExecutor(client, dataFrameTransformsConfigManager.get(),
+            schedulerEngine.get(), threadPool));
     }
 
     @Override
@@ -222,5 +223,12 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameTransformState.NAME),
                         DataFrameTransformState::fromXContent)
                 );
+    }
+
+    @Override
+    public void close() {
+        if (schedulerEngine.get() != null) {
+            schedulerEngine.get().stop();
+        }
     }
 }

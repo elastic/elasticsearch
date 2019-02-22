@@ -20,14 +20,20 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
 import io.netty.util.Attribute;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.transport.Transports;
 
+import java.nio.channels.ClosedChannelException;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * A handler (must be the last one!) that does size based frame decoding and forwards the actual message
@@ -37,12 +43,16 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     private final Netty4Transport transport;
 
+    private final ConcurrentLinkedQueue<WriteOperation> queuedWrites = new ConcurrentLinkedQueue<>();
+
+    private WriteOperation currentWrite;
+
     Netty4MessageChannelHandler(Netty4Transport transport) {
         this.transport = transport;
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) {
         Transports.assertTransportThread();
         assert msg instanceof ByteBuf : "Expected message type ByteBuf, found: " + msg.getClass();
 
@@ -57,7 +67,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         ExceptionsHelper.maybeDieOnAnotherThread(cause);
         final Throwable unwrapped = ExceptionsHelper.unwrap(cause, ElasticsearchException.class);
         final Throwable newCause = unwrapped != null ? unwrapped : cause;
@@ -66,6 +76,108 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             transport.onException(tcpChannel, new Exception(newCause));
         } else {
             transport.onException(tcpChannel, (Exception) newCause);
+        }
+    }
+
+    @Override
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
+        assert msg instanceof ByteBuf;
+        final boolean queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
+        assert queued;
+    }
+
+    @Override
+    public void channelWritabilityChanged(ChannelHandlerContext ctx) {
+        if (ctx.channel().isWritable()) {
+            doFlush(ctx);
+        }
+        ctx.fireChannelWritabilityChanged();
+    }
+
+    @Override
+    public void flush(ChannelHandlerContext ctx) {
+        Channel channel = ctx.channel();
+        if (channel.isWritable() || channel.isActive() == false) {
+            doFlush(ctx);
+        }
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        doFlush(ctx);
+        super.channelInactive(ctx);
+    }
+
+    private void doFlush(ChannelHandlerContext ctx) {
+        final Channel channel = ctx.channel();
+        if (channel.isActive() == false) {
+            if (currentWrite != null) {
+                currentWrite.promise.tryFailure(new ClosedChannelException());
+            }
+            WriteOperation queuedWrite;
+            while ((queuedWrite = queuedWrites.poll()) != null) {
+                queuedWrite.promise.tryFailure(new ClosedChannelException());
+            }
+            return;
+        }
+        while (channel.isWritable()) {
+            if (currentWrite == null) {
+                currentWrite = queuedWrites.poll();
+            }
+            if (currentWrite == null) {
+                break;
+            }
+            final WriteOperation write = currentWrite;
+            final ByteBuf writeBuffer;
+            if (write.buf.readableBytes() == 0) {
+                writeBuffer = Unpooled.EMPTY_BUFFER;
+            } else {
+                writeBuffer = ctx.alloc().directBuffer(Math.min(write.buf.readableBytes(), 1 << 18));
+                writeBuffer.writeBytes(write.buf);
+            }
+            writeBuffer.retain();
+            final ChannelFuture writeFuture;
+            try {
+                writeFuture = ctx.write(writeBuffer);
+            } finally {
+                writeBuffer.release();
+            }
+            if (write.buf.readableBytes() == 0) {
+                currentWrite = null;
+                writeFuture.addListener((ChannelFutureListener) future -> {
+                    if (future.isSuccess()) {
+                        write.promise.trySuccess();
+                    } else {
+                        write.promise.tryFailure(future.cause());
+                    }
+                });
+            } else {
+                writeFuture.addListener(f -> {
+                    if (f.isSuccess() == false) {
+                        write.promise.tryFailure(f.cause());
+                    }
+                });
+            }
+            ctx.flush();
+            if (channel.isActive() == false) {
+                WriteOperation queuedWrite;
+                while ((queuedWrite = queuedWrites.poll()) != null) {
+                    queuedWrite.promise.tryFailure(new ClosedChannelException());
+                }
+                return;
+            }
+        }
+    }
+
+    private static final class WriteOperation {
+
+        private final ByteBuf buf;
+
+        private final ChannelPromise promise;
+
+        WriteOperation(ByteBuf buf, ChannelPromise promise) {
+            this.buf = buf;
+            this.promise = promise;
         }
     }
 }

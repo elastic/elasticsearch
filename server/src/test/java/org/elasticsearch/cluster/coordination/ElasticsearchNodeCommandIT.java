@@ -272,6 +272,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
         logger.info("--> create index test");
         createIndex("test");
+        ensureGreen("test");
 
         logger.info("--> stop 2nd and 3d master eligible node");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(1)));

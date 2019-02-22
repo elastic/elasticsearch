@@ -43,7 +43,8 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
                              ActionListener<OpenIdConnectPrepareAuthenticationResponse> listener) {
         Realm realm = null;
         if (Strings.hasText(request.getIssuer())) {
-            List<OpenIdConnectRealm> matchingRealms = this.realms.stream().filter(r -> r instanceof OpenIdConnectRealm)
+            List<OpenIdConnectRealm> matchingRealms = this.realms.stream()
+                .filter(r -> r instanceof OpenIdConnectRealm && ((OpenIdConnectRealm) r).isIssuerValid(request.getIssuer()))
                 .map(r -> (OpenIdConnectRealm) r)
                 .filter(r -> r.isIssuerValid(request.getIssuer()))
                 .collect(Collectors.toList());

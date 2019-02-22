@@ -27,7 +27,7 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     /**
      * In case of a
      * <a href="https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin">3rd party initiated authentication</a>, the
-     * issuer to the UA needs to be redirected for authentication
+     * issuer that the User Agent needs to be redirected to for authentication
      */
     private String issuer;
     private String loginHint;
@@ -53,7 +53,6 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     public String getLoginHint() {
         return loginHint;
     }
-
 
     public void setRealmName(String realmName) {
         this.realmName = realmName;

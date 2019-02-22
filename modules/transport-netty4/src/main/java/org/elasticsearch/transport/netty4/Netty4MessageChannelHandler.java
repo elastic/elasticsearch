@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
@@ -130,11 +129,12 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             final WriteOperation write = currentWrite;
             final ByteBuf writeBuffer;
             if (write.buf.readableBytes() == 0) {
-                writeBuffer = Unpooled.EMPTY_BUFFER;
-            } else {
-                writeBuffer = ctx.alloc().directBuffer(Math.min(write.buf.readableBytes(), 1 << 18));
-                writeBuffer.writeBytes(write.buf);
+                write.promise.trySuccess();
+                currentWrite = null;
+                continue;
             }
+            writeBuffer = ctx.alloc().directBuffer(Math.min(write.buf.readableBytes(), 1 << 18));
+            writeBuffer.writeBytes(write.buf);
             writeBuffer.retain();
             final ChannelFuture writeFuture;
             try {

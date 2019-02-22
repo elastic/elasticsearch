@@ -102,9 +102,9 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContentFragment 
     /**
      * This method allows models to validate the window size if required
      */
-    protected void validate(long window) {
+    protected void validate(long window, String aggregationName) {
         if (window <= 0) {
-            throw new IllegalArgumentException("[window] must be a positive integer.");
+            throw new IllegalArgumentException("[window] must be a positive integer in aggregation [" + aggregationName + "]");
         }
     }
 

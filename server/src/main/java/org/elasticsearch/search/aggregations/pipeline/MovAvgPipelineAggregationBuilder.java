@@ -149,7 +149,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
         }
         // If we have a model we can validate the window now
         if (model != null) {
-            model.validate(window);
+            model.validate(window, name);
         }
         this.window = window;
         return this;
@@ -270,11 +270,9 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
                     + " must contain a single entry for aggregation [" + name + "]");
         }
         // Validate any model-specific window requirements
-        model.validate(window);
+        model.validate(window, name);
         validateSequentiallyOrderedParentAggs(parent, NAME, name);
     }
-
-
 
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

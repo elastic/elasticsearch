@@ -332,8 +332,8 @@ public class HoltWintersModel extends MovAvgModel {
      * skirt XContent parsing
      */
     @Override
-    protected void validate(long window) {
-        super.validate(window);
+    protected void validate(long window, String aggregationName) {
+        super.validate(window, aggregationName);
         if (window < 2 * period) {
             throw new IllegalArgumentException("Field [window] must be at least twice as large as the period when " +
                 "using Holt-Winters.  Value provided was [" + window + "], which is less than (2*period) == "

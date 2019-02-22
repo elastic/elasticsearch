@@ -111,7 +111,6 @@ import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
-import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
@@ -651,7 +650,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
             try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
                 IndexTemplateMetaData notificationMessageTemplate = IndexTemplateMetaData.builder(AuditorField.NOTIFICATIONS_INDEX)
-                        .putMapping(AuditMessage.TYPE.getPreferredName(), Strings.toString(auditMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(auditMapping))
                         .patterns(Collections.singletonList(AuditorField.NOTIFICATIONS_INDEX))
                         .version(Version.CURRENT.id)
                         .settings(Settings.builder()

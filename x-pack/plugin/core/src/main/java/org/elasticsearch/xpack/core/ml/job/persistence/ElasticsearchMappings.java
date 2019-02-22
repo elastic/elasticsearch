@@ -959,33 +959,31 @@ public class ElasticsearchMappings {
     }
 
     public static XContentBuilder auditMessageMapping() throws IOException {
-        XContentBuilder builder = jsonBuilder().startObject()
-            .startObject(AuditMessage.TYPE.getPreferredName());
+        XContentBuilder builder = jsonBuilder().startObject();
         addMetaInformation(builder);
         builder.startObject(PROPERTIES)
-                            .startObject(Job.ID.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
-                            .startObject(AuditMessage.LEVEL.getPreferredName())
-                               .field(TYPE, KEYWORD)
-                            .endObject()
-                            .startObject(AuditMessage.MESSAGE.getPreferredName())
-                                .field(TYPE, TEXT)
-                                .startObject(FIELDS)
-                                    .startObject(RAW)
-                                        .field(TYPE, KEYWORD)
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                            .startObject(AuditMessage.TIMESTAMP.getPreferredName())
-                                .field(TYPE, DATE)
-                            .endObject()
-                            .startObject(AuditMessage.NODE_NAME.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
+                .startObject(Job.ID.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AuditMessage.LEVEL.getPreferredName())
+                   .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AuditMessage.MESSAGE.getPreferredName())
+                    .field(TYPE, TEXT)
+                    .startObject(FIELDS)
+                        .startObject(RAW)
+                            .field(TYPE, KEYWORD)
                         .endObject()
                     .endObject()
-                .endObject();
+                .endObject()
+                .startObject(AuditMessage.TIMESTAMP.getPreferredName())
+                    .field(TYPE, DATE)
+                .endObject()
+                .startObject(AuditMessage.NODE_NAME.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+            .endObject()
+        .endObject();
         return builder;
     }
 

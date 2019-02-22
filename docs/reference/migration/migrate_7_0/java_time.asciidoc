@@ -1,0 +1,113 @@
+[float]
+[[breaking_70_java_time_changes]]
+=== Replacing Joda-Time with java time
+
+Since Java 8 there is a dedicated `java.time` package, which is superior to
+the Joda-Time library, that has been used so far in Elasticsearch. One of
+the biggest advantages is the ability to be able to store dates in a higher
+resolution than milliseconds for greater precision. Also this will allow us
+to remove the Joda-Time dependency in the future.
+
+The mappings, aggregations and search code switched from Joda-Time to
+java time.
+
+[float]
+==== Joda based date formatters are replaced with java ones
+
+With the release of Elasticsearch 6.7 a backwards compatibility layer was
+introduced, that checked if you are using a Joda-Time based formatter, that is
+supported differently in java time. A log message was emitted, and you could
+create the proper java time based formatter prefixed with an `8`.
+
+With Elasticsearch 7.0 all formatters are now java based, which means you will
+get exceptions when using deprecated formatters without checking the
+deprecation log in 6.7. In the worst case you may even end up with different
+dates.
+
+An example deprecation message looks like this, that is returned, when you
+try to use a date formatter that includes a lower case `Y`
+
+[source,text]
+----------
+Use of 'Y' (year-of-era) will change to 'y' in the next major version of
+Elasticsearch. Prefix your date format with '8' to use the new specifier.
+----------
+
+So, instead of using `YYYY.MM.dd` you should use `8yyyy.MM.dd`.
+
+You can find more information about available formatting strings in the
+https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[DateTimeFormatter javadocs].
+
+[float]
+==== Date formats behavioural change
+
+The `epoch_millis` and `epoch_second` formatters no longer support
+scientific notation.
+
+If you are using the century of era formatter in a date (`C`), this will no
+longer be supported.
+
+The year-of-era formatting character is a `Y` in Joda-Time, but a lowercase
+`y` in java time.
+
+The week-based-year formatting character is a lowercase `x` in Joda-Time,
+but an upper-case `Y` in java time.
+
+[float]
+==== Using time zones in the Java client
+
+Timezones have to be specified as java time based zone objects. This means,
+instead of using a `org.joda.time.DateTimeZone` the use of
+`java.time.ZoneId` is required.
+
+Examples of possible uses are the `QueryStringQueryBuilder`, the
+`RangeQueryBuilder` or the `DateHistogramAggregationBuilder`, each of them
+allow for an optional timezone for that part of the search request.
+
+[float]
+==== Parsing aggregation buckets in the Java client
+
+The date based aggregation buckets in responses used to be of
+type `JodaTime`. Due to migrating to java-time, the buckets are now of
+type `ZonedDateTime`. As the client is returning untyped objects here, you
+may run into class cast exceptions only when running the code, but not at
+compile time, ensure you have proper test coverage for this in your
+own code.
+
+[float]
+==== Parsing `GMT0` timezone with JDK8 is not supported
+
+When you are running Elasticsearch 7 with Java 8, you are not able to parse
+the timezone `GMT0` properly anymore. The reason for this is a bug in the
+JDK, which has not been fixed for JDK8. You can read more in the
+https://bugs.openjdk.java.net/browse/JDK-8138664[official issue]
+
+[float]
+==== Scripting with dates should use java time based methods
+
+If dates are used in scripting, a backwards compatibility layer has been added
+that emulates the Joda-Time methods, but logs a deprecation message as well
+to use the java time methods.
+
+The following methods will be removed in future versions of Elasticsearch
+and should be replaced.
+
+* `getDayOfWeek()` will be an enum instead of an int, if you need to use
+  an int, use `getDayOfWeekEnum().getValue()`
+* `getMillis()` should be replaced with `toInstant().toEpochMilli()`
+* `getCenturyOfEra()` should be replaced with `get(ChronoField.YEAR_OF_ERA) / 100`
+* `getEra()` should be replaced with `get(ChronoField.ERA)`
+* `getHourOfDay()` should be replaced with `getHour()`
+* `getMillisOfDay()` should be replaced with `get(ChronoField.MILLI_OF_DAY)`
+* `getMillisOfSecond()` should be replaced with `get(ChronoField.MILLI_OF_SECOND)`
+* `getMinuteOfDay()` should be replaced with `get(ChronoField.MINUTE_OF_DAY)`
+* `getMinuteOfHour()` should be replaced with `getMinute()`
+* `getMonthOfYear()` should be replaced with `getMonthValue()`
+* `getSecondOfDay()` should be replaced with `get(ChronoField.SECOND_OF_DAY)`
+* `getSecondOfMinute()` should be replaced with `getSecond()`
+* `getWeekOfWeekyear()` should be replaced with `get(WeekFields.ISO.weekOfWeekBasedYear())`
+* `getWeekyear()` should be replaced with `get(WeekFields.ISO.weekBasedYear())`
+* `getYearOfCentury()` should be replaced with `get(ChronoField.YEAR_OF_ERA) % 100`
+* `getYearOfEra()` should be replaced with `get(ChronoField.YEAR_OF_ERA)`
+* `toString(String)` should be replaced with a `DateTimeFormatter`
+* `toString(String,Locale)` should be replaced with a `DateTimeFormatter`

@@ -39,3 +39,12 @@ The `standard_html_strip` analyzer has been deprecated, and should be replaced
 with a combination of the `standard` tokenizer and `html_strip` char_filter.
 Indexes created using this analyzer will still be readable in elasticsearch 7.0,
 but it will not be possible to create new indexes using it.
+
+[float]
+==== The deprecated `nGram` and `edgeNGram` token filter cannot be used on new indices
+
+The `nGram` and `edgeNGram` token filter names have been deprecated in an earlier 6.x version.
+Indexes created using these token filters will still be readable in elasticsearch 7.0 but indexing
+documents using those filter names will issue a deprecation warning. Using the deprecated names on
+new indices starting with version 7.0.0 will be prohibited and throw an error when indexing
+or analyzing documents. Both names should be replaces by `ngram` or `edge_ngram` respectively.

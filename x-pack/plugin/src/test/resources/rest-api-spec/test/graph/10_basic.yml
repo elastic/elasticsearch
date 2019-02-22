@@ -39,7 +39,7 @@ setup:
            wait_for_status: green
 
   - do:
-      xpack.graph.explore:
+      graph.explore:
         index:  test_1
         body:  {"query": {"match": {"keys": 1}},"controls":{"use_significance":false},"vertices":[{"field": "keys","min_doc_count": 1}]}
   - length: {failures: 0}

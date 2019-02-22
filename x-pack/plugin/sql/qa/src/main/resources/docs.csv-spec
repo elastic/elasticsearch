@@ -1541,6 +1541,16 @@ SELECT CONVERT('123', SQL_INTEGER) AS int;
 // end::conversionStringToIntConvertODBCDataType
 ;
 
+conversionStringToLongCastOperator
+// tag::conversionStringToLongCastOperator
+SELECT '123'::long AS long;
+
+      long
+---------------
+123
+// end::conversionStringToLongCastOperator
+;
+
 
 ///////////////////////////////
 //

@@ -458,6 +458,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws Exception {
+
+        // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
+        // so we need to fully shut them down first otherwise a job might stall waiting
+        // for a bulk to finish against a non-existing index (and then fail tests)
+        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
+            wipeRollupJobs();
+            waitForPendingRollupTasks();
+        }
+
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
@@ -503,11 +512,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         // wipe cluster settings
         if (preserveClusterSettings() == false) {
             wipeClusterSettings();
-        }
-
-        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
-            wipeRollupJobs();
-            waitForPendingRollupTasks();
         }
 
         if (hasXPack && false == preserveILMPoliciesUponCompletion()) {

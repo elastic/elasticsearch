@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
@@ -84,7 +85,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // disruption tests need MockTransportService
-        return Arrays.asList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class);
     }
 
     public void testBulkWeirdScenario() throws Exception {
@@ -92,7 +93,9 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNodes(2);
 
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
-            .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).get());
+            .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)
+            .put("index.global_checkpoint_sync.interval", "1s"))
+            .get());
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()

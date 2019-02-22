@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import com.carrotsearch.hppc.LongObjectHashMap;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.collect.Tuple;
 
 // we only use serializable to be able to debug test failures, circumventing the checkstyle check using spaces.
 import java . io . Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
@@ -32,6 +34,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
@@ -230,10 +233,11 @@ public class LinearizabilityChecker {
     }
 
     private boolean isLinearizable(SequentialSpec spec, List<Event> history) {
+        System.out.println("Checking size: " + history.size() + ": " + history);
         Object state = spec.initialState(); // the current state of the datatype
         final FixedBitSet linearized = new FixedBitSet(history.size() / 2); // the linearized prefix of the history
 
-        final Set<Tuple<Object, FixedBitSet>> cache = new HashSet<>(); // cache of explored <state, linearized prefix> pairs
+        final Cache cache = new Cache();
         final Deque<Tuple<Entry, Object>> calls = new LinkedList<>(); // path we're currently exploring
 
         final Entry headEntry = createLinkedEntries(history);
@@ -247,7 +251,7 @@ public class LinearizabilityChecker {
                     // check if we have already explored this linearization
                     final FixedBitSet updatedLinearized = linearized.clone();
                     updatedLinearized.set(entry.id);
-                    shouldExploreNextState = cache.add(new Tuple<>(maybeNextState.get(), updatedLinearized));
+                    shouldExploreNextState = cache.add(maybeNextState.get(), updatedLinearized);
                 }
                 if (shouldExploreNextState) {
                     calls.push(new Tuple<>(entry, state));
@@ -389,4 +393,52 @@ public class LinearizabilityChecker {
         }
     }
 
+
+    private static class Cache {
+        private final Map<Object, Set<FixedBitSet>> largeMap = new HashMap<>();
+        private final LongObjectHashMap<Set<Object>> smallMap = new LongObjectHashMap<>();
+        private final Map<Object, Object> internalizeStateMap = new HashMap<>();
+        private final Map<Set<Object>, Set<Object>> statePermutations = new HashMap<>();
+        public boolean add(Object state, FixedBitSet bitSet) {
+            return addInternal(internalizeStateMap.computeIfAbsent(state, k -> state), bitSet);
+        }
+
+        private boolean addInternal(Object state, FixedBitSet bitSet) {
+            long[] bits = bitSet.getBits();
+            if (bits.length == 1)
+                return addSmall(state, bits[0]);
+            else
+                return addLarge(state, bitSet);
+        }
+
+        private boolean addSmall(Object state, long bits) {
+            Set<Object> objects = smallMap.get(bits);
+            if (objects == null) {
+                objects = uniquePermutation(Collections.singleton(state));
+            } else {
+                if (objects.contains(state)) {
+                    return false;
+                }
+                objects = add(objects, state);
+            }
+            smallMap.put(bits, objects);
+            return true;
+        }
+
+        private boolean addLarge(Object state, FixedBitSet bitSet) {
+            return largeMap.computeIfAbsent(state, k -> new HashSet<>()).add(bitSet);
+        }
+
+        private Set<Object> add(Set<Object> objects, Object state) {
+            Set<Object> newObjects = new HashSet<>(objects.size() + 1);
+            newObjects.addAll(objects);
+            newObjects.add(state);
+            return uniquePermutation(newObjects);
+        }
+
+        private Set<Object> uniquePermutation(Set<Object> newObjects) {
+            return statePermutations.computeIfAbsent(newObjects, k -> k);
+        }
+
+    }
 }

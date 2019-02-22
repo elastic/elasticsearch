@@ -40,6 +40,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -190,7 +191,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/39268")
+    @TestLogging(value = "org.elasticsearch.xpack.ccr:trace")
     public void testRetentionLeaseIsRenewedDuringRecovery() throws Exception {
         final String leaderIndex = "leader";
         final int numberOfShards = randomIntBetween(1, 3);
@@ -211,8 +212,10 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
             senderTransportService.addSendBehavior(
                     (connection, requestId, action, request, options) -> {
+                        logger.info("action [{}]", action);
                         if (ClearCcrRestoreSessionAction.NAME.equals(action)) {
                             try {
+                                logger.info("latching");
                                 latch.await();
                             } catch (final InterruptedException e) {
                                 fail(e.toString());

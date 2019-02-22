@@ -47,8 +47,8 @@ import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.List;
@@ -682,20 +682,14 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testAvgMovavgDerivNPE() throws IOException {
+    public void testDerivDerivNPE() throws IOException {
         try (Directory directory = newDirectory()) {
             Query query = new MatchAllDocsQuery();
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
                 .field("tick").interval(1);
             aggBuilder.subAggregation(new AvgAggregationBuilder("avg").field("value"));
-            aggBuilder.subAggregation(
-                new MovAvgPipelineAggregationBuilder("movavg", "avg")
-                    .modelBuilder(new SimpleModel.SimpleModelBuilder())
-                    .window(3)
-            );
-            aggBuilder.subAggregation(
-                new DerivativePipelineAggregationBuilder("deriv", "movavg")
-            );
+            aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv1", "avg"));
+            aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv2", "deriv1"));
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (int i = 0; i < 10; i++) {

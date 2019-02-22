@@ -223,8 +223,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                         continue; // gap in sequence number
                     }
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
-                    engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
-                        System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+                    engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, VersionType.EXTERNAL,
+                        Engine.Operation.Origin.REPLICA, System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
                     if (rarely()) {
                         engine.flush();
                     }

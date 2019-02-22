@@ -29,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
@@ -37,7 +38,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -277,7 +277,6 @@ public class IndexActionTests extends ESTestCase {
                 fieldName + "] or [ctx.payload._doc." + fieldName + "]"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38581")
     public void testIndexActionExecuteSingleDoc() throws Exception {
         boolean customId = randomBoolean();
         boolean docIdAsParam = customId && randomBoolean();
@@ -327,9 +326,8 @@ public class IndexActionTests extends ESTestCase {
         assertThat(indexRequest.getRefreshPolicy(), is(expectedRefreshPolicy));
 
         if (timestampField != null) {
-            final DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE_TIME;
             assertThat(indexRequest.sourceAsMap().keySet(), is(hasSize(2)));
-            assertThat(indexRequest.sourceAsMap(), hasEntry(timestampField, formatter.format(executionTime)));
+            assertThat(indexRequest.sourceAsMap(), hasEntry(timestampField, WatcherDateTimeUtils.formatDate(executionTime)));
         } else {
             assertThat(indexRequest.sourceAsMap().keySet(), is(hasSize(1)));
         }

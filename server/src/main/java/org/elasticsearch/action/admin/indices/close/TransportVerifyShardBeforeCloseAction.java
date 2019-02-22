@@ -108,13 +108,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         if (clusterBlocks.hasIndexBlock(shardId.getIndexName(), request.clusterBlock()) == false) {
             throw new IllegalStateException("Index shard " + shardId + " must be blocked by " + request.clusterBlock() + " before closing");
         }
-
-        final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
-        if (indexShard.getGlobalCheckpoint() != maxSeqNo) {
-            throw new IllegalStateException("Global checkpoint [" + indexShard.getGlobalCheckpoint()
-                + "] mismatches maximum sequence number [" + maxSeqNo + "] on index shard " + shardId);
-        }
-
+        indexShard.verifyShardBeforeIndexClosing();
         indexShard.flush(new FlushRequest().force(true));
         logger.trace("{} shard is ready for closing", shardId);
     }
@@ -164,7 +158,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
-            clusterBlock = ClusterBlock.readClusterBlock(in);
+            clusterBlock = new ClusterBlock(in);
         }
 
         @Override

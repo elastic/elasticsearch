@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -82,16 +81,14 @@ public class AzureRepository extends BlobStoreRepository {
 
     private final BlobPath basePath;
     private final ByteSizeValue chunkSize;
-    private final boolean compress;
     private final Environment environment;
     private final AzureStorageService storageService;
     private final boolean readonly;
 
     public AzureRepository(RepositoryMetaData metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
             AzureStorageService storageService) {
-        super(metadata, environment.settings(), namedXContentRegistry);
+        super(metadata, environment.settings(), Repository.COMPRESS_SETTING.get(metadata.settings()), namedXContentRegistry);
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
-        this.compress = Repository.COMPRESS_SETTING.get(metadata.settings());
         this.environment = environment;
         this.storageService = storageService;
 
@@ -132,21 +129,13 @@ public class AzureRepository extends BlobStoreRepository {
 
         logger.debug((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
             "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",
-            blobStore, chunkSize, compress, basePath));
+            blobStore, chunkSize, isCompress(), basePath));
         return blobStore;
     }
 
     @Override
     protected BlobPath basePath() {
         return basePath;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected boolean isCompress() {
-        return compress;
     }
 
     /**

@@ -259,7 +259,6 @@ public class DeprecationLogger {
      * @return a warning value formatted according to RFC 7234
      */
     public static String formatWarning(final String s) {
-        
         // Assume that the common scenario won't have a string to escape and encode.
         int length = WARNING_PREFIX.length() + s.length() + 3;
         final StringBuilder sb = new StringBuilder(length);

@@ -50,12 +50,14 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsAction;
 import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.dataframe.action.PreviewDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.PutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.StartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportDeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsAction;
 import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.dataframe.action.TransportPreviewDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportPutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameTransformAction;
@@ -64,6 +66,7 @@ import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigMa
 import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameTransformsAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.dataframe.rest.action.RestPreviewDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestPutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStopDataFrameTransformAction;
@@ -100,6 +103,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     private final Settings settings;
     private final boolean transportClientMode;
     private final SetOnce<DataFrameTransformsConfigManager> dataFrameTransformsConfigManager = new SetOnce<>();
+    private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
 
     public DataFrame(Settings settings) {
         this.settings = settings;
@@ -137,7 +141,8 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new RestStopDataFrameTransformAction(settings, restController),
                 new RestDeleteDataFrameTransformAction(settings, restController),
                 new RestGetDataFrameTransformsAction(settings, restController),
-                new RestGetDataFrameTransformsStatsAction(settings, restController)
+                new RestGetDataFrameTransformsStatsAction(settings, restController),
+                new RestPreviewDataFrameTransformAction(settings, restController)
         );
     }
 
@@ -153,7 +158,8 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new ActionHandler<>(StopDataFrameTransformAction.INSTANCE, TransportStopDataFrameTransformAction.class),
                 new ActionHandler<>(DeleteDataFrameTransformAction.INSTANCE, TransportDeleteDataFrameTransformAction.class),
                 new ActionHandler<>(GetDataFrameTransformsAction.INSTANCE, TransportGetDataFrameTransformsAction.class),
-                new ActionHandler<>(GetDataFrameTransformsStatsAction.INSTANCE, TransportGetDataFrameTransformsStatsAction.class)
+                new ActionHandler<>(GetDataFrameTransformsStatsAction.INSTANCE, TransportGetDataFrameTransformsStatsAction.class),
+                new ActionHandler<>(PreviewDataFrameTransformAction.INSTANCE, TransportPreviewDataFrameTransformAction.class)
                 );
     }
 
@@ -201,12 +207,12 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
             return emptyList();
         }
 
-        SchedulerEngine schedulerEngine = new SchedulerEngine(settings, Clock.systemUTC());
+        schedulerEngine.set(new SchedulerEngine(settings, Clock.systemUTC()));
 
         // the transforms config manager should have been created
         assert dataFrameTransformsConfigManager.get() != null;
-        return Collections.singletonList(
-                new DataFrameTransformPersistentTasksExecutor(client, dataFrameTransformsConfigManager.get(), schedulerEngine, threadPool));
+        return Collections.singletonList(new DataFrameTransformPersistentTasksExecutor(client, dataFrameTransformsConfigManager.get(),
+            schedulerEngine.get(), threadPool));
     }
 
     @Override
@@ -222,5 +228,12 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameTransformState.NAME),
                         DataFrameTransformState::fromXContent)
                 );
+    }
+
+    @Override
+    public void close() {
+        if (schedulerEngine.get() != null) {
+            schedulerEngine.get().stop();
+        }
     }
 }

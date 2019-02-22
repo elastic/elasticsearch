@@ -11,6 +11,8 @@ setup:
         body:
           settings:
             number_of_replicas: 0
+            # we need to have 1 shard to get request failure in test "Sparse vectors should error with dense vector functions"
+            number_of_shards: 1
           mappings:
             properties:
               my_sparse_vector:
@@ -175,10 +177,6 @@ setup:
 
 ---
 "Sparse vectors should error with dense vector functions":
-
-- skip:
-    version: "all"
-    reason: "awaits fix in #39218"
 
 - do:
     index:

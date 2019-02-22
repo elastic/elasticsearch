@@ -30,6 +30,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 
 public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     InputStream input;
@@ -137,6 +138,16 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertThat(e.getMessage(), containsString("The setting name can not be null"));
+    }
+
+    public void testUpperCaseInName() throws Exception {
+        createKeystore("");
+        terminal.addSecretInput("value");
+        final String key = randomAlphaOfLength(4) + randomAlphaOfLength(1).toUpperCase() + randomAlphaOfLength(4);
+        final UserException e = expectThrows(UserException.class, () -> execute(key));
+        assertThat(
+                e,
+                hasToString(containsString("Setting name [" + key + "] does not match the allowed setting name pattern [[a-z0-9_\\-.]+]")));
     }
 
     void setInput(String inputStr) {

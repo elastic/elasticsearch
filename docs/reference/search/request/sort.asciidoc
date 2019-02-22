@@ -289,7 +289,7 @@ GET /_search
                 "pin.location" : [-70, 40],
                 "order" : "asc",
                 "unit" : "km",
-		        "mode" : "min",
+		        "mode" : "min"
             }
         }
     ],

@@ -35,13 +35,13 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransformConfig> implements Writeable, ToXContentObject {
 
-    private static final String NAME = "data_frame_transforms";
-    private static final ParseField SOURCE = new ParseField("source");
-    private static final ParseField DESTINATION = new ParseField("dest");
-    private static final ParseField QUERY = new ParseField("query");
+    public static final String NAME = "data_frame_transforms";
+    public static final ParseField SOURCE = new ParseField("source");
+    public static final ParseField DESTINATION = new ParseField("dest");
+    public static final ParseField QUERY = new ParseField("query");
 
     // types of transforms
-    private static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
+    public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
 
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> LENIENT_PARSER = createParser(true);

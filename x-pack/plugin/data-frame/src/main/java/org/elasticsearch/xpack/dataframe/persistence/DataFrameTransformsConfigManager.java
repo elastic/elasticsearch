@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
@@ -49,12 +48,7 @@ public class DataFrameTransformsConfigManager {
 
     private static final Logger logger = LogManager.getLogger(DataFrameTransformsConfigManager.class);
 
-    public static final Map<String, String> TO_XCONTENT_PARAMS;
-    static {
-        Map<String, String> modifiable = new HashMap<>();
-        modifiable.put(DataFrameField.FOR_INTERNAL_STORAGE, "true");
-        TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
-    }
+    public static final Map<String, String> TO_XCONTENT_PARAMS = Collections.singletonMap(DataFrameField.FOR_INTERNAL_STORAGE, "true");
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;

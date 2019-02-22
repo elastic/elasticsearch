@@ -42,6 +42,7 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
@@ -190,7 +191,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/39268")
     public void testRetentionLeaseIsRenewedDuringRecovery() throws Exception {
         final String leaderIndex = "leader";
         final int numberOfShards = randomIntBetween(1, 3);
@@ -211,7 +211,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
             senderTransportService.addSendBehavior(
                     (connection, requestId, action, request, options) -> {
-                        if (ClearCcrRestoreSessionAction.NAME.equals(action)) {
+                        if (ClearCcrRestoreSessionAction.NAME.equals(action)
+                                || TransportActionProxy.getProxyAction(ClearCcrRestoreSessionAction.NAME).equals(action)) {
                             try {
                                 latch.await();
                             } catch (final InterruptedException e) {
@@ -433,7 +434,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                         (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
                 senderTransportService.addSendBehavior(
                         (connection, requestId, action, request, options) -> {
-                            if (RetentionLeaseActions.Remove.ACTION_NAME.equals(action)) {
+                            if (RetentionLeaseActions.Remove.ACTION_NAME.equals(action)
+                                    || TransportActionProxy.getProxyAction(RetentionLeaseActions.Remove.ACTION_NAME).equals(action)) {
                                 final RetentionLeaseActions.RemoveRequest removeRequest = (RetentionLeaseActions.RemoveRequest) request;
                                 if (shardIds.contains(removeRequest.getShardId().id())) {
                                     final String primaryShardNodeId =
@@ -517,7 +519,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                         (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
                 senderTransportService.addSendBehavior(
                         (connection, requestId, action, request, options) -> {
-                            if (RetentionLeaseActions.Remove.ACTION_NAME.equals(action)) {
+                            if (RetentionLeaseActions.Remove.ACTION_NAME.equals(action)
+                                    || TransportActionProxy.getProxyAction(RetentionLeaseActions.Remove.ACTION_NAME).equals(action)) {
                                 final RetentionLeaseActions.RemoveRequest removeRequest = (RetentionLeaseActions.RemoveRequest) request;
                                 if (shardIds.contains(removeRequest.getShardId().id())) {
                                     throw randomBoolean()

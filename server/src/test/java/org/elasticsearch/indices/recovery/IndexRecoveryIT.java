@@ -225,8 +225,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         refresh(INDEX_NAME);
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numOfDocs);
 
-        final IndexMetaData.State indexState = randomFrom(IndexMetaData.State.values());
-        if (indexState == IndexMetaData.State.CLOSE) {
+        final boolean closedIndex = randomBoolean();
+        if (closedIndex) {
             assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
             ensureGreen(INDEX_NAME);
         }
@@ -251,7 +251,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         // validate node A recovery
         final RecoveryState nodeARecoveryState = nodeAResponses.get(0);
         final RecoverySource expectedRecoverySource;
-        if (indexState == IndexMetaData.State.OPEN) {
+        if (closedIndex == false) {
             expectedRecoverySource = RecoverySource.EmptyStoreRecoverySource.INSTANCE;
         } else {
             expectedRecoverySource = RecoverySource.ExistingStoreRecoverySource.INSTANCE;
@@ -266,7 +266,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
 
-        if (indexState == IndexMetaData.State.CLOSE) {
+        if (closedIndex) {
             assertAcked(client().admin().indices().prepareOpen(INDEX_NAME));
         }
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numOfDocs);

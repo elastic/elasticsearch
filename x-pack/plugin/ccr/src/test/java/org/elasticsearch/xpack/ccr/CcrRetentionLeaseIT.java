@@ -190,7 +190,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39011")
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/39268")
     public void testRetentionLeaseIsRenewedDuringRecovery() throws Exception {
         final String leaderIndex = "leader";
         final int numberOfShards = randomIntBetween(1, 3);
@@ -206,11 +206,11 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         // block the recovery from completing; this ensures the background sync is still running
         final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
-        for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getDataNodes().values()) {
+        for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getNodes().values()) {
             final MockTransportService senderTransportService =
                     (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
             final ClusterStateResponse leaderClusterState = leaderClient().admin().cluster().prepareState().clear().setNodes(true).get();
-            for (final ObjectCursor<DiscoveryNode> receiverNode : leaderClusterState.getState().nodes().getDataNodes().values()) {
+            for (final ObjectCursor<DiscoveryNode> receiverNode : leaderClusterState.getState().nodes().getNodes().values()) {
                 final MockTransportService receiverTransportService =
                         (MockTransportService) getLeaderCluster().getInstance(TransportService.class, receiverNode.value.getName());
                 senderTransportService.addSendBehavior(receiverTransportService,
@@ -338,8 +338,23 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             }
         });
 
+        /*
+         * We want to ensure that the background renewal is cancelled at the end of recovery. To do this, we will sleep a small multiple
+         * of the renew interval. If the renews are not cancelled, we expect that a renewal would have been sent while we were sleeping.
+         * After we wake up, it should be the case that the retention leases are the same (same timestamp) as that indicates that they were
+         * not renewed while we were sleeping.
+         */
+        final TimeValue renewIntervalSetting = CcrRepository.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(
+                followerClient()
+                        .admin()
+                        .indices()
+                        .prepareGetSettings(followerIndex)
+                        .get()
+                        .getIndexToSettings()
+                        .get(followerIndex));
+
         final long end = System.nanoTime();
-        Thread.sleep(Math.max(0, randomIntBetween(2, 4) * 200 - TimeUnit.NANOSECONDS.toMillis(end - start)));
+        Thread.sleep(Math.max(0, randomIntBetween(2, 4) * renewIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(end - start)));
 
         // now ensure that the retention leases are the same
         assertBusy(() -> {
@@ -372,8 +387,9 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
     public void testUnfollowRemovesRetentionLeases() throws Exception {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
+        final int numberOfShards = randomIntBetween(1, 4);
         final String leaderIndexSettings =
-                getIndexSettings(randomIntBetween(1, 4), 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+                getIndexSettings(numberOfShards, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
@@ -394,16 +410,18 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         // we will sometimes fake that some of the retention leases are already removed on the leader shard
         final Set<Integer> shardIds =
-                new HashSet<>(randomSubsetOf(randomIntBetween(0, 4), IntStream.range(0, 4).boxed().collect(Collectors.toSet())));
+                new HashSet<>(randomSubsetOf(
+                        randomIntBetween(0, numberOfShards),
+                        IntStream.range(0, numberOfShards).boxed().collect(Collectors.toSet())));
 
         final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
         try {
-            for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getDataNodes().values()) {
+            for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getNodes().values()) {
                 final MockTransportService senderTransportService =
                         (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
                 final ClusterStateResponse leaderClusterState =
                         leaderClient().admin().cluster().prepareState().clear().setNodes(true).get();
-                for (final ObjectCursor<DiscoveryNode> receiverNode : leaderClusterState.getState().nodes().getDataNodes().values()) {
+                for (final ObjectCursor<DiscoveryNode> receiverNode : leaderClusterState.getState().nodes().getNodes().values()) {
                     final MockTransportService receiverTransportService =
                             (MockTransportService) getLeaderCluster().getInstance(TransportService.class, receiverNode.value.getName());
                     senderTransportService.addSendBehavior(receiverTransportService,
@@ -456,7 +474,11 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
             }
         } finally {
-
+            for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getDataNodes().values()) {
+                final MockTransportService senderTransportService =
+                        (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
+                senderTransportService.clearAllRules();
+            }
         }
     }
 
@@ -477,16 +499,18 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         // we will disrupt requests to remove retention leases for these random shards
         final Set<Integer> shardIds =
-                new HashSet<>(randomSubsetOf(randomIntBetween(1, 4), IntStream.range(0, 4).boxed().collect(Collectors.toSet())));
+                new HashSet<>(randomSubsetOf(
+                                randomIntBetween(1, numberOfShards),
+                                IntStream.range(0, numberOfShards).boxed().collect(Collectors.toSet())));
 
         final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
         try {
-            for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getDataNodes().values()) {
+            for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getNodes().values()) {
                 final MockTransportService senderTransportService =
                         (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
                 final ClusterStateResponse leaderClusterState =
                         leaderClient().admin().cluster().prepareState().clear().setNodes(true).get();
-                for (final ObjectCursor<DiscoveryNode> receiverNode : leaderClusterState.getState().nodes().getDataNodes().values()) {
+                for (final ObjectCursor<DiscoveryNode> receiverNode : leaderClusterState.getState().nodes().getNodes().values()) {
                     final MockTransportService receiverTransportService =
                             (MockTransportService) getLeaderCluster().getInstance(TransportService.class, receiverNode.value.getName());
                     senderTransportService.addSendBehavior(receiverTransportService,

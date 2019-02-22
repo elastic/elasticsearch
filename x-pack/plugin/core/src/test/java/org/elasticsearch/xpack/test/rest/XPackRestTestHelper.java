@@ -14,7 +14,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -27,13 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-public final class XPackRestTestHelper {
+import static org.elasticsearch.test.rest.ESRestTestCase.allowTypesRemovalWarnings;
 
-    public static final List<String> ML_PRE_V660_TEMPLATES = Collections.unmodifiableList(
-            Arrays.asList(AuditorField.NOTIFICATIONS_INDEX,
-                    MlMetaIndex.INDEX_NAME,
-                    AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-                    AnomalyDetectorsIndex.jobResultsIndexPrefix()));
+public final class XPackRestTestHelper {
 
     public static final List<String> ML_POST_V660_TEMPLATES = Collections.unmodifiableList(
             Arrays.asList(AuditorField.NOTIFICATIONS_INDEX,
@@ -78,7 +73,7 @@ public final class XPackRestTestHelper {
                 Map<?, ?> response;
                 try {
                     final Request getRequest = new Request("GET", "_template/" + template);
-                    getRequest.setOptions(ESRestTestCase.allowTypeRemovalWarnings());
+                    getRequest.setOptions(allowTypesRemovalWarnings());
                     String string = EntityUtils.toString(client.performRequest(getRequest).getEntity());
                     response = XContentHelper.convertToMap(JsonXContent.jsonXContent, string, false);
                 } catch (ResponseException e) {

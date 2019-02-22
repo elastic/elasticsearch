@@ -232,6 +232,15 @@ subprojects {
         setting 'node.name', "upgraded-node-${stopNode}"
         dependsOn copyTestNodeKeystore
         extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+        if (version.onOrAfter('7.0.0')) {
+          setting 'xpack.security.authc.realms.file.file1.order', '0'
+          setting 'xpack.security.authc.realms.native.native1.order', '1'
+        } else {
+          setting 'xpack.security.authc.realms.file1.type', 'file'
+          setting 'xpack.security.authc.realms.file1.order', '0'
+          setting 'xpack.security.authc.realms.native1.type', 'native'
+          setting 'xpack.security.authc.realms.native1.order', '1'
+        }
         if (withSystemKey) {
           setting 'xpack.watcher.encrypt_sensitive_data', 'true'
           keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"

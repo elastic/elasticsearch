@@ -22,6 +22,7 @@ package org.elasticsearch.common.settings;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.Map;
 
 import org.elasticsearch.cli.Command;
@@ -143,7 +144,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testUpperCaseInName() throws Exception {
         createKeystore("");
         terminal.addSecretInput("value");
-        final String key = randomAlphaOfLength(4) + randomAlphaOfLength(1).toUpperCase() + randomAlphaOfLength(4);
+        final String key = randomAlphaOfLength(4) + randomAlphaOfLength(1).toUpperCase(Locale.ROOT) + randomAlphaOfLength(4);
         final UserException e = expectThrows(UserException.class, () -> execute(key));
         assertThat(
                 e,

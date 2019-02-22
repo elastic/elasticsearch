@@ -61,7 +61,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -501,7 +500,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     order = SortOrder.fromString(parser.text());
                 } else if (UNIT_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     unit = DistanceUnit.fromString(parser.text());
-                } else if (VALIDATION_METHOD_FIELD.match(currentName)) {
+                } else if (VALIDATION_METHOD_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     validation = GeoValidationMethod.fromString(parser.text());
                 } else if (SORTMODE_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     sortMode = SortMode.fromString(parser.text());

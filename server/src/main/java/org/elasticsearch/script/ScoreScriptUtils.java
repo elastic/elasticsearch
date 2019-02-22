@@ -22,7 +22,6 @@ package org.elasticsearch.script;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateMathParser;
@@ -77,68 +76,59 @@ public final class ScoreScriptUtils {
     // **** Decay functions on geo field
     public static final class DecayGeoLinear {
         // cached variables calculated once per script execution
-        double originLat;
-        double originLon;
+        GeoPoint origin;
         double offset;
         double scaling;
 
         public DecayGeoLinear(String originStr, String scaleStr, String offsetStr, double decay) {
-            GeoPoint origin = GeoUtils.parseGeoPoint(originStr, false);
             double scale = DistanceUnit.DEFAULT.parse(scaleStr, DistanceUnit.DEFAULT);
-            this.originLat = origin.lat();
-            this.originLon = origin.lon();
+            this.origin = GeoUtils.parseGeoPoint(originStr, false);
             this.offset = DistanceUnit.DEFAULT.parse(offsetStr, DistanceUnit.DEFAULT);
             this.scaling = scale / (1.0 - decay);
         }
 
         public double decayGeoLinear(GeoPoint docValue) {
-            double distance = GeoDistance.ARC.calculate(originLat, originLon, docValue.lat(), docValue.lon(), DistanceUnit.METERS);
-            distance = Math.max(0.0d, distance - offset);
-            return Math.max(0.0, (scaling - distance) / scaling);
+            double distanceMeters = this.origin.distanceFrom(docValue);
+            distanceMeters = Math.max(0.0d, distanceMeters - offset);
+            return Math.max(0.0, (scaling - distanceMeters) / scaling);
         }
     }
 
     public static final class DecayGeoExp {
-        double originLat;
-        double originLon;
+        GeoPoint origin;
         double offset;
         double scaling;
 
         public DecayGeoExp(String originStr, String scaleStr, String offsetStr, double decay) {
-            GeoPoint origin = GeoUtils.parseGeoPoint(originStr, false);
+            this.origin = GeoUtils.parseGeoPoint(originStr, false);
             double scale = DistanceUnit.DEFAULT.parse(scaleStr, DistanceUnit.DEFAULT);
-            this.originLat = origin.lat();
-            this.originLon = origin.lon();
             this.offset = DistanceUnit.DEFAULT.parse(offsetStr, DistanceUnit.DEFAULT);
             this.scaling = Math.log(decay) / scale;
         }
 
         public double decayGeoExp(GeoPoint docValue) {
-            double distance = GeoDistance.ARC.calculate(originLat, originLon, docValue.lat(), docValue.lon(), DistanceUnit.METERS);
-            distance = Math.max(0.0d, distance - offset);
-            return Math.exp(scaling * distance);
+            double distanceMeters = this.origin.distanceFrom(docValue);
+            distanceMeters = Math.max(0.0d, distanceMeters - offset);
+            return Math.exp(scaling * distanceMeters);
         }
     }
 
     public static final class DecayGeoGauss {
-        double originLat;
-        double originLon;
+        GeoPoint origin;
         double offset;
         double scaling;
 
         public DecayGeoGauss(String originStr, String scaleStr, String offsetStr, double decay) {
-            GeoPoint origin = GeoUtils.parseGeoPoint(originStr, false);
+            this.origin = GeoUtils.parseGeoPoint(originStr, false);
             double scale = DistanceUnit.DEFAULT.parse(scaleStr, DistanceUnit.DEFAULT);
-            this.originLat = origin.lat();
-            this.originLon = origin.lon();
             this.offset = DistanceUnit.DEFAULT.parse(offsetStr, DistanceUnit.DEFAULT);
             this.scaling =  0.5 * Math.pow(scale, 2.0) / Math.log(decay);
         }
 
         public double decayGeoGauss(GeoPoint docValue) {
-            double distance = GeoDistance.ARC.calculate(originLat, originLon, docValue.lat(), docValue.lon(), DistanceUnit.METERS);
-            distance = Math.max(0.0d, distance - offset);
-            return Math.exp(0.5 * Math.pow(distance, 2.0) / scaling);
+            double distanceMeters = this.origin.distanceFrom(docValue);
+            distanceMeters = Math.max(0.0d, distanceMeters - offset);
+            return Math.exp(0.5 * Math.pow(distanceMeters, 2.0) / scaling);
         }
     }
 

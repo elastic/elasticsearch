@@ -251,7 +251,6 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     protected GeoDistanceAggregationBuilder(GeoDistanceAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
         this.origin = clone.origin;
-        this.distanceType = clone.distanceType;
         this.unit = clone.unit;
         this.keyed = clone.keyed;
         this.ranges = new ArrayList<>(clone.ranges);

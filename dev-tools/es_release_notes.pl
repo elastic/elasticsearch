@@ -87,11 +87,11 @@ sub dump_issues {
 :pull:  https://github.com/${User_Repo}pull/
 
 [[release-notes-$version]]
-== $version Release Notes
+== {es} version $version
 
 coming[$version]
 
-Also see <<breaking-changes-$branch>>.
+Also see <<breaking-changes-$branch,Breaking changes in $branch>>.
 
 ASCIIDOC
 

@@ -16,7 +16,6 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
@@ -121,7 +120,6 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
-                        .condition(InternalAlwaysCondition.INSTANCE)
                         .transform(scriptTransform(script))
                         .addAction("_id", indexAction("output1", "type")))
                 .get();
@@ -131,13 +129,12 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
-                        .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("_id", scriptTransform(script), indexAction("output2", "type")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().trigger("_id1");
-        timeWarp().trigger("_id2");
+        executeWatch("_id1");
+        executeWatch("_id2");
         refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
@@ -184,8 +181,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 ).get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().trigger("_id1");
-        timeWarp().trigger("_id2");
+        executeWatch("_id1");
+        executeWatch("_id2");
         refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
@@ -212,7 +209,6 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
-                        .condition(InternalAlwaysCondition.INSTANCE)
                         .transform(chainTransform(scriptTransform(script1), scriptTransform(script2)))
                         .addAction("_id", indexAction("output1", "type")))
                 .get();
@@ -222,14 +218,13 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
-                        .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("_id", chainTransform(scriptTransform(script1), scriptTransform(script2)),
                                 indexAction("output2", "type")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().trigger("_id1");
-        timeWarp().trigger("_id2");
+        executeWatch("_id1");
+        executeWatch("_id2");
         refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
@@ -247,5 +242,11 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
+    }
+
+    private void executeWatch(String watchId) {
+        watcherClient().prepareExecuteWatch(watchId)
+            .setRecordExecution(true)
+            .get();
     }
 }

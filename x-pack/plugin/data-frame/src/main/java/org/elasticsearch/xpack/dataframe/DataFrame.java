@@ -50,12 +50,14 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsAction;
 import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.dataframe.action.PreviewDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.PutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.StartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportDeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsAction;
 import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.dataframe.action.TransportPreviewDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportPutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameTransformAction;
@@ -64,6 +66,7 @@ import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigMa
 import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameTransformsAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestGetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.dataframe.rest.action.RestPreviewDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestPutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStopDataFrameTransformAction;
@@ -138,7 +141,8 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new RestStopDataFrameTransformAction(settings, restController),
                 new RestDeleteDataFrameTransformAction(settings, restController),
                 new RestGetDataFrameTransformsAction(settings, restController),
-                new RestGetDataFrameTransformsStatsAction(settings, restController)
+                new RestGetDataFrameTransformsStatsAction(settings, restController),
+                new RestPreviewDataFrameTransformAction(settings, restController)
         );
     }
 
@@ -154,7 +158,8 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new ActionHandler<>(StopDataFrameTransformAction.INSTANCE, TransportStopDataFrameTransformAction.class),
                 new ActionHandler<>(DeleteDataFrameTransformAction.INSTANCE, TransportDeleteDataFrameTransformAction.class),
                 new ActionHandler<>(GetDataFrameTransformsAction.INSTANCE, TransportGetDataFrameTransformsAction.class),
-                new ActionHandler<>(GetDataFrameTransformsStatsAction.INSTANCE, TransportGetDataFrameTransformsStatsAction.class)
+                new ActionHandler<>(GetDataFrameTransformsStatsAction.INSTANCE, TransportGetDataFrameTransformsStatsAction.class),
+                new ActionHandler<>(PreviewDataFrameTransformAction.INSTANCE, TransportPreviewDataFrameTransformAction.class)
                 );
     }
 

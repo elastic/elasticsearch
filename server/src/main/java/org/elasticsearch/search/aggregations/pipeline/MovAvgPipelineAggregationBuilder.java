@@ -147,6 +147,10 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
         if (window <= 0) {
             throw new IllegalArgumentException("[window] must be a positive integer: [" + name + "]");
         }
+        // If we have a model we can validate the window now
+        if (model != null) {
+            model.validate(window, name);
+        }
         this.window = window;
         return this;
     }
@@ -265,7 +269,8 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
         }
-        
+        // Validate any model-specific window requirements
+        model.validate(window, name);
         validateSequentiallyOrderedParentAggs(parent, NAME, name);
     }
 

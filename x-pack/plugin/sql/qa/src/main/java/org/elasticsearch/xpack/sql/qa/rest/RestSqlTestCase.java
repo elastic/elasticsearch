@@ -366,11 +366,11 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
     
     private String columnarParameter(boolean columnar) {
-        String columnarParameter = ",\"columnar\":" + columnar;
         if (columnar == false && randomBoolean()) {
-            columnarParameter = "";
+            return "";
+        } else {
+            return ",\"columnar\":" + columnar;
         }
-        return columnarParameter;
     }
 
     protected Map<String, Object> runSql(HttpEntity sql, String suffix) throws IOException {

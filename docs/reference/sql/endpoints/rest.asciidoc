@@ -265,7 +265,7 @@ Which returns:
     "columns": [
         {"name": "author", "type": "text"},
         {"name": "name", "type": "text"},
-        {"name": "page_count", "type": "long"},
+        {"name": "page_count", "type": "short"},
         {"name": "release_date", "type": "datetime"}
     ],
     "values": [

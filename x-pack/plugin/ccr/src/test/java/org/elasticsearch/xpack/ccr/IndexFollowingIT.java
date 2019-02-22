@@ -660,6 +660,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         pauseFollow("index2");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39308")
     public void testDeleteLeaderIndex() throws Exception {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1")
             .setSettings(Settings.builder()

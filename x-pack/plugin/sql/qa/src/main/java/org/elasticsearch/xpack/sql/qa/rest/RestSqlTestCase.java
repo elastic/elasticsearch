@@ -52,6 +52,7 @@ import static org.hamcrest.Matchers.containsString;
 public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTestCase {
     
     public static String SQL_QUERY_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
+    private static String SQL_TRANSLATE_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
     /**
      * Builds that map that is returned in the header for each column.
      */
@@ -328,6 +329,18 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 client().performRequest(request);
                 return Collections.emptyMap();
             }, containsString("Invalid use of [columnar] argument: cannot be used in combination with txt, csv or tsv formats"));
+    }
+    
+    public void testUseColumnarForTranslateRequest() throws IOException {
+        index("{\"test\":\"test\"}", "{\"test\":\"test\"}");
+        
+        Request request = new Request("POST", SQL_TRANSLATE_REST_ENDPOINT);
+        request.setEntity(new StringEntity("{\"columnar\":true,\"query\":\"SELECT * FROM test\"" + mode(randomMode()) + "}",
+                ContentType.APPLICATION_JSON));
+        expectBadRequest(() -> {
+                client().performRequest(request);
+                return Collections.emptyMap();
+            }, containsString("unknown field [columnar], parser not found"));
     }
 
     protected void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {

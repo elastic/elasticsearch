@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -40,7 +41,8 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
     public static final String MONITORING_ID = "system_id";
     public static final String MONITORING_VERSION = "system_api_version";
     public static final String INTERVAL = "interval";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestMonitoringBulkAction.class));
+    private static final Logger logger = LogManager.getLogger(RestMonitoringBulkAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private final Map<MonitoredSystem, List<String>> supportedApiVersions;
 
     public RestMonitoringBulkAction(Settings settings, RestController controller) {
@@ -63,8 +65,7 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
         final Map<MonitoredSystem, List<String>> versionsMap = new HashMap<>();
         versionsMap.put(MonitoredSystem.KIBANA, allVersions);
         versionsMap.put(MonitoredSystem.LOGSTASH, allVersions);
-        // Beats did not report data in the 5.x timeline, so it should never send the original version
-        versionsMap.put(MonitoredSystem.BEATS, Collections.singletonList(MonitoringTemplateUtils.TEMPLATE_VERSION));
+        versionsMap.put(MonitoredSystem.BEATS, allVersions);
         supportedApiVersions = Collections.unmodifiableMap(versionsMap);
     }
 
@@ -75,7 +76,9 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
 
     @Override
     public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
-        final String defaultType = request.param("type");
+        if (Strings.isEmpty(request.param("type")) == false) {
+            logger.error("Custom types for monitoring is not supported");
+        }
 
         final String id = request.param(MONITORING_ID);
         if (Strings.isEmpty(id)) {
@@ -106,7 +109,7 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
         final long intervalMillis = parseTimeValue(intervalAsString, INTERVAL).getMillis();
 
         final MonitoringBulkRequestBuilder requestBuilder = client.monitoring().prepareMonitoringBulk();
-        requestBuilder.add(system, defaultType, request.content(), request.getXContentType(), timestamp, intervalMillis);
+        requestBuilder.add(system, request.content(), request.getXContentType(), timestamp, intervalMillis);
         return channel -> requestBuilder.execute(new RestBuilderListener<MonitoringBulkResponse>(channel) {
             @Override
             public RestResponse buildResponse(MonitoringBulkResponse response, XContentBuilder builder) throws Exception {

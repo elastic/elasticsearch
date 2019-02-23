@@ -150,12 +150,7 @@ public class HttpExporter extends Exporter {
     public static final Setting.AffixSetting<TimeValue> TEMPLATE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.master_timeout",
                     (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope));
-    /**
-     * A boolean setting to enable or disable whether to create placeholders for the old templates.
-     */
-    public static final Setting.AffixSetting<Boolean> TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.create_legacy_templates",
-                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+
     /**
      * ES level timeout used when checking and writing pipelines (used to speed up tests)
      */
@@ -362,8 +357,6 @@ public class HttpExporter extends Exporter {
         resources.add(new VersionHttpResource(resourceOwnerName, MIN_SUPPORTED_CLUSTER_VERSION));
         // load all templates (template bodies are lazily loaded on demand)
         configureTemplateResources(config, resourceOwnerName, resources);
-        // load the pipeline (this will get added to as the monitoring API version increases)
-        configurePipelineResources(config, resourceOwnerName, resources);
 
         // load the watches for cluster alerts if Watcher is available
         configureClusterAlertsResources(config, resourceOwnerName, resources);
@@ -560,11 +553,6 @@ public class HttpExporter extends Exporter {
             params.put("timeout", bulkTimeout.toString());
         }
 
-        // allow the use of ingest pipelines to be completely optional
-        if (USE_INGEST_PIPELINE_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())) {
-            params.put("pipeline", MonitoringTemplateUtils.pipelineName(MonitoringTemplateUtils.TEMPLATE_VERSION));
-        }
-
         // widdle down the response to just what we care to check
         params.put("filter_path", "errors,items.*.error");
 
@@ -592,45 +580,10 @@ public class HttpExporter extends Exporter {
             resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, templateLoader));
         }
 
-        // add old templates, like ".monitoring-data-2" and ".monitoring-es-2" so that other versions can continue to work
-        boolean createLegacyTemplates =
-                TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-        if (createLegacyTemplates) {
-            for (final String templateId : MonitoringTemplateUtils.OLD_TEMPLATE_IDS) {
-                final String templateName = MonitoringTemplateUtils.oldTemplateName(templateId);
-                final Supplier<String> templateLoader = () -> MonitoringTemplateUtils.createEmptyTemplate(templateId);
 
-                resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, templateLoader));
-            }
-        }
     }
 
-    /**
-     * Adds the {@code resources} necessary for checking and publishing monitoring pipelines.
-     *
-     * @param config The HTTP Exporter's configuration
-     * @param resourceOwnerName The resource owner name to display for any logging messages.
-     * @param resources The resources to add too.
-     */
-    private static void configurePipelineResources(final Config config, final String resourceOwnerName,
-                                                   final List<HttpResource> resources) {
-        // don't require pipelines if we're not using them
-        if (USE_INGEST_PIPELINE_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())) {
-            final TimeValue pipelineTimeout =
-                    PIPELINE_CHECK_TIMEOUT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
-            // add all pipelines
-            for (final String pipelineId : MonitoringTemplateUtils.PIPELINE_IDS) {
-                final String pipelineName = MonitoringTemplateUtils.pipelineName(pipelineId);
-                // lazily load the pipeline
-                final Supplier<byte[]> pipeline =
-                        () -> BytesReference.toBytes(BytesReference.bytes(MonitoringTemplateUtils.loadPipeline(pipelineId,
-                                                XContentType.JSON)));
-
-                resources.add(new PipelineHttpResource(resourceOwnerName, pipelineTimeout, pipelineName, pipeline));
-            }
-        }
-    }
 
     /**
      * Adds the {@code resources} necessary for checking and publishing cluster alerts.
@@ -702,7 +655,7 @@ public class HttpExporter extends Exporter {
     }
 
     public static List<Setting.AffixSetting<?>> getSettings() {
-        return Arrays.asList(HOST_SETTING, TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING, AUTH_PASSWORD_SETTING, AUTH_USERNAME_SETTING,
+        return Arrays.asList(HOST_SETTING, AUTH_PASSWORD_SETTING, AUTH_USERNAME_SETTING,
                 BULK_TIMEOUT_SETTING, CONNECTION_READ_TIMEOUT_SETTING, CONNECTION_TIMEOUT_SETTING, PIPELINE_CHECK_TIMEOUT_SETTING,
                 PROXY_BASE_PATH_SETTING, SNIFF_ENABLED_SETTING, TEMPLATE_CHECK_TIMEOUT_SETTING, SSL_SETTING, HEADERS_SETTING);
     }

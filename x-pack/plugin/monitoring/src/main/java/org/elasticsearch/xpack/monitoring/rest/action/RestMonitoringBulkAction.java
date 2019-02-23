@@ -63,8 +63,7 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
         final Map<MonitoredSystem, List<String>> versionsMap = new HashMap<>();
         versionsMap.put(MonitoredSystem.KIBANA, allVersions);
         versionsMap.put(MonitoredSystem.LOGSTASH, allVersions);
-        // Beats did not report data in the 5.x timeline, so it should never send the original version
-        versionsMap.put(MonitoredSystem.BEATS, Collections.singletonList(MonitoringTemplateUtils.TEMPLATE_VERSION));
+        versionsMap.put(MonitoredSystem.BEATS, allVersions);
         supportedApiVersions = Collections.unmodifiableMap(versionsMap);
     }
 

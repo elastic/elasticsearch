@@ -231,7 +231,6 @@ public class LinearizabilityChecker {
     }
 
     private boolean isLinearizable(SequentialSpec spec, List<Event> history) {
-        System.out.println("Checking size: " + history.size() + ": " + history);
         Object state = spec.initialState(); // the current state of the datatype
         final FixedBitSet linearized = new FixedBitSet(history.size() / 2); // the linearized prefix of the history
 

@@ -82,7 +82,6 @@ import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.junit.After;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -166,12 +165,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockRepository.Plugin.class, TestCustomMetaDataPlugin.class, BrokenSettingPlugin.class);
     }
-
-    @After
-    public void assertSafeCommitExists() throws Exception {
-        internalCluster().assertSafeCommitExists();
-    }
-
 
     public static class BrokenSettingPlugin extends Plugin {
         private static boolean breakSetting = false;

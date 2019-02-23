@@ -856,6 +856,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     public static void assertSafeCommitExists(IndexShard shard) throws IOException {
         try {
+            if (shard.state != IndexShardState.STARTED) {
+                return;
+            }
             Engine engine = getEngine(shard);
             if (engine instanceof InternalEngine == false) {
                 return;

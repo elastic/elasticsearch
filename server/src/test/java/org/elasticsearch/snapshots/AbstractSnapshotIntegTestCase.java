@@ -64,6 +64,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
+    @After
+    public void assertSafeCommitExists() throws Exception {
+        internalCluster().assertSafeCommitExists();
+    }
+
     public static long getFailureCount(String repository) {
         long failureCount = 0;
         for (RepositoriesService repositoriesService :

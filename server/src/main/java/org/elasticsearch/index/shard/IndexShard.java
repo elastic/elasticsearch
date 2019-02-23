@@ -2043,16 +2043,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Waits for all operations up to the provided sequence number to complete.
-     *
-     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
-     * @throws InterruptedException if the thread was interrupted while blocking on the condition
-     */
-    public void waitForOpsToComplete(final long seqNo) throws InterruptedException {
-        getEngine().waitForOpsToComplete(seqNo);
-    }
-
-    /**
      * Called when the recovery process for a shard has opened the engine on the target shard. Ensures that the right data structures
      * have been set up locally to track local checkpoint information for the shard and that the shard is added to the replication group.
      *

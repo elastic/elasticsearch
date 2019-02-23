@@ -1109,6 +1109,16 @@ public abstract class EngineTestCase extends ESTestCase {
         return internalEngine.getTranslog();
     }
 
+    /**
+     * Waits for all operations up to the provided sequence number to complete in the given internal engine.
+     *
+     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
+     * @throws InterruptedException if the thread was interrupted while blocking on the condition
+     */
+    public static void waitForOpsToComplete(InternalEngine engine, long seqNo) throws InterruptedException {
+        engine.getLocalCheckpointTracker().waitForOpsToComplete(seqNo);
+    }
+
     public static boolean hasSnapshottedCommits(Engine engine) {
         assert engine instanceof InternalEngine : "only InternalEngines have snapshotted commits, got: " + engine.getClass();
         InternalEngine internalEngine = (InternalEngine) engine;

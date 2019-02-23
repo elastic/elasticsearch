@@ -30,9 +30,10 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -94,6 +95,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private volatile ElasticsearchException fatalException;
 
+    private Scheduler.Cancellable renewable;
+
+    Scheduler.Cancellable getRenewable() {
+        return renewable;
+    }
+
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
                         ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
         super(id, type, action, description, parentTask, headers);
@@ -151,6 +158,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 coordinateReads();
             });
         });
+
+        synchronized (this) {
+            renewable = scheduleBackgroundRetentionLeaseRenewal(() -> {
+                synchronized (ShardFollowNodeTask.this) {
+                    return this.followerGlobalCheckpoint;
+                }
+            });
+        }
     }
 
     synchronized void coordinateReads() {
@@ -507,8 +522,16 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     protected abstract void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
                                                          Consumer<Exception> errorHandler);
 
+    protected abstract Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(LongSupplier followerGlobalCheckpoint);
+
     @Override
     protected void onCancelled() {
+        synchronized (this) {
+            if (renewable != null) {
+                renewable.cancel();
+                renewable = null;
+            }
+        }
         markAsCompleted();
     }
 

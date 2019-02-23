@@ -23,46 +23,22 @@ import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
-import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
+import org.elasticsearch.xpack.core.ml.job.config.*;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCountsTests;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.*;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
-import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
-import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
+import org.elasticsearch.xpack.ml.job.persistence.*;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isIn;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
 
@@ -335,7 +311,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private ScheduledEvent buildScheduledEvent(String description, ZonedDateTime start, ZonedDateTime end, String calendarId) {
-        return new ScheduledEvent.Builder().description(description).startTime(start).endTime(end).calendarId(calendarId).build();
+        return new ScheduledEvent.Builder().description(description).startTime(start.toInstant()).endTime(end.toInstant()).calendarId(calendarId).build();
     }
 
     public void testGetAutodetectParams() throws Exception {

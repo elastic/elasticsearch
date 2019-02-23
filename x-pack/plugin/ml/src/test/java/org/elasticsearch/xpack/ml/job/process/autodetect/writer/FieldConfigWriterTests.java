@@ -11,12 +11,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.job.config.Operator;
-import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
+import org.elasticsearch.xpack.core.ml.job.config.*;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.ini4j.Config;
 import org.ini4j.Ini;
@@ -30,18 +25,9 @@ import java.io.OutputStreamWriter;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.*;
 
 
 public class FieldConfigWriterTests extends ESTestCase {
@@ -239,12 +225,12 @@ public class FieldConfigWriterTests extends ESTestCase {
         analysisConfig = builder.build();
 
         scheduledEvents.add(new ScheduledEvent.Builder().description("The Ashes")
-                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1511395200000L), ZoneOffset.UTC))
-                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1515369600000L), ZoneOffset.UTC))
+                .startTime(Instant.ofEpochMilli(1511395200000L))
+                .endTime(Instant.ofEpochMilli(1515369600000L))
                 .calendarId("calendar_id").build());
         scheduledEvents.add(new ScheduledEvent.Builder().description("elasticon")
-                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519603200000L), ZoneOffset.UTC))
-                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519862400000L), ZoneOffset.UTC))
+                .startTime(Instant.ofEpochMilli(1519603200000L))
+                .endTime(Instant.ofEpochMilli(1519862400000L))
                 .calendarId("calendar_id").build());
 
         writer = mock(OutputStreamWriter.class);

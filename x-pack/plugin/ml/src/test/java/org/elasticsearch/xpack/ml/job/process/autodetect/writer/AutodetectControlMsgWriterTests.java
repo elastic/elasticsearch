@@ -8,11 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
-import org.elasticsearch.xpack.core.ml.job.config.Operator;
-import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
+import org.elasticsearch.xpack.core.ml.job.config.*;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
@@ -31,9 +27,7 @@ import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.*;
 
 public class AutodetectControlMsgWriterTests extends ESTestCase {
     private LengthEncodedWriter lengthEncodedWriter;
@@ -226,14 +220,14 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         ScheduledEvent.Builder event1 = new ScheduledEvent.Builder();
         event1.calendarId("moon");
         event1.description("new year");
-        event1.startTime(ZonedDateTime.parse("2018-01-01T00:00:00Z"));
-        event1.endTime(ZonedDateTime.parse("2018-01-02T00:00:00Z"));
+        event1.startTime(ZonedDateTime.parse("2018-01-01T00:00:00Z").toInstant());
+        event1.endTime(ZonedDateTime.parse("2018-01-02T00:00:00Z").toInstant());
 
         ScheduledEvent.Builder event2 = new ScheduledEvent.Builder();
         event2.calendarId("moon");
         event2.description("Jan maintenance day");
-        event2.startTime(ZonedDateTime.parse("2018-01-06T00:00:00Z"));
-        event2.endTime(ZonedDateTime.parse("2018-01-07T00:00:00Z"));
+        event2.startTime(ZonedDateTime.parse("2018-01-06T00:00:00Z").toInstant());
+        event2.endTime(ZonedDateTime.parse("2018-01-07T00:00:00Z").toInstant());
 
         writer.writeUpdateScheduledEventsMessage(Arrays.asList(event1.build(), event2.build()), TimeValue.timeValueHours(1));
 

@@ -27,8 +27,6 @@ import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;

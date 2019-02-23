@@ -62,7 +62,6 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     private final Settings settings;
     private final GoogleCloudStorageService storageService;
     private final BlobPath basePath;
-    private final boolean compress;
     private final ByteSizeValue chunkSize;
     private final String bucket;
     private final String clientName;
@@ -70,7 +69,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
                                         NamedXContentRegistry namedXContentRegistry,
                                         GoogleCloudStorageService storageService) {
-        super(metadata, environment.settings(), namedXContentRegistry);
+        super(metadata, environment.settings(), getSetting(COMPRESS, metadata), namedXContentRegistry);
         this.settings = environment.settings();
         this.storageService = storageService;
 
@@ -85,11 +84,10 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
             this.basePath = BlobPath.cleanPath();
         }
 
-        this.compress = getSetting(COMPRESS, metadata);
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
         this.bucket = getSetting(BUCKET, metadata);
         this.clientName = CLIENT_NAME.get(metadata.settings());
-        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, compress);
+        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, isCompress());
     }
 
     @Override
@@ -100,11 +98,6 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     @Override
     protected BlobPath basePath() {
         return basePath;
-    }
-
-    @Override
-    protected boolean isCompress() {
-        return compress;
     }
 
     @Override

@@ -12,8 +12,11 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -222,6 +225,34 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
         assertEquals(21, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
         assertOnePivotValue(dataFrameIndex + "/_search?q=by_day:2017-01-15", 3.82);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPreviewTransform() throws Exception {
+        final Request createPreviewRequest = new Request("POST", DATAFRAME_ENDPOINT + "_preview");
+
+        String config = "{"
+            + " \"source\": \"reviews\",";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {\"terms\": { \"field\": \"user_id\" }},"
+            + "     \"by_day\": {\"date_histogram\": {\"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"}}},"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } }"
+            + "}";
+        createPreviewRequest.setJsonEntity(config);
+        Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
+        List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
+        assertThat(preview.size(), equalTo(393));
+        Set<String> expectedFields = new HashSet<>(Arrays.asList("reviewer", "by_day", "avg_rating"));
+        preview.forEach(p -> {
+            Set<String> keys = p.keySet();
+            assertThat(keys, equalTo(expectedFields));
+        });
     }
 
     private void startAndWaitForTransform(String transformId, String dataFrameIndex) throws IOException, Exception {

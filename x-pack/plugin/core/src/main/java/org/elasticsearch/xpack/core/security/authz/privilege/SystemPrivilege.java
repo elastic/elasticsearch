@@ -31,6 +31,7 @@ public final class SystemPrivilege extends Privilege {
         RetentionLeaseSyncAction.ACTION_NAME + "*", // needed for retention lease syncs
         RetentionLeaseBackgroundSyncAction.ACTION_NAME + "*", // needed for background retention lease syncs
         RetentionLeaseActions.Add.ACTION_NAME + "*", // needed for CCR to add retention leases
+        RetentionLeaseActions.Remove.ACTION_NAME + "*", // needed for CCR to remove retention leases
         RetentionLeaseActions.Renew.ACTION_NAME + "*", // needed for CCR to renew retention leases
         "indices:admin/settings/update" // needed for DiskThresholdMonitor.markIndicesReadOnly
     );

@@ -1442,7 +1442,8 @@ public class CoordinatorTests extends ESTestCase {
                 leader.improveConfiguration(lastAcceptedState), sameInstance(lastAcceptedState));
 
             logger.info("checking linearizability of history with size {}: {}", history.size(), history);
-            assertTrue("history not linearizable: " + history, linearizabilityChecker.isLinearizable(spec, history, i -> null));
+            assertTrue("history not linearizable: " + history, linearizabilityChecker.isLinearizableWithTimeoutOptimization(spec, history,
+                i -> i == null ? LinearizabilityChecker.REMOVE : null));
             logger.info("linearizability check completed");
         }
 

@@ -19,6 +19,8 @@
 package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.collect.Tuple;
 
@@ -49,6 +51,8 @@ import java.util.function.Function;
  *   FORTE (2015). http://dx.doi.org/10.1007/978-3-319-19195-9_4
  */
 public class LinearizabilityChecker {
+
+    private static final Logger logger = LogManager.getLogger(LinearizabilityChecker.class);
 
     /**
      * Return this object from the missing object generator to remove the entry from the linearizability checker. This is useful to avoid
@@ -250,7 +254,7 @@ public class LinearizabilityChecker {
     }
 
     private boolean isLinearizable(SequentialSpec spec, List<Event> history) {
-        System.out.println("Checking history of size: " + history.size() + ": " + history);
+        logger.info("Checking history of size: {}: {}", history.size(), history);
         Object state = spec.initialState(); // the current state of the datatype
         final FixedBitSet linearized = new FixedBitSet(history.size() / 2); // the linearized prefix of the history
 
@@ -308,12 +312,14 @@ public class LinearizabilityChecker {
      * complete faster. Notice that the missingResponseGenerator here runs after partitioning, ie. input values will be the partitioned
      * values
      */
-    public boolean isLinearizableWithTimeoutOptimization(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
+    public boolean isLinearizableWithTimeoutOptimization(SequentialSpec spec, History history,
+                                                         Function<Object, Object> missingResponseGenerator) {
         final Collection<List<Event>> partitions = spec.partition(new ArrayList<>(history.events));
         return partitions.stream().allMatch(h -> isLinearizableWithTimeoutOptimization(spec, h, missingResponseGenerator));
     }
 
-    private boolean isLinearizableWithTimeoutOptimization(SequentialSpec spec, List<Event> events, Function<Object, Object> missingResponseGenerator) {
+    private boolean isLinearizableWithTimeoutOptimization(SequentialSpec spec, List<Event> events,
+                                                          Function<Object, Object> missingResponseGenerator) {
         History history = new History(events);
         History historyWithNoTimedOutOperations = history.clone();
         historyWithNoTimedOutOperations.complete(i -> REMOVE);

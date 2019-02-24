@@ -93,12 +93,10 @@ public class CcrIndexLifecycleIT extends CcrIntegTestCase {
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(policy);
         assertAcked(followerClient().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
 
-
         // Set up the follower
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
         ensureFollowerGreen(true, followerIndex);
-
 
         // Pause ILM so that this policy doesn't proceed until we want it to
         assertAcked(followerClient().execute(StopILMAction.INSTANCE, new StopILMRequest()).get());

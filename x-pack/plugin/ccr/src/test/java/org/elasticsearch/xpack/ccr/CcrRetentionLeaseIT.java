@@ -34,6 +34,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -43,7 +44,10 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
@@ -435,7 +439,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             }
 
             pauseFollow(followerIndex);
-            followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet();
+            assertAcked(followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet());
             assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet());
 
             final IndicesStatsResponse afterUnfollowStats =
@@ -795,6 +799,101 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         latch.await();
 
         assertRetentionLeaseRenewal(numberOfShards, numberOfReplicas, followerIndex, leaderIndex);
+    }
+
+    /**
+     * This test is fairly evil. This test is to ensure that we are protected against a race condition when unfollowing and a background
+     * renewal fires. The action of unfollowing will remove retention leases from the leader. If a background renewal is firing at that
+     * times, it means that we will be met with a retention lease not found exception. That will in turn trigger behavior to attempt to
+     * re-add the retention lease, which means we are left in a situation where we have unfollowed, but the retention lease still remains
+     * on the leader. However, we have a guard against this in the callback after the retention lease not found exception is thrown, which
+     * checks if the shard follow node task is cancelled or completed.
+     *
+     * To test this this behavior is correct, we capture the call to renew the retention lease. Then, we will step in between and execute
+     * an unfollow request. This will remove the retention lease on the leader. At this point, we can unlatch the renew call, which will
+     * now be met with a retention lease not found exception. We will cheat and wait for that response to come back, and then synchronously
+     * trigger the listener which will check to see if the shard follow node task is cancelled or completed, and if not, add the retention
+     * lease back. After that listener returns, we can check to see if a retention lease exists on the leader.
+     *
+     * Note, this done mean that listener will fire twice, once in our onResponseReceived hook, and once after our onResponseReceived
+     * callback returns. 🤷‍♀️
+     *
+     * @throws Exception if an exception occurs in the main test thread
+     */
+    public void testPeriodicRenewalDoesNotAddRetentionLeaseAfterUnfollow() throws Exception {
+        final String leaderIndex = "leader";
+        final String followerIndex = "follower";
+        final int numberOfShards = 1;
+        final int numberOfReplicas = 1;
+        final Map<String, String> additionalIndexSettings = new HashMap<>();
+        additionalIndexSettings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), Boolean.toString(true));
+        additionalIndexSettings.put(
+                IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
+                TimeValue.timeValueMillis(200).getStringRep());
+        final String leaderIndexSettings = getIndexSettings(numberOfShards, numberOfReplicas, additionalIndexSettings);
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
+        final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        ensureFollowerGreen(true, followerIndex);
+
+        final CountDownLatch removeLeaseLatch = new CountDownLatch(1);
+        final CountDownLatch unfollowLatch = new CountDownLatch(1);
+        final CountDownLatch responseLatch = new CountDownLatch(1);
+
+        final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
+        for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getNodes().values()) {
+            final MockTransportService senderTransportService =
+                    (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
+            senderTransportService.addSendBehavior(
+                    (connection, requestId, action, request, options) -> {
+                        if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
+                                || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
+                            senderTransportService.clearAllRules();
+                            final String retentionLeaseId = getRetentionLeaseId(followerIndex, leaderIndex);
+                            try {
+                                //innerLatch.await();
+                                removeLeaseLatch.countDown();
+                                unfollowLatch.await();
+
+                                senderTransportService.transport().addMessageListener(new TransportMessageListener() {
+
+                                    @Override
+                                    public void onResponseReceived(final long responseRequestId, final Transport.ResponseContext context) {
+                                        if (requestId == responseRequestId) {
+                                            final RetentionLeaseNotFoundException e = new RetentionLeaseNotFoundException(retentionLeaseId);
+                                            context.handler().handleException(new RemoteTransportException(e.getMessage(), e));
+                                            responseLatch.countDown();
+                                        }
+                                    }
+
+                                });
+
+                            } catch (final InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                fail(e.toString());
+                            }
+                        }
+                        connection.sendRequest(requestId, action, request, options);
+                    });
+        }
+
+        removeLeaseLatch.await();
+
+        pauseFollow(followerIndex);
+        assertAcked(followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet());
+        assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet());
+
+        unfollowLatch.countDown();
+
+        responseLatch.await();
+
+        final IndicesStatsResponse afterUnfollowStats =
+                leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
+        final List<ShardStats> afterUnfollowShardsStats = getShardsStats(afterUnfollowStats);
+        for (final ShardStats shardStats : afterUnfollowShardsStats) {
+            assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
+        }
     }
 
     private void assertRetentionLeaseRenewal(

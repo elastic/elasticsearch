@@ -275,6 +275,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final ActionListener<RetentionLeaseActions.Response> listener = ActionListener.wrap(
                         r -> {},
                         e -> {
+                            if (isCancelled() || isCompleted()) {
+                                return;
+                            }
                             final Throwable cause = ExceptionsHelper.unwrapCause(e);
                             logRetentionLeaseFailure(retentionLeaseId, cause);
                             // noinspection StatementWithEmptyBody

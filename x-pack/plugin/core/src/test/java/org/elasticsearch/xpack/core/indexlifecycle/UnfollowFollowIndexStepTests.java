@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -111,5 +112,48 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
         });
         assertThat(completed[0], nullValue());
         assertThat(failure[0], sameInstance(error));
+    }
+
+    public void testFailureToReleaseRetentionLeases() {
+        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+
+        // Mock unfollow api call:
+        ElasticsearchException error = new ElasticsearchException("text exception");
+        error.addMetadata("es.failed_to_remove_retention_leases", randomAlphaOfLength(10));
+        Mockito.doAnswer(invocation -> {
+            UnfollowAction.Request request = (UnfollowAction.Request) invocation.getArguments()[1];
+            assertThat(request.getFollowerIndex(), equalTo("follower-index"));
+            ActionListener listener = (ActionListener) invocation.getArguments()[2];
+            listener.onFailure(error);
+            return null;
+        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+
+        Boolean[] completed = new Boolean[1];
+        Exception[] failure = new Exception[1];
+        UnfollowFollowIndexStep step = new UnfollowFollowIndexStep(randomStepKey(), randomStepKey(), client);
+        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+            @Override
+            public void onResponse(boolean complete) {
+                completed[0] = complete;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure[0] = e;
+            }
+        });
+        assertThat(completed[0], equalTo(true));
+        assertThat(failure[0], nullValue());
     }
 }

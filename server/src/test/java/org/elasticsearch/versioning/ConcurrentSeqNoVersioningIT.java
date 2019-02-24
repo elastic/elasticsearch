@@ -173,9 +173,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                         final boolean futureSeqNo = pct < 10;
                         Version version = partition.latestKnownVersion();
                         if (futureSeqNo) {
-                            version = version.nextSeqNo();
+                            version = version.nextSeqNo(random.nextInt(4)+1);
                         } else if (pct < 15) {
-                            version = version.previousSeqNo();
+                            version = version.previousSeqNo(random.nextInt(4)+1);
                         }
                         Consumer<HistoryOutput> historyResponse = partition.invoke(version);
                         try {
@@ -273,7 +273,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             logger.info("--> Linearizability checking history of size: {} for key: {} and initialVersion: {}: {}", history.size(),
                 id, initialVersion, history);
             boolean linearizable =
-                new LinearizabilityChecker().isLinearizable(new CASSequentialSpec(new SuccessState(initialVersion)), history,
+                new LinearizabilityChecker().isLinearizable(new CASSequentialSpec(initialVersion), history,
                     missingResponseGenerator());
             if (linearizable == false) {
                 // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
@@ -291,15 +291,15 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     private static class CASSequentialSpec implements LinearizabilityChecker.SequentialSpec {
 
-        private final State initialState;
+        private final Version initialVersion;
 
-        private CASSequentialSpec(State initialState) {
-            this.initialState = initialState;
+        private CASSequentialSpec(Version initialVersion) {
+            this.initialVersion = initialVersion;
         }
 
         @Override
         public Object initialState() {
-            return initialState;
+            return new SuccessState(initialVersion);
         }
 
         @Override
@@ -307,7 +307,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             return ((HistoryOutput) output).nextState((State) currentState, (Version) input).map(i -> i); // Optional<?> to Optional<Object>
         }
     }
-
 
     /**
      * Our version, which is primaryTerm,seqNo.
@@ -348,12 +347,12 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             return "{" + "primaryTerm=" + primaryTerm + ", seqNo=" + seqNo + '}';
         }
 
-        public Version nextSeqNo() {
-            return new Version(primaryTerm, seqNo + 1);
+        public Version nextSeqNo(int increment) {
+            return new Version(primaryTerm, seqNo + increment);
         }
 
-        public Version previousSeqNo() {
-            return new Version(primaryTerm, seqNo - 1);
+        public Version previousSeqNo(int decrement) {
+            return new Version(primaryTerm, seqNo - decrement);
         }
     }
 
@@ -678,7 +677,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         Version initialVersion = new Version(primaryTerm, seqNo);
         boolean result =
-            new LinearizabilityChecker().isLinearizable(new CASSequentialSpec(new SuccessState(initialVersion)), history,
+            new LinearizabilityChecker().isLinearizable(new CASSequentialSpec(initialVersion), history,
                 missingResponseGenerator());
 
         System.out.println("Linearizable?: " + result);

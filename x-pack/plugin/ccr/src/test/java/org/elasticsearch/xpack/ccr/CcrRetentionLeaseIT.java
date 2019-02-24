@@ -804,7 +804,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
     /**
      * This test is fairly evil. This test is to ensure that we are protected against a race condition when unfollowing and a background
      * renewal fires. The action of unfollowing will remove retention leases from the leader. If a background renewal is firing at that
-     * times, it means that we will be met with a retention lease not found exception. That will in turn trigger behavior to attempt to
+     * time, it means that we will be met with a retention lease not found exception. That will in turn trigger behavior to attempt to
      * re-add the retention lease, which means we are left in a situation where we have unfollowed, but the retention lease still remains
      * on the leader. However, we have a guard against this in the callback after the retention lease not found exception is thrown, which
      * checks if the shard follow node task is cancelled or completed.

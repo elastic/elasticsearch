@@ -97,7 +97,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private Scheduler.Cancellable renewable;
 
-    Scheduler.Cancellable getRenewable() {
+    synchronized Scheduler.Cancellable getRenewable() {
         return renewable;
     }
 

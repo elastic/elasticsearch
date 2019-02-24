@@ -858,6 +858,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
                                 senderTransportService.transport().addMessageListener(new TransportMessageListener() {
 
+                                    @SuppressWarnings("rawtypes")
                                     @Override
                                     public void onResponseReceived(final long responseRequestId, final Transport.ResponseContext context) {
                                         if (requestId == responseRequestId) {

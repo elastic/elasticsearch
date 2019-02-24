@@ -267,10 +267,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
                 /*
                  * We are going to attempt to renew the retention lease. If this fails it is either because the retention lease does not
-                 * lease does not exist, or something else happened. If the retention lease does not exist, we will attempt
-                 * to add the retention lease again. If that fails, it had better not be because the retention lease already
-                 * exists. Either way, we will attempt to renew again on the next scheduled execution. We will start by
-                 * creating listeners
+                 * exist, or something else happened. If the retention lease does not exist, we will attempt to add the retention lease
+                 * again. If that fails, it had better not be because the retention lease already exists. Either way, we will attempt to
+                 * renew again on the next scheduled execution.
                  */
                 final ActionListener<RetentionLeaseActions.Response> listener = ActionListener.wrap(
                         r -> {},

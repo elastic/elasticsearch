@@ -74,15 +74,19 @@ public abstract class Streams {
         // Leverage try-with-resources to close in and out so that exceptions in close() are either propagated or added as suppressed
         // exceptions to the main exception
         try (InputStream in2 = in; OutputStream out2 = out) {
-            long byteCount = 0;
-            int bytesRead;
-            while ((bytesRead = in.read(buffer)) != -1) {
-                out.write(buffer, 0, bytesRead);
-                byteCount += bytesRead;
-            }
-            out.flush();
-            return byteCount;
+            return doCopy(in2, out2, buffer);
         }
+    }
+
+    private static long doCopy(InputStream in, OutputStream out, byte[] buffer) throws IOException {
+        long byteCount = 0;
+        int bytesRead;
+        while ((bytesRead = in.read(buffer)) != -1) {
+            out.write(buffer, 0, bytesRead);
+            byteCount += bytesRead;
+        }
+        out.flush();
+        return byteCount;
     }
 
     /**
@@ -121,16 +125,20 @@ public abstract class Streams {
         // Leverage try-with-resources to close in and out so that exceptions in close() are either propagated or added as suppressed
         // exceptions to the main exception
         try (Reader in2 = in; Writer out2 = out) {
-            int byteCount = 0;
-            char[] buffer = new char[BUFFER_SIZE];
-            int bytesRead;
-            while ((bytesRead = in.read(buffer)) != -1) {
-                out.write(buffer, 0, bytesRead);
-                byteCount += bytesRead;
-            }
-            out.flush();
-            return byteCount;
+            return doCopy(in2, out2);
         }
+    }
+
+    private static int doCopy(Reader in, Writer out) throws IOException {
+        int byteCount = 0;
+        char[] buffer = new char[BUFFER_SIZE];
+        int bytesRead;
+        while ((bytesRead = in.read(buffer)) != -1) {
+            out.write(buffer, 0, bytesRead);
+            byteCount += bytesRead;
+        }
+        out.flush();
+        return byteCount;
     }
 
     /**

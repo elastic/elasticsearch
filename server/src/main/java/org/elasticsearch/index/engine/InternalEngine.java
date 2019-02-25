@@ -2415,11 +2415,6 @@ public class InternalEngine extends Engine {
         return localCheckpointTracker.getCheckpoint();
     }
 
-    @Override
-    public void waitForOpsToComplete(long seqNo) throws InterruptedException {
-        localCheckpointTracker.waitForOpsToComplete(seqNo);
-    }
-
     /**
      * Marks the given seq_no as seen and advances the max_seq_no of this engine to at least that value.
      */

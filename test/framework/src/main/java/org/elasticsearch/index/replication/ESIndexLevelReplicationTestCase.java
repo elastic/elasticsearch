@@ -101,7 +101,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -256,7 +255,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         private BulkItemResponse executeWriteRequest(
             DocWriteRequest<?> writeRequest, WriteRequest.RefreshPolicy refreshPolicy) throws Exception {
             PlainActionFuture<BulkItemResponse> listener = new PlainActionFuture<>();
-            final ActionListener<BulkShardResponse> wrapBulkListener = wrap(
+            final ActionListener<BulkShardResponse> wrapBulkListener = ActionListener.wrap(
                 bulkShardResponse -> listener.onResponse(bulkShardResponse.getResponses()[0]),
                 listener::onFailure);
             BulkItemRequest[] items = new BulkItemRequest[1];

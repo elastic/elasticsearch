@@ -78,27 +78,6 @@ setup:
   - is_true: ''
 
 ---
-"Test job with no model memory limit has established model memory after reopening":
-  - do:
-      ml.open_job:
-        job_id: no-model-memory-limit-job
-
-  - do:
-      ml.get_jobs:
-        job_id: no-model-memory-limit-job
-  - is_true: jobs.0.established_model_memory
-  - lt: { jobs.0.established_model_memory: 100000 }
-
-  - do:
-      ml.close_job:
-        job_id: no-model-memory-limit-job
-
-  - do:
-      ml.delete_job:
-        job_id: no-model-memory-limit-job
-  - match: { acknowledged: true }
-
----
 "Test job with pre 6.4 rules":
 
   - do:

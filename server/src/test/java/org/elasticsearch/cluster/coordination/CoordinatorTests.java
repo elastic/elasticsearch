@@ -1225,7 +1225,7 @@ public class CoordinatorTests extends ESTestCase {
             cleanupActions.add(() -> disruptStorage = false);
 
             final int randomSteps = scaledRandomIntBetween(10, 10000);
-            final int keyRange = randomSteps / 200; // for randomized writes and reads
+            final int keyRange = randomSteps / 50; // for randomized writes and reads
             logger.info("--> start of safety phase of at least [{}] steps", randomSteps);
 
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(EXTREME_DELAY_VARIABILITY);
@@ -1244,7 +1244,7 @@ public class CoordinatorTests extends ESTestCase {
                 }
 
                 try {
-                    if (randomBoolean() && randomBoolean() && randomBoolean()) {
+                    if (finishTime == -1 && randomBoolean() && randomBoolean() && randomBoolean()) {
                         final ClusterNode clusterNode = getAnyNodePreferringLeaders();
                         final int key = randomIntBetween(0, keyRange);
                         final int newValue = randomInt();
@@ -1253,7 +1253,7 @@ public class CoordinatorTests extends ESTestCase {
                                 thisStep, newValue, clusterNode.getId());
                             clusterNode.submitValue(key, newValue);
                         }).run();
-                    } else if (randomBoolean() && randomBoolean() && randomBoolean()) {
+                    } else if (finishTime == -1 && randomBoolean() && randomBoolean() && randomBoolean()) {
                         final ClusterNode clusterNode = getAnyNodePreferringLeaders();
                         final int key = randomIntBetween(0, keyRange);
                         clusterNode.onNode(() -> {

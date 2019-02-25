@@ -52,7 +52,7 @@ public class ClusterStateObserver {
     final TimeoutClusterStateListener clusterStateListener = new ObserverClusterStateListener();
     // observingContext is not null when waiting on cluster state changes
     final AtomicReference<ObservingContext> observingContext = new AtomicReference<>(null);
-    volatile Long startTimeNS;
+    volatile Long startTimeMS;
     volatile boolean timedOut;
 
 
@@ -84,7 +84,7 @@ public class ClusterStateObserver {
         this.lastObservedState = new AtomicReference<>(new StoredState(initialState));
         this.timeOutValue = timeout;
         if (timeOutValue != null) {
-            this.startTimeNS = System.nanoTime();
+            this.startTimeMS = clusterApplierService.threadPool().relativeTimeInMillis();
         }
         this.logger = logger;
         this.contextHolder = contextHolder;
@@ -134,7 +134,7 @@ public class ClusterStateObserver {
         if (timeOutValue == null) {
             timeOutValue = this.timeOutValue;
             if (timeOutValue != null) {
-                long timeSinceStartMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeNS);
+                long timeSinceStartMS = clusterApplierService.threadPool().relativeTimeInMillis() - startTimeMS;
                 timeoutTimeLeftMS = timeOutValue.millis() - timeSinceStartMS;
                 if (timeoutTimeLeftMS <= 0L) {
                     // things have timeout while we were busy -> notify
@@ -150,7 +150,7 @@ public class ClusterStateObserver {
                 timeoutTimeLeftMS = null;
             }
         } else {
-            this.startTimeNS = System.nanoTime();
+            this.startTimeMS = clusterApplierService.threadPool().relativeTimeInMillis();
             this.timeOutValue = timeOutValue;
             timeoutTimeLeftMS = timeOutValue.millis();
             timedOut = false;
@@ -240,7 +240,7 @@ public class ClusterStateObserver {
             ObservingContext context = observingContext.getAndSet(null);
             if (context != null) {
                 clusterApplierService.removeTimeoutListener(this);
-                long timeSinceStartMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeNS);
+                long timeSinceStartMS = clusterApplierService.threadPool().relativeTimeInMillis() - startTimeMS;
                 logger.trace("observer: timeout notification from cluster service. timeout setting [{}], time since start [{}]",
                     timeOutValue, new TimeValue(timeSinceStartMS));
                 // update to latest, in case people want to retry

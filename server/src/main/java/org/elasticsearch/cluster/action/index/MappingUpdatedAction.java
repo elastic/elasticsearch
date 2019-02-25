@@ -73,7 +73,7 @@ public class MappingUpdatedAction {
         }
         client.putMapping(
             new PutMappingRequestBuilder(client, PutMappingAction.INSTANCE).setIndices(index.getName())
-                .setConcreteIndex(index).setType(type)
+                .setType(type)
                 .setSource(mappingUpdate.toString(), XContentType.JSON)
             .setMasterNodeTimeout(timeout).setTimeout(TimeValue.ZERO).request(), listener);
     }

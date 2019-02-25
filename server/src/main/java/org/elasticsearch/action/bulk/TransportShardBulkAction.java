@@ -117,7 +117,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
+        performOnPrimary(request, primary, updateHelper, threadPool::relativeTimeInMillis,
             new ConcreteMappingUpdatePerformer(),
             listener1 -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
@@ -474,7 +474,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                     @Override
                     public void onFailure(final Exception e) {
-
+                        throw new AssertionError(e);
                     }
                 }));
     }

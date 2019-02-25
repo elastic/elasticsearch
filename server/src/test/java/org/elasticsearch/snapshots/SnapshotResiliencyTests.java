@@ -277,7 +277,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
                                         assertNoFailureListener(
                                             bulkResponse -> {
-                                                assertFalse(bulkResponse.hasFailures());
+                                                assertFalse("Failures in bulkresponse: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
                                                 if (countdown.decrementAndGet() == 0) {
                                                     afterIndexing.run();
                                                 }
@@ -287,11 +287,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                     afterIndexing.run();
                                 }
                             }))));
-
-        deterministicTaskQueue.runAllRunnableTasks();
-
         runUntil(
-            () -> createdSnapshot.get() && snapshotRestored.get() && documentCountVerified.get(), TimeUnit.MINUTES.toMillis(1L));
+            () -> createdSnapshot.get() && snapshotRestored.get() && documentCountVerified.get(), TimeUnit.MINUTES.toMillis(5L));
         assertTrue(createdSnapshot.get());
         assertTrue(snapshotRestored.get());
         assertTrue(documentCountVerified.get());

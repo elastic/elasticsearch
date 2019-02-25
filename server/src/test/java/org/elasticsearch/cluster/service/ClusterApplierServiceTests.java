@@ -508,13 +508,5 @@ public class ClusterApplierServiceTests extends ESTestCase {
             super("test_node", settings, clusterSettings, threadPool);
             this.clusterSettings = clusterSettings;
         }
-
-        @Override
-        protected long currentTimeInNanos() {
-            if (currentTimeOverride != null) {
-                return currentTimeOverride;
-            }
-            return super.currentTimeInNanos();
-        }
     }
 }

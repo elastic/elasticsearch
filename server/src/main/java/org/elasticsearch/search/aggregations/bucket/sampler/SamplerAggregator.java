@@ -156,7 +156,8 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
 
     @Override
     public DeferringBucketCollector getDeferringCollector() {
-        bdd = new BestDocsDeferringCollector(shardSize, context.bigArrays());
+        bdd = new BestDocsDeferringCollector(shardSize, context.bigArrays(),
+            context.searcher().getIndexReader().maxDoc(), this::addRequestCircuitBreakerBytes);
         return bdd;
     }
 

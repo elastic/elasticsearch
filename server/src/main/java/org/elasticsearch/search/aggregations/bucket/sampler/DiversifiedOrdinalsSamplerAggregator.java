@@ -38,6 +38,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
 
@@ -54,7 +55,7 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
 
     @Override
     public DeferringBucketCollector getDeferringCollector() {
-        bdd = new DiverseDocsDeferringCollector();
+        bdd = new DiverseDocsDeferringCollector(this::addRequestCircuitBreakerBytes);
         return bdd;
     }
 
@@ -65,13 +66,20 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
      */
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
 
-        DiverseDocsDeferringCollector() {
-            super(shardSize, context.bigArrays());
+        DiverseDocsDeferringCollector(Consumer<Long> circuitBreakerConsumer) {
+            super(shardSize, context.bigArrays(), context.searcher().getIndexReader().maxDoc(), circuitBreakerConsumer);
         }
 
         @Override
         protected TopDocsCollector<ScoreDocKey> createTopDocsCollector(int size) {
             return new ValuesDiversifiedTopDocsCollector(size, maxDocsPerValue);
+        }
+
+        @Override
+        protected long getPriorityQueueSlotSize() {
+            // Uses ScoreDocKey
+            // [float + int + int] from ScoreDoc, [Long] from ScoreDocKey
+            return 28L;
         }
 
         // This class extends the DiversifiedTopDocsCollector and provides

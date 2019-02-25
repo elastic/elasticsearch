@@ -388,28 +388,28 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
-        boolean success = portsRange.iterate(portNumber -> {
-            try {
-                TcpServerChannel channel = bind(name, new InetSocketAddress(hostAddress, portNumber));
-                synchronized (serverChannels) {
-                    List<TcpServerChannel> list = serverChannels.get(name);
-                    if (list == null) {
-                        list = new ArrayList<>();
-                        serverChannels.put(name, list);
-                    }
-                    list.add(channel);
-                    boundSocket.set(channel.getLocalAddress());
-                }
-            } catch (Exception e) {
-                lastException.set(e);
-                return false;
+        closeLock.writeLock().lock();
+        try {
+            if (lifecycle.initialized() == false && lifecycle.started() == false) {
+                throw new IllegalStateException("transport has been stopped");
             }
-            return true;
-        });
-        if (!success) {
-            throw new BindTransportException("Failed to bind to [" + port + "]", lastException.get());
+            boolean success = portsRange.iterate(portNumber -> {
+                try {
+                    TcpServerChannel channel = bind(name, new InetSocketAddress(hostAddress, portNumber));
+                    serverChannels.computeIfAbsent(name, k -> new ArrayList<>()).add(channel);
+                    boundSocket.set(channel.getLocalAddress());
+                } catch (Exception e) {
+                    lastException.set(e);
+                    return false;
+                }
+                return true;
+            });
+            if (!success) {
+                throw new BindTransportException("Failed to bind to [" + port + "]", lastException.get());
+            }
+        } finally {
+            closeLock.writeLock().unlock();
         }
-
         if (logger.isDebugEnabled()) {
             logger.debug("Bound profile [{}] to address {{}}", name, NetworkAddress.format(boundSocket.get()));
         }
@@ -553,6 +553,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final void doStop() {
         final CountDownLatch latch = new CountDownLatch(1);
         // make sure we run it on another thread than a possible IO handler thread
+        assert threadPool.generic().isShutdown() == false : "Must stop transport before terminating underlying threadpool";
         threadPool.generic().execute(() -> {
             closeLock.writeLock().lock();
             try {

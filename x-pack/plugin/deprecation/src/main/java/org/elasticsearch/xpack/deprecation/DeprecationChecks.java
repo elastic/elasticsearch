@@ -57,6 +57,7 @@ public class DeprecationChecks {
             NodeDeprecationChecks::tlsv1ProtocolDisabled,
             NodeDeprecationChecks::transportSslEnabledWithoutSecurityEnabled,
             NodeDeprecationChecks::watcherNotificationsSecureSettingsCheck,
+            NodeDeprecationChecks::watcherHipchatNotificationSettingsCheck,
             NodeDeprecationChecks::auditIndexSettingsCheck
         ));
 

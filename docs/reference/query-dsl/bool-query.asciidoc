@@ -21,7 +21,7 @@ and clauses are considered for caching.
 `bool` query is in a <<query-filter-context,query context>> and has a `must` or
 `filter` clause then a document will match the `bool` query even if none of the
 `should` queries match. In this case these clauses are only used to influence
-the score. If the `bool` query is a <<query-filter-context,filter context>>
+the score. If the `bool` query is in a <<query-filter-context,filter context>>
 or has neither `must` or `filter` then at least one of the `should` queries
 must match a document for it to match the `bool` query. This behavior may be
 explicitly controlled by setting the

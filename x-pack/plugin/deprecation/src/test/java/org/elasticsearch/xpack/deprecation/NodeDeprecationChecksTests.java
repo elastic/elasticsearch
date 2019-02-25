@@ -79,7 +79,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testHttpEnabledCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "HTTP Enabled setting removed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#remove-http-enabled",
             "the HTTP Enabled setting has been removed");
         assertSettingsAndIssue("http.enabled", Boolean.toString(randomBoolean()), expected);
@@ -88,8 +88,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testNoMasterBlockRenamed() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Master block setting renamed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
-                "_new_name_for_literal_no_master_block_literal_setting",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
+                "#_new_name_for_literal_no_master_block_literal_setting",
             "The setting discovery.zen.no_master_block will be renamed to cluster.no_master_block in 7.0. " +
                 "Please unset discovery.zen.no_master_block and set cluster.no_master_block after upgrading to 7.0.");
 
@@ -99,7 +99,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testAuditLoggingPrefixSettingsCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Audit log node info settings renamed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#audit-logfile-local-node-info",
             "the audit log is now structured JSON");
         assertSettingsAndIssue("xpack.security.audit.logfile.prefix.emit_node_host_address",
@@ -110,7 +110,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testAuditIndexSettingsCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL, "Audit index output type removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html"
                     + "#remove-audit-index-output",
                 "recommended replacement is the logfile audit output type");
         assertSettingsAndIssue("xpack.security.audit.outputs", randomFrom("[index]", "[\"index\", \"logfile\"]"), expected);
@@ -132,7 +132,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testIndexThreadPoolCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Index thread pool removed in favor of combined write thread pool",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_index_thread_pool",
             "the write threadpool is now used for all writes");
         assertSettingsAndIssue("thread_pool.index.size", Integer.toString(randomIntBetween(1, 20000)), expected);
@@ -142,7 +142,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testBulkThreadPoolCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Bulk thread pool renamed to write thread pool",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#write-thread-pool-fallback",
             "the write threadpool is now used for all writes");
         assertSettingsAndIssue("thread_pool.bulk.size", Integer.toString(randomIntBetween(1, 20000)), expected);
@@ -152,21 +152,14 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testWatcherNotificationsSecureSettings() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Watcher notification accounts' authentication settings must be defined securely",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html"
                         + "#watcher-notifications-account-settings",
                 "account authentication settings must use the keystore");
         assertSettingsAndIssue("xpack.notification.email.account." + randomAlphaOfLength(4) + ".smtp.password", randomAlphaOfLength(4),
                 expected);
         expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Watcher notification accounts' authentication settings must be defined securely",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
-                        + "#watcher-notifications-account-settings",
-                "account authentication settings must use the keystore");
-        assertSettingsAndIssue("xpack.notification.hipchat.account." + randomAlphaOfLength(4) + ".auth_token", randomAlphaOfLength(4),
-                expected);
-        expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "Watcher notification accounts' authentication settings must be defined securely",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html"
                         + "#watcher-notifications-account-settings",
                 "account authentication settings must use the keystore");
         assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".url", randomAlphaOfLength(4), expected);
@@ -175,24 +168,34 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             randomAlphaOfLength(4), expected);
         expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Watcher notification accounts' authentication settings must be defined securely",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html"
                         + "#watcher-notifications-account-settings",
                 "account authentication settings must use the keystore");
         assertSettingsAndIssue("xpack.notification.pagerduty.account." + randomAlphaOfLength(4) + ".service_api_key",
                 randomAlphaOfLength(4), expected);
         expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Watcher notification accounts' authentication settings must be defined securely",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html"
                         + "#watcher-notifications-account-settings",
                 "account authentication settings must use the keystore");
         assertSettingsAndIssue("xpack.notification.slack.account." + randomAlphaOfLength(4) + ".url", randomAlphaOfLength(4), expected);
+    }
+
+    public void testWatcherHipchatSettings() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "Watcher Hipchat notifications will be removed in the next major release",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
+                "#watcher-notifications-account-settings",
+            "[hipchat] actions are deprecated and should be removed from watch definitions");
+        assertSettingsAndIssues(Settings.builder().put("xpack.notification.hipchat.account.profile", randomAlphaOfLength(4)).build(),
+            expected);
     }
 
     public void testTribeNodeCheck() {
         String tribeSetting = "tribe." + randomAlphaOfLengthBetween(1, 20) + ".cluster.name";
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Tribe Node removed in favor of Cross Cluster Search",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_tribe_node_removed",
             "tribe node functionality has been removed in favor of cross-cluster search");
         assertSettingsAndIssue(tribeSetting, randomAlphaOfLength(5), expected);
@@ -203,7 +206,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         String authRealmType = "xpack.security.authc.realms." + realm + ".type";
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Security realm settings structure changed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#include-realm-type-in-setting",
             "these settings must be updated to the new format while the node is offline during the upgrade to 7.0");
         assertSettingsAndIssue(authRealmType, randomAlphaOfLength(5), expected);
@@ -212,7 +215,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testHttpPipeliningCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "HTTP pipelining setting removed as pipelining is now mandatory",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#remove-http-pipelining-setting",
             "");
         assertSettingsAndIssue("http.pipelining", Boolean.toString(randomBoolean()), expected);
@@ -262,7 +265,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
             DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Discovery configuration is required in production mode",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                     "#_discovery_configuration_is_required_in_production",
                 "");
             List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS,
@@ -281,7 +284,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Azure Repository settings changed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_azure_repository_plugin",
             "see breaking changes list for details");
         assertSettingsAndIssue("foo", "bar", expected);
@@ -296,7 +299,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "GCS Repository settings changed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_google_cloud_storage_repository_plugin",
             "see breaking changes list for details");
         assertSettingsAndIssue("foo", "bar", expected);
@@ -311,7 +314,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "File-based discovery is no longer a plugin and uses a different path",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_file_based_discovery_plugin",
             "the location of the hosts file used for file-based discovery has changed to $ES_PATH_CONF/unicast_hosts.txt " +
                 "(from $ES_PATH_CONF/file-discovery/unicast_hosts.txt)");
@@ -321,7 +324,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testDefaultSSLSettingsCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Default TLS/SSL settings have been removed",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#tls-setting-fallback",
             "each component must have TLS/SSL configured explicitly");
         assertSettingsAndIssues(Settings.builder()
@@ -344,7 +347,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         DeprecationIssue[] expected = {
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "TLS v1.0 has been removed from default TLS/SSL protocols",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html#tls-v1-removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#tls-v1-removed",
                 "These ssl contexts rely on the default TLS/SSL protocols: [" +
                     "xpack.http.ssl, " +
                     "xpack.monitoring.exporters.ems.ssl, " +
@@ -352,7 +355,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     "xpack.security.authc.realms.ldap1.ssl]"),
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Security realm settings structure changed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                     "#include-realm-type-in-setting",
                 "these settings must be updated to the new format while the node is offline during the upgrade to 7.0")
         };
@@ -380,7 +383,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testTransportSslEnabledWithoutSecurityEnabled() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "TLS/SSL in use, but security not explicitly enabled",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#trial-explicit-security",
             "security should be explicitly enabled (with [xpack.security.enabled])," +
                 " it will no longer be automatically enabled when transport SSL is enabled ([xpack.security.transport.ssl.enabled])");

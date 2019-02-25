@@ -1,4 +1,80 @@
 
+[[release-notes-6.6.1]]
+== {es} version 6.6.1
+
+Also see <<breaking-changes-6.6, Breaking changes in 6.6>>.
+
+[[enhancement-6.6.1]]
+[float]
+=== Enhancements
+
+Machine Learning::
+* Add explanation so far to file structure finder exceptions {pull}38191[#38191]
+
+SQL::
+* Generate relevant error message when grouping functions are not used in GROUP BY {pull}38017[#38017] (issue: {issue}37952[#37952])
+* Skip the nested and object field types in case of an ODBC request {pull}37948[#37948] (issue: {issue}37801[#37801])
+* Describe aliases as views {pull}37496[#37496] (issue: {issue}37422[#37422])
+
+Security::
+* Cleanup construction of interceptors {pull}38294[#38294]
+
+[[bug-6.6.1]]
+[float]
+=== Bug fixes
+
+Audit::
+* Fix IndexAuditTrail rolling upgrade on rollover edge - take 2 {pull}38286[#38286] (issues: {issue}33867[#33867], {issue}37062[#37062])
+* Fix NPE in Logfile Audit Filter {pull}38120[#38120] (issue: {issue}38097[#38097])
+
+Authentication::
+* Enhance parsing of StatusCode in SAML Responses {pull}38628[#38628]
+* Fix expired token message in Exception header {pull}37196[#37196]
+
+CCR::
+* Do not set fatal exception when shard follow task is stopped. {pull}37603[#37603]
+
+Distributed::
+* Fix synchronization in LocalCheckpointTracker#contains {pull}38755[#38755]
+Features/ILM::
+* Preserve ILM operation mode when creating new lifecycles {pull}38134[#38134], {pull}38230[#38230])
+
+Features/Monitoring::
+* Allow built-in monitoring_user role to call GET _xpack API {pull}38060[#38060] (issue: {issue}37970[#37970])
+
+Geo::
+* Fix GeoHash PrefixTree BWC {pull}38584[#38584] (issue: {issue}38494[#38494])
+* Geo: Do not normalize the longitude with value -180 for Lucene shapes {pull}37299[#37299] (issue: {issue}37297[#37297])
+
+Machine Learning::
+* Fix error race condition on stop _all datafeeds and close _all jobs {pull}38113[#38113] (issue: {issue}37959[#37959])
+* Update ML results mappings on process start {pull}37706[#37706] (issue: {issue}37607[#37607])
+
+Network::
+* Reload SSL context on file change for LDAP {pull}36937[#36937] (issues: {issue}30509[#30509], {issue}36923[#36923])
+
+SQL::
+* Prevent grouping over grouping functions {pull}38649[#38649] (issue: {issue}38308[#38308])
+* Relax StackOverflow circuit breaker for constants {pull}38572[#38572] (issue: {issue}38571[#38571])
+* Fix issue with IN not resolving to underlying keyword field {pull}38440[#38440] (issue: {issue}38424[#38424])
+* Change the Intervals milliseconds precision to 3 digits {pull}38297[#38297] (issue: {issue}37423[#37423])
+* Added SSL configuration options tests {pull}37875[#37875] (issue: {issue}37711[#37711])
+* Fix casting from date to numeric type to use millis {pull}37869[#37869] (issue: {issue}37655[#37655])
+* Fix object extraction from sources {pull}37502[#37502] (issue: {issue}37364[#37364])
+* Fix bug regarding alias fields with dots {pull}37279[#37279] (issue: {issue}37224[#37224])
+* Fix issue with complex expression as args of PERCENTILE/_RANK {pull}37102[#37102] (issue: {issue}37099[#37099])
+
+Search::
+* Use executor `SAME` to handle search related handlers {pull}37427[#37427] (issues: {issue}33732[#33732], {issue}37392[#37392])
+
+Security::
+* Fix an improper permission issue when a new name is attached to an index. (CVE-2019-7611). See
+https://www.elastic.co/community/security[Security issues].
+* Fix potential NPE in UsersTool {pull}37660[#37660]
+
+ZenDiscovery::
+* Always return metadata version if metadata is requested {pull}37674[#37674]
+
 [[release-notes-6.6.0]]
 == {es} version 6.6.0
 
@@ -616,4 +692,3 @@ Scripting::
 
 Network::
 * Upgrade Netty 4.3.32.Final {pull}36102[#36102] (issue: {issue}35360[#35360])
-

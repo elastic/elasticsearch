@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -31,7 +30,7 @@ public class ClusterDeprecationChecks {
         if (nodeCount > 0 && currentOpenShards >= maxShardsInCluster) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Number of open shards exceeds cluster soft limit",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                     "#_cluster_wide_shard_soft_limit",
                 "There are [" + currentOpenShards + "] open shards in this cluster, but the cluster is limited to [" +
                     shardsPerNode + "] per data node, for [" + maxShardsInCluster + "] maximum.");
@@ -43,8 +42,8 @@ public class ClusterDeprecationChecks {
         if (state.metaData().settings().hasValue(NO_MASTER_BLOCK_SETTING.getKey())) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Master block setting will be renamed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
-                    "_new_name_for_literal_no_master_block_literal_setting",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
+                    "#_new_name_for_literal_no_master_block_literal_setting",
                 "The setting discovery.zen.no_master_block will be renamed to cluster.no_master_block in 7.0. " +
                     "Please unset discovery.zen.no_master_block and set cluster.no_master_block after upgrading to 7.0.");
         }
@@ -56,7 +55,7 @@ public class ClusterDeprecationChecks {
         if (clusterName.contains(":")) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Cluster name cannot contain ':'",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                     "#_literal_literal_is_no_longer_allowed_in_cluster_name",
                 "This cluster is named [" + clusterName + "], which contains the illegal character ':'.");
         }
@@ -78,8 +77,7 @@ public class ClusterDeprecationChecks {
                     .filter(Objects::nonNull)
                     .filter(processor -> processor.containsKey("user_agent"))
                     .map(processor -> processor.get("user_agent"))
-                    .anyMatch(processorConfig ->
-                        false == ConfigurationUtils.readBooleanProperty(null, null, processorConfig, "ecs", false));
+                    .anyMatch(processorConfig -> processorConfig.containsKey("ecs") == false);
             })
             .map(PipelineConfiguration::getId)
             .sorted() // Make the warning consistent for testing purposes
@@ -87,9 +85,9 @@ public class ClusterDeprecationChecks {
         if (pipelinesWithDeprecatedEcsConfig.isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "User-Agent ingest plugin will use ECS-formatted output",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                     "#ingest-user-agent-ecs-always",
-                "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig + " will change to using ECS output format in 7.0");
+                "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig + " will change to using ECS output format by default in 7.0");
         }
         return null;
 

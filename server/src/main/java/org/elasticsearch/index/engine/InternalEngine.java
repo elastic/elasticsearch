@@ -51,7 +51,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -76,7 +75,6 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
-import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
@@ -1020,6 +1018,7 @@ public class InternalEngine extends Engine {
                 }
             }
         }
+        markSeqNoAsSeen(index.seqNo());
         return plan;
     }
 
@@ -1387,6 +1386,7 @@ public class InternalEngine extends Engine {
                     delete.seqNo(), delete.version());
             }
         }
+        markSeqNoAsSeen(delete.seqNo());
         return plan;
     }
 
@@ -1541,6 +1541,7 @@ public class InternalEngine extends Engine {
     public NoOpResult noOp(final NoOp noOp) {
         NoOpResult noOpResult;
         try (ReleasableLock ignored = readLock.acquire()) {
+            markSeqNoAsSeen(noOp.seqNo());
             noOpResult = innerNoOp(noOp);
         } catch (final Exception e) {
             noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo(), e);
@@ -2430,13 +2431,7 @@ public class InternalEngine extends Engine {
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
                 if (softDeleteEnabled) {
-                    /*
-                     * We sample these from the policy (which occurs under a lock) to ensure that we have a consistent view of the minimum
-                     * retained sequence number, and the retention leases.
-                     */
-                    final Tuple<Long, RetentionLeases> retentionPolicy = softDeletesPolicy.getRetentionPolicy();
-                    commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(retentionPolicy.v1()));
-                    commitData.put(Engine.RETENTION_LEASES, RetentionLeases.encodeRetentionLeases(retentionPolicy.v2()));
+                    commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
                 }
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
@@ -2518,6 +2513,13 @@ public class InternalEngine extends Engine {
     @Override
     public void waitForOpsToComplete(long seqNo) throws InterruptedException {
         localCheckpointTracker.waitForOpsToComplete(seqNo);
+    }
+
+    /**
+     * Marks the given seq_no as seen and advances the max_seq_no of this engine to at least that value.
+     */
+    protected final void markSeqNoAsSeen(long seqNo) {
+        localCheckpointTracker.advanceMaxSeqNo(seqNo);
     }
 
     /**

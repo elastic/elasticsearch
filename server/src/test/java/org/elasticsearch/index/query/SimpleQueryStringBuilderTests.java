@@ -41,15 +41,20 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -753,5 +758,32 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .put(indexSettings)
             .build();
         return IndexMetaData.builder(name).settings(build).build();
+    }
+
+    public void testSerializationRandomVersion() throws IOException {
+        SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringBuilder("query").field("field");
+        Version version = VersionUtils.randomVersion(random());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(version);
+            queryBuilder.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry())) {
+                in.setVersion(version);
+                SimpleQueryStringBuilder deserializedQuery = new SimpleQueryStringBuilder(in);
+                assertNotSame(queryBuilder, deserializedQuery);
+                assertEquals("query", deserializedQuery.value());
+                assertEquals(1, deserializedQuery.fields().size());
+                assertEquals("field", deserializedQuery.fields().keySet().iterator().next());
+            }
+        }
+    }
+
+    public void testReadFrom_5_6() throws IOException {
+        String encodedQuery = "P4AAAAAFcXVlcnkAAAAA/////wAAAAAAAAIAAAAAAAA=";
+        byte[] bytes = Base64.getDecoder().decode(encodedQuery);
+        try (StreamInput in = StreamInput.wrap(bytes)) {
+            in.setVersion(Version.V_5_6_14);
+            SimpleQueryStringBuilder query = new SimpleQueryStringBuilder(in);
+            assertEquals("query", query.value());
+        }
     }
 }

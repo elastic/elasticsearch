@@ -4,7 +4,7 @@
 Returns information and statistics on terms in the fields of a particular
 document. The document could be stored in the index or artificially provided
 by the user. Term vectors are <<realtime,realtime>> by default, not near
-realtime. This can be changed by setting `realtime` parameter to `false`.
+realtime. This can be changed by setting the `realtime` parameter to `false`.
 
 [source,js]
 --------------------------------------------------
@@ -25,7 +25,7 @@ GET /twitter/_doc/1/_termvectors?fields=message
 
 or by adding the requested fields in the request body (see
 example below). Fields can also be specified with wildcards
-in similar way to the <<query-dsl-multi-match-query,multi match query>>
+in a similar way to the <<query-dsl-multi-match-query,multi match query>>
 
 [WARNING]
 Note that the usage of `/_termvector` is deprecated in 2.0, and replaced by `/_termvectors`.
@@ -33,7 +33,7 @@ Note that the usage of `/_termvector` is deprecated in 2.0, and replaced by `/_t
 [float]
 === Return values
 
-Three types of values can be requested: _term information_, _term statistics_
+Three types of values can be requested: _term information_, _term statistics_,
 and _field statistics_. By default, all term information and field
 statistics are returned for all fields but no term statistics.
 
@@ -124,7 +124,7 @@ from is randomly selected. Use `routing` only to hit a particular shard.
 [float]
 ==== Example: Returning stored term vectors
 
-First, we create an index that stores term vectors, payloads etc. :
+First, we create an index that stores term vectors, payloads, etc. :
 
 [source,js]
 --------------------------------------------------

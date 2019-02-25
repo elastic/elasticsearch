@@ -1581,13 +1581,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
             logger.debug("starting index commit [{}]", startingIndexCommit.getUserData());
             if (startingIndexCommit.equals(lastIndexCommitCommit) == false) {
-                /*
-                 * Unlike other commit tags, the retention-leases tag is not restored when an engine is
-                 * recovered from translog. We need to manually copy it from the last commit to the safe commit;
-                 * otherwise we might lose the latest committed retention leases when re-opening an engine.
-                 */
-                final Map<String, String> userData = new HashMap<>(startingIndexCommit.getUserData());
-                userData.put(Engine.RETENTION_LEASES, lastIndexCommitCommit.getUserData().getOrDefault(Engine.RETENTION_LEASES, ""));
                 try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, startingIndexCommit)) {
                     // this achieves two things:
                     // - by committing a new commit based on the starting commit, it make sure the starting commit will be opened
@@ -1598,7 +1591,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
                     // The new commit will use segment files from the starting commit but userData from the last commit by default.
                     // Thus, we need to manually set the userData from the starting commit to the new commit.
-                    writer.setLiveCommitData(userData.entrySet());
+                    writer.setLiveCommitData(startingIndexCommit.getUserData().entrySet());
                     writer.commit();
                 }
             }

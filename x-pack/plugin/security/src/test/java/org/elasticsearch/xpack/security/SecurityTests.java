@@ -122,6 +122,7 @@ public class SecurityTests extends ESTestCase {
         settings = Security.additionalSettings(settings, true, false);
         Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(false, null));
         allowedSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        allowedSettings.addAll(XPackSettings.getAllSettings());
         ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(threadPool.relativeTimeInMillis()).thenReturn(1L);

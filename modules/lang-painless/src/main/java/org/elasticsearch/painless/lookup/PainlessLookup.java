@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.lookup;
 
 import java.lang.invoke.MethodHandle;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -85,6 +86,18 @@ public final class PainlessLookup {
 
     public Set<Class<?>> getClasses() {
         return classesToPainlessClasses.keySet();
+    }
+
+    public Set<String> getImportedPainlessMethodsKeys() {
+        return painlessMethodKeysToImportedPainlessMethods.keySet();
+    }
+
+    public Set<String> getPainlessClassBindingsKeys() {
+        return painlessMethodKeysToPainlessClassBindings.keySet();
+    }
+
+    public Set<String> getPainlessInstanceBindingsKeys() {
+        return painlessMethodKeysToPainlessInstanceBindings.keySet();
     }
 
     public PainlessClass lookupPainlessClass(Class<?> targetClass) {

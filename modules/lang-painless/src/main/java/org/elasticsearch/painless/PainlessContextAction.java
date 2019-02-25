@@ -34,6 +34,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessClassBinding;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
+import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -54,6 +58,15 @@ import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+/**
+ * Internal REST API for querying context information about Painless whitelists.
+ * Commands include the following:
+ * <ul>
+ *     <li> GET /_scripts/painless/_context -- retrieves a list of contexts </li>
+ *     <li> GET /_scripts/painless/_context?context=%name% --
+ *     retrieves all available information about the API for this specific context</li>
+ * </ul>
+ */
 public class PainlessContextAction extends Action<PainlessContextAction.Response> {
 
     static final PainlessContextAction INSTANCE = new PainlessContextAction();
@@ -137,21 +150,136 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
                 List<Class<?>> sortedJavaClasses = new ArrayList<>(painlessLookup.getClasses());
                 sortedJavaClasses.sort(Comparator.comparing(Class::getCanonicalName));
 
-                builder.field("count", sortedJavaClasses.size());
-
                 for (Class<?> javaClass : sortedJavaClasses) {
                     PainlessClass painlessClass = painlessLookup.lookupPainlessClass(javaClass);
-                    builder.startObject(PainlessLookupUtility.typeToCanonicalTypeName(javaClass));
+                    builder.startObject("class");
+                    builder.field("name", PainlessLookupUtility.typeToCanonicalTypeName(javaClass));
 
-                    for (Map.Entry<String, PainlessMethod> painlessMethodEntry : painlessClass.methods.entrySet()) {
-                        builder.startObject("method");
-                        builder.field("target", painlessMethodEntry.getValue().targetClass.getCanonicalName());
-                        builder.field("name", painlessMethodEntry.getValue().javaMethod.getName());
-                        builder.field("return", painlessMethodEntry.getValue().returnType.getCanonicalName());
-                        builder.field("parameters", painlessMethodEntry.getValue().typeParameters);
+                    for (PainlessConstructor painlessConstructor : painlessClass.constructors.values()) {
+                        builder.startObject("constructor");
+                        builder.startArray("parameters");
+
+                        for (Class<?> typeParameter : painlessConstructor.typeParameters) {
+                            builder.value(PainlessLookupUtility.typeToCanonicalTypeName(typeParameter));
+                        }
+
+                        builder.endArray();
                         builder.endObject();
                     }
 
+                    for (PainlessMethod painlessMethod : painlessClass.staticMethods.values()) {
+                        builder.startObject("static_method");
+                        builder.field("name", painlessMethod.javaMethod.getName());
+                        builder.field("return", PainlessLookupUtility.typeToCanonicalTypeName(painlessMethod.returnType));
+                        builder.startArray("parameters");
+
+                        for (Class<?> typeParameter : painlessMethod.typeParameters) {
+                            builder.value(PainlessLookupUtility.typeToCanonicalTypeName(typeParameter));
+                        }
+
+                        builder.endArray();
+                        builder.endObject();
+                    }
+
+                    for (PainlessMethod painlessMethod : painlessClass.methods.values()) {
+                        builder.startObject("method");
+                        builder.field("target", PainlessLookupUtility.typeToCanonicalTypeName(painlessMethod.targetClass));
+                        builder.field("name", painlessMethod.javaMethod.getName());
+                        builder.field("return", PainlessLookupUtility.typeToCanonicalTypeName(painlessMethod.returnType));
+                        builder.startArray("parameters");
+
+                        for (Class<?> typeParameter : painlessMethod.typeParameters) {
+                            builder.value(PainlessLookupUtility.typeToCanonicalTypeName(typeParameter));
+                        }
+
+                        builder.endArray();
+                        builder.endObject();
+                    }
+
+                    for (PainlessField painlessField : painlessClass.staticFields.values()) {
+                        builder.startObject("static_field");
+                        builder.field("name", painlessField.javaField.getName());
+                        builder.field("type", PainlessLookupUtility.typeToCanonicalTypeName(painlessField.typeParameter));
+                        builder.endObject();
+                    }
+
+                    for (PainlessField painlessField : painlessClass.fields.values()) {
+                        builder.startObject("field");
+                        builder.field("name", painlessField.javaField.getName());
+                        builder.field("type", PainlessLookupUtility.typeToCanonicalTypeName(painlessField.typeParameter));
+                        builder.endObject();
+                    }
+
+                    builder.endObject();
+                }
+
+                List<String> importedPainlessMethodsKeys = new ArrayList<>(painlessLookup.getImportedPainlessMethodsKeys());
+                importedPainlessMethodsKeys.sort(String::compareTo);
+
+                for (String importedPainlessMethodKey : importedPainlessMethodsKeys) {
+                    String[] split = importedPainlessMethodKey.split("/");
+                    String importedPainlessMethodName = split[0];
+                    int importedPainlessMethodArity = Integer.parseInt(split[1]);
+                    PainlessMethod importedPainlessMethod =
+                            painlessLookup.lookupImportedPainlessMethod(importedPainlessMethodName, importedPainlessMethodArity);
+
+                    builder.startObject("imported_method");
+                    builder.field("target", PainlessLookupUtility.typeToCanonicalTypeName(importedPainlessMethod.targetClass));
+                    builder.field("name", importedPainlessMethod.javaMethod.getName());
+                    builder.field("return", PainlessLookupUtility.typeToCanonicalTypeName(importedPainlessMethod.returnType));
+                    builder.startArray("parameters");
+
+                    for (Class<?> typeParameter : importedPainlessMethod.typeParameters) {
+                        builder.value(PainlessLookupUtility.typeToCanonicalTypeName(typeParameter));
+                    }
+
+                    builder.endArray();
+                    builder.endObject();
+                }
+
+                List<String> painlessClassBindingsKeys = new ArrayList<>(painlessLookup.getPainlessClassBindingsKeys());
+                painlessClassBindingsKeys.sort(String::compareTo);
+
+                for (String painlessClassBindingKey : painlessClassBindingsKeys) {
+                    String[] split = painlessClassBindingKey.split("/");
+                    String painlessClassBindingMethodName = split[0];
+                    int painlessClassBindingMethodArity = Integer.parseInt(split[1]);
+                    PainlessClassBinding painlessClassBinding =
+                            painlessLookup.lookupPainlessClassBinding(painlessClassBindingMethodName, painlessClassBindingMethodArity);
+
+                    builder.startObject("class_binding");
+                    builder.field("name", painlessClassBindingMethodName);
+                    builder.field("return", PainlessLookupUtility.typeToCanonicalTypeName(painlessClassBinding.returnType));
+                    builder.startArray("parameters");
+
+                    for (Class<?> typeParameter : painlessClassBinding.typeParameters) {
+                        builder.value(PainlessLookupUtility.typeToCanonicalTypeName(typeParameter));
+                    }
+
+                    builder.endArray();
+                    builder.endObject();
+                }
+
+                List<String> painlessInstanceBindingsKeys = new ArrayList<>(painlessLookup.getPainlessInstanceBindingsKeys());
+                painlessClassBindingsKeys.sort(String::compareTo);
+
+                for (String painlessInstanceBindingKey : painlessInstanceBindingsKeys) {
+                    String[] split = painlessInstanceBindingKey.split("/");
+                    String painlessInstanceBindingMethodName = split[0];
+                    int painlessInstanceBindingMethodArity = Integer.parseInt(split[1]);
+                    PainlessInstanceBinding painlessInstanceBinding = painlessLookup.
+                            lookupPainlessInstanceBinding(painlessInstanceBindingMethodName, painlessInstanceBindingMethodArity);
+
+                    builder.startObject("instance_binding");
+                    builder.field("name", painlessInstanceBindingMethodName);
+                    builder.field("return", PainlessLookupUtility.typeToCanonicalTypeName(painlessInstanceBinding.returnType));
+                    builder.startArray("parameters");
+
+                    for (Class<?> typeParameter : painlessInstanceBinding.typeParameters) {
+                        builder.value(PainlessLookupUtility.typeToCanonicalTypeName(typeParameter));
+                    }
+
+                    builder.endArray();
                     builder.endObject();
                 }
             }

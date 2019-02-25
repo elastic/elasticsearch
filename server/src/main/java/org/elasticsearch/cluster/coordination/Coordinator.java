@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
@@ -99,6 +100,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final Settings settings;
     private final TransportService transportService;
     private final MasterService masterService;
+    private final AllocationService allocationService;
     private final JoinHelper joinHelper;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
@@ -127,7 +129,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private long maxTermSeen;
     private final Reconfigurator reconfigurator;
     private final ClusterBootstrapService clusterBootstrapService;
-    private final DiscoveryUpgradeService discoveryUpgradeService;
     private final LagDetector lagDetector;
     private final ClusterFormationFailureHelper clusterFormationFailureHelper;
 
@@ -144,6 +145,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.settings = settings;
         this.transportService = transportService;
         this.masterService = masterService;
+        this.allocationService = allocationService;
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
             this::getCurrentTerm, this::getStateForMasterService, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators);
@@ -169,8 +171,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
         this.clusterBootstrapService = new ClusterBootstrapService(settings, transportService, this::getFoundPeers,
             this::isInitialConfigurationSet, this::setInitialConfiguration);
-        this.discoveryUpgradeService = new DiscoveryUpgradeService(settings, transportService,
-            this::isInitialConfigurationSet, joinHelper, peerFinder::getFoundPeers, this::setInitialConfiguration);
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
             transportService::getLocalNode);
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
@@ -500,6 +500,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             method, getCurrentTerm(), mode, lastKnownLeader);
 
         if (mode != Mode.CANDIDATE) {
+            final Mode prevMode = mode;
             mode = Mode.CANDIDATE;
             cancelActivePublication("become candidate: " + method);
             joinAccumulator.close(mode);
@@ -508,16 +509,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             peerFinder.activate(coordinationState.get().getLastAcceptedState().nodes());
             clusterFormationFailureHelper.start();
 
-            if (getCurrentTerm() == ZEN1_BWC_TERM) {
-                discoveryUpgradeService.activate(lastKnownLeader, coordinationState.get().getLastAcceptedState());
-            }
-
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
             leaderChecker.updateLeader(null);
 
             followersChecker.clearCurrentNodes();
             followersChecker.updateFastResponseState(getCurrentTerm(), mode);
             lagDetector.clearTrackedNodes();
+
+            if (prevMode == Mode.LEADER) {
+                cleanMasterService();
+            }
 
             if (applierState.nodes().getMasterNodeId() != null) {
                 applierState = clusterStateWithNoMasterBlock(applierState);
@@ -543,7 +544,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         lastKnownLeader = Optional.of(getLocalNode());
         peerFinder.deactivate(getLocalNode());
-        discoveryUpgradeService.deactivate();
         clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
@@ -555,6 +555,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     void becomeFollower(String method, DiscoveryNode leaderNode) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert leaderNode.isMasterNode() : leaderNode + " became a leader but is not master-eligible";
+        assert mode != Mode.LEADER : "do not switch to follower from leader (should be candidate first)";
 
         if (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) {
             logger.trace("{}: coordinator remaining FOLLOWER of [{}] in term {}",
@@ -575,7 +576,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         lastKnownLeader = Optional.of(leaderNode);
         peerFinder.deactivate(leaderNode);
-        discoveryUpgradeService.deactivate();
         clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         cancelActivePublication("become follower: " + method);
@@ -588,6 +588,26 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         followersChecker.clearCurrentNodes();
         followersChecker.updateFastResponseState(getCurrentTerm(), mode);
         lagDetector.clearTrackedNodes();
+    }
+
+    private void cleanMasterService() {
+        masterService.submitStateUpdateTask("clean-up after stepping down as master",
+            new LocalClusterUpdateTask() {
+                @Override
+                public void onFailure(String source, Exception e) {
+                    // ignore
+                    logger.trace("failed to clean-up after stepping down as master", e);
+                }
+
+                @Override
+                public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+                    if (currentState.nodes().isLocalNodeElectedMaster() == false) {
+                        allocationService.cleanCaches();
+                    }
+                    return unchanged();
+                }
+
+            });
     }
 
     private PreVoteResponse getPreVoteResponse() {

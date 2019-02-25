@@ -16,6 +16,8 @@ the field mapping.
 NOTE: It is mandatory to provide a context when indexing and querying
       a context enabled completion field.
 
+NOTE: The maximum allowed number of completion field context mappings is 10.
+
 The following defines types, each with two context mappings for a completion
 field:
 

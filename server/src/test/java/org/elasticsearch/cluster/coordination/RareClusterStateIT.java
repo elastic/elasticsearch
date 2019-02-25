@@ -146,7 +146,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
     private <Req extends ActionRequest, Res extends ActionResponse> ActionFuture<Res> executeAndCancelCommittedPublication(
             ActionRequestBuilder<Req, Res> req) throws Exception {
         ActionFuture<Res> future = req.execute();
-        assertBusy(() -> assertTrue(((Coordinator)internalCluster().getMasterNodeInstance(Discovery.class)).cancelCommittedPublication()));
+        assertBusy(
+            () -> assertTrue(((Coordinator)internalCluster().getCurrentMasterNodeInstance(Discovery.class)).cancelCommittedPublication()));
         return future;
     }
 

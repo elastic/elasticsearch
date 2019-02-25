@@ -274,6 +274,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final ActionListener<RetentionLeaseActions.Response> listener = ActionListener.wrap(
                         r -> {},
                         e -> {
+                            /*
+                             * We have to guard against the possibility that the shard follow node task has been stopped and the retention
+                             * lease deliberately removed via the act of unfollowing. Note that the order of operations is important in
+                             * TransportUnfollowAction. There, we first stop the shard follow node task, and then remove the retention
+                             * leases on the leader. This means that if we end up here with the retention lease not existing because of an
+                             * unfollow action, then we know that the unfollow action has already stopped the shard follow node task and
+                             * there is no race condition with the unfollow action.
+                             */
                             if (isCancelled() || isCompleted()) {
                                 return;
                             }

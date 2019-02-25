@@ -42,10 +42,17 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
@@ -54,6 +61,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
@@ -101,6 +109,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
@@ -109,6 +118,7 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -143,6 +153,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -197,7 +208,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final String index = "test";
 
         final int shards = randomIntBetween(1, 10);
-
+        final int documents = randomIntBetween(0, 100);
         TestClusterNode masterNode =
             testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
         final AtomicBoolean createdSnapshot = new AtomicBoolean();
@@ -209,8 +220,24 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL)
                             .settings(defaultIndexSettings(shards)),
                         assertNoFailureListener(
-                            () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-                                .execute(assertNoFailureListener(() -> createdSnapshot.set(true)))))));
+                            () -> {
+                                final AtomicInteger countdown = new AtomicInteger(documents);
+                                for (int i = 0; i < documents; ++i) {
+                                    masterNode.client.bulk(
+                                        new BulkRequest().add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i))),
+                                        assertNoFailureListener(
+                                            () -> {
+                                                if (countdown.decrementAndGet() == 0) {
+                                                    masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                                                        .execute(assertNoFailureListener(() -> createdSnapshot.set(true)));
+                                                }
+                                            }));
+                                }
+                                if (documents == 0) {
+                                    masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                                        .execute(assertNoFailureListener(() -> createdSnapshot.set(true)));
+                                }
+                            }))));
 
         deterministicTaskQueue.runAllRunnableTasks();
 
@@ -915,6 +942,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         allocationService, new AliasValidator(), environment, indexScopedSettings,
                         threadPool, namedXContentRegistry, false),
                     actionFilters, indexNameExpressionResolver
+                ));
+            final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
+            final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
+                 clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService), actionFilters,
+                indexNameExpressionResolver);
+            actions.put(BulkAction.INSTANCE,
+                new TransportBulkAction(threadPool, transportService, clusterService,
+                    new IngestService(
+                        clusterService, threadPool, environment, scriptService,
+                        new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
+                        Collections.emptyList()),
+                    transportShardBulkAction, client, actionFilters, indexNameExpressionResolver,
+                    new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver)
                 ));
             actions.put(PutRepositoryAction.INSTANCE,
                 new TransportPutRepositoryAction(

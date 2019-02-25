@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsActio
 import org.elasticsearch.xpack.dataframe.persistence.DataFramePersistentTaskUtils;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -42,9 +44,9 @@ import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction;
@@ -78,7 +80,18 @@ import org.elasticsearch.xpack.indexlifecycle.action.TransportRemoveIndexLifecyc
 import org.elasticsearch.xpack.indexlifecycle.action.TransportRetryAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportStartILMAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportStopILMAction;
+import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleService;
+import org.elasticsearch.xpack.snapshotlifecycle.action.DeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.GetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.RestDeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.RestGetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.RestPutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.TransportDeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.TransportGetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.TransportPutSnapshotLifecycleAction;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -91,6 +104,7 @@ import static java.util.Collections.emptyList;
 
 public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
+    private final SetOnce<SnapshotLifecycleService> snapshotLifecycleService = new SetOnce<>();
     private Settings settings;
     private boolean enabled;
     private boolean transportClientMode;
@@ -137,12 +151,13 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         }
         indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
                 getClock(), System::currentTimeMillis, xContentRegistry));
-        return Collections.singletonList(indexLifecycleInitialisationService.get());
+        snapshotLifecycleService.set(new SnapshotLifecycleService(settings, client, clusterService, getClock()));
+        return Arrays.asList(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get());
     }
 
     @Override
     public List<Entry> getNamedWriteables() {
-        return Arrays.asList();
+        return Collections.emptyList();
     }
 
     @Override
@@ -184,7 +199,11 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new RestRetryAction(settings, restController),
                 new RestStopAction(settings, restController),
                 new RestStartILMAction(settings, restController),
-                new RestGetStatusAction(settings, restController)
+                new RestGetStatusAction(settings, restController),
+                // Snapshot lifecycle actions
+                new RestPutSnapshotLifecycleAction(settings, restController),
+                new RestDeleteSnapshotLifecycleAction(settings, restController),
+                new RestGetSnapshotLifecycleAction(settings, restController)
             );
     }
 
@@ -203,14 +222,19 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new ActionHandler<>(RetryAction.INSTANCE, TransportRetryAction.class),
                 new ActionHandler<>(StartILMAction.INSTANCE, TransportStartILMAction.class),
                 new ActionHandler<>(StopILMAction.INSTANCE, TransportStopILMAction.class),
-                new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class));
+                new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
+                // Snapshot lifecycle actions
+                new ActionHandler<>(PutSnapshotLifecycleAction.INSTANCE, TransportPutSnapshotLifecycleAction.class),
+                new ActionHandler<>(DeleteSnapshotLifecycleAction.INSTANCE, TransportDeleteSnapshotLifecycleAction.class),
+                new ActionHandler<>(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class));
     }
 
     @Override
     public void close() {
-        IndexLifecycleService lifecycleService = indexLifecycleInitialisationService.get();
-        if (lifecycleService != null) {
-            lifecycleService.close();
+        try {
+            IOUtils.close(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get());
+        } catch (IOException e) {
+            throw new ElasticsearchException("unable to close index lifecycle services", e);
         }
     }
 }

@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -134,6 +135,10 @@ public class SchedulerEngine {
             logger.warn("interrupted while waiting for scheduler engine termination");
             Thread.currentThread().interrupt();
         }
+    }
+
+    public Set<String> scheduledJobIds() {
+        return schedules.keySet();
     }
 
     public void add(Job job) {

@@ -945,8 +945,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 ));
             final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
             final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
-                 clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService), actionFilters,
-                indexNameExpressionResolver);
+                 clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
+                actionFilters, indexNameExpressionResolver);
             actions.put(BulkAction.INSTANCE,
                 new TransportBulkAction(threadPool, transportService, clusterService,
                     new IngestService(

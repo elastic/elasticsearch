@@ -15,15 +15,12 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.action.document.RestGetAction;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;

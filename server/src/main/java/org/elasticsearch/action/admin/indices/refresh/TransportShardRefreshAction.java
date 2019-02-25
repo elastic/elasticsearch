@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -53,10 +54,11 @@ public class TransportShardRefreshAction
     }
 
     @Override
-    protected PrimaryResult shardOperationOnPrimary(BasicReplicationRequest shardRequest, IndexShard primary) {
+    protected void shardOperationOnPrimary(BasicReplicationRequest shardRequest, IndexShard primary,
+        ActionListener<PrimaryResult<BasicReplicationRequest, ReplicationResponse>> listener) {
         primary.refresh("api");
         logger.trace("{} refresh request executed on primary", primary.shardId());
-        return new PrimaryResult(shardRequest, new ReplicationResponse());
+        listener.onResponse(new PrimaryResult(shardRequest, new ReplicationResponse()));
     }
 
     @Override

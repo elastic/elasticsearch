@@ -684,16 +684,24 @@ public class TransportReplicationActionTests extends ESTestCase {
         };
         TestAction.PrimaryShardReference primary = action.new PrimaryShardReference(shard, releasable);
         final Request request = new Request();
-        Request replicaRequest = (Request) primary.perform(request).replicaRequest;
+        primary.perform(request, new ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>>() {
+            @Override
+            public void onResponse(final TransportReplicationAction.PrimaryResult<Request, TestResponse> requestTestResponsePrimaryResult) {
+                final ElasticsearchException exception = new ElasticsearchException("testing");
+                primary.failShard("test", exception);
 
-        final ElasticsearchException exception = new ElasticsearchException("testing");
-        primary.failShard("test", exception);
+                verify(shard).failShard("test", exception);
 
-        verify(shard).failShard("test", exception);
+                primary.close();
 
-        primary.close();
+                assertTrue(closed.get());
+            }
 
-        assertTrue(closed.get());
+            @Override
+            public void onFailure(final Exception e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 
     public void testReplicaProxy() throws InterruptedException, ExecutionException {
@@ -1223,10 +1231,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected PrimaryResult shardOperationOnPrimary(Request shardRequest, IndexShard primary) throws Exception {
+        protected void shardOperationOnPrimary(Request shardRequest, IndexShard primary,
+                ActionListener<PrimaryResult<Request, TestResponse>> listener) {
             boolean executedBefore = shardRequest.processedOnPrimary.getAndSet(true);
             assert executedBefore == false : "request has already been executed on the primary";
-            return new PrimaryResult(shardRequest, new TestResponse());
+            listener.onResponse(new PrimaryResult(shardRequest, new TestResponse()));
         }
 
         @Override

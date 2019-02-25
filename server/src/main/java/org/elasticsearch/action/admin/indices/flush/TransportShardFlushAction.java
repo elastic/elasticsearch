@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -51,11 +52,11 @@ public class TransportShardFlushAction
     }
 
     @Override
-    protected PrimaryResult<ShardFlushRequest, ReplicationResponse> shardOperationOnPrimary(ShardFlushRequest shardRequest,
-            IndexShard primary) {
+    protected void shardOperationOnPrimary(ShardFlushRequest shardRequest, IndexShard primary,
+            ActionListener<PrimaryResult<ShardFlushRequest, ReplicationResponse>> listener) {
         primary.flush(shardRequest.getRequest());
         logger.trace("{} flush request executed on primary", primary.shardId());
-        return new PrimaryResult<ShardFlushRequest, ReplicationResponse>(shardRequest, new ReplicationResponse());
+        listener.onResponse(new PrimaryResult<>(shardRequest, new ReplicationResponse()));
     }
 
     @Override

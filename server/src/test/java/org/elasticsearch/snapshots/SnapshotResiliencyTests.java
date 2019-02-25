@@ -290,6 +290,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         deterministicTaskQueue.runAllRunnableTasks();
 
+        runUntil(
+            () -> createdSnapshot.get() && snapshotRestored.get() && documentCountVerified.get(), TimeUnit.MINUTES.toMillis(1L));
         assertTrue(createdSnapshot.get());
         assertTrue(snapshotRestored.get());
         assertTrue(documentCountVerified.get());

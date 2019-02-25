@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -133,14 +134,35 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         threadPool = null;
     }
 
-    private void executeOnPrimaryOrReplica() throws Exception {
+    private void executeOnPrimaryOrReplica() {
         final TaskId taskId = new TaskId("_node_id", randomNonNegativeLong());
         final TransportVerifyShardBeforeCloseAction.ShardRequest request =
             new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, taskId);
+
         if (randomBoolean()) {
-            assertNotNull(action.shardOperationOnPrimary(request, indexShard));
+            action.shardOperationOnPrimary(request, indexShard, new ActionListener<TransportReplicationAction.PrimaryResult<TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse>>() {
+                @Override
+                public void onResponse(final TransportReplicationAction.PrimaryResult<TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse> shardRequestReplicationResponsePrimaryResult) {
+                    assertNotNull(shardRequestReplicationResponsePrimaryResult);
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
         } else {
-            assertNotNull(action.shardOperationOnPrimary(request, indexShard));
+            action.shardOperationOnPrimary(request, indexShard, new ActionListener<TransportReplicationAction.PrimaryResult<TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse>>() {
+                @Override
+                public void onResponse(final TransportReplicationAction.PrimaryResult<TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse> shardRequestReplicationResponsePrimaryResult) {
+                    assertNotNull(shardRequestReplicationResponsePrimaryResult);
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
         }
     }
 
@@ -271,8 +293,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
                         }
 
                         @Override
-                        public PrimaryResult perform(TransportVerifyShardBeforeCloseAction.ShardRequest request) throws Exception {
-                            return new PrimaryResult(request);
+                        public void perform(TransportVerifyShardBeforeCloseAction.ShardRequest request, ActionListener<PrimaryResult> listener) {
+                            listener.onResponse(new PrimaryResult(request));
                         }
 
                         @Override

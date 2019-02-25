@@ -268,22 +268,18 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return false;
     }
 
-    protected long docCount(String index, String type, QueryBuilder query) {
+    protected long docCount(String index, QueryBuilder query) {
         refresh();
-        return docCount(index, type, SearchSourceBuilder.searchSource().query(query));
+        return docCount(index, SearchSourceBuilder.searchSource().query(query));
     }
 
     protected long watchRecordCount(QueryBuilder query) {
         refresh();
-        return docCount(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*",
-                HistoryStore.DOC_TYPE, SearchSourceBuilder.searchSource().query(query));
+        return docCount(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*", SearchSourceBuilder.searchSource().query(query));
     }
 
-    protected long docCount(String index, String type, SearchSourceBuilder source) {
+    protected long docCount(String index, SearchSourceBuilder source) {
         SearchRequestBuilder builder = client().prepareSearch(index).setSource(source).setSize(0);
-        if (type != null) {
-            builder.setTypes(type);
-        }
         return builder.get().getHits().getTotalHits().value;
     }
 
@@ -360,7 +356,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected SearchResponse searchWatchRecords(Consumer<SearchRequestBuilder> requestBuilderCallback) {
         SearchRequestBuilder builder =
-                client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setTypes(HistoryStore.DOC_TYPE);
+                client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*");
         requestBuilderCallback.accept(builder);
         return builder.get();
     }

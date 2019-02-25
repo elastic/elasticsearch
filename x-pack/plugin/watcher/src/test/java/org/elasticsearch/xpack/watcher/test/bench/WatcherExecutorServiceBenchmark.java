@@ -129,7 +129,7 @@ public class WatcherExecutorServiceBenchmark {
                         .input(searchInput(templateRequest(new SearchSourceBuilder(), "test"))
                                 .extractKeys("hits.total.value"))
                         .condition(new ScriptCondition(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 == 1", emptyMap())))
-                        .addAction("_id", indexAction("index", "type")).buildAsBytes(XContentType.JSON), XContentType.JSON);
+                        .addAction("_id", indexAction("index")).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();
             }

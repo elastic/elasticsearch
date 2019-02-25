@@ -108,7 +108,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     public void testPreIndexCheckIndex() throws Exception {
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(shardId.getIndexName()).thenReturn(randomAlphaOfLength(10));
 
         Engine.Index index = listener.preIndex(shardId, operation);
@@ -118,7 +117,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     public void testPreIndexCheckActive() throws Exception {
         listener.setConfiguration(INACTIVE);
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         Engine.Index index = listener.preIndex(shardId, operation);
@@ -127,7 +125,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     public void testPreIndex() throws Exception {
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(operation.id()).thenReturn(randomAlphaOfLength(10));
         when(operation.source()).thenReturn(BytesArray.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
@@ -161,7 +158,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         Watch watch = mockWatch(id, watchActive, isNewWatch);
 
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenReturn(watch);
 
         for (int idx = 0; idx < totalShardCount; idx++) {
@@ -202,7 +198,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     public void testPreIndexCheckParsingException() throws Exception {
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
         String id = randomAlphaOfLength(10);
         when(operation.id()).thenReturn(id);
         when(operation.source()).thenReturn(BytesArray.EMPTY);
@@ -218,7 +213,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     public void testPostIndexRemoveTriggerOnException() throws Exception {
         when(operation.id()).thenReturn("_id");
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
@@ -227,7 +221,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     public void testPostIndexDontInvokeForOtherDocuments() throws Exception {
         when(operation.id()).thenReturn("_id");
-        when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(shardId.getIndexName()).thenReturn("anything");
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
@@ -261,7 +254,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     public void testPreDelete() throws Exception {
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-        when(delete.type()).thenReturn(Watch.DOC_TYPE);
         when(delete.id()).thenReturn("_id");
 
         listener.preDelete(shardId, delete);

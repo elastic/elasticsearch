@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
@@ -51,6 +50,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 // TODO: make this a real unit test
 public class DocumentParserTests extends ESSingleNodeTestCase {
@@ -1443,7 +1443,8 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         MapperParsingException err = expectThrows(MapperParsingException.class, () ->
                 client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get());
-        assertThat(ExceptionsHelper.detailedMessage(err), containsString("field name cannot be an empty string"));
+        assertThat(err.getCause(), notNullValue());
+        assertThat(err.getCause().getMessage(), containsString("field name cannot be an empty string"));
 
         final BytesReference bytes2 = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
@@ -1454,7 +1455,8 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         err = expectThrows(MapperParsingException.class, () ->
                 client().prepareIndex("idx", "type").setSource(bytes2, XContentType.JSON).get());
-        assertThat(ExceptionsHelper.detailedMessage(err), containsString("field name cannot be an empty string"));
+        assertThat(err.getCause(), notNullValue());
+        assertThat(err.getCause().getMessage(), containsString("field name cannot be an empty string"));
     }
 
     public void testWriteToFieldAlias() throws Exception {

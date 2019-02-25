@@ -304,12 +304,6 @@ public class HoltWintersModel extends MovAvgModel {
             double gamma = parseDoubleParam(settings, "gamma", DEFAULT_GAMMA);
             int period = parseIntegerParam(settings, "period", DEFAULT_PERIOD);
 
-            if (windowSize < 2 * period) {
-                throw new ParseException("Field [window] must be at least twice as large as the period when " +
-                        "using Holt-Winters.  Value provided was [" + windowSize + "], which is less than (2*period) == "
-                        + (2 * period), 0);
-            }
-
             SeasonalityType seasonalityType = DEFAULT_SEASONALITY_TYPE;
 
             if (settings != null) {
@@ -331,6 +325,21 @@ public class HoltWintersModel extends MovAvgModel {
             return new HoltWintersModel(alpha, beta, gamma, period, seasonalityType, pad);
         }
     };
+
+    /**
+     * If the model is a HoltWinters, we need to ensure the window and period are compatible.
+     * This is verified in the XContent parsing, but transport clients need these checks since they
+     * skirt XContent parsing
+     */
+    @Override
+    protected void validate(long window, String aggregationName) {
+        super.validate(window, aggregationName);
+        if (window < 2 * period) {
+            throw new IllegalArgumentException("Field [window] must be at least twice as large as the period when " +
+                "using Holt-Winters.  Value provided was [" + window + "], which is less than (2*period) == "
+                + (2 * period));
+        }
+    }
 
     @Override
     public int hashCode() {

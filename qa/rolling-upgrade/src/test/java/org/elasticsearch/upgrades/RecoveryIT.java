@@ -439,7 +439,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final Map<String, ?> routingTable = (Map<String, Object>) XContentMapValues.extractValue("routing_table.indices." + index, state);
         if (checkRoutingTable) {
             assertThat(routingTable, notNullValue());
-            assertThat(Booleans.parseBoolean((String) XContentMapValues.extractValue("index.closed", settings)), is(true));
+            assertThat(Booleans.parseBoolean((String) XContentMapValues.extractValue("index.verified_before_close", settings)), is(true));
 
             for (int i = 0; i < numberOfShards; i++) {
                 final Collection<Map<String, ?>> shards =

@@ -373,6 +373,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String leaderIndexSettings =
                 getIndexSettings(numberOfShards, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
+        ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
@@ -464,6 +465,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String leaderIndexSettings =
                 getIndexSettings(numberOfShards, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
+        ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
@@ -538,6 +540,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 TimeValue.timeValueMillis(200).getStringRep());
         final String leaderIndexSettings = getIndexSettings(numberOfShards, numberOfReplicas, additionalIndexSettings);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
+        ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
@@ -557,6 +560,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 TimeValue.timeValueMillis(200).getStringRep());
         final String leaderIndexSettings = getIndexSettings(numberOfShards, numberOfReplicas, additionalIndexSettings);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
+        ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
@@ -618,6 +622,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 TimeValue.timeValueMillis(200).getStringRep());
         final String leaderIndexSettings = getIndexSettings(numberOfShards, numberOfReplicas, additionalIndexSettings);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
+        ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
@@ -719,6 +724,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 TimeValue.timeValueMillis(200).getStringRep());
         final String leaderIndexSettings = getIndexSettings(numberOfShards, numberOfReplicas, additionalIndexSettings);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
+        ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
@@ -745,6 +751,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 TimeValue.timeValueMillis(200).getStringRep());
         final String leaderIndexSettings = getIndexSettings(numberOfShards, numberOfReplicas, additionalIndexSettings);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
+        ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
@@ -832,6 +839,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 TimeValue.timeValueMillis(200).getStringRep());
         final String leaderIndexSettings = getIndexSettings(numberOfShards, numberOfReplicas, additionalIndexSettings);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
+        ensureLeaderYellow(leaderIndex);
         final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
@@ -865,6 +873,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                                             final RetentionLeaseNotFoundException e = new RetentionLeaseNotFoundException(retentionLeaseId);
                                             context.handler().handleException(new RemoteTransportException(e.getMessage(), e));
                                             responseLatch.countDown();
+                                            senderTransportService.transport().removeMessageListener(this);
                                         }
                                     }
 

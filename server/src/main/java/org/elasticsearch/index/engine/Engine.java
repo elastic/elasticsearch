@@ -809,14 +809,6 @@ public abstract class Engine implements Closeable {
     public abstract long getLocalCheckpoint();
 
     /**
-     * Waits for all operations up to the provided sequence number to complete.
-     *
-     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
-     * @throws InterruptedException if the thread was interrupted while blocking on the condition
-     */
-    public abstract void waitForOpsToComplete(long seqNo) throws InterruptedException;
-
-    /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
      */
     public abstract SeqNoStats getSeqNoStats(long globalCheckpoint);

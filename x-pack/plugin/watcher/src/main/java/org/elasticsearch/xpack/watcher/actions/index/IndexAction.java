@@ -46,9 +46,7 @@ public class IndexAction implements Action {
         this(index, null, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
     }
     /**
-     * Document types are deprecated, use {@link #IndexAction(java.lang.String, java.lang.String,
-     * java.lang.String, org.elasticsearch.common.unit.TimeValue, java.time.ZoneId,
-     * org.elasticsearch.action.support.WriteRequest.RefreshPolicy))}
+     * Document types are deprecated, use constructor without docType
      */
     @Deprecated
     public IndexAction(@Nullable String index, @Nullable String docType, @Nullable String docId,

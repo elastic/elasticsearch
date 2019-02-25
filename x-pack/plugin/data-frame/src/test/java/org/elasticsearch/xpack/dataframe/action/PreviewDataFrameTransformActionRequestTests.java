@@ -63,7 +63,7 @@ public class PreviewDataFrameTransformActionRequestTests extends AbstractStreama
     @Override
     protected Request createTestInstance() {
         DataFrameTransformConfig config = new DataFrameTransformConfig("transform-preview", randomAlphaOfLength(10),
-            "unused-transform-preview-index", QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+                "unused-transform-preview-index", null, QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
         return new Request(config);
     }
 

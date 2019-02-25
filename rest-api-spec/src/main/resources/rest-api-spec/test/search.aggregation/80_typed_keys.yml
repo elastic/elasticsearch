@@ -234,5 +234,5 @@ setup:
   - is_true: aggregations.date_histogram#test_created_histogram
   - is_true: aggregations.date_histogram#test_created_histogram.buckets.0.sum#test_sum
   - is_true: aggregations.date_histogram#test_created_histogram.buckets.1.sum#test_sum
-  - is_true: aggregations.date_histogram#test_created_histogram.buckets.1.simple_value#test_deriv
+  - is_true: aggregations.date_histogram#test_created_histogram.buckets.1.derivative#test_deriv
   - is_true: aggregations.bucket_metric_value#test_max_bucket

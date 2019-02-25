@@ -454,6 +454,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             }
         } else {
             assertThat(routingTable, nullValue());
+            assertThat(XContentMapValues.extractValue("index.verified_before_close", settings), nullValue());
         }
     }
 }

@@ -1024,7 +1024,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         final Map<String, ?> routingTable = (Map<String, Object>) XContentMapValues.extractValue("routing_table.indices." + index, state);
         if (checkRoutingTable) {
             assertThat(routingTable, notNullValue());
-            assertThat(Booleans.parseBoolean((String) XContentMapValues.extractValue("index.closed", settings)), is(true));
+            assertThat(Booleans.parseBoolean((String) XContentMapValues.extractValue("index.verified_before_close", settings)), is(true));
             final String numberOfShards = (String) XContentMapValues.extractValue("index.number_of_shards", settings);
             assertThat(numberOfShards, notNullValue());
             final int nbShards = Integer.parseInt(numberOfShards);
@@ -1043,7 +1043,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
         } else {
             assertThat(routingTable, nullValue());
-            assertThat(XContentMapValues.extractValue("index.closed", settings), nullValue());
+            assertThat(XContentMapValues.extractValue("index.verified_before_close", settings), nullValue());
         }
     }
 

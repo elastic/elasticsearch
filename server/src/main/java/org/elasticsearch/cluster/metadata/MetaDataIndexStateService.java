@@ -575,6 +575,7 @@ public class MetaDataIndexStateService {
 
     public static boolean isIndexVerifiedBeforeClosed(final IndexMetaData indexMetaData) {
         return indexMetaData.getState() == IndexMetaData.State.CLOSE
-            && indexMetaData.getSettings().getAsBoolean(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), false);
+            && VERIFIED_BEFORE_CLOSE_SETTING.exists(indexMetaData.getSettings())
+            && VERIFIED_BEFORE_CLOSE_SETTING.get(indexMetaData.getSettings());
     }
 }

@@ -781,7 +781,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         // now try and seekExact with it
         TermsEnum badEnum = terms.iterator();
         expectThrows(IllegalStateException.class, () -> badEnum.seekExact(new BytesRef("fieldB"), termState));
-        
+
         // seekCeil
         termsEnum = terms.iterator();
         assertEquals(SeekStatus.FOUND, termsEnum.seekCeil(new BytesRef("fieldA")));

@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.lookup;
 
 import java.lang.invoke.MethodHandle;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;

@@ -126,6 +126,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     protected PrimaryResult<Request, ReplicationResponse> shardOperationOnPrimary(
             final Request request,
             final IndexShard primary) throws WriteStateException {
+        assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
         Objects.requireNonNull(request);
         Objects.requireNonNull(primary);
         primary.persistRetentionLeases();
@@ -156,6 +157,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         public Request(final ShardId shardId, final RetentionLeases retentionLeases) {
             super(Objects.requireNonNull(shardId));
             this.retentionLeases = Objects.requireNonNull(retentionLeases);
+            waitForActiveShards(ActiveShardCount.NONE);
         }
 
         @Override

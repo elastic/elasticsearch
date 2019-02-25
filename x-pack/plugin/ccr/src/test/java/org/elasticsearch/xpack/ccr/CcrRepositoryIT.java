@@ -358,6 +358,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getKey(),
                 defaultValue));
             assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+            // This test sets individual action timeouts low to attempt to replicated timeouts. Although the
+            // clear session action is not blocked, it is possible that it will still occasionally timeout.
+            // By wiping the leader index here, we ensure we do not trigger the index commit hanging around
+            // assertion because the commit is released when the index shard is closed.
+            getLeaderCluster().wipeIndices(leaderIndex);
         }
     }
 

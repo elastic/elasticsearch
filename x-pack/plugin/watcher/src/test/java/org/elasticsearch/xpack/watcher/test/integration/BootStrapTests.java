@@ -80,7 +80,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         ExecutableCondition condition = InternalAlwaysCondition.INSTANCE;
         String index = HistoryStoreField.getHistoryIndexNameForTime(now);
-        client().prepareIndex().setId(index).setId(wid.value())
+        client().prepareIndex().setIndex(index).setId(wid.value())
                 .setSource(jsonBuilder().startObject()
                         .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
                         .field(event.type(), event)
@@ -173,7 +173,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
     public void testMixedTriggeredWatchLoading() throws Exception {
         createIndex("output");
-        client().prepareIndex("my-index", "foo", "bar")
+        client().prepareIndex().setIndex("my-index").setId("bar")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setSource("field", "value").get();
 
@@ -223,7 +223,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29846")
     public void testTriggeredWatchLoading() throws Exception {
         createIndex("output");
-        client().prepareIndex("my-index", "foo", "bar")
+        client().prepareIndex().setIndex("my-index").setId("bar")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setSource("field", "value").get();
 

@@ -6,10 +6,10 @@
     "index.number_of_replicas": 0,
     "index.auto_expand_replicas": "0-1",
     "index.lifecycle.name": "watch-history-ilm-policy",
-    "index.format": 6
+    "index.format": 7
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "_meta": {
         "watcher-history-version": "${xpack.watcher.template.version}"
       },

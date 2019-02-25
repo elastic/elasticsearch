@@ -54,7 +54,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
     @Before
     public void indexTestDocument() {
-        IndexResponse eventIndexResponse = client().prepareIndex("events", "event", id)
+        IndexResponse eventIndexResponse = client().prepareIndex().setIndex("events").setId(id)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setSource("level", "error")
                 .get();
@@ -101,7 +101,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(a2CountAfterPostAckFires, greaterThan(a2CountAfterAck));
 
         // Now delete the event and the ack states should change to AWAITS_EXECUTION
-        DeleteResponse response = client().prepareDelete("events", "event", id).get();
+        DeleteResponse response = client().prepareDelete().setIndex("events").setId(id).get();
         assertEquals(DocWriteResponse.Result.DELETED, response.getResult());
         refresh();
 
@@ -170,7 +170,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(a2CountAfterPostAckFires, equalTo(a2CountAfterAck));
 
         // Now delete the event and the ack states should change to AWAITS_EXECUTION
-        DeleteResponse response = client().prepareDelete("events", "event", id).get();
+        DeleteResponse response = client().prepareDelete().setIndex("events").setId(id).get();
         assertEquals(DocWriteResponse.Result.DELETED, response.getResult());
         refresh();
 

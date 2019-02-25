@@ -74,7 +74,7 @@ public class WatcherExecutorServiceBenchmark {
         public static void main(String[] args) throws Exception {
             start();
             client.admin().indices().prepareCreate("test").get();
-            client.prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
+            client.prepareIndex().setIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
 
             int numAlerts = 1000;
             for (int i = 0; i < numAlerts; i++) {

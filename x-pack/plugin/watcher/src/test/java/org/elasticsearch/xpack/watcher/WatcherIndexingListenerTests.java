@@ -95,18 +95,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         listener.setConfiguration(new Configuration(Watch.INDEX, map));
     }
 
-    //
-    // tests for document level operations
-    //
-    public void testPreIndexCheckType() throws Exception {
-        when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-        when(operation.type()).thenReturn(randomAlphaOfLength(10));
-
-        Engine.Index index = listener.preIndex(shardId, operation);
-        assertThat(index, is(operation));
-        verifyZeroInteractions(parser);
-    }
-
     public void testPreIndexCheckIndex() throws Exception {
         when(shardId.getIndexName()).thenReturn(randomAlphaOfLength(10));
 
@@ -237,15 +225,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     public void testPreDeleteCheckIndex() throws Exception {
         when(shardId.getIndexName()).thenReturn(randomAlphaOfLength(10));
-
-        listener.preDelete(shardId, delete);
-
-        verifyZeroInteractions(triggerService);
-    }
-
-    public void testPreDeleteCheckType() throws Exception {
-        when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-        when(delete.type()).thenReturn(randomAlphaOfLength(10));
 
         listener.preDelete(shardId, delete);
 

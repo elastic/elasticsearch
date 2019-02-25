@@ -242,7 +242,7 @@ public class IndexNameExpressionResolver {
         }
 
         if (options.allowNoIndices() == false && concreteIndices.isEmpty()) {
-            IndexNotFoundException infe = new IndexNotFoundException((String)null);
+            IndexNotFoundException infe = new IndexNotFoundException("no indices exist", (String)null);
             infe.setResources("index_expression", indexExpressions);
             throw infe;
         }

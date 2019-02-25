@@ -1452,6 +1452,7 @@ public class InternalEngine extends Engine {
     public NoOpResult noOp(final NoOp noOp) throws IOException {
         final NoOpResult noOpResult;
         try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
             markSeqNoAsSeen(noOp.seqNo());
             noOpResult = innerNoOp(noOp);
         } catch (final Exception e) {

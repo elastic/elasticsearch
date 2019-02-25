@@ -9,6 +9,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -76,21 +79,56 @@ public class DataFrameAnalyticsManager {
         this.processManager = Objects.requireNonNull(processManager);
     }
 
-    public void execute(DataFrameAnalyticsTask task) {
+    public void execute(DataFrameAnalyticsTask task, DataFrameAnalyticsState currentState) {
         ActionListener<DataFrameAnalyticsConfig> reindexingStateListener = ActionListener.wrap(
             config -> reindexDataframeAndStartAnalysis(task, config),
-            e -> task.markAsFailed(e)
+            task::markAsFailed
         );
 
-        // Update task state to REINDEXING
+        // With config in hand, determine action to take
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> {
                 DataFrameAnalyticsTaskState reindexingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.REINDEXING,
                     task.getAllocationId());
-                task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
-                    updatedTask -> reindexingStateListener.onResponse(config),
-                    reindexingStateListener::onFailure
-                ));
+                switch(currentState) {
+                    // If we are STARTED, we are right at the beginning of our task, we should indicate that we are entering the
+                    // REINDEX state and start reindexing.
+                    case STARTED:
+                        task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
+                            updatedTask -> reindexingStateListener.onResponse(config),
+                            reindexingStateListener::onFailure));
+                        break;
+                    // The task has fully reindexed the documents and we should continue on with our analyses
+                    case ANALYZING:
+                        // TODO determine where to start analytics again???
+                        // For outlier detection, there is no saved model state, so it has to be rebuilt anyways
+                        startAnalytics(task, config);
+                        break;
+                    // If we are already at REINDEXING, we are not 100% sure if we reindexed ALL the docs.
+                    // We will delete the destination index, recreate, reindex
+                    case REINDEXING:
+                        ClientHelper.executeAsyncWithOrigin(client,
+                            ML_ORIGIN,
+                            DeleteIndexAction.INSTANCE,
+                            new DeleteIndexRequest(config.getDest()),
+                            ActionListener.wrap(
+                                r-> reindexingStateListener.onResponse(config),
+                                e -> {
+                                    if (e instanceof IndexNotFoundException) {
+                                        reindexingStateListener.onResponse(config);
+                                    } else {
+                                        reindexingStateListener.onFailure(e);
+                                    }
+                                }
+                            ));
+                        break;
+                    default:
+                        reindexingStateListener.onFailure(
+                            ExceptionsHelper.conflictStatusException(
+                                "Cannot execute analytics task [{}] as it is currently in state [{}]. " +
+                                "Must be one of [STARTED, REINDEXING, ANALYZING]", config.getId(), currentState));
+                }
+
             },
             reindexingStateListener::onFailure
         );

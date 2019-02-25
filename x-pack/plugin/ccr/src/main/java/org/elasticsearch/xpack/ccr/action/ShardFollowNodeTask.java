@@ -128,7 +128,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         final long followerMaxSeqNo) {
         /*
          * While this should only ever be called once and before any other threads can touch these fields, we use synchronization here to
-         * avoid the need to declare these fields as volatile. That is, we are ensuring thesefields are always accessed under the same lock.
+         * avoid the need to declare these fields as volatile. That is, we are ensuring these fields are always accessed under the same
+         * lock.
          */
         synchronized (this) {
             this.followerHistoryUUID = followerHistoryUUID;
@@ -137,6 +138,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.followerGlobalCheckpoint = followerGlobalCheckpoint;
             this.followerMaxSeqNo = followerMaxSeqNo;
             this.lastRequestedSeqNo = followerGlobalCheckpoint;
+            renewable = scheduleBackgroundRetentionLeaseRenewal(() -> {
+                synchronized (ShardFollowNodeTask.this) {
+                    return this.followerGlobalCheckpoint;
+                }
+            });
         }
 
         // updates follower mapping, this gets us the leader mapping version and makes sure that leader and follower mapping are identical
@@ -158,14 +164,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 coordinateReads();
             });
         });
-
-        synchronized (this) {
-            renewable = scheduleBackgroundRetentionLeaseRenewal(() -> {
-                synchronized (ShardFollowNodeTask.this) {
-                    return this.followerGlobalCheckpoint;
-                }
-            });
-        }
     }
 
     synchronized void coordinateReads() {

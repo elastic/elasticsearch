@@ -69,11 +69,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertTokenWorks(token);
 
         // In this test either all or none tests or on a specific version:
-        boolean postSevenDotZeroNodes = getNodeId(v -> v.onOrAfter(Version.V_7_0_0)) != null;
-        Request indexRequest1 = new Request("PUT", "token_backwards_compatibility_it/doc/old_cluster_token1");
-        if (postSevenDotZeroNodes) {
-            indexRequest1.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
-        }
+        Request indexRequest1 = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token1");
         indexRequest1.setJsonEntity(
                 "{\n" +
                 "    \"token\": \"" + token + "\"\n" +
@@ -87,30 +83,13 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         token = (String) responseMap.get("access_token");
         assertNotNull(token);
         assertTokenWorks(token);
-        Request indexRequest2 = new Request("PUT", "token_backwards_compatibility_it/doc/old_cluster_token2");
-        if (postSevenDotZeroNodes) {
-            indexRequest2.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
-        }
+        Request indexRequest2 = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token2");
         indexRequest2.setJsonEntity(
                 "{\n" +
                 "    \"token\": \"" + token + "\"\n" +
                 "}");
         Response indexResponse2 = client().performRequest(indexRequest2);
         assertOK(indexResponse2);
-    }
-
-
-    private String getNodeId(Predicate<Version> versionPredicate) throws IOException {
-        Response response = client().performRequest(new Request("GET", "_nodes"));
-        ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        for (String id : nodesAsMap.keySet()) {
-            Version version = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
-            if (versionPredicate.test(version)) {
-                return id;
-            }
-        }
-        return null;
     }
 
     public void testTokenWorksInMixedCluster() throws Exception {
@@ -126,8 +105,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testInvalidatingTokenInMixedCluster() throws Exception {
         // Verify that we can invalidate a token in a mixed cluster
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
-        Request getRequest = new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token2");
-        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token2");
         Response getResponse = client().performRequest(getRequest);
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
@@ -193,8 +171,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
         // Use an old token to authenticate, then invalidate it and verify that it can no longer be used
-        Request getRequest = new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token1");
-        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token1");
         Response getResponse = client().performRequest(getRequest);
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");

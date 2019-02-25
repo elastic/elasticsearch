@@ -47,12 +47,12 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       indices.get:
-        index: ".security-6"
+        index: ".security-7"
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       indices.get:
-        index: ".security*6"
+        index: ".security*7"
   - length: { $body: 0 }
 
 ---
@@ -62,7 +62,7 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       get:
-        index: ".security-6"
+        index: ".security-7"
         type: "doc"
         id: "user-test_user"
 
@@ -74,12 +74,12 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
         rest_total_hits_as_int: true
-        index: ".security-6"
+        index: ".security-7"
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
         rest_total_hits_as_int: true
-        index: ".security*6"
+        index: ".security*7"
   - match: { hits.total: 0 }
 

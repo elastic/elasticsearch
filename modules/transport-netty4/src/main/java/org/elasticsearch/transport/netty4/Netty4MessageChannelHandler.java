@@ -135,7 +135,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             }
             final int bufferSize = Math.min(write.buf.readableBytes(), 1 << 18);
             writeBuffer = ctx.alloc().directBuffer(bufferSize, bufferSize);
-            writeBuffer.writeBytes(write.buf);
+            writeBuffer.writeBytes(write.buf, bufferSize);
             writeBuffer.retain();
             final ChannelFuture writeFuture;
             try {

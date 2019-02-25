@@ -42,6 +42,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -610,6 +611,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         });
     }
 
+    @TestLogging(value = "org.elasticsearch.xpack.ccr:trace")
     public void testRetentionLeaseRenewalIsCancelledWhenFollowingIsPaused() throws Exception {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
@@ -850,59 +852,69 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final CountDownLatch responseLatch = new CountDownLatch(1);
 
         final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
-        for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getNodes().values()) {
-            final MockTransportService senderTransportService =
-                    (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
-            senderTransportService.addSendBehavior(
-                    (connection, requestId, action, request, options) -> {
-                        if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
-                                || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
-                            senderTransportService.clearAllRules();
-                            final String retentionLeaseId = getRetentionLeaseId(followerIndex, leaderIndex);
-                            try {
-                                //innerLatch.await();
-                                removeLeaseLatch.countDown();
-                                unfollowLatch.await();
 
-                                senderTransportService.transport().addMessageListener(new TransportMessageListener() {
+        try {
+            for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getNodes().values()) {
+                final MockTransportService senderTransportService =
+                        (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
+                senderTransportService.addSendBehavior(
+                        (connection, requestId, action, request, options) -> {
+                            if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
+                                    || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
+                                final String retentionLeaseId = getRetentionLeaseId(followerIndex, leaderIndex);
+                                try {
+                                    removeLeaseLatch.countDown();
+                                    unfollowLatch.await();
 
-                                    @SuppressWarnings("rawtypes")
-                                    @Override
-                                    public void onResponseReceived(final long responseRequestId, final Transport.ResponseContext context) {
-                                        if (requestId == responseRequestId) {
-                                            final RetentionLeaseNotFoundException e = new RetentionLeaseNotFoundException(retentionLeaseId);
-                                            context.handler().handleException(new RemoteTransportException(e.getMessage(), e));
-                                            responseLatch.countDown();
-                                            senderTransportService.transport().removeMessageListener(this);
+                                    senderTransportService.transport().addMessageListener(new TransportMessageListener() {
+
+                                        @SuppressWarnings("rawtypes")
+                                        @Override
+                                        public void onResponseReceived(
+                                                final long responseRequestId,
+                                                final Transport.ResponseContext context) {
+                                            if (requestId == responseRequestId) {
+                                                final RetentionLeaseNotFoundException e =
+                                                        new RetentionLeaseNotFoundException(retentionLeaseId);
+                                                context.handler().handleException(new RemoteTransportException(e.getMessage(), e));
+                                                responseLatch.countDown();
+                                                senderTransportService.transport().removeMessageListener(this);
+                                            }
                                         }
-                                    }
 
-                                });
+                                    });
 
-                            } catch (final InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                fail(e.toString());
+                                } catch (final InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                    fail(e.toString());
+                                }
                             }
-                        }
-                        connection.sendRequest(requestId, action, request, options);
-                    });
-        }
+                            connection.sendRequest(requestId, action, request, options);
+                        });
+            }
 
-        removeLeaseLatch.await();
+            removeLeaseLatch.await();
 
-        pauseFollow(followerIndex);
-        assertAcked(followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet());
-        assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet());
+            pauseFollow(followerIndex);
+            assertAcked(followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet());
+            assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet());
 
-        unfollowLatch.countDown();
+            unfollowLatch.countDown();
 
-        responseLatch.await();
+            responseLatch.await();
 
-        final IndicesStatsResponse afterUnfollowStats =
-                leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
-        final List<ShardStats> afterUnfollowShardsStats = getShardsStats(afterUnfollowStats);
-        for (final ShardStats shardStats : afterUnfollowShardsStats) {
-            assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
+            final IndicesStatsResponse afterUnfollowStats =
+                    leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
+            final List<ShardStats> afterUnfollowShardsStats = getShardsStats(afterUnfollowStats);
+            for (final ShardStats shardStats : afterUnfollowShardsStats) {
+                assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
+            }
+        } finally {
+            for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getDataNodes().values()) {
+                final MockTransportService senderTransportService =
+                        (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
+                senderTransportService.clearAllRules();
+            }
         }
     }
 

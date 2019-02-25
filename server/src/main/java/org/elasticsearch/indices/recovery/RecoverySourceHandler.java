@@ -173,9 +173,11 @@ public class RecoverySourceHandler {
 
             final SendFileResult sendFileResult;
             final StepListener<Void> addPeerRecoveryRetentionLeaseStep = new StepListener<>();
+            final long requiredSeqNoRangeStart;
             if (isSequenceNumberBasedRecovery) {
                 logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
                 startingSeqNo = request.startingSeqNo();
+                requiredSeqNoRangeStart = startingSeqNo;
                 sendFileResult = SendFileResult.EMPTY;
 
                 if (shard.indexSettings().isSoftDeleteEnabled()) {
@@ -192,7 +194,7 @@ public class RecoverySourceHandler {
                 }
 
                 // We must have everything above the local checkpoint in the commit
-                final long requiredSeqNoRangeStart
+                requiredSeqNoRangeStart
                     = Long.parseLong(phase1Snapshot.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
                 // If soft-deletes enabled, we need to transfer only operations after the local_checkpoint of the commit to have
                 // the same history on the target. However, with translog, we need to set this to 0 to create a translog roughly
@@ -225,7 +227,7 @@ public class RecoverySourceHandler {
                     }
                 }, shardId + " adding peer-recovery retention lease for " + request.targetNode(), shard, cancellableThreads, logger);
             } else {
-                assert retentionLease.get().retainingSequenceNumber() <= startingSeqNo
+                assert retentionLease.get().retainingSequenceNumber() <= requiredSeqNoRangeStart
                     : shard.shardId() + ": seqno " + startingSeqNo + " should be retained by " + retentionLease.get();
                 // The target shard has a lease (and it is now in the routing table so its lease will not expire)
                 addPeerRecoveryRetentionLeaseStep.onResponse(null);

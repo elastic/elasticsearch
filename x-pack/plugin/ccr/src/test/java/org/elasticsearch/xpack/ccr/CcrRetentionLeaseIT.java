@@ -293,16 +293,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
          * We want to ensure that the retention leases have been synced to all shard copies, as otherwise they might sync between the two
          * times that we sample the retention leases, which would cause our check to fail.
          */
-        final TimeValue syncIntervalSetting = IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(
-                leaderClient()
-                        .admin()
-                        .indices()
-                        .prepareGetSettings(leaderIndex)
-                        .get()
-                        .getIndexToSettings()
-                        .get(leaderIndex));
-        final long syncEnd = System.nanoTime();
-        Thread.sleep(Math.max(0, randomIntBetween(2, 4) * syncIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(syncEnd - start)));
+        getLeaderCluster().syncRetentionLeases(resolveLeaderIndex(leaderIndex));
 
         final ClusterStateResponse leaderIndexClusterState =
                 leaderClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(leaderIndex).get();

@@ -598,7 +598,8 @@ There are multiple base classes for tests:
  - **`ESIntegTestCase`**: An integration test case that creates a cluster that
    might have multiple nodes.
  - **`ESRestTestCase`**: An integration tests that interacts with an external
-   cluster via the REST API.
+   cluster via the REST API. For instance, YAML tests run via sub classes of
+   `ESRestTestCase`.
 
 === Good practices
 
@@ -620,7 +621,7 @@ Many tests extend `ESIntegTestCase`, mostly because this is how most tests used
 to work in the early days of Elasticsearch. However the complexity of these
 tests tends to make them hard to debug. Whenever the functionality that is
 being tested isn't intimately dependent on how Elasticsearch behaves as a
-cluster, it is recommented to write unit tests or REST tests instead.
+cluster, it is recommended to write unit tests or REST tests instead.
 
 In short, most new functionality should come with unit tests, and optionally
 REST tests to test integration.
@@ -655,7 +656,7 @@ implementation details of one component or specifics of some setup.
 However it should not be used for coverage. For instance if you are testing a
 piece of functionality that enters different code paths depending on whether
 the index has 1 shards or 2+ shards, then we shouldn't just test against an
-index with a random numder of shards: there should be one test for the 1-shard
+index with a random number of shards: there should be one test for the 1-shard
 case, and another test for the 2+ shards case.
 
 ==== Abuse randomization in multi-threaded tests

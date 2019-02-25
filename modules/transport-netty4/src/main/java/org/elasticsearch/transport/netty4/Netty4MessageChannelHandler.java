@@ -148,6 +148,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 writeFuture.addListener((ChannelFutureListener) future -> {
                     if (future.isSuccess()) {
                         write.promise.trySuccess();
+                        doFlush(ctx);
                     } else {
                         write.promise.tryFailure(future.cause());
                     }
@@ -156,6 +157,8 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 writeFuture.addListener(f -> {
                     if (f.isSuccess() == false) {
                         write.promise.tryFailure(f.cause());
+                    } else {
+                        doFlush(ctx);
                     }
                 });
             }

@@ -55,7 +55,7 @@ public class CcrRequestConvertersTests extends ESTestCase {
         Request result = CcrRequestConverters.putFollow(putFollowRequest);
         assertThat(result.getMethod(), equalTo(HttpPut.METHOD_NAME));
         assertThat(result.getEndpoint(), equalTo("/" + putFollowRequest.getFollowerIndex() + "/_ccr/follow"));
-        if (putFollowRequest.waitForActiveShards() != null && putFollowRequest.waitForActiveShards() != ActiveShardCount.DEFAULT) {
+        if (putFollowRequest.waitForActiveShards() != null && putFollowRequest.waitForActiveShards() != ActiveShardCount.NONE) {
             String expectedValue = putFollowRequest.waitForActiveShards().toString().toLowerCase(Locale.ROOT);
             assertThat(result.getParameters().get("wait_for_active_shards"), equalTo(expectedValue));
         } else {

@@ -192,7 +192,7 @@ final class Bootstrap {
                         throw new ElasticsearchException("failed to stop node", ex);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
-                        // ignore
+                        LogManager.getLogger(Bootstrap.class).warn("Thread got interrupted while waiting for the node to shutdown.");
                     }
                 }
             });
@@ -280,7 +280,7 @@ final class Bootstrap {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            // ignore
+            LogManager.getLogger(Bootstrap.class).warn("Thread got interrupted while waiting for the node to shutdown.");
         } finally {
             INSTANCE.keepAliveLatch.countDown();
         }

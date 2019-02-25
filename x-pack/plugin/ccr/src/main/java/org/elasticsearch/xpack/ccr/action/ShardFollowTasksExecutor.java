@@ -289,6 +289,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                             logRetentionLeaseFailure(retentionLeaseId, cause);
                             // noinspection StatementWithEmptyBody
                             if (cause instanceof RetentionLeaseNotFoundException) {
+                                // note that we do not need to mark as system context here as that is restored from the original renew
                                 logger.trace(
                                         "{} background adding retention lease [{}] while following",
                                         params.getFollowShardId(),

@@ -243,7 +243,7 @@ The most well known way of displaying the results of an SQL query result in gene
 individual record/document represents one line/row. For certain formats, {es-sql} can return the results
 in a columnar fashion: one row represents all the values of a certain column from the current page of results.
 
-A columnar style of results makes sense for certain formats, thus it's available for `json`, `yaml`, `cbor` and `smile`.
+The following formats can be returned in columnar orientation: `json`, `yaml`, `cbor` and `smile`.
 
 [source,js]
 --------------------------------------------------
@@ -279,7 +279,7 @@ Which returns:
 --------------------------------------------------
 // TESTRESPONSE[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl\+v\/\/\/w8=/$body.cursor/]
 
-Any subsequent calls using a `cursor` still have to contain the `columnar` parameter if it is wanted the results to be returned this way,
+Any subsequent calls using a `cursor` still have to contain the `columnar` parameter to preserve the orientation,
 meaning the initial query will not _remember_ the columnar option.
 
 [source,js]

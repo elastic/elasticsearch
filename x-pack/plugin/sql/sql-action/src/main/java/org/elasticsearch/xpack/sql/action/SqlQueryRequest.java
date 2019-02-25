@@ -88,7 +88,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     /**
      * Should format the values in a columnar fashion or not (default false).
      * Depending on the format used (csv, tsv, txt, json etc) this setting will be taken into
-     * consideration or not, depending on if it even makes sense for that specific format or not.
+     * consideration or not, depending on whether it even makes sense for that specific format or not.
      */
     public Boolean columnar() {
         return columnar;

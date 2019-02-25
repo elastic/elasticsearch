@@ -144,11 +144,11 @@ public class AuthorizedIndicesTests extends ESTestCase {
         List<String> authorizedIndices =
             RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup());
         assertThat(authorizedIndices, containsInAnyOrder(
-            "an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME, SecurityIndexManager.INTERNAL_SECURITY_INDEX));
+            "an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME, internalSecurityIndex));
 
         List<String> authorizedIndicesSuperUser =
             RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup());
         assertThat(authorizedIndicesSuperUser, containsInAnyOrder(
-            "an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME, SecurityIndexManager.INTERNAL_SECURITY_INDEX));
+            "an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME, internalSecurityIndex));
     }
 }

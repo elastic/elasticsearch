@@ -162,7 +162,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         final ClusterHealthStatus indexStatus = indexMetaData == null ? null :
             new ClusterIndexHealth(indexMetaData, event.state().getRoutingTable().index(indexMetaData.getIndex())).getStatus();
         final State newState = new State(indexExists, isIndexUpToDate, indexAvailable, mappingIsUpToDate, mappingVersion,
-            indexMetaData.getIndex().getName(), indexStatus);
+            indexMetaData == null ? INTERNAL_SECURITY_INDEX : indexMetaData.getIndex().getName(), indexStatus);
         this.indexState = newState;
 
         if (newState.equals(previousState) == false) {

@@ -420,6 +420,10 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
             }
         }
         org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
+
+        assumeTrue("Skipping the check for the polygon with a degenerated dimension",
+            randomPoly.maxLat - randomPoly.minLat > 8.4e-8 &&  randomPoly.maxLon - randomPoly.minLon > 8.4e-8);
+
         CoordinatesBuilder cb = new CoordinatesBuilder();
         for (int i = 0; i < randomPoly.numPoints(); ++i) {
             cb.coordinate(randomPoly.getPolyLon(i), randomPoly.getPolyLat(i));
@@ -448,9 +452,6 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
         assertSearchResponse(result);
-        assumeTrue("Skipping the check for the polygon with a degenerated dimension until "
-            +" https://issues.apache.org/jira/browse/LUCENE-8634 is fixed",
-            randomPoly.maxLat - randomPoly.minLat > 8.4e-8 &&  randomPoly.maxLon - randomPoly.minLon > 8.4e-8);
         assertTrue("query: " + geoShapeQueryBuilder.toString() + " doc: " + Strings.toString(docSource),
             result.getHits().getTotalHits().value > 0);
     }

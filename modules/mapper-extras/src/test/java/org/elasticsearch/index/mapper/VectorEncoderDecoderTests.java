@@ -83,7 +83,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
     }
 
     // imitates the code in DenseVectorFieldMapper::parse
-    private BytesRef mockEncodeDenseVector(float[] dims) {
+    public static BytesRef mockEncodeDenseVector(float[] dims) {
         final short INT_BYTES = VectorEncoderDecoder.INT_BYTES;
         byte[] buf = new byte[INT_BYTES * dims.length];
         int offset = 0;

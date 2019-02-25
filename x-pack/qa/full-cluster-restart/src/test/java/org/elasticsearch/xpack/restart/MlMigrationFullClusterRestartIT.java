@@ -53,13 +53,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     @Before
     public void waitForMlTemplates() throws Exception {
         List<String> templatesToWaitFor = XPackRestTestHelper.ML_POST_V660_TEMPLATES;
-
-        // If upgrading from a version prior to v6.6.0 the set of templates
-        // to wait for is different
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_6_0) ) {
-                templatesToWaitFor = XPackRestTestHelper.ML_PRE_V660_TEMPLATES;
-        }
-
         XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
     }
 
@@ -100,9 +93,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         client().performRequest(putClosedJob);
 
         DatafeedConfig.Builder stoppedDfBuilder = new DatafeedConfig.Builder(OLD_CLUSTER_STOPPED_DATAFEED_ID, OLD_CLUSTER_CLOSED_JOB_ID);
-        if (getOldClusterVersion().before(Version.V_6_6_0)) {
-            stoppedDfBuilder.setDelayedDataCheckConfig(null);
-        }
         stoppedDfBuilder.setIndices(Collections.singletonList("airline-data"));
 
         Request putStoppedDatafeed = new Request("PUT", "/_xpack/ml/datafeeds/" + OLD_CLUSTER_STOPPED_DATAFEED_ID);
@@ -121,9 +111,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         client().performRequest(openOpenJob);
 
         DatafeedConfig.Builder dfBuilder = new DatafeedConfig.Builder(OLD_CLUSTER_STARTED_DATAFEED_ID, OLD_CLUSTER_OPEN_JOB_ID);
-        if (getOldClusterVersion().before(Version.V_6_6_0)) {
-            dfBuilder.setDelayedDataCheckConfig(null);
-        }
         dfBuilder.setIndices(Collections.singletonList("airline-data"));
 
         Request putDatafeed = new Request("PUT", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STARTED_DATAFEED_ID);

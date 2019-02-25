@@ -34,6 +34,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -287,18 +288,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        return new Translog.Snapshot() {
-            @Override
-            public void close() { }
-            @Override
-            public int totalOperations() {
-                return 0;
-            }
-            @Override
-            public Translog.Operation next() {
-                return null;
-            }
-        };
+        return newEmptySnapshot();
     }
 
     @Override
@@ -429,7 +419,15 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) {
+    public Engine recoverFromTranslog(final TranslogRecoveryRunner translogRecoveryRunner, final long recoverUpToSeqNo) {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            try (Translog.Snapshot snapshot = newEmptySnapshot()) {
+                translogRecoveryRunner.run(this, snapshot);
+            } catch (final Exception e) {
+                throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
+            }
+        }
         return this;
     }
 
@@ -467,5 +465,23 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public boolean refreshNeeded() {
         return false;
+    }
+
+    private Translog.Snapshot newEmptySnapshot() {
+        return new Translog.Snapshot() {
+            @Override
+            public void close() {
+            }
+
+            @Override
+            public int totalOperations() {
+                return 0;
+            }
+
+            @Override
+            public Translog.Operation next() {
+                return null;
+            }
+        };
     }
 }

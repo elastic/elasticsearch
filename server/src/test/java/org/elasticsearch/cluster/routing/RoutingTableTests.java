@@ -395,7 +395,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
                 .state(IndexMetaData.State.CLOSE)
                 .settings(Settings.builder()
                     .put(indexMetaData.getSettings())
-                    .put(MetaDataIndexStateService.INDEX_CLOSED_SETTING.getKey(), true)
+                    .put(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)
                     .build())
                 .settingsVersion(indexMetaData.getSettingsVersion() + 1);
             final RoutingTable routingTable = new RoutingTable.Builder().addAsRecovery(indexMetaDataBuilder.build()).build();

@@ -154,7 +154,8 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             if (results.get(blockedIndex).isAcknowledged()) {
                 IndexMetaData indexMetaData = state.metaData().index(blockedIndex);
                 assertThat(indexMetaData.getState(), is(IndexMetaData.State.CLOSE));
-                assertThat(indexMetaData.getSettings().hasValue(MetaDataIndexStateService.INDEX_CLOSED_SETTING.getKey()), is(false));
+                Settings indexSettings = indexMetaData.getSettings();
+                assertThat(indexSettings.hasValue(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(false));
                 assertThat(state.blocks().hasIndexBlock(blockedIndex.getName(), MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
                 assertThat("Index must have only 1 block with [id=" + MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
                     state.blocks().indices().getOrDefault(blockedIndex.getName(), emptySet()).stream()
@@ -303,17 +304,17 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             currentShards + "]/[" + maxShards + "] maximum shards open;", exception.getMessage());
     }
 
-    public void testIsIndexMetaDataClosed() {
+    public void testIsIndexVerifiedBeforeClosed() {
         final ClusterState initialState = ClusterState.builder(new ClusterName("testIsIndexMetaDataClosed")).build();
         {
             String indexName = "open";
             ClusterState state = addOpenedIndex(indexName, randomIntBetween(1, 3), randomIntBetween(0, 3), initialState);
-            assertFalse(MetaDataIndexStateService.isIndexMetaDataClosed(state.getMetaData().index(indexName)));
+            assertFalse(MetaDataIndexStateService.isIndexVerifiedBeforeClosed(state.getMetaData().index(indexName)));
         }
         {
             String indexName = "closed";
             ClusterState state = addClosedIndex(indexName, randomIntBetween(1, 3), randomIntBetween(0, 3), initialState);
-            assertTrue(MetaDataIndexStateService.isIndexMetaDataClosed(state.getMetaData().index(indexName)));
+            assertTrue(MetaDataIndexStateService.isIndexVerifiedBeforeClosed(state.getMetaData().index(indexName)));
         }
         {
             String indexName = "closed-no-setting";
@@ -325,7 +326,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
                     .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
                     .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 3)))
                 .build();
-            assertFalse(MetaDataIndexStateService.isIndexMetaDataClosed(indexMetaData));
+            assertFalse(MetaDataIndexStateService.isIndexVerifiedBeforeClosed(indexMetaData));
         }
     }
 
@@ -407,7 +408,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, numShards)
             .put(SETTING_NUMBER_OF_REPLICAS, numReplicas);
         if (state == IndexMetaData.State.CLOSE) {
-            settings.put(MetaDataIndexStateService.INDEX_CLOSED_SETTING.getKey(), true);
+            settings.put(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true);
         }
         final IndexMetaData indexMetaData = IndexMetaData.builder(index)
             .state(state)
@@ -439,7 +440,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
     private static void assertIsOpened(final String indexName, final ClusterState clusterState) {
         final IndexMetaData indexMetaData = clusterState.metaData().indices().get(indexName);
         assertThat(indexMetaData.getState(), is(IndexMetaData.State.OPEN));
-        assertThat(indexMetaData.getSettings().hasValue(MetaDataIndexStateService.INDEX_CLOSED_SETTING.getKey()), is(false));
+        assertThat(indexMetaData.getSettings().hasValue(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(false));
         assertThat(clusterState.routingTable().index(indexName), notNullValue());
         assertThat(clusterState.blocks().hasIndexBlock(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(false));
         assertThat(clusterState.routingTable().index(indexName), notNullValue());
@@ -448,8 +449,9 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
     private static void assertIsClosed(final String indexName, final ClusterState clusterState) {
         final IndexMetaData indexMetaData = clusterState.metaData().indices().get(indexName);
         assertThat(indexMetaData.getState(), is(IndexMetaData.State.CLOSE));
-        assertThat(indexMetaData.getSettings().hasValue(MetaDataIndexStateService.INDEX_CLOSED_SETTING.getKey()), is(true));
-        assertThat(indexMetaData.getSettings().getAsBoolean(MetaDataIndexStateService.INDEX_CLOSED_SETTING.getKey(), false), is(true));
+        final Settings indexSettings = indexMetaData.getSettings();
+        assertThat(indexSettings.hasValue(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(true));
+        assertThat(indexSettings.getAsBoolean(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), false), is(true));
         assertThat(clusterState.blocks().hasIndexBlock(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
         assertThat("Index " + indexName + " must have only 1 block with [id=" + MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
             clusterState.blocks().indices().getOrDefault(indexName, emptySet()).stream()

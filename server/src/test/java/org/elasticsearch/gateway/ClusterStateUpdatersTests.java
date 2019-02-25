@@ -264,7 +264,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                         .state(IndexMetaData.State.CLOSE)
                         .settings(Settings.builder()
                             .put(initialState.metaData().index("test").getSettings())
-                            .put(MetaDataIndexStateService.INDEX_CLOSED_SETTING.getKey(), true)
+                            .put(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)
                             .build())
                     ).build())
                 .build());

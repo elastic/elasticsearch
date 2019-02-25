@@ -92,8 +92,8 @@ public class MetaDataIndexStateService {
     public static final int INDEX_CLOSED_BLOCK_ID = 4;
     public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false,
         false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE);
-    public static final Setting<Boolean> INDEX_CLOSED_SETTING =
-        Setting.boolSetting("index.closed", false, Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+    public static final Setting<Boolean> VERIFIED_BEFORE_CLOSE_SETTING =
+        Setting.boolSetting("index.verified_before_close", false, Setting.Property.IndexScope, Setting.Property.PrivateIndex);
 
     private final ClusterService clusterService;
     private final AllocationService allocationService;
@@ -417,7 +417,7 @@ public class MetaDataIndexStateService {
                         .settingsVersion(indexMetaData.getSettingsVersion() + 1)
                         .settings(Settings.builder()
                             .put(indexMetaData.getSettings())
-                            .put(INDEX_CLOSED_SETTING.getKey(), true)));
+                            .put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)));
                     routingTable.addAsFromOpenToClose(metadata.getSafe(index));
                 }
 
@@ -502,7 +502,7 @@ public class MetaDataIndexStateService {
             final Index index = indexMetaData.getIndex();
             if (indexMetaData.getState() != IndexMetaData.State.OPEN) {
                 final Settings.Builder updatedSettings = Settings.builder().put(indexMetaData.getSettings());
-                updatedSettings.remove(INDEX_CLOSED_SETTING.getKey());
+                updatedSettings.remove(VERIFIED_BEFORE_CLOSE_SETTING.getKey());
 
                 IndexMetaData updatedIndexMetaData = IndexMetaData.builder(indexMetaData)
                     .state(IndexMetaData.State.OPEN)
@@ -573,8 +573,8 @@ public class MetaDataIndexStateService {
             EnumSet.of(ClusterBlockLevel.WRITE));
     }
 
-    public static boolean isIndexMetaDataClosed(final IndexMetaData indexMetaData) {
+    public static boolean isIndexVerifiedBeforeClosed(final IndexMetaData indexMetaData) {
         return indexMetaData.getState() == IndexMetaData.State.CLOSE
-            && indexMetaData.getSettings().getAsBoolean(INDEX_CLOSED_SETTING.getKey(), false);
+            && indexMetaData.getSettings().getAsBoolean(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), false);
     }
 }

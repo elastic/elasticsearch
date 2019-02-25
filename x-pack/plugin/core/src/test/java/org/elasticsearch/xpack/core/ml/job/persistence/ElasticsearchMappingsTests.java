@@ -233,7 +233,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private Set<String> collectResultsDocFieldNames() throws IOException {
         // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
-        return collectFieldNames(ElasticsearchMappings.resultsMapping());
+        return collectFieldNames(ElasticsearchMappings.resultsMapping("_doc"));
     }
 
     private Set<String> collectConfigDocFieldNames() throws IOException {

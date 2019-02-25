@@ -353,7 +353,7 @@ public class JobResultsProvider {
     private void updateIndexMappingWithTermFields(String indexName, String mappingType, Collection<String> termFields,
                                                   ActionListener<Boolean> listener) {
         // Put the whole mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
-        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(termFields)) {
+        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(mappingType, termFields)) {
             final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName)
                     .setType(mappingType)
                     .setSource(termFieldsMapping).request();

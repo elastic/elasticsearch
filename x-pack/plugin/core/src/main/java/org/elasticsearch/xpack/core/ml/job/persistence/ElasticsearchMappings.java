@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -419,14 +419,14 @@ public class ElasticsearchMappings {
                .endObject();
     }
 
-    public static XContentBuilder resultsMapping() throws IOException {
-        return resultsMapping(Collections.emptyList());
+    public static XContentBuilder resultsMapping(String mappingType) throws IOException {
+        return resultsMapping(mappingType, Collections.emptyList());
     }
 
-    public static XContentBuilder resultsMapping(Collection<String> extraTermFields) throws IOException {
+    public static XContentBuilder resultsMapping(String mappingType, Collection<String> extraTermFields) throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject(SINGLE_MAPPING_NAME);
+        builder.startObject(mappingType);
         addMetaInformation(builder);
         addDefaultMapping(builder);
         builder.startObject(PROPERTIES);
@@ -1046,7 +1046,8 @@ public class ElasticsearchMappings {
         return indicesToUpdate.toArray(new String[indicesToUpdate.size()]);
     }
 
-    public static void addDocMappingIfMissing(String alias, CheckedSupplier<XContentBuilder, IOException> mappingSupplier,
+    public static void addDocMappingIfMissing(String alias,
+                                              CheckedBiFunction<String, Collection<String>, XContentBuilder, IOException> mappingSupplier,
                                               Client client, ClusterState state, ActionListener<Boolean> listener) {
         AliasOrIndex aliasOrIndex = state.metaData().getAliasAndIndexLookup().get(alias);
         if (aliasOrIndex == null) {
@@ -1070,7 +1071,7 @@ public class ElasticsearchMappings {
             IndexMetaData indexMetaData = state.metaData().index(indicesThatRequireAnUpdate[0]);
             String mappingType = indexMetaData.mapping().type();
 
-            try (XContentBuilder mapping = mappingSupplier.get()) {
+            try (XContentBuilder mapping = mappingSupplier.apply(mappingType, Collections.emptyList())) {
                 PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
                 putMappingRequest.type(mappingType);
                 putMappingRequest.source(mapping);

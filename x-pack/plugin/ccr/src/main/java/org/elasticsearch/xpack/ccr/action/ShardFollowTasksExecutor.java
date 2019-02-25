@@ -302,10 +302,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                     logRetentionLeaseFailure(retentionLeaseId, innerCause);
                                                 }));
                             } else {
-                                /*
-                                 * If something else happened, we will attempt to renew again after another renew interval
-                                 * has passed.
-                                 */
+                                 // if something else happened, we will attempt to renew again after another renew interval has passed
                             }
                         });
 

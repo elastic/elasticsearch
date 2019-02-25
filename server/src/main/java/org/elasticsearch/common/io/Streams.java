@@ -101,7 +101,7 @@ public abstract class Streams {
         Objects.requireNonNull(in, "No input byte array specified");
         Objects.requireNonNull(out, "No OutputStream specified");
         try (OutputStream out2 = out) {
-            out.write(in);
+            out2.write(in);
         }
     }
 

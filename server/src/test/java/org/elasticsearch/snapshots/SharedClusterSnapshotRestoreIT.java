@@ -2216,10 +2216,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         {
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo")
                 .setSnapshots("test-2").get().getSnapshots().get(0);
+            Settings settings = client.admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test");
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
                 // we flush before the snapshot such that we have to process the segments_N files plus the .del file
-                if (INDEX_SOFT_DELETES_SETTING.get(indexSettings)) {
+                if (INDEX_SOFT_DELETES_SETTING.get(settings)) {
                     // soft-delete generates DV files.
                     assertThat(status.getStats().getProcessedFileCount(), greaterThan(2));
                 } else {

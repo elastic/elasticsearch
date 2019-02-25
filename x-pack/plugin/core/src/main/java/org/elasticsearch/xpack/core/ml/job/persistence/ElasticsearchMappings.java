@@ -136,6 +136,7 @@ public class ElasticsearchMappings {
     public static XContentBuilder configMapping() throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
+        builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
         addDefaultMapping(builder);
         builder.startObject(PROPERTIES);
@@ -144,6 +145,7 @@ public class ElasticsearchMappings {
         addDatafeedConfigFields(builder);
 
         builder.endObject()
+               .endObject()
                .endObject();
         return builder;
     }
@@ -424,6 +426,7 @@ public class ElasticsearchMappings {
     public static XContentBuilder resultsMapping(Collection<String> extraTermFields) throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
+        builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
         addDefaultMapping(builder);
         builder.startObject(PROPERTIES);
@@ -452,8 +455,11 @@ public class ElasticsearchMappings {
 
         // end properties
         builder.endObject();
+        // end type
+        builder.endObject();
         // end mapping
         builder.endObject();
+
 
         return builder;
     }
@@ -873,8 +879,10 @@ public class ElasticsearchMappings {
     public static XContentBuilder stateMapping() throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
+        builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
         builder.field(ENABLED, false);
+        builder.endObject();
         builder.endObject();
 
         return builder;
@@ -960,6 +968,7 @@ public class ElasticsearchMappings {
 
     public static XContentBuilder auditMessageMapping() throws IOException {
         XContentBuilder builder = jsonBuilder().startObject();
+        builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
         builder.startObject(PROPERTIES)
                 .startObject(Job.ID.getPreferredName())
@@ -982,8 +991,10 @@ public class ElasticsearchMappings {
                 .startObject(AuditMessage.NODE_NAME.getPreferredName())
                     .field(TYPE, KEYWORD)
                 .endObject()
-            .endObject()
+        .endObject()
+        .endObject()
         .endObject();
+
         return builder;
     }
 

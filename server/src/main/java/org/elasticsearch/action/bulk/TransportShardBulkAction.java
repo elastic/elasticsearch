@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -30,7 +31,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -44,7 +45,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -117,27 +117,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     protected WritePrimaryResult<BulkShardRequest, BulkShardResponse> shardOperationOnPrimary(BulkShardRequest request, IndexShard primary)
         throws Exception {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        CheckedRunnable<Exception> waitForMappingUpdate = () -> {
-            PlainActionFuture<Void> waitingFuture = new PlainActionFuture<>();
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    waitingFuture.onResponse(null);
-                }
+        Consumer<ActionListener<Void>> waitForMappingUpdate = listener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                listener.onResponse(null);
+            }
 
-                @Override
-                public void onClusterServiceClose() {
-                    waitingFuture.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
+            @Override
+            public void onClusterServiceClose() {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
 
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    waitingFuture.onFailure(
-                        new MapperException("timed out while waiting for a dynamic mapping update"));
-                }
-            });
-            waitingFuture.get();
-        };
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                listener.onFailure(
+                    new MapperException("timed out while waiting for a dynamic mapping update"));
+            }
+        });
         return performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
             new ConcreteMappingUpdatePerformer(), waitForMappingUpdate);
     }
@@ -148,15 +144,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         UpdateHelper updateHelper,
         LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater,
-        CheckedRunnable<Exception> waitForMappingUpdate) throws Exception {
+        Consumer<ActionListener<Void>> waitForMappingUpdate) throws Exception {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
-        return performOnPrimary(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate);
-    }
-
-    private static WritePrimaryResult<BulkShardRequest, BulkShardResponse> performOnPrimary(
-        BulkPrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
-        MappingUpdatePerformer mappingUpdater, CheckedRunnable<Exception> waitForMappingUpdate) throws Exception {
-
         while (context.hasMoreOperationsToExecute()) {
             executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate);
             assert context.isInitial(); // either completed and moved to next or reset
@@ -167,7 +156,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     /** Executes bulk item requests and handles request execution exceptions */
     static void executeBulkItemRequest(BulkPrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
-                                       MappingUpdatePerformer mappingUpdater, CheckedRunnable<Exception> waitForMappingUpdate)
+                                       MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate)
         throws Exception {
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
@@ -219,12 +208,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
 
         if (context.requiresWaitingForMappingUpdate()) {
-            try {
-                waitForMappingUpdate.run();
-                context.resetForExecutionForRetry();
-            } catch (Exception e) {
-                context.failOnMappingUpdate(e);
-            }
+            waitForMappingUpdate.accept(new ActionListener<Void>() {
+                @Override
+                public void onResponse(final Void aVoid) {
+                    context.resetForExecutionForRetry();
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    context.failOnMappingUpdate(e);
+                }
+            });
             return;
         }
 
@@ -453,7 +447,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     request.ifSeqNo(), request.ifPrimaryTerm(), request.getAutoGeneratedTimestamp(), request.isRetry()),
             e -> primary.getFailedIndexResult(e, request.version()),
             context::markOperationAsExecuted,
-            mapping -> mappingUpdater.updateMappings(mapping, primary.shardId(), request.type()));
+            mapping -> mappingUpdater.updateMappings(mapping, primary.shardId(), request.type(),
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(final AcknowledgedResponse acknowledgedResponse) {
+
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+
+                    }
+                }));
     }
 
     private static void executeDeleteRequestOnPrimary(BulkPrimaryExecutionContext context,
@@ -465,7 +470,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.ifSeqNo(), request.ifPrimaryTerm()),
             e -> primary.getFailedDeleteResult(e, request.version()),
             context::markOperationAsExecuted,
-            mapping -> mappingUpdater.updateMappings(mapping, primary.shardId(), request.type()));
+            mapping -> mappingUpdater.updateMappings(mapping, primary.shardId(), request.type(),
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(final AcknowledgedResponse acknowledgedResponse) {
+
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+
+                    }
+                }));
     }
 
     private static <T extends Engine.Result> void executeOnPrimaryWhileHandlingMappingUpdates(
@@ -492,12 +508,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     class ConcreteMappingUpdatePerformer implements MappingUpdatePerformer {
 
         @Override
-        public void updateMappings(final Mapping update, final ShardId shardId, final String type) {
+        public void updateMappings(final Mapping update, final ShardId shardId, final String type,
+            ActionListener<AcknowledgedResponse> listener) {
             assert update != null;
             assert shardId != null;
             // can throw timeout exception when updating mappings or ISE for attempting to
             // update default mappings which are bubbled up
-            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update);
+            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update, listener);
         }
     }
 }

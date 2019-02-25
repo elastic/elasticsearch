@@ -19,7 +19,11 @@
 
 package org.elasticsearch.cluster.action.index;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -62,20 +66,16 @@ public class MappingUpdatedAction {
         this.client = client.admin().indices();
     }
 
-    private PutMappingRequestBuilder updateMappingRequest(Index index, String type, Mapping mappingUpdate, final TimeValue timeout) {
+    private void updateMappingRequest(Index index, String type, Mapping mappingUpdate, TimeValue timeout,
+                                                          ActionListener<AcknowledgedResponse> listener) {
         if (type.equals(MapperService.DEFAULT_MAPPING)) {
             throw new IllegalArgumentException("_default_ mapping should not be updated");
         }
-        return client.preparePutMapping().setConcreteIndex(index).setType(type).setSource(mappingUpdate.toString(), XContentType.JSON)
-                .setMasterNodeTimeout(timeout).setTimeout(TimeValue.ZERO);
-    }
-
-    /**
-     * Same as {@link #updateMappingOnMaster(Index, String, Mapping, TimeValue)}
-     * using the default timeout.
-     */
-    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate) {
-        updateMappingOnMaster(index, type, mappingUpdate, dynamicMappingUpdateTimeout);
+        client.putMapping(
+            new PutMappingRequestBuilder(client, PutMappingAction.INSTANCE).setIndices(index.getName())
+                .setConcreteIndex(index).setType(type)
+                .setSource(mappingUpdate.toString(), XContentType.JSON)
+            .setMasterNodeTimeout(timeout).setTimeout(TimeValue.ZERO).request(), listener);
     }
 
     /**
@@ -84,7 +84,7 @@ public class MappingUpdatedAction {
      * {@code timeout} is the master node timeout ({@link MasterNodeRequest#masterNodeTimeout()}),
      * potentially waiting for a master node to be available.
      */
-    private void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, TimeValue masterNodeTimeout) {
-        updateMappingRequest(index, type, mappingUpdate, masterNodeTimeout).get();
+    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, ActionListener<AcknowledgedResponse> listener) {
+        updateMappingRequest(index, type, mappingUpdate, dynamicMappingUpdateTimeout, listener);
     }
 }

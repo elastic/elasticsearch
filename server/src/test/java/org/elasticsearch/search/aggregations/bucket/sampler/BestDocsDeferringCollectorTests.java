@@ -86,6 +86,45 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
         directory.close();
     }
 
+    public void testRidiculousSize() throws Exception {
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        int numDocs = randomIntBetween(1, 128);
+        int maxNumValues = randomInt(16);
+        for (int i = 0; i < numDocs; i++) {
+            Document document = new Document();
+            document.add(new StringField("field", String.valueOf(randomInt(maxNumValues)), Field.Store.NO));
+            indexWriter.addDocument(document);
+        }
+
+        indexWriter.close();
+        IndexReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+
+        TermQuery termQuery = new TermQuery(new Term("field", String.valueOf(randomInt(maxNumValues))));
+        TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
+
+        final AtomicLong bytes = new AtomicLong(0);
+
+        // Test with an outrageously large size to ensure that the maxDoc protection works
+        BestDocsDeferringCollector collector = new BestDocsDeferringCollector(Integer.MAX_VALUE,
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()), numDocs, bytes::addAndGet);
+        Set<Integer> deferredCollectedDocIds = new HashSet<>();
+        collector.setDeferredCollector(Collections.singleton(testCollector(deferredCollectedDocIds)));
+        collector.preCollection();
+        indexSearcher.search(termQuery, collector);
+        collector.postCollection();
+        collector.replay(0);
+
+        assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
+        for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+            assertTrue("expected docid [" + scoreDoc.doc + "] is missing", deferredCollectedDocIds.contains(scoreDoc.doc));
+        }
+        collector.close();
+        indexReader.close();
+        directory.close();
+    }
+
     private BucketCollector testCollector(Set<Integer> docIds) {
         return new BucketCollector() {
             @Override

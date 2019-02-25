@@ -75,3 +75,9 @@ Tribe node functionality has been removed in favor of
 
 * The method `DiscoveryPlugin#getDiscoveryTypes()` was removed, so that plugins
   can no longer provide their own discovery implementations.
+
+[float]
+==== Watcher 'hipchat' action removed
+
+Hipchat has been deprecated and shut down as a service. The `hipchat` action for
+watches has been removed.

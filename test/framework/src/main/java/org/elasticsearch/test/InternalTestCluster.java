@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.action.support.AdapterActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -2509,12 +2510,6 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
         }
-        futures.forEach(f -> {
-            try {
-                f.get();
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
-        });
+        futures.forEach(AdapterActionFuture::actionGet);
     }
 }

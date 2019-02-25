@@ -26,6 +26,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -94,7 +95,6 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
@@ -791,7 +791,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void syncRetentionLeases() {
-        sync(primary -> primary.syncRetentionLeases(wrap(() -> {})), "retention lease");
+        sync(primary -> primary.syncRetentionLeases(ActionListener.wrap(() -> {})), "retention lease");
     }
 
     private void sync(final Consumer<IndexShard> sync, final String source) {

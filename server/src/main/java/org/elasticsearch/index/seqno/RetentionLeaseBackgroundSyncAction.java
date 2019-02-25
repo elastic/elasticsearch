@@ -108,10 +108,8 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
-            final Request request = new Request(shardId, retentionLeases);
-            request.waitForActiveShards(ActiveShardCount.ONE);
             execute(
-                    request,
+                    new Request(shardId, retentionLeases),
                     ActionListener.wrap(
                             r -> {},
                             e -> {
@@ -189,4 +187,5 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     protected ReplicationResponse newResponseInstance() {
         return new ReplicationResponse();
     }
+
 }

@@ -109,9 +109,8 @@ public class RetentionLeaseSyncAction extends
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
-            final Request request = new Request(shardId, retentionLeases);
-            request.waitForActiveShards(ActiveShardCount.ONE);
-            execute(request,
+            execute(
+                    new RetentionLeaseSyncAction.Request(shardId, retentionLeases),
                     ActionListener.wrap(
                             listener::onResponse,
                             e -> {

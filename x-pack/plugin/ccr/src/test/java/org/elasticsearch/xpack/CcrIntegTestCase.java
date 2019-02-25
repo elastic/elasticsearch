@@ -134,6 +134,14 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         return Collections.emptyList();
     }
 
+    protected Settings leaderClusterSettings() {
+        return Settings.EMPTY;
+    }
+
+    protected Settings followerClusterSettings() {
+        return Settings.EMPTY;
+    }
+
     @Before
     public final void startClusters() throws Exception {
         if (clusterGroup != null && reuseClusters()) {
@@ -148,7 +156,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             getTestTransportPlugin());
 
         InternalTestCluster leaderCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
-            numberOfNodesPerCluster(), "leader_cluster", createNodeConfigurationSource(null), 0, false, "leader",
+            numberOfNodesPerCluster(), "leader_cluster", createNodeConfigurationSource(null, true), 0, false, "leader",
             mockPlugins, Function.identity());
         leaderCluster.beforeTest(random(), 0.0D);
         leaderCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
@@ -159,7 +167,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
         String address = leaderCluster.getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         InternalTestCluster followerCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
-            numberOfNodesPerCluster(), "follower_cluster", createNodeConfigurationSource(address), 0, false, "follower",
+            numberOfNodesPerCluster(), "follower_cluster", createNodeConfigurationSource(address, false), 0, false, "follower",
             mockPlugins, Function.identity());
         clusterGroup = new ClusterGroup(leaderCluster, followerCluster);
 
@@ -206,7 +214,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }
     }
 
-    private NodeConfigurationSource createNodeConfigurationSource(String leaderSeedAddress) {
+    private NodeConfigurationSource createNodeConfigurationSource(final String leaderSeedAddress, final boolean leaderCluster) {
         Settings.Builder builder = Settings.builder();
         builder.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), Integer.MAX_VALUE);
         // Default the watermarks to absurdly low to prevent the tests
@@ -229,6 +237,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(NetworkModule.HTTP_ENABLED.getKey(), false);
         // Let cluster state api return quickly in order to speed up auto follow tests:
         builder.put(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.getKey(), TimeValue.timeValueMillis(100));
+        if (leaderCluster) {
+            builder.put(leaderClusterSettings());
+        } else {
+            builder.put(followerClusterSettings());
+        }
         if (configureRemoteClusterViaNodeSettings() && leaderSeedAddress != null) {
             builder.put("cluster.remote.leader_cluster.seeds", leaderSeedAddress);
         }

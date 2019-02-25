@@ -40,7 +40,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
@@ -59,6 +58,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.LinkedList;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.search.query.QueryCollectorContext.createCancellableCollectorContext;
@@ -289,7 +289,7 @@ public class QueryPhase implements SearchPhase {
             for (QueryCollectorContext ctx : collectors) {
                 ctx.postProcess(result);
             }
-            EsThreadPoolExecutor executor = (EsThreadPoolExecutor)
+            ExecutorService executor =
                     searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
             if (executor instanceof QueueResizingEsThreadPoolExecutor) {
                 QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;

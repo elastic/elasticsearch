@@ -84,7 +84,7 @@ public class MappingUpdatedAction {
      * {@code timeout} is the master node timeout ({@link MasterNodeRequest#masterNodeTimeout()}),
      * potentially waiting for a master node to be available.
      */
-    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, TimeValue masterNodeTimeout) {
+    private void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, TimeValue masterNodeTimeout) {
         updateMappingRequest(index, type, mappingUpdate, masterNodeTimeout).get();
     }
 }

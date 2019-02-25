@@ -526,7 +526,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                          * way for the current retention leases to end up written to disk so we assume that if they are written to disk, it
                          * implies that the background sync was able to execute despite wait for shards being set on the index.
                          */
-                        assertBusy(() -> assertThat(primary.loadRetentionLeases().leases(), contains(retentionLease.get())));
+                        assertBusy(() -> assertThat(primary.loadRetentionLeases().leases(), hasItem(retentionLease.get())));
                     } catch (final Exception e) {
                         fail(e.toString());
                     }

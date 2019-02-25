@@ -91,6 +91,11 @@ setup:
   - match: { count: 2 }
 
   - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "_all"
+  - match: { count: 2 }
+
+  - do:
       data_frame.delete_data_frame_transform:
         transform_id: "airline-transform"
   - match: { acknowledged: true }

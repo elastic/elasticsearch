@@ -9,7 +9,7 @@
         "transform_id": {
           "type": "string",
           "required": false,
-          "description": "The id of the transforms to get, '*' implies get all transforms"
+          "description": "The id of the transforms to get, '_all' or '*' implies get all transforms"
         }
       }
     },

@@ -80,5 +80,10 @@ teardown:
   - match: { count: 2 }
 
   - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "_all"
+  - match: { count: 2 }
+
+  - do:
       data_frame.delete_data_frame_transform:
         transform_id: "airline-transform-stats-dos"

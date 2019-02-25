@@ -538,13 +538,14 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     final String nextSource = randomAlphaOfLength(8);
                     primary.addRetentionLease(nextId, nextRetainingSequenceNumber, nextSource, listener);
                 },
-                primary -> {});
+                primary -> {}, false);
     }
 
     public void testCanRenewRetentionLeaseWithoutWaitingForShards() throws InterruptedException {
         final String idForInitialRetentionLease = randomAlphaOfLength(8);
         final long initialRetainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
         final AtomicReference<RetentionLease> retentionLease = new AtomicReference<>();
+        final boolean relyOnPeriodicSync = rarely();
         runWaitForShardsTest(
                 idForInitialRetentionLease,
                 initialRetainingSequenceNumber,
@@ -552,7 +553,11 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     final long nextRetainingSequenceNumber = randomLongBetween(initialRetainingSequenceNumber, Long.MAX_VALUE);
                     final String nextSource = randomAlphaOfLength(8);
                     retentionLease.set(primary.renewRetentionLease(idForInitialRetentionLease, nextRetainingSequenceNumber, nextSource));
-                    listener.onResponse(null);
+                    if (relyOnPeriodicSync) {
+                        listener.onResponse(null);
+                    } else {
+                        primary.syncRetentionLeases(listener);
+                    }
                 },
                 primary -> {
                     try {
@@ -561,12 +566,15 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                          * way for the current retention leases to end up written to disk so we assume that if they are written to disk, it
                          * implies that the background sync was able to execute despite wait for shards being set on the index.
                          */
-                        assertBusy(() -> assertThat(primary.loadRetentionLeases().leases(), contains(retentionLease.get())));
+                        if (relyOnPeriodicSync) {
+                            assertBusy(() -> assertThat(primary.loadRetentionLeases().leases(), contains(retentionLease.get())));
+                        } else {
+                            assertThat(primary.loadRetentionLeases().leases(), contains(retentionLease.get()));
+                        }
                     } catch (final Exception e) {
                         fail(e.toString());
                     }
-                });
-
+                }, relyOnPeriodicSync);
     }
 
     public void testCanRemoveRetentionLeasesWithoutWaitingForShards() throws InterruptedException {
@@ -575,14 +583,16 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                 idForInitialRetentionLease,
                 randomLongBetween(0, Long.MAX_VALUE),
                 (primary, listener) -> primary.removeRetentionLease(idForInitialRetentionLease, listener),
-                primary -> {});
+                primary -> {},
+                false);
     }
 
     private void runWaitForShardsTest(
             final String idForInitialRetentionLease,
             final long initialRetainingSequenceNumber,
             final BiConsumer<IndexShard, ActionListener<Void>> primaryConsumer,
-            final Consumer<IndexShard> afterSync) throws InterruptedException {
+            final Consumer<IndexShard> afterSync,
+            final boolean relyOnPeriodicSync) throws InterruptedException {
         final int numDataNodes = internalCluster().numDataNodes();
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)

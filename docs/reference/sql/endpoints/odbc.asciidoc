@@ -1,7 +1,4 @@
-:es: Elasticsearch
-:es-sql: {es} SQL
-:version: 6.5.0
-:product: {es-sql} ODBC Driver
+:odbc: {es-sql} ODBC Driver
 
 [role="xpack"]
 [testenv="platinum"]
@@ -12,9 +9,7 @@
 [float]
 === Overview
 
-experimental[]
-
-{product} is a feature-rich 3.80 ODBC driver for {es}.
+{odbc} is a feature-rich 3.80 ODBC driver for {es}.
 It is a core level driver, exposing all of the functionality accessible through the {es}'s SQL ODBC API, converting ODBC calls into
 {es-sql}.
 

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -264,13 +263,11 @@ public class DatafeedConfigProvider {
      * @param headers Datafeed headers applied with the update
      * @param validator BiConsumer that accepts the updated config and can perform
      *                  extra validations. {@code validator} must call the passed listener
-     * @param minClusterNodeVersion minimum version of nodes in cluster
      * @param updatedConfigListener Updated datafeed config listener
      */
     public void updateDatefeedConfig(String datafeedId, DatafeedUpdate update, Map<String, String> headers,
-                          BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
-                          Version minClusterNodeVersion,
-                          ActionListener<DatafeedConfig> updatedConfigListener) {
+                                     BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
+                                     ActionListener<DatafeedConfig> updatedConfigListener) {
         GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(datafeedId));
 
@@ -304,7 +301,7 @@ public class DatafeedConfigProvider {
 
                 ActionListener<Boolean> validatedListener = ActionListener.wrap(
                         ok -> {
-                            indexUpdatedConfig(updatedConfig, version, seqNo, primaryTerm, minClusterNodeVersion, ActionListener.wrap(
+                            indexUpdatedConfig(updatedConfig, seqNo, primaryTerm, ActionListener.wrap(
                                     indexResponse -> {
                                         assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
                                         updatedConfigListener.onResponse(updatedConfig);
@@ -324,8 +321,8 @@ public class DatafeedConfigProvider {
         });
     }
 
-    private void indexUpdatedConfig(DatafeedConfig updatedConfig, long version, long seqNo, long primaryTerm,
-                                    Version minClusterNodeVersion, ActionListener<IndexResponse> listener) {
+    private void indexUpdatedConfig(DatafeedConfig updatedConfig, long seqNo, long primaryTerm,
+                                    ActionListener<IndexResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
             IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
@@ -333,12 +330,8 @@ public class DatafeedConfigProvider {
                     .setSource(updatedSource)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            if (minClusterNodeVersion.onOrAfter(Version.V_6_7_0)) {
-                indexRequest.setIfSeqNo(seqNo);
-                indexRequest.setIfPrimaryTerm(primaryTerm);
-            } else {
-                indexRequest.setVersion(version);
-            }
+            indexRequest.setIfSeqNo(seqNo);
+            indexRequest.setIfPrimaryTerm(primaryTerm);
 
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest.request(), listener);
 

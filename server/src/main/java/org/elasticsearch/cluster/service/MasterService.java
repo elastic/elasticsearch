@@ -569,7 +569,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     protected void warnAboutSlowTaskIfNeeded(TimeValue executionTime, String source) {
         if (executionTime.getMillis() > slowTaskLoggingThreshold.getMillis()) {
-            logger.warn("cluster state update task [{}] took [{}] above the warn threshold of {}", source, executionTime,
+            logger.warn("cluster state update task [{}] took [{}] which is above the warn threshold of {}", source, executionTime,
                 slowTaskLoggingThreshold);
         }
     }

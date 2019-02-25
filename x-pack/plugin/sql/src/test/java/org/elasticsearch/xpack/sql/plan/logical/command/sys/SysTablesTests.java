@@ -231,7 +231,7 @@ public class SysTablesTests extends ESTestCase {
     }
 
     private SqlTypedParamValue param(Object value) {
-        return new SqlTypedParamValue(DataTypes.fromJava(value).esType, value);
+        return new SqlTypedParamValue(DataTypes.fromJava(value).typeName, value);
     }
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params) {

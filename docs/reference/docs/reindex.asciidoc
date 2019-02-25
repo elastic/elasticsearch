@@ -118,8 +118,8 @@ POST _reindex
 // CONSOLE
 // TEST[setup:twitter]
 
-By default version conflicts abort the `_reindex` process but you can just
-count them by settings `"conflicts": "proceed"` in the request body:
+By default, version conflicts abort the `_reindex` process, but you can just
+count them by setting `"conflicts": "proceed"` in the request body:
 
 [source,js]
 --------------------------------------------------
@@ -423,16 +423,18 @@ POST _reindex
 // TEST[s/"password": "pass"//]
 
 The `host` parameter must contain a scheme, host, port (e.g.
-`https://otherhost:9200`) and optional path (e.g. `https://otherhost:9200/proxy`).
+`https://otherhost:9200`), and optional path (e.g. `https://otherhost:9200/proxy`).
 The `username` and `password` parameters are optional, and when they are present `_reindex`
 will connect to the remote Elasticsearch node using basic auth. Be sure to use `https` when
 using basic auth or the password will be sent in plain text.
+There are a range of <<reindex-ssl,settings>> available to configure the behaviour of the
+ `https` connection.
 
 Remote hosts have to be explicitly whitelisted in elasticsearch.yml using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list
 of allowed remote `host` and `port` combinations (e.g.
 `otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*`). Scheme is
-ignored by the whitelist - only host and port are used, for example:
+ignored by the whitelist -- only host and port are used, for example:
 
 
 [source,yaml]
@@ -519,11 +521,104 @@ POST _reindex
 // TEST[s/otherhost:9200/\${host}/]
 
 [float]
+[[reindex-ssl]]
+==== Configuring SSL parameters
+
+Reindex from remote supports configurable SSL settings. These must be
+specified in the `elasticsearch.yml` file, with the exception of the
+secure settings, which you add in the Elasticsearch keystore.
+It is not possible to configure SSL in the body of the `_reindex` request.
+
+The following settings are supported:
+
+`reindex.ssl.certificate_authorities`::
+List of paths to PEM encoded certificate files that should be trusted. 
+You cannot specify both `reindex.ssl.certificate_authorities` and
+`reindex.ssl.truststore.path`.
+
+`reindex.ssl.truststore.path`::
+The path to the Java Keystore file that contains the certificates to trust.
+This keystore can be in "JKS" or "PKCS#12" format.
+You cannot specify both `reindex.ssl.certificate_authorities` and
+`reindex.ssl.truststore.path`.
+
+`reindex.ssl.truststore.password`::
+The password to the truststore (`reindex.ssl.truststore.path`).
+This setting cannot be used with `reindex.ssl.truststore.secure_password`.
+
+`reindex.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
+The password to the truststore (`reindex.ssl.truststore.path`).
+This setting cannot be used with `reindex.ssl.truststore.password`.
+
+`reindex.ssl.truststore.type`::
+The type of the truststore (`reindex.ssl.truststore.path`).
+Must be either `jks` or `PKCS12`. If the truststore path ends in ".p12", ".pfx"
+or "pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
+
+`reindex.ssl.verification_mode`::
+Indicates the type of verification to protect against man in the middle attacks
+and certificate forgery. 
+One of `full` (verify the hostname and the certificate path), `certificate`
+(verify the certificate path, but not the hostname) or `none` (perform no
+verification - this is strongly discouraged in production environments).
+Defaults to `full`.
+
+`reindex.ssl.certificate`::
+Specifies the path to the PEM encoded certificate (or certificate chain) to be
+used for HTTP client authentication (if required by the remote cluster)
+This setting requires that `reindex.ssl.key` also be set.
+You cannot specify both `reindex.ssl.certificate` and `reindex.ssl.keystore.path`.
+
+`reindex.ssl.key`::
+Specifies the path to the PEM encoded private key associated with the
+certificate used for client authentication (`reindex.ssl.certificate`).
+You cannot specify both `reindex.ssl.key` and `reindex.ssl.keystore.path`.
+
+`reindex.ssl.key_passphrase`::
+Specifies the passphrase to decrypt the PEM encoded private key
+(`reindex.ssl.key`) if it is encrypted.
+Cannot be used with `reindex.ssl.secure_key_passphrase`. 
+
+`reindex.ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
+Specifies the passphrase to decrypt the PEM encoded private key
+(`reindex.ssl.key`) if it is encrypted.
+Cannot be used with `reindex.ssl.key_passphrase`. 
+
+`reindex.ssl.keystore.path`::
+Specifies the path to the keystore that contains a private key and certificate
+to be used for HTTP client authentication (if required by the remote cluster).
+This keystore can be in "JKS" or "PKCS#12" format.
+You cannot specify both `reindex.ssl.key` and `reindex.ssl.keystore.path`.
+
+`reindex.ssl.keystore.type`::
+The type of the keystore (`reindex.ssl.keystore.path`). Must be either `jks` or `PKCS12`.
+If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting defaults 
+to `PKCS12`. Otherwise, it defaults to `jks`.
+
+`reindex.ssl.keystore.password`::
+The password to the keystore (`reindex.ssl.keystore.path`). This setting cannot be used 
+with `reindex.ssl.keystore.secure_password`.
+
+`reindex.ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
+The password to the keystore (`reindex.ssl.keystore.path`).
+This setting cannot be used with `reindex.ssl.keystore.password`.
+
+`reindex.ssl.keystore.key_password`::
+The password for the key in the keystore (`reindex.ssl.keystore.path`).
+Defaults to the keystore password. This setting cannot be used with 
+`reindex.ssl.keystore.secure_key_password`.
+
+`reindex.ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
+The password for the key in the keystore (`reindex.ssl.keystore.path`).
+Defaults to the keystore password. This setting cannot be used with 
+`reindex.ssl.keystore.key_password`.
+
+[float]
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Reindex API also
 supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,
-`scroll` and `requests_per_second`.
+`scroll`, and `requests_per_second`.
 
 Sending the `refresh` url parameter will cause all indexes to which the request
 wrote to be refreshed. This is different than the Index API's `refresh`
@@ -547,7 +642,7 @@ the `scroll` parameter to control how long it keeps the "search context" alive,
 (e.g. `?scroll=10m`). The default value is 5 minutes.
 
 `requests_per_second` can be set to any positive decimal number (`1.4`, `6`,
-`1000`, etc) and throttles the rate at which `_reindex` issues batches of index
+`1000`, etc.) and throttles the rate at which `_reindex` issues batches of index
 operations by padding each batch with a wait time. The throttling can be
 disabled by setting `requests_per_second` to `-1`.
 
@@ -744,7 +839,7 @@ The response looks like:
 }
 --------------------------------------------------
 // TESTRESPONSE
-<1> this object contains the actual status. It is identical to the response JSON
+<1> This object contains the actual status. It is identical to the response JSON
 except for the important addition of the `total` field. `total` is the total number
 of operations that the `_reindex` expects to perform. You can estimate the
 progress by adding the `updated`, `created`, and `deleted` fields. The request
@@ -772,7 +867,7 @@ you to delete that document.
 [[docs-reindex-cancel-task-api]]
 === Works with the Cancel Task API
 
-Any Reindex can be canceled using the <<task-cancellation,Task Cancel API>>. For 
+Any reindex can be canceled using the <<task-cancellation,Task Cancel API>>. For 
 example:
 
 [source,js]
@@ -805,8 +900,8 @@ The task ID can be found using the <<tasks,tasks API>>.
 Just like when setting it on the Reindex API, `requests_per_second`
 can be either `-1` to disable throttling or any decimal number
 like `1.7` or `12` to throttle to that level. Rethrottling that speeds up the
-query takes effect immediately but rethrotting that slows down the query will
-take effect on after completing the current batch. This prevents scroll
+query takes effect immediately, but rethrottling that slows down the query will
+take effect after completing the current batch. This prevents scroll
 timeouts.
 
 [float]
@@ -1017,7 +1112,7 @@ be larger than others. Expect larger slices to have a more even distribution.
 are distributed proportionally to each sub-request. Combine that with the point
 above about distribution being uneven and you should conclude that the using
 `size` with `slices` might not result in exactly `size` documents being
-`_reindex`ed.
+reindexed.
 * Each sub-request gets a slightly different snapshot of the source index,
 though these are all taken at approximately the same time.
 
@@ -1050,7 +1145,7 @@ partially completed index and starting over at that index. It also makes
 parallelizing the process fairly simple: split the list of indices to reindex
 and run each list in parallel.
 
-One off bash scripts seem to work nicely for this:
+One-off bash scripts seem to work nicely for this:
 
 [source,bash]
 ----------------------------------------------------------------
@@ -1122,7 +1217,7 @@ GET metricbeat-2016.05.31-1/_doc/1
 // CONSOLE
 // TEST[continued]
 
-The previous method can also be used in conjunction with <<docs-reindex-change-name, change the name of a field>>
+The previous method can also be used in conjunction with <<docs-reindex-change-name, changing a field name>>
 to load only the existing data into the new index and rename any fields if needed.
 
 [float]

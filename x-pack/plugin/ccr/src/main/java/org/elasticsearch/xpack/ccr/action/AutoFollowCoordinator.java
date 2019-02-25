@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
-import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -449,9 +447,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                     }
                 } else {
                     final Settings leaderIndexSettings = remoteMetadata.getIndexSafe(indexToFollow).getSettings();
-                    if (leaderIndexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
-                        IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexSettings).onOrAfter(Version.V_7_0_0)) == false) {
-
+                    if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexSettings) == false) {
                         String message = String.format(Locale.ROOT, "index [%s] cannot be followed, because soft deletes are not enabled",
                             indexToFollow.getName());
                         LOGGER.warn(message);
@@ -514,23 +510,20 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             final String leaderIndexName = indexToFollow.getName();
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
-            ResumeFollowAction.Request followRequest = new ResumeFollowAction.Request();
-            followRequest.setFollowerIndex(followIndexName);
-            followRequest.setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
-            followRequest.setMaxReadRequestSize(pattern.getMaxReadRequestSize());
-            followRequest.setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
-            followRequest.setMaxWriteRequestOperationCount(pattern.getMaxWriteRequestOperationCount());
-            followRequest.setMaxWriteRequestSize(pattern.getMaxWriteRequestSize());
-            followRequest.setMaxOutstandingWriteRequests(pattern.getMaxOutstandingWriteRequests());
-            followRequest.setMaxWriteBufferCount(pattern.getMaxWriteBufferCount());
-            followRequest.setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
-            followRequest.setMaxRetryDelay(pattern.getMaxRetryDelay());
-            followRequest.setReadPollTimeout(pattern.getPollTimeout());
-
             PutFollowAction.Request request = new PutFollowAction.Request();
             request.setRemoteCluster(remoteCluster);
             request.setLeaderIndex(indexToFollow.getName());
-            request.setFollowRequest(followRequest);
+            request.setFollowerIndex(followIndexName);
+            request.getParameters().setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
+            request.getParameters().setMaxReadRequestSize(pattern.getMaxReadRequestSize());
+            request.getParameters().setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
+            request.getParameters().setMaxWriteRequestOperationCount(pattern.getMaxWriteRequestOperationCount());
+            request.getParameters().setMaxWriteRequestSize(pattern.getMaxWriteRequestSize());
+            request.getParameters().setMaxOutstandingWriteRequests(pattern.getMaxOutstandingWriteRequests());
+            request.getParameters().setMaxWriteBufferCount(pattern.getMaxWriteBufferCount());
+            request.getParameters().setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
+            request.getParameters().setMaxRetryDelay(pattern.getMaxRetryDelay());
+            request.getParameters().setReadPollTimeout(pattern.getReadPollTimeout());
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {

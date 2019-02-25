@@ -105,6 +105,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveRefs(),
                 new ResolveOrdinalInOrderByAndGroupBy(),
                 new ResolveMissingRefs(),
+                new ResolveFilterRefs(),
                 new ResolveFunctions(),
                 new ResolveAliases(),
                 new ProjectedAggregations(),
@@ -219,7 +220,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // compound fields
             else if (allowCompound == false && fa.dataType().isPrimitive() == false) {
                 named = u.withUnresolvedMessage(
-                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esType + "] only its subfields");
+                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName + "] only its subfields");
             }
         }
         return named;
@@ -759,6 +760,68 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             }
             return ua;
+        }
+    }
+
+    //
+    // Resolve aliases defined in SELECT that are referred inside the WHERE clause:
+    // SELECT int AS i FROM t WHERE i > 10
+    //
+    // As such, identify all project and aggregates that have a Filter child
+    // and look at any resoled aliases that match and replace them.
+    private class ResolveFilterRefs extends AnalyzeRule<LogicalPlan> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            if (plan instanceof Project) {
+                Project p = (Project) plan;
+                if (p.child() instanceof Filter) {
+                    Filter f = (Filter) p.child();
+                    Expression condition = f.condition();
+                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                        Expression newCondition = replaceAliases(condition, p.projections());
+                        if (newCondition != condition) {
+                            return new Project(p.source(), new Filter(f.source(), f.child(), newCondition), p.projections());
+                        }
+                    }
+                }
+            }
+
+            if (plan instanceof Aggregate) {
+                Aggregate a = (Aggregate) plan;
+                if (a.child() instanceof Filter) {
+                    Filter f = (Filter) a.child();
+                    Expression condition = f.condition();
+                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                        Expression newCondition = replaceAliases(condition, a.aggregates());
+                        if (newCondition != condition) {
+                            return new Aggregate(a.source(), new Filter(f.source(), f.child(), newCondition), a.groupings(),
+                                    a.aggregates());
+                        }
+                    }
+                }
+            }
+
+            return plan;
+        }
+
+        private Expression replaceAliases(Expression condition, List<? extends NamedExpression> named) {
+            List<Alias> aliases = new ArrayList<>();
+            named.forEach(n -> {
+                if (n instanceof Alias) {
+                    aliases.add((Alias) n);
+                }
+            });
+
+            return condition.transformDown(u -> {
+                boolean qualified = u.qualifier() != null;
+                for (Alias alias : aliases) {
+                    if (qualified ? Objects.equals(alias.qualifiedName(), u.qualifiedName()) : Objects.equals(alias.name(), u.name())) {
+                        return alias;
+                    }
+                }
+                return u;
+             }, UnresolvedAttribute.class);
         }
     }
 

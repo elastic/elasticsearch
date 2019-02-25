@@ -5,7 +5,7 @@
           wait_for_status: yellow
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -38,7 +38,7 @@
           wait_for_status: yellow
 
   - do:
-      xpack.watcher.ack_watch:
+      watcher.ack_watch:
         watch_id: "my_watch"
 
   - match: { "status.actions.test_index.ack.state" : "awaits_successful_execution" }
@@ -52,7 +52,7 @@
   - match: { hits.hits.0._source.status.actions.test_index.ack.state: "awaits_successful_execution" }
 
   - do:
-      xpack.watcher.delete_watch:
+      watcher.delete_watch:
         id: "my_watch"
 
   - match: { found: true }
@@ -63,6 +63,6 @@
       cluster.health:
           wait_for_status: yellow
   - do:
-      xpack.watcher.ack_watch:
+      watcher.ack_watch:
         watch_id: "non-existent-watch"
       catch: missing

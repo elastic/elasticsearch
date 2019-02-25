@@ -41,7 +41,6 @@ public class TemplateHttpResource extends PublishableHttpResource {
     static {
         Map<String, String> parameters = new TreeMap<>();
         parameters.put("filter_path", FILTER_PATH_RESOURCE_VERSION);
-        parameters.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         PARAMETERS = Collections.unmodifiableMap(parameters);
     }
 
@@ -88,8 +87,9 @@ public class TemplateHttpResource extends PublishableHttpResource {
      */
     @Override
     protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+        Map<String, String> parameters = Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true");
         putResource(client, listener, logger,
-                    "/_template", templateName, this::templateToHttpEntity, "monitoring template",
+                    "/_template", templateName, parameters, this::templateToHttpEntity, "monitoring template",
                     resourceOwnerName, "monitoring cluster");
     }
 

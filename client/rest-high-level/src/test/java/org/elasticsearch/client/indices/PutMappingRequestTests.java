@@ -21,7 +21,6 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

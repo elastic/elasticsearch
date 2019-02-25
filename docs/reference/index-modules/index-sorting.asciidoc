@@ -195,7 +195,8 @@ as soon as N documents have been collected per segment.
 
 <1> The total number of hits matching the query is unknown because of early termination.
 
-NOTE: Aggregations will collect all documents that match the query regardless of the value of `track_total_hits`
+NOTE: Aggregations will collect all documents that match the query regardless
+of the value of `track_total_hits`
 
 [[index-modules-index-sorting-conjunctions]]
 === Use index sorting to speed up conjunctions

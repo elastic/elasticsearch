@@ -27,15 +27,15 @@ public class ParsedGeoHashGridBucket extends ParsedGeoGridBucket {
 
     @Override
     public GeoPoint getKey() {
-        return GeoPoint.fromGeohash(geohashAsString);
+        return GeoPoint.fromGeohash(hashAsString);
     }
 
     @Override
     public String getKeyAsString() {
-        return geohashAsString;
+        return hashAsString;
     }
 
     static ParsedGeoHashGridBucket fromXContent(XContentParser parser) throws IOException {
-        return parseXContent(parser, false, ParsedGeoHashGridBucket::new, (p, bucket) -> bucket.geohashAsString = p.textOrNull());
+        return parseXContent(parser, false, ParsedGeoHashGridBucket::new, (p, bucket) -> bucket.hashAsString = p.textOrNull());
     }
 }

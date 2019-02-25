@@ -89,10 +89,10 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
             }
             for (Object obj : grid.buckets) {
                 B bucket = (B) obj;
-                List<B> existingBuckets = buckets.get(bucket.geohashAsLong());
+                List<B> existingBuckets = buckets.get(bucket.hashAsLong());
                 if (existingBuckets == null) {
                     existingBuckets = new ArrayList<>(aggregations.size());
-                    buckets.put(bucket.geohashAsLong(), existingBuckets);
+                    buckets.put(bucket.hashAsLong(), existingBuckets);
                 }
                 existingBuckets.add(bucket);
             }

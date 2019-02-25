@@ -239,7 +239,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 + "      \"network_bytes_out\": { \"type\":\"long\"}"
                 + "    }"
                 + "  }"
-                + "}");;
+                + "}");
         client().performRequest(createIndexRequest);
 
         StringBuilder bulk = new StringBuilder();
@@ -1106,7 +1106,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     private void waitUntilJobIsClosed(String jobId) throws Exception {

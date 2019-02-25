@@ -42,15 +42,37 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         ).get();
         final String indexUUID = resolveIndex(indexName).getUUID();
 
+        logger.info("--> restarting the node with node.data=false and node.master=false");
+        IllegalStateException ex = expectThrows(IllegalStateException.class,
+            "Node started with node.data=false and node.master=false while having existing index metadata must fail",
+            () ->
+                internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+                    @Override
+                    public Settings onNodeStopped(String nodeName) {
+                        return Settings.builder()
+                            .put(Node.NODE_DATA_SETTING.getKey(), false)
+                            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+                            .build();
+                    }
+                }));
+        assertThat(ex.getMessage(), containsString(indexUUID));
+        assertThat(ex.getMessage(),
+            startsWith("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false and "
+                + Node.NODE_MASTER_SETTING.getKey()
+                + "=false, but has index metadata"));
+
+        // client() also starts the node
         logger.info("--> indexing a simple document");
         client().prepareIndex(indexName, "type1", "1").setSource("field1", "value1").get();
 
-        logger.info("--> restarting the node with node.data=true");
+        logger.info("--> restarting the node with node.data=true and node.master=true");
         internalCluster().restartRandomDataNode();
 
         logger.info("--> restarting the node with node.data=false");
-        IllegalStateException ex = expectThrows(IllegalStateException.class,
-            "Node started with node.data=false and existing shard data must fail",
+        ex = expectThrows(IllegalStateException.class,
+            "Node started with node.data=false while having existing shard data must fail",
             () ->
                 internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
                     @Override

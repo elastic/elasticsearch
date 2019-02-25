@@ -39,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Aggregates data expressed as GeoHash longs (for efficiency's sake) but formats results as Geohash strings.
+ * Aggregates data expressed as longs (for efficiency's sake) but formats results as aggregation-specific strings.
  */
 public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends BucketsAggregator {
 
@@ -103,20 +103,20 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         InternalGeoGridBucket sourceBucket; // used to keep track of appropriate getKeyAsString method
 
         OrdinalBucket(InternalGeoGridBucket sourceBucket) {
-            super(sourceBucket.geohashAsLong, sourceBucket.docCount, sourceBucket.aggregations);
+            super(sourceBucket.hashAsLong, sourceBucket.docCount, sourceBucket.aggregations);
             this.sourceBucket = sourceBucket;
         }
 
-        void geohashAsLong(long geohashAsLong) {
-            this.geohashAsLong = geohashAsLong;
-            this.sourceBucket.geohashAsLong = geohashAsLong;
+        void hashAsLong(long hashAsLong) {
+            this.hashAsLong = hashAsLong;
+            this.sourceBucket.hashAsLong = hashAsLong;
         }
 
         @Override
-        InternalGeoGridBucket buildBucket(InternalGeoGridBucket bucket, long geoHashAsLong, long docCount,
+        InternalGeoGridBucket buildBucket(InternalGeoGridBucket bucket, long hashAsLong, long docCount,
                                           InternalAggregations aggregations) {
             OrdinalBucket ordBucket = new OrdinalBucket(bucket);
-            ordBucket.geohashAsLong = geoHashAsLong;
+            ordBucket.hashAsLong = hashAsLong;
             ordBucket.docCount = docCount;
             ordBucket.aggregations = aggregations;
             // this is done because the aggregator may be rebuilt from cache (non OrdinalBucket),
@@ -163,7 +163,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
 
             // need a special function to keep the source bucket
             // up-to-date so it can get the appropriate key
-            spare.geohashAsLong(bucketOrds.get(i));
+            spare.hashAsLong(bucketOrds.get(i));
             spare.docCount = bucketDocCount(i);
             spare.bucketOrd = i;
             spare = (OrdinalBucket) ordered.insertWithOverflow(spare);

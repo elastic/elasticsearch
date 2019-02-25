@@ -1428,26 +1428,27 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         try {
             Map<String, String> userData = readLastCommittedSegmentsInfo().getUserData();
             final long maxSeqNo = Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO));
-            bootstrapNewHistory(maxSeqNo);
+            final long localCheckpoint = Long.parseLong(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            bootstrapNewHistory(localCheckpoint, maxSeqNo);
         } finally {
             metadataLock.writeLock().unlock();
         }
     }
 
     /**
-     * Marks an existing lucene index with a new history uuid and sets the given maxSeqNo as the local checkpoint
+     * Marks an existing lucene index with a new history uuid and sets the given local checkpoint
      * as well as the maximum sequence number.
-     * This is used to make sure no existing shard will recovery from this index using ops based recovery.
+     * This is used to make sure no existing shard will recover from this index using ops based recovery.
      * @see SequenceNumbers#LOCAL_CHECKPOINT_KEY
      * @see SequenceNumbers#MAX_SEQ_NO
      */
-    public void bootstrapNewHistory(long maxSeqNo) throws IOException {
+    public void bootstrapNewHistory(long localCheckpoint, long maxSeqNo) throws IOException {
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newAppendingIndexWriter(directory, null)) {
             final Map<String, String> map = new HashMap<>();
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
+            map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
-            map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
             updateCommitData(writer, map);
         } finally {
             metadataLock.writeLock().unlock();
@@ -1520,7 +1521,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (existingCommits.isEmpty()) {
                 throw new IllegalArgumentException("No index found to trim");
             }
-            final String translogUUID = existingCommits.get(existingCommits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final IndexCommit lastIndexCommitCommit = existingCommits.get(existingCommits.size() - 1);
+            final String translogUUID = lastIndexCommitCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY);
             final IndexCommit startingIndexCommit;
             // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
             // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
@@ -1545,7 +1547,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     + startingIndexCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY) + "] is not equal to last commit's translog uuid ["
                     + translogUUID + "]");
             }
-            if (startingIndexCommit.equals(existingCommits.get(existingCommits.size() - 1)) == false) {
+            if (startingIndexCommit.equals(lastIndexCommitCommit) == false) {
                 try (IndexWriter writer = newAppendingIndexWriter(directory, startingIndexCommit)) {
                     // this achieves two things:
                     // - by committing a new commit based on the starting commit, it make sure the starting commit will be opened

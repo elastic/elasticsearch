@@ -173,6 +173,8 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
+        searchRequest.setCcsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", true));
+
         checkRestTotalHits(request, searchRequest);
     }
 
@@ -240,6 +242,7 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
         }
 
+
         if (request.hasParam("track_total_hits")) {
             if (Booleans.isBoolean(request.param("track_total_hits"))) {
                 searchSourceBuilder.trackTotalHits(
@@ -289,17 +292,26 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     /**
-     * Throws an {@link IllegalArgumentException} if {@link #TOTAL_HITS_AS_INT_PARAM}
-     * is used in conjunction with a lower bound value for the track_total_hits option.
+     * Modify the search request to accurately count the total hits that match the query
+     * if {@link #TOTAL_HITS_AS_INT_PARAM} is set.
+     *
+     * @throws IllegalArgumentException if {@link #TOTAL_HITS_AS_INT_PARAM}
+     * is used in conjunction with a lower bound value (other than {@link SearchContext#DEFAULT_TRACK_TOTAL_HITS_UP_TO})
+     * for the track_total_hits option.
      */
     public static void checkRestTotalHits(RestRequest restRequest, SearchRequest searchRequest) {
-        int trackTotalHitsUpTo = searchRequest.source() == null ?
-            SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : searchRequest.source().trackTotalHitsUpTo();
-        if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE ||
-                trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-            return ;
+        boolean totalHitsAsInt = restRequest.paramAsBoolean(TOTAL_HITS_AS_INT_PARAM, false);
+        if (totalHitsAsInt == false) {
+            return;
         }
-        if (restRequest.paramAsBoolean(TOTAL_HITS_AS_INT_PARAM, false)) {
+        if (searchRequest.source() == null) {
+            searchRequest.source(new SearchSourceBuilder());
+        }
+        Integer trackTotalHitsUpTo = searchRequest.source().trackTotalHitsUpTo();
+        if (trackTotalHitsUpTo == null) {
+            searchRequest.source().trackTotalHits(true);
+        } else if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE
+                && trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
             throw new IllegalArgumentException("[" + TOTAL_HITS_AS_INT_PARAM + "] cannot be used " +
                 "if the tracking of total hits is not accurate, got " + trackTotalHitsUpTo);
         }

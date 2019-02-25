@@ -114,9 +114,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             //no search shards to search on, bail with empty response
             //(it happens with search across _all with no indices around and consistent with broadcast operations)
 
-            boolean withTotalHits = request.source() != null ?
-                // total hits is null in the response if the tracking of total hits is disabled
-                request.source().trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_DISABLED : true;
+            int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :
+                request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :
+                    request.source().trackTotalHitsUpTo();
+            // total hits is null in the response if the tracking of total hits is disabled
+            boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
             listener.onResponse(new SearchResponse(InternalSearchResponse.empty(withTotalHits), null, 0, 0, 0, buildTookInMillis(),
                 ShardSearchFailure.EMPTY_ARRAY, clusters));
             return;
@@ -226,7 +228,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         results.getSuccessfulResults().forEach((entry) -> {
             try {
                 SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
-                Transport.Connection connection = getConnection(null, searchShardTarget.getNodeId());
+                Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
                 sendReleaseSearchContext(entry.getRequestId(), connection, searchShardTarget.getOriginalIndices());
             } catch (Exception inner) {
                 inner.addSuppressed(exception);
@@ -279,14 +281,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
-
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (allowPartialResults == false && failures.length > 0){
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         }
-
         return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
             skippedOps.get(), buildTookInMillis(), failures, clusters);
     }

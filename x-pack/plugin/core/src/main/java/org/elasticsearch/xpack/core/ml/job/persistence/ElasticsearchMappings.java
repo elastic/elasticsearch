@@ -960,10 +960,10 @@ public class ElasticsearchMappings {
     }
 
     public static XContentBuilder auditMessageMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                    .startObject(AuditMessage.TYPE.getPreferredName())
-                        .startObject(PROPERTIES)
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startObject(AuditMessage.TYPE.getPreferredName());
+        addMetaInformation(builder);
+        builder.startObject(PROPERTIES)
                             .startObject(Job.ID.getPreferredName())
                                 .field(TYPE, KEYWORD)
                             .endObject()
@@ -987,6 +987,7 @@ public class ElasticsearchMappings {
                         .endObject()
                     .endObject()
                 .endObject();
+        return builder;
     }
 
     static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) throws IOException {

@@ -40,7 +40,7 @@ install_archive() {
     echo "Unpacking tarball to $ESHOME"
     rm -rf /tmp/untar
     mkdir -p /tmp/untar
-    tar -xzpf "${PACKAGE_NAME}-${version}.tar.gz" -C /tmp/untar
+    tar -xzpf "${PACKAGE_NAME}-${version}-linux-x86_64.tar.gz" -C /tmp/untar
 
     find /tmp/untar -depth -type d -name 'elasticsearch*' -exec mv {} "$ESHOME" \; > /dev/null
 

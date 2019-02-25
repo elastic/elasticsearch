@@ -43,7 +43,7 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
     @Override
     protected TypeResolution resolveType() {
         if (!percent.foldable()) {
-            return new TypeResolution(format(null, "2nd argument of PERCENTILE must be a constant, received [{}]",
+            return new TypeResolution(format(null, "Second argument of PERCENTILE must be a constant, received [{}]",
                 Expressions.name(percent)));
         }
 

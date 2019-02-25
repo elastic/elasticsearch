@@ -62,10 +62,10 @@
 
   - match: { test_index.shards.0.type: SNAPSHOT }
   - match: { test_index.shards.0.stage: DONE }
-  - match: { test_index.shards.0.index.files.recovered: 0}
-  - match: { test_index.shards.0.index.size.recovered_in_bytes: 0}
-  - match: { test_index.shards.0.index.files.reused: 1}
-  - gt: { test_index.shards.0.index.size.reused_in_bytes: 0}
+  - match: { test_index.shards.0.index.files.recovered: 1}
+  - gt:    { test_index.shards.0.index.size.recovered_in_bytes: 0}
+  - match: { test_index.shards.0.index.files.reused: 0}
+  - match: { test_index.shards.0.index.size.reused_in_bytes: 0}
 
   # Remove our snapshot
   - do:

@@ -265,18 +265,24 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     }
 
     /**
-     * The name of the index storing the job's results and state.
-     * This defaults to {@link #getId()} if a specific index name is not set.
-     * @return The job's index name
+     * A good starting name for the index storing the job's results.
+     * This defaults to the shared results index if a specific index name is not set.
+     * This method must <em>only</em> be used during initial job creation.
+     * After that the read/write aliases must always be used to access the job's
+     * results index, as the underlying index may roll or be reindexed.
+     * @return The job's initial results index name
      */
-    public String getResultsIndexName() {
+    public String getInitialResultsIndexName() {
         return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + resultsIndexName;
     }
 
     /**
-     * Private version of getResultsIndexName so that a job can be built from another
-     * job and pass index name validation
-     * @return The job's index name, minus prefix
+     * Get the unmodified <code>results_index_name</code> field from the job.
+     * This is provided to allow a job to be copied via the builder.
+     * After creation this does not necessarily reflect the actual concrete
+     * index used by the job.  A job's results must always be read and written
+     * using the read and write aliases.
+     * @return The job's configured "index name"
      */
     private String getResultsIndexNameNoPrefix() {
         return resultsIndexName;

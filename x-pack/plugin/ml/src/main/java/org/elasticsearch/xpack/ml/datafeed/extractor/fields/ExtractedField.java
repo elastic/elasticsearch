@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 
 import java.util.List;
 import java.util.Map;
@@ -52,7 +51,7 @@ public abstract class ExtractedField {
     public abstract Object[] value(SearchHit hit);
 
     public String getDocValueFormat() {
-        return DocValueFieldsContext.USE_DEFAULT_FORMAT;
+        return null;
     }
 
     public static ExtractedField newTimeField(String name, ExtractionMethod extractionMethod) {

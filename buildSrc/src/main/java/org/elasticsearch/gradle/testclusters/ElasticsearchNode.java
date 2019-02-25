@@ -129,6 +129,7 @@ public class ElasticsearchNode {
     public void freeze() {
         requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
+        requireNonNull(javaHome, "null javaHome passed when configuring test cluster `" + this + "`");
         logger.info("Locking configuration of `{}`", this);
         configurationFrozen.set(true);
     }
@@ -204,16 +205,7 @@ public class ElasticsearchNode {
             Map<String, String> environment = processBuilder.environment();
             // Don't inherit anything from the environment for as that would  lack reproductability
             environment.clear();
-            if (javaHome != null) {
-                environment.put("JAVA_HOME", getJavaHome().getAbsolutePath());
-            } else if (System.getenv().get("JAVA_HOME") != null) {
-                logger.warn("{}: No java home configured will use it from environment: {}",
-                    this, System.getenv().get("JAVA_HOME")
-                );
-                environment.put("JAVA_HOME", System.getenv().get("JAVA_HOME"));
-            } else {
-                logger.warn("{}: No javaHome configured, will rely on default java detection", this);
-            }
+            environment.put("JAVA_HOME", getJavaHome().getAbsolutePath());
             environment.put("ES_PATH_CONF", configFile.getParent().toAbsolutePath().toString());
             environment.put("ES_JAVA_OPTIONS", "-Xms512m -Xmx512m");
             // don't buffer all in memory, make sure we don't block on the default pipes
@@ -243,7 +235,8 @@ public class ElasticsearchNode {
         }
         logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
-        stopHandle(esProcess.toHandle());
+        // Test clusters are not reused, don't spend time on a graceful shutdown
+        stopHandle(esProcess.toHandle(), true);
         if (tailLogs) {
             logFileContents("Standard output of node", esStdoutFile);
             logFileContents("Standard error of node", esStderrFile);
@@ -251,27 +244,37 @@ public class ElasticsearchNode {
         esProcess = null;
     }
 
-    private void stopHandle(ProcessHandle processHandle) {
+    private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
         // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
-        if (processHandle.isAlive()) {
-            processHandle.children().forEach(this::stopHandle);
-        }
-        logProcessInfo("Terminating elasticsearch process:", processHandle.info());
-        if (processHandle.isAlive()) {
-            processHandle.destroy();
-        } else {
+        if (processHandle.isAlive() == false) {
             logger.info("Process was not running when we tried to terminate it.");
+            return;
         }
-        waitForProcessToExit(processHandle);
-        if (processHandle.isAlive()) {
+
+        // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
+        processHandle.children().forEach(each -> stopHandle(each, forcibly));
+
+        logProcessInfo(
+            "Terminating elasticsearch process" + (forcibly ? " forcibly " : "gracefully") + ":",
+            processHandle.info()
+        );
+
+        if (forcibly) {
+            processHandle.destroyForcibly();
+        } else {
+            processHandle.destroy();
+            waitForProcessToExit(processHandle);
+            if (processHandle.isAlive() == false) {
+                return;
+            }
             logger.info("process did not terminate after {} {}, stopping it forcefully",
-                ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT
-            );
+                ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
             processHandle.destroyForcibly();
         }
+
         waitForProcessToExit(processHandle);
         if (processHandle.isAlive()) {
-            throw new TestClustersException("Was not able to terminate es process");
+            throw new TestClustersException("Was not able to terminate elasticsearch process");
         }
     }
 
@@ -288,7 +291,7 @@ public class ElasticsearchNode {
         logger.error("{} `{}`", description, this);
         try(Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
             lines
-                .map(line -> "  [" + name + "]" + line)
+                .map(line -> "  " + line)
                 .forEach(logger::error);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

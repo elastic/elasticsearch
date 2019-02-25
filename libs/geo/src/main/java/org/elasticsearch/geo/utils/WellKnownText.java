@@ -121,14 +121,18 @@ public class WellKnownText {
 
                 @Override
                 public Void visit(MultiPoint multiPoint) {
+                    if (multiPoint.isEmpty()) {
+                        sb.append(EMPTY);
+                        return null;
+                    }
                     // walk through coordinates:
                     sb.append(LPAREN);
-                    visitPoint(multiPoint.get(0).lon(), multiPoint.get(0).lat());
+                    visitPoint(multiPoint.get(0).getLon(), multiPoint.get(0).getLat());
                     for (int i = 1; i < multiPoint.size(); ++i) {
                         sb.append(COMMA);
                         sb.append(SPACE);
                         Point point = multiPoint.get(i);
-                        visitPoint(point.lon(), point.lat());
+                        visitPoint(point.getLon(), point.getLat());
                     }
                     sb.append(RPAREN);
                     return null;
@@ -146,7 +150,7 @@ public class WellKnownText {
                         sb.append(EMPTY);
                     } else {
                         sb.append(LPAREN);
-                        visitPoint(point.lon(), point.lat());
+                        visitPoint(point.getLon(), point.getLat());
                         sb.append(RPAREN);
                     }
                     return null;

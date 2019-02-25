@@ -32,9 +32,9 @@ import org.elasticsearch.xpack.watcher.notification.jira.JiraAccountTests;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraIssue;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
 import org.elasticsearch.xpack.watcher.support.Variables;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -238,7 +238,7 @@ public class JiraActionTests extends ESTestCase {
         Map<String, Object> data = new HashMap<>();
         Payload payload = new Payload.Simple(data);
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
         Wid wid = new Wid(randomAlphaOfLength(5),  now);
         WatchExecutionContext context = mockExecutionContextBuilder(wid.watchId())

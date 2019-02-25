@@ -22,7 +22,6 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
@@ -84,7 +83,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public static final int DEFAULT_TERMINATE_AFTER = 0;
     public static final int TRACK_TOTAL_HITS_ACCURATE = Integer.MAX_VALUE;
     public static final int TRACK_TOTAL_HITS_DISABLED = -1;
-    public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = TRACK_TOTAL_HITS_ACCURATE;
+    public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
 
     private Map<Lifetime, List<Releasable>> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -395,7 +394,11 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract ObjectMapper getObjectMapper(String name);
 
-    public abstract Counter timeEstimateCounter();
+    /**
+     * Returns time in milliseconds that can be used for relative time calculations.
+     * WARN: This is not the epoch time.
+     */
+    public abstract long getRelativeTimeInMillis();
 
     /** Return a view of the additional query collectors that should be run for this context. */
     public abstract Map<Class<?>, Collector> queryCollectors();

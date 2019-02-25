@@ -53,7 +53,7 @@ public class SysParserTests extends ESTestCase {
             return Void.TYPE;
         }).when(resolver).resolveAsSeparateMappings(any(), any(), any());
 
-        SqlSession session = new SqlSession(TestUtils.TEST_CFG, null, null, resolver, null, null, null, null);
+        SqlSession session = new SqlSession(TestUtils.TEST_CFG, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 

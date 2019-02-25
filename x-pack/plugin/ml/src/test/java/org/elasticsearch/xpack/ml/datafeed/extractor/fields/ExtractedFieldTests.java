@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
@@ -143,7 +142,7 @@ public class ExtractedFieldTests extends ESTestCase {
 
     public void testGetDocValueFormat() {
         for (ExtractedField.ExtractionMethod method : ExtractedField.ExtractionMethod.values()) {
-            assertThat(ExtractedField.newField("f", method).getDocValueFormat(), equalTo(DocValueFieldsContext.USE_DEFAULT_FORMAT));
+            assertThat(ExtractedField.newField("f", method).getDocValueFormat(), equalTo(null));
         }
         assertThat(ExtractedField.newTimeField("doc_value_time", ExtractedField.ExtractionMethod.DOC_VALUE).getDocValueFormat(),
             equalTo("epoch_millis"));

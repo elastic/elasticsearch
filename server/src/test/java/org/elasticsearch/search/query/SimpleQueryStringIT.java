@@ -22,9 +22,9 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -564,11 +564,10 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
 
-        Exception e = expectThrows(Exception.class, () ->
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
                 client().prepareSearch("test").setQuery(
                         simpleQueryStringQuery("foo123").lenient(false)).get());
-        assertThat(ExceptionsHelper.detailedMessage(e),
-                containsString("NumberFormatException[For input string: \"foo123\"]"));
+        assertThat(e.getDetailedMessage(), containsString("NumberFormatException[For input string: \"foo123\"]"));
     }
 
     public void testLimitOnExpandedFields() throws Exception {
@@ -591,15 +590,15 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         client().prepareIndex("toomanyfields", "type1", "1").setSource("field1", "foo bar baz").get();
         refresh();
 
-        Exception e = expectThrows(Exception.class, () -> {
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
                 SimpleQueryStringBuilder qb = simpleQueryStringQuery("bar");
                 if (randomBoolean()) {
                     qb.field("*");
                 }
                 client().prepareSearch("toomanyfields").setQuery(qb).get();
                 });
-        assertThat(ExceptionsHelper.detailedMessage(e),
-                containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: "
+        assertThat(e.getDetailedMessage(),
+            containsString("field expansion matches too many fields, limit: " + CLUSTER_MAX_CLAUSE_COUNT + ", got: "
                         + (CLUSTER_MAX_CLAUSE_COUNT + 1)));
     }
 

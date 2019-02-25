@@ -272,11 +272,10 @@ public class RolloverIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37037")
     public void testRolloverWithDateMath() {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         assumeTrue("only works on the same day", now.plusMinutes(5).getDayOfYear() == now.getDayOfYear());
-        String index = "test-" + DateFormatter.forPattern("YYYY.MM.dd").format(now) + "-1";
+        String index = "test-" + DateFormatter.forPattern("yyyy.MM.dd").format(now) + "-1";
         String dateMathExp = "<test-{now/d}-1>";
         assertAcked(prepareCreate(dateMathExp).addAlias(new Alias("test_alias")).get());
         ensureGreen(index);
@@ -284,34 +283,34 @@ public class RolloverIT extends ESIntegTestCase {
         client().admin().indices().prepareClose(index).get();
         client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
-            "<test-{now/M{YYYY.MM}}-1>")).get();
+            "<test-{now/M{yyyy.MM}}-1>")).get();
 
         client().admin().indices().prepareOpen(index).get();
         ensureGreen(index);
         RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo(index));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatter.forPattern("YYYY.MM").format(now) + "-000002"));
+        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatter.forPattern("yyyy.MM").format(now) + "-000002"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
 
         response = client().admin().indices().prepareRolloverIndex("test_alias").get();
-        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatter.forPattern("YYYY.MM").format(now) + "-000002"));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatter.forPattern("YYYY.MM").format(now) + "-000003"));
+        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatter.forPattern("yyyy.MM").format(now) + "-000002"));
+        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatter.forPattern("yyyy.MM").format(now) + "-000003"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
 
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(response.getOldIndex(),
             response.getNewIndex()).get();
-        assertEquals("<test-{now/M{YYYY.MM}}-000002>", getSettingsResponse.getSetting(response.getOldIndex(),
+        assertEquals("<test-{now/M{yyyy.MM}}-000002>", getSettingsResponse.getSetting(response.getOldIndex(),
             IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
-        assertEquals("<test-{now/M{YYYY.MM}}-000003>", getSettingsResponse.getSetting(response.getNewIndex(),
+        assertEquals("<test-{now/M{yyyy.MM}}-000003>", getSettingsResponse.getSetting(response.getNewIndex(),
             IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
 
         response = client().admin().indices().prepareRolloverIndex("test_alias").setNewIndexName("<test-{now/d}-000004>").get();
-        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatter.forPattern("YYYY.MM").format(now) + "-000003"));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatter.forPattern("YYYY.MM.dd").format(now) + "-000004"));
+        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatter.forPattern("yyyy.MM").format(now) + "-000003"));
+        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatter.forPattern("yyyy.MM.dd").format(now) + "-000004"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));

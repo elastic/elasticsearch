@@ -472,15 +472,29 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
-    public void testEnsureNoShardData() throws IOException {
+    public void testEnsureNoShardDataOrIndexMetaData() throws IOException {
         Settings settings = buildEnvSettings(Settings.EMPTY);
         Index index = new Index("test", "testUUID");
 
+        // build settings using same path.data as original but with node.data=false and node.master=false
+        Settings noDataNoMasterSettings = Settings.builder()
+            .put(settings)
+            .put(Node.NODE_DATA_SETTING.getKey(), false)
+            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .build();
+
+        // test that we can create data=false and master=false with no meta information
+        newNodeEnvironment(noDataNoMasterSettings).close();
+
+        Path indexPath;
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             for (Path path : env.indexPaths(index)) {
                 Files.createDirectories(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
             }
+            indexPath = env.indexPaths(index)[0];
         }
+
+        verifyFailsOnMetaData(noDataNoMasterSettings, indexPath);
 
         // build settings using same path.data as original but with node.data=false
         Settings noDataSettings = Settings.builder()
@@ -488,29 +502,66 @@ public class NodeEnvironmentTests extends ESTestCase {
             .put(Node.NODE_DATA_SETTING.getKey(), false).build();
 
         String shardDataDirName = Integer.toString(randomInt(10));
-        Path shardPath;
 
-        // test that we can create data=false env with only meta information
+        // test that we can create data=false env with only meta information. Also create shard data for following asserts
         try (NodeEnvironment env = newNodeEnvironment(noDataSettings)) {
             for (Path path : env.indexPaths(index)) {
                 Files.createDirectories(path.resolve(shardDataDirName));
             }
-            shardPath = env.indexPaths(index)[0];
         }
 
+        verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
+
+        // assert that we get the stricter message on meta-data when both conditions fail
+        verifyFailsOnMetaData(noDataNoMasterSettings, indexPath);
+
+        // build settings using same path.data as original but with node.master=false
+        Settings noMasterSettings = Settings.builder()
+            .put(settings)
+            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .build();
+
+        // test that we can create master=false env regardless of data.
+        newNodeEnvironment(noMasterSettings).close();
+
+        // test that we can create data=true, master=true env. Also remove state dir to leave only shard data for following asserts
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            for (Path path : env.indexPaths(index)) {
+                Files.delete(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+            }
+        }
+
+        // assert that we fail on shard data even without the metadata dir.
+        verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
+        verifyFailsOnShardData(noDataNoMasterSettings, indexPath, shardDataDirName);
+    }
+
+    private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {
         IllegalStateException ex = expectThrows(IllegalStateException.class,
             "Must fail creating NodeEnvironment on a data path that has shard data if node.data=false",
-            () -> newNodeEnvironment(noDataSettings).close());
+            () -> newNodeEnvironment(settings).close());
 
         assertThat(ex.getMessage(),
-            containsString(shardPath.resolve(shardDataDirName).toAbsolutePath().toString()));
+            containsString(indexPath.resolve(shardDataDirName).toAbsolutePath().toString()));
         assertThat(ex.getMessage(),
             startsWith("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
                 + "=false, but has shard data"));
+    }
 
-        // test that we can create data=true env
-        newNodeEnvironment(settings).close();
+    private void verifyFailsOnMetaData(Settings settings, Path indexPath) {
+        IllegalStateException ex = expectThrows(IllegalStateException.class,
+            "Must fail creating NodeEnvironment on a data path that has index meta-data if node.data=false and node.master=false",
+            () -> newNodeEnvironment(settings).close());
+
+        assertThat(ex.getMessage(),
+            containsString(indexPath.resolve(MetaDataStateFormat.STATE_DIR_NAME).toAbsolutePath().toString()));
+        assertThat(ex.getMessage(),
+            startsWith("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false and "
+                + Node.NODE_MASTER_SETTING.getKey()
+                + "=false, but has index metadata"));
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */

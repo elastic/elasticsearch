@@ -56,6 +56,7 @@ unitTest {
 
 dependencies {
   compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.elasticsearch:elasticsearch-ssl-config:${version}"
   // for http - testing reindex from remote
   testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
   // for parent/child testing
@@ -70,6 +71,11 @@ thirdPartyAudit.ignoreMissingClasses (
   'org.apache.log.Hierarchy',
   'org.apache.log.Logger',
 )
+
+forbiddenPatterns {
+    // PKCS#12 file are not UTF-8
+    exclude '**/*.p12'
+}
 
 // Support for testing reindex-from-remote against old Elaticsearch versions
 configurations {

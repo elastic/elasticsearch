@@ -42,7 +42,7 @@ public class StubbableConnectionManager extends ConnectionManager {
     private volatile NodeConnectedBehavior defaultNodeConnectedBehavior = ConnectionManager::nodeConnected;
 
     public StubbableConnectionManager(ConnectionManager delegate, Settings settings, Transport transport, ThreadPool threadPool) {
-        super(settings, transport, threadPool);
+        super(settings, transport);
         this.delegate = delegate;
         this.getConnectionBehaviors = new ConcurrentHashMap<>();
         this.nodeConnectedBehaviors = new ConcurrentHashMap<>();
@@ -69,7 +69,9 @@ public class StubbableConnectionManager extends ConnectionManager {
     }
 
     public void clearBehaviors() {
+        defaultGetConnectionBehavior = ConnectionManager::getConnection;
         getConnectionBehaviors.clear();
+        defaultNodeConnectedBehavior = ConnectionManager::nodeConnected;
         nodeConnectedBehaviors.clear();
     }
 

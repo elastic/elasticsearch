@@ -63,7 +63,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     protected static String indexedShapePath;
     protected static String indexedShapeIndex;
     protected static String indexedShapeRouting;
-    protected static ShapeBuilder<?, ?> indexedShapeToReturn;
+    protected static ShapeBuilder<?, ?, ?> indexedShapeToReturn;
 
     protected String fieldName() {
         return GEO_SHAPE_FIELD_NAME;
@@ -88,7 +88,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         // LatLonShape does not support MultiPoint queries
         RandomShapeGenerator.ShapeType shapeType =
             randomFrom(ShapeType.POINT, ShapeType.LINESTRING, ShapeType.MULTILINESTRING, ShapeType.POLYGON);
-        ShapeBuilder<?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
+        ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
         GeoShapeQueryBuilder builder;
         clearShapeFields();
         if (indexedShape == false) {
@@ -174,7 +174,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     }
 
     public void testNoFieldName() throws Exception {
-        ShapeBuilder<?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null);
+        ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GeoShapeQueryBuilder(null, shape));
         assertEquals("fieldName is required", e.getMessage());
     }
@@ -190,7 +190,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     }
 
     public void testNoRelation() throws IOException {
-        ShapeBuilder<?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null);
+        ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null);
         GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(fieldName(), shape);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.relation(null));
         assertEquals("No Shape Relation defined", e.getMessage());
@@ -255,7 +255,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
 
     public void testIgnoreUnmapped() throws IOException {
         ShapeType shapeType = ShapeType.randomType(random());
-        ShapeBuilder<?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
+        ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
         final GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder("unmapped", shape);
         queryBuilder.ignoreUnmapped(true);
         Query query = queryBuilder.toQuery(createShardContext());
@@ -270,7 +270,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
 
     public void testWrongFieldType() throws IOException {
         ShapeType shapeType = ShapeType.randomType(random());
-        ShapeBuilder<?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
+        ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
         final GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder(STRING_FIELD_NAME, shape);
         QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("Field [mapped_string] is not of type [geo_shape] but of type [text]"));

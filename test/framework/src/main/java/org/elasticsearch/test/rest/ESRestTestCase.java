@@ -92,7 +92,6 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
-    public static final String CLIENT_RETRY_TIMEOUT = "client.retry.timeout";
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
@@ -256,6 +255,28 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     public static RequestOptions expectWarnings(String... warnings) {
         return expectVersionSpecificWarnings(consumer -> consumer.current(warnings));
+    }
+
+    /**
+     * Creates RequestOptions designed to ignore [types removal] warnings but nothing else
+     * @deprecated this method is only required while we deprecate types and can be removed in 8.0
+     */
+    @Deprecated
+    public static RequestOptions allowTypesRemovalWarnings() {
+        Builder builder = RequestOptions.DEFAULT.toBuilder();
+        builder.setWarningsHandler(new WarningsHandler() {
+                @Override
+                public boolean warningsShouldFailRequest(List<String> warnings) {
+                    for (String warning : warnings) {
+                        if(warning.startsWith("[types removal]") == false) {
+                            //Something other than a types removal message - return true
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            });
+        return builder.build();
     }
 
     /**
@@ -437,6 +458,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws Exception {
+
+        // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
+        // so we need to fully shut them down first otherwise a job might stall waiting
+        // for a bulk to finish against a non-existing index (and then fail tests)
+        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
+            wipeRollupJobs();
+            waitForPendingRollupTasks();
+        }
+
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
@@ -482,11 +512,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         // wipe cluster settings
         if (preserveClusterSettings() == false) {
             wipeClusterSettings();
-        }
-
-        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
-            wipeRollupJobs();
-            waitForPendingRollupTasks();
         }
 
         if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
@@ -692,20 +717,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
-        builder.setStrictDeprecationMode(getStrictDeprecationMode());
+        builder.setStrictDeprecationMode(true);
         return builder.build();
-    }
-
-    /**
-     * Whether the used REST client should return any response containing at
-     * least one warning header as a failure.
-     * @deprecated always run in strict mode and use
-     *   {@link RequestOptions.Builder#setWarningsHandler} to override this
-     *   behavior on individual requests
-     */
-    @Deprecated
-    protected boolean getStrictDeprecationMode() {
-        return true;
     }
 
     protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
@@ -720,7 +733,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
-                KeyStore keyStore = KeyStore.getInstance("jks");
+                final String keyStoreType = keystorePath.endsWith(".p12") ? "PKCS12" : "jks";
+                KeyStore keyStore = KeyStore.getInstance(keyStoreType);
                 try (InputStream is = Files.newInputStream(path)) {
                     keyStore.load(is, keystorePass.toCharArray());
                 }
@@ -738,11 +752,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                 defaultHeaders[i++] = new BasicHeader(entry.getKey(), entry.getValue());
             }
             builder.setDefaultHeaders(defaultHeaders);
-        }
-        final String requestTimeoutString = settings.get(CLIENT_RETRY_TIMEOUT);
-        if (requestTimeoutString != null) {
-            final TimeValue maxRetryTimeout = TimeValue.parseTimeValue(requestTimeoutString, CLIENT_RETRY_TIMEOUT);
-            builder.setMaxRetryTimeoutMillis(Math.toIntExact(maxRetryTimeout.getMillis()));
         }
         final String socketTimeoutString = settings.get(CLIENT_SOCKET_TIMEOUT);
         if (socketTimeoutString != null) {

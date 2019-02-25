@@ -51,6 +51,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.CollectionAssertions;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
@@ -119,20 +120,19 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37820")
     public void testMetadataVersion() {
         createIndex("index-1");
         createIndex("index-2");
-        long metadataVersion = client().admin().cluster().prepareState().get().getState().metaData().version();
-        assertThat(metadataVersion, greaterThan(0L));
+        long baselineVersion = client().admin().cluster().prepareState().get().getState().metaData().version();
+        assertThat(baselineVersion, greaterThan(0L));
         assertThat(client().admin().cluster().prepareState().setIndices("index-1").get().getState().metaData().version(),
-            equalTo(metadataVersion));
+            greaterThanOrEqualTo(baselineVersion));
         assertThat(client().admin().cluster().prepareState().setIndices("index-2").get().getState().metaData().version(),
-            equalTo(metadataVersion));
+            greaterThanOrEqualTo(baselineVersion));
         assertThat(client().admin().cluster().prepareState().setIndices("*").get().getState().metaData().version(),
-            equalTo(metadataVersion));
+            greaterThanOrEqualTo(baselineVersion));
         assertThat(client().admin().cluster().prepareState().setIndices("not-found").get().getState().metaData().version(),
-            equalTo(metadataVersion));
+            greaterThanOrEqualTo(baselineVersion));
         assertThat(client().admin().cluster().prepareState().clear().setMetaData(false).get().getState().metaData().version(),
             equalTo(0L));
     }
@@ -254,13 +254,14 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         }
     }
 
+    @TestLogging("org.elasticsearch.action.admin.indices.close:DEBUG,org.elasticsearch.cluster.metadata:DEBUG")
     public void testIndicesOptions() throws Exception {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*")
                 .get();
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(2));
 
         // close one index
-        client().admin().indices().close(Requests.closeIndexRequest("fuu")).get();
+        assertAcked(client().admin().indices().close(Requests.closeIndexRequest("fuu")).get());
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*").get();
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(1));
         assertThat(clusterStateResponse.getState().metaData().index("foo").getState(), equalTo(IndexMetaData.State.OPEN));

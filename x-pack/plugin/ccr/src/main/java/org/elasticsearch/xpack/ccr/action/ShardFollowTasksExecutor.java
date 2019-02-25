@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -24,7 +25,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
@@ -47,6 +46,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
@@ -60,6 +60,7 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.extractLeaderShardHistoryUUIDs;
@@ -102,17 +103,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                  Map<String, String> headers) {
         ShardFollowTask params = taskInProgress.getParams();
         Client followerClient = wrapClient(client, params.getHeaders());
-        BiConsumer<TimeValue, Runnable> scheduler = (delay, command) -> {
-            try {
-                threadPool.schedule(delay, Ccr.CCR_THREAD_POOL_NAME, command);
-            } catch (EsRejectedExecutionException e) {
-                if (e.isExecutorShutdown()) {
-                    logger.debug("couldn't schedule command, executor is shutting down", e);
-                } else {
-                    throw e;
-                }
-            }
-        };
+        BiConsumer<TimeValue, Runnable> scheduler = (delay, command) ->
+            threadPool.scheduleUnlessShuttingDown(delay, Ccr.CCR_THREAD_POOL_NAME, command);
 
         final String recordedLeaderShardHistoryUUID = getLeaderShardHistoryUUID(params);
         return new ShardFollowNodeTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers, params,
@@ -121,7 +113,18 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             @Override
             protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
                 final Index followerIndex = params.getFollowShardId().getIndex();
-                getIndexMetadata(minRequiredMappingVersion, 0L, params, ActionListener.wrap(
+                final Index leaderIndex = params.getLeaderShardId().getIndex();
+                final Supplier<TimeValue> timeout = () -> isStopped() ? TimeValue.MINUS_ONE : waitForMetadataTimeOut;
+
+                final Client remoteClient;
+                try {
+                    remoteClient = remoteClient(params);
+                } catch (NoSuchRemoteClusterException e) {
+                    errorHandler.accept(e);
+                    return;
+                }
+
+                CcrRequests.getIndexMetadata(remoteClient, leaderIndex, minRequiredMappingVersion, 0L, timeout, ActionListener.wrap(
                     indexMetaData -> {
                         if (indexMetaData.getMappings().isEmpty()) {
                             assert indexMetaData.getMappingVersion() == 1;
@@ -180,7 +183,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 };
                 try {
                     remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
-                } catch (Exception e) {
+                } catch (NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }
             }
@@ -238,7 +241,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 request.setPollTimeout(params.getReadPollTimeout());
                 try {
                     remoteClient(params).execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
-                } catch (Exception e) {
+                } catch (NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }
             }
@@ -254,39 +257,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     private Client remoteClient(ShardFollowTask params) {
         return wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders());
-    }
-
-    private void getIndexMetadata(long minRequiredMappingVersion, long minRequiredMetadataVersion,
-                                  ShardFollowTask params, ActionListener<IndexMetaData> listener) {
-        final Index leaderIndex = params.getLeaderShardId().getIndex();
-        final ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
-        if (minRequiredMetadataVersion > 0) {
-            clusterStateRequest.waitForMetaDataVersion(minRequiredMetadataVersion).waitForTimeout(waitForMetadataTimeOut);
-        }
-        try {
-            remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(
-                r -> {
-                    // if wait_for_metadata_version timeout, the response is empty
-                    if (r.getState() == null) {
-                        assert minRequiredMetadataVersion > 0;
-                        getIndexMetadata(minRequiredMappingVersion, minRequiredMetadataVersion, params, listener);
-                        return;
-                    }
-                    final MetaData metaData = r.getState().metaData();
-                    final IndexMetaData indexMetaData = metaData.getIndexSafe(leaderIndex);
-                    if (indexMetaData.getMappingVersion() < minRequiredMappingVersion) {
-                        // ask for the next version.
-                        getIndexMetadata(minRequiredMappingVersion, metaData.version() + 1, params, listener);
-                    } else {
-                        assert metaData.version() >= minRequiredMetadataVersion : metaData.version() + " < " + minRequiredMetadataVersion;
-                        listener.onResponse(indexMetaData);
-                    }
-                },
-                listener::onFailure
-            ));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
     }
 
     interface FollowerStatsInfoHandler {
@@ -310,9 +280,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             if (ShardFollowNodeTask.shouldRetry(params.getRemoteCluster(), e)) {
                 logger.debug(new ParameterizedMessage("failed to fetch follow shard global {} checkpoint and max sequence number",
                     shardFollowNodeTask), e);
-                threadPool.schedule(params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME, () -> nodeOperation(task, params, state));
+                threadPool.schedule(() -> nodeOperation(task, params, state), params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME);
             } else {
-                shardFollowNodeTask.markAsFailed(e);
+                shardFollowNodeTask.setFatalException(e);
             }
         };
 
@@ -343,9 +313,21 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             if (filteredShardStats.isPresent()) {
                 final ShardStats shardStats = filteredShardStats.get();
                 final CommitStats commitStats = shardStats.getCommitStats();
-                final String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
-
+                if (commitStats == null) {
+                    // If commitStats is null then AlreadyClosedException has been thrown: TransportIndicesStatsAction#shardOperation(...)
+                    // AlreadyClosedException will be retried byShardFollowNodeTask.shouldRetry(...)
+                    errorHandler.accept(new AlreadyClosedException(shardId + " commit_stats are missing"));
+                    return;
+                }
                 final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
+                if (seqNoStats == null) {
+                    // If seqNoStats is null then AlreadyClosedException has been thrown at TransportIndicesStatsAction#shardOperation(...)
+                    // AlreadyClosedException will be retried byShardFollowNodeTask.shouldRetry(...)
+                    errorHandler.accept(new AlreadyClosedException(shardId + " seq_no_stats are missing"));
+                    return;
+                }
+
+                final String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
                 final long globalCheckpoint = seqNoStats.getGlobalCheckpoint();
                 final long maxSeqNo = seqNoStats.getMaxSeqNo();
                 handler.accept(historyUUID, globalCheckpoint, maxSeqNo);

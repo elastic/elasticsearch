@@ -117,25 +117,25 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     protected WritePrimaryResult<BulkShardRequest, BulkShardResponse> shardOperationOnPrimary(BulkShardRequest request, IndexShard primary)
         throws Exception {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        Consumer<ActionListener<Void>> waitForMappingUpdate = listener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
-            @Override
-            public void onNewClusterState(ClusterState state) {
-                listener.onResponse(null);
-            }
-
-            @Override
-            public void onClusterServiceClose() {
-                listener.onFailure(new NodeClosedException(clusterService.localNode()));
-            }
-
-            @Override
-            public void onTimeout(TimeValue timeout) {
-                listener.onFailure(
-                    new MapperException("timed out while waiting for a dynamic mapping update"));
-            }
-        });
         return performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
-            new ConcreteMappingUpdatePerformer(), waitForMappingUpdate);
+            new ConcreteMappingUpdatePerformer(),
+            listener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    listener.onFailure(
+                        new MapperException("timed out while waiting for a dynamic mapping update"));
+                }
+            }));
     }
 
     public static WritePrimaryResult<BulkShardRequest, BulkShardResponse> performOnPrimary(

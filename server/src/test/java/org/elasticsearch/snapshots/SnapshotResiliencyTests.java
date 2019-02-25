@@ -122,10 +122,12 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -904,6 +906,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
             final IndexScopedSettings indexScopedSettings =
                 new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
             final BigArrays bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
+            final MapperRegistry mapperRegistry = new MapperRegistry(
+                IndicesModule.getMappers(Collections.emptyList()),
+                IndicesModule.getMetadataMappers(Collections.emptyList()), MapperPlugin.NOOP_FIELD_FILTER
+            );
             indicesService = new IndicesService(
                 settings,
                 mock(PluginsService.class),
@@ -912,7 +918,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(),
                     emptyMap(), emptyMap(), emptyMap(), emptyMap()),
                 indexNameExpressionResolver,
-                new MapperRegistry(emptyMap(), emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
+                mapperRegistry,
                 namedWriteableRegistry,
                 threadPool,
                 indexScopedSettings,
@@ -1016,7 +1022,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 metaDataCreateIndexService,
                 new MetaDataIndexUpgradeService(
                     settings, namedXContentRegistry,
-                    new MapperRegistry(emptyMap(), emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
+                    mapperRegistry,
                     indexScopedSettings,
                     Collections.emptyList()
                 ),

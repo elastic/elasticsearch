@@ -217,38 +217,49 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
 
-            if (context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE) {
-                executeDeleteRequestOnPrimary(context, mappingUpdater);
-            } else {
-                executeIndexRequestOnPrimary(context, mappingUpdater);
-            }
+            final ActionListener<AcknowledgedResponse> acknowledgedResponseActionListener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(final AcknowledgedResponse acknowledgedResponse) {
+                    if (context.requiresWaitingForMappingUpdate()) {
+                        waitForMappingUpdate.accept(new ActionListener<Void>() {
+                            @Override
+                            public void onResponse(final Void aVoid) {
+                                context.resetForExecutionForRetry();
+                                listener.onResponse(aVoid);
+                            }
 
-            if (context.requiresWaitingForMappingUpdate()) {
-                waitForMappingUpdate.accept(new ActionListener<Void>() {
-                    @Override
-                    public void onResponse(final Void aVoid) {
-                        context.resetForExecutionForRetry();
-                        listener.onResponse(aVoid);
-                    }
-
-                    @Override
-                    public void onFailure(final Exception e) {
-                        context.failOnMappingUpdate(e);
+                            @Override
+                            public void onFailure(final Exception e) {
+                                context.failOnMappingUpdate(e);
+                                listener.onResponse(null);
+                            }
+                        });
+                    } else {
+                        assert context.isOperationExecuted();
+                        if (opType == DocWriteRequest.OpType.UPDATE &&
+                            context.getExecutionResult().isFailed() &&
+                            isConflictException(context.getExecutionResult().getFailure().getCause())) {
+                            final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
+                            if (context.getRetryCounter() < updateRequest.retryOnConflict()) {
+                                context.resetForExecutionForRetry();
+                                return;
+                            }
+                        }
+                        finalizePrimaryOperationOnCompletion(context, opType, updateResult);
                         listener.onResponse(null);
                     }
-                });
-            } else {
-                assert context.isOperationExecuted();
-                if (opType == DocWriteRequest.OpType.UPDATE &&
-                    context.getExecutionResult().isFailed() &&
-                    isConflictException(context.getExecutionResult().getFailure().getCause())) {
-                    final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
-                    if (context.getRetryCounter() < updateRequest.retryOnConflict()) {
-                        context.resetForExecutionForRetry();
-                        return;
-                    }
                 }
-                finalizePrimaryOperationOnCompletion(context, opType, updateResult);
+
+                @Override
+                public void onFailure(final Exception e) {
+                    listener.onFailure(e);
+                }
+            };
+
+            if (context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE) {
+                executeDeleteRequestOnPrimary(context, mappingUpdater, acknowledgedResponseActionListener);
+            } else {
+                executeIndexRequestOnPrimary(context, mappingUpdater, acknowledgedResponseActionListener);
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -454,7 +465,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     /** Executes index operation on primary shard after updates mapping if dynamic mappings are found */
     private static void executeIndexRequestOnPrimary(BulkPrimaryExecutionContext context,
-                                             MappingUpdatePerformer mappingUpdater) throws Exception {
+                                             MappingUpdatePerformer mappingUpdater, ActionListener<AcknowledgedResponse> listener)
+                                             throws Exception {
         final IndexRequest request = context.getRequestToExecute();
         final IndexShard primary = context.getPrimary();
         final SourceToParse sourceToParse =
@@ -464,42 +476,27 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 primary.applyIndexOperationOnPrimary(request.version(), request.versionType(), sourceToParse,
                     request.ifSeqNo(), request.ifPrimaryTerm(), request.getAutoGeneratedTimestamp(), request.isRetry()),
             e -> primary.getFailedIndexResult(e, request.version()),
-            context::markOperationAsExecuted,
-            mapping -> mappingUpdater.updateMappings(mapping, primary.shardId(), request.type(),
-                new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(final AcknowledgedResponse acknowledgedResponse) {
-
-                    }
-
-                    @Override
-                    public void onFailure(final Exception e) {
-                        throw new AssertionError(e);
-                    }
-                }));
+            r -> {
+                context.markOperationAsExecuted(r);
+                listener.onResponse(null);
+            },
+            mapping -> mappingUpdater.updateMappings(mapping, primary.shardId(), request.type(), listener));
     }
 
     private static void executeDeleteRequestOnPrimary(BulkPrimaryExecutionContext context,
-                                                      MappingUpdatePerformer mappingUpdater) throws Exception {
+                                                      MappingUpdatePerformer mappingUpdater, ActionListener<AcknowledgedResponse> listener)
+                                                      throws Exception {
         final DeleteRequest request = context.getRequestToExecute();
         final IndexShard primary = context.getPrimary();
         executeOnPrimaryWhileHandlingMappingUpdates(context,
             () -> primary.applyDeleteOperationOnPrimary(request.version(), request.type(), request.id(), request.versionType(),
                 request.ifSeqNo(), request.ifPrimaryTerm()),
             e -> primary.getFailedDeleteResult(e, request.version()),
-            context::markOperationAsExecuted,
-            mapping -> mappingUpdater.updateMappings(mapping, primary.shardId(), request.type(),
-                new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(final AcknowledgedResponse acknowledgedResponse) {
-
-                    }
-
-                    @Override
-                    public void onFailure(final Exception e) {
-
-                    }
-                }));
+            r -> {
+                context.markOperationAsExecuted(r);
+                listener.onResponse(null);
+            },
+            mapping -> mappingUpdater.updateMappings(mapping, primary.shardId(), request.type(), listener));
     }
 
     private static <T extends Engine.Result> void executeOnPrimaryWhileHandlingMappingUpdates(

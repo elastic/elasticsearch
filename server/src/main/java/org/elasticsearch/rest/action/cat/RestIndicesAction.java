@@ -104,9 +104,9 @@ public class RestIndicesAction extends AbstractCatAction {
                 // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent requests not to
                 //    fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
                 // This behavior can be ensured by letting the cluster health and indices stats requests re-resolve the index names with the
-                // same indices options that we used for the initial cluster state request (strictExpand). Unfortunately cluster health
-                // requests hard-code their indices options and the best we can do is apply strictExpand to the indices stats request.
+                // same indices options that we used for the initial cluster state request (strictExpand).
                 final ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(indices);
+                clusterHealthRequest.indicesOptions(strictExpandIndicesOptions);
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
 
                 client.admin().cluster().health(clusterHealthRequest, new RestActionListener<ClusterHealthResponse>(channel) {
@@ -383,34 +383,37 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     // package private for testing
-    Table buildTable(RestRequest request, IndexMetaData[] indicesMetaData, ClusterHealthResponse response, IndicesStatsResponse stats) {
+    Table buildTable(final RestRequest request,
+                     final IndexMetaData[] indicesMetaData,
+                     final ClusterHealthResponse clusterHealthResponse,
+                     final IndicesStatsResponse indicesStatsResponse) {
         final String healthParam = request.param("health");
-        final ClusterHealthStatus status;
-        if (healthParam != null) {
-            status = ClusterHealthStatus.fromString(healthParam);
-        } else {
-            status = null;
-        }
 
-        Table table = getTableWithHeader(request);
-
+        final Table table = getTableWithHeader(request);
         for (IndexMetaData indexMetaData : indicesMetaData) {
             final String indexName = indexMetaData.getIndex().getName();
-            ClusterIndexHealth indexHealth = response.getIndices().get(indexName);
-            IndexStats indexStats = stats.getIndices().get(indexName);
-            IndexMetaData.State state = indexMetaData.getState();
-            boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(indexMetaData.getSettings());
+            final ClusterIndexHealth indexHealth = clusterHealthResponse.getIndices().get(indexName);
+            final IndexStats indexStats = indicesStatsResponse.getIndices().get(indexName);
+            final IndexMetaData.State indexState = indexMetaData.getState();
+            final boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(indexMetaData.getSettings());
 
-            if (status != null) {
-                if (state == IndexMetaData.State.CLOSE ||
-                        (indexHealth == null && false == ClusterHealthStatus.RED.equals(status)) ||
-                        false == indexHealth.getStatus().equals(status)) {
+            if (healthParam != null) {
+                final ClusterHealthStatus healthStatusFilter = ClusterHealthStatus.fromString(healthParam);
+                boolean skip;
+                if (indexHealth != null) {
+                    // index health is known but does not match the one requested
+                    skip = indexHealth.getStatus() != healthStatusFilter;
+                } else {
+                    // index health is unknown, skip if we don't explicitly request RED health or if the index is closed but not replicated
+                    skip = ClusterHealthStatus.RED != healthStatusFilter || indexState == IndexMetaData.State.CLOSE;
+                }
+                if (skip) {
                     continue;
                 }
             }
 
             // the open index is present in the cluster state but is not returned in the indices stats API
-            if (indexStats == null && state != IndexMetaData.State.CLOSE) {
+            if (indexStats == null && indexState != IndexMetaData.State.CLOSE) {
                 // the index stats API is called last, after cluster state and cluster health. If the index stats
                 // has not resolved the same open indices as the initial cluster state call, then the indices might
                 // have been removed in the meantime or, more likely, are unauthorized. This is because the cluster
@@ -422,9 +425,8 @@ public class RestIndicesAction extends AbstractCatAction {
             final CommonStats primaryStats;
             final CommonStats totalStats;
 
-            if (state == IndexMetaData.State.CLOSE) {
+            if (indexState == IndexMetaData.State.CLOSE) {
                 // empty stats for closed indices, but their names are displayed
-                assert indexStats == null;
                 primaryStats = new CommonStats();
                 totalStats = new CommonStats();
             } else {
@@ -433,9 +435,15 @@ public class RestIndicesAction extends AbstractCatAction {
             }
 
             table.startRow();
-            table.addCell(state == IndexMetaData.State.OPEN ?
-                (indexHealth == null ? "red*" : indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)) : null);
-            table.addCell(state.toString().toLowerCase(Locale.ROOT));
+
+            String health = null;
+            if (indexHealth != null) {
+                health = indexHealth.getStatus().toString().toLowerCase(Locale.ROOT);
+            } else if (indexStats != null) {
+                health = "red*";
+            }
+            table.addCell(health);
+            table.addCell(indexState.toString().toLowerCase(Locale.ROOT));
             table.addCell(indexName);
             table.addCell(indexMetaData.getIndexUUID());
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfShards());

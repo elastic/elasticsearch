@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -44,7 +46,8 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
 
     public void testSimpleSyncRetentionLeases() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
-        try (ReplicationGroup group = createGroup(between(0, 2), settings)) {
+        final int numberOfReplicas = between(0, 2);
+        try (ReplicationGroup group = createGroup(numberOfReplicas, settings)) {
             group.startAll();
             List<RetentionLease> leases = new ArrayList<>();
             int iterations = between(1, 100);
@@ -61,9 +64,10 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
                 }
             }
             RetentionLeases leasesOnPrimary = group.getPrimary().getRetentionLeases();
-            assertThat(leasesOnPrimary.version(), equalTo((long) iterations));
+            assertThat(leasesOnPrimary.version(), equalTo(iterations + numberOfReplicas + 1L));
             assertThat(leasesOnPrimary.primaryTerm(), equalTo(group.getPrimary().getOperationPrimaryTerm()));
-            assertThat(leasesOnPrimary.leases(), containsInAnyOrder(leases.toArray(new RetentionLease[0])));
+            assertThat(leasesOnPrimary.leases().stream().filter(RetentionLease::isNotPeerRecoveryRetentionLease)
+                .collect(Collectors.toList()), containsInAnyOrder(leases.toArray(new RetentionLease[0])));
             latch.await();
             for (IndexShard replica : group.getReplicas()) {
                 assertThat(replica.getRetentionLeases(), equalTo(leasesOnPrimary));

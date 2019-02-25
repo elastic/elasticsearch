@@ -860,11 +860,18 @@ public class Node implements Closeable {
             throw new IllegalStateException("Call close() first");
         }
 
-        // In theory we might wait 2x longer than what the caller asked. In practice it's unlikely
-        // since indices should all be closed once there are no running threads anymore.
+
         ThreadPool threadPool = injector.getInstance(ThreadPool.class);
-        return ThreadPool.terminate(threadPool, timeout, timeUnit) &&
-                nodeService.awaitClose(timeout, timeUnit);
+        final boolean terminated = ThreadPool.terminate(threadPool, timeout, timeUnit);
+        if (terminated) {
+            // All threads terminated successfully. Because search, recovery and all other operations
+            // that run on shards run in the threadpool, indices should be effectively closed by now.
+            if (nodeService.awaitClose(0, TimeUnit.MILLISECONDS) == false) {
+                throw new IllegalStateException("Some shards are still open after the threadpool terminated. " +
+                        "Something is leaking index readers or store references.");
+            }
+        }
+        return terminated;
     }
 
     /**

@@ -67,7 +67,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class SecurityIndexManager implements ClusterStateListener {
 
-    public static final String INTERNAL_SECURITY_INDEX = ".security-" + IndexUpgradeCheckVersion.UPRADE_VERSION;
+    public static final String INTERNAL_SECURITY_INDEX = ".security-" + IndexUpgradeCheckVersion.UPGRADE_VERSION;
     public static final int INTERNAL_INDEX_FORMAT = 6;
     public static final String SECURITY_VERSION_STRING = "security-version";
     public static final String TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");

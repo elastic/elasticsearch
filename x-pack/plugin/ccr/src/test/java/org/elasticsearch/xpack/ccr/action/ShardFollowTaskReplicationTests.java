@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -47,7 +48,9 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
@@ -69,6 +72,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -390,6 +394,28 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
+    public void testRetentionLeaseManagement() throws Exception {
+        try (ReplicationGroup leader = createLeaderGroup(0)) {
+            leader.startAll();
+            try (ReplicationGroup follower = createFollowGroup(leader, 0)) {
+                follower.startAll();
+                final ShardFollowNodeTask task = createShardFollowTask(leader, follower);
+                task.start(
+                        follower.getPrimary().getHistoryUUID(),
+                        leader.getPrimary().getGlobalCheckpoint(),
+                        leader.getPrimary().seqNoStats().getMaxSeqNo(),
+                        follower.getPrimary().getGlobalCheckpoint(),
+                        follower.getPrimary().seqNoStats().getMaxSeqNo());
+                final Scheduler.Cancellable renewable = task.getRenewable();
+                assertNotNull(renewable);
+                assertFalse(renewable.isCancelled());
+                task.onCancelled();
+                assertTrue(renewable.isCancelled());
+                assertNull(task.getRenewable());
+            }
+        }
+    }
+
     private ReplicationGroup createLeaderGroup(int replicas) throws IOException {
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
@@ -399,10 +425,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     }
 
     private ReplicationGroup createFollowGroup(ReplicationGroup leaderGroup, int replicas) throws IOException {
-        Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
-            .build();
+        final Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(
+                        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
+                        new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
+                .build();
         IndexMetaData indexMetaData = buildIndexMetaData(replicas, settings, indexMapping);
         return new ReplicationGroup(indexMetaData) {
             @Override
@@ -541,6 +569,27 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     errorHandler.accept(exception);
                 };
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(task);
+            }
+
+            @Override
+            protected Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(final LongSupplier followerGlobalCheckpoint) {
+                final String retentionLeaseId = CcrRetentionLeases.retentionLeaseId(
+                        "follower",
+                        followerGroup.getPrimary().routingEntry().index(),
+                        "remote",
+                        leaderGroup.getPrimary().routingEntry().index());
+                final PlainActionFuture<ReplicationResponse> response = new PlainActionFuture<>();
+                leaderGroup.addRetentionLease(
+                        retentionLeaseId,
+                        followerGlobalCheckpoint.getAsLong(),
+                        "ccr",
+                        ActionListener.wrap(response::onResponse, e -> fail(e.toString())));
+                response.actionGet();
+                return threadPool.scheduleWithFixedDelay(
+                        () -> leaderGroup.renewRetentionLease(retentionLeaseId, followerGlobalCheckpoint.getAsLong(), "ccr"),
+                        CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(
+                                followerGroup.getPrimary().indexSettings().getSettings()),
+                        ThreadPool.Names.GENERIC);
             }
 
             @Override

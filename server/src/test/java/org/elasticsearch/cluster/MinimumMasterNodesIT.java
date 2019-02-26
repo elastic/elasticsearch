@@ -284,7 +284,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
                 .build();
 
         internalCluster().startNodes(3, settings);
-        ensureGreen(); // ensure cluster state is recovered before we disrupt things
+        ensureStableCluster(3);
 
         final String master = internalCluster().getMasterName();
         Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));

@@ -38,48 +38,18 @@ public enum Distribution {
         if (this.equals(INTEG_TEST)) {
             return "zip";
         } else {
-            switch (getOS()) {
-                case LINUX:
-                case MAC:
-                    return "tar.gz";
-                case WINDOWS:
-                    return "zip";
-                default:
-                    throw new IllegalStateException("Can't determine extensions for " + getOS());
-            }
+            return OS.conditionalString()
+                .onUnix(() -> "tar.gz")
+                .onWindows(() -> "zip")
+                .supply();
         }
     }
 
     public String getClassifier() {
-        switch (getOS()) {
-            case LINUX:
-                return "linux-x86_64";
-            case MAC:
-                return "darwin-x86_64";
-            case WINDOWS:
-                return "windows-x86_64";
-            default:
-                throw new IllegalStateException("Can't determine extensions for " + getOS());
-        }
-    }
-
-    private enum OS {
-        WINDOWS,
-        MAC,
-        LINUX
-    }
-
-    private OS getOS() {
-        String os = System.getProperty("os.name", "");
-        if (os.startsWith("Windows")) {
-            return OS.WINDOWS;
-        }
-        if (os.startsWith("Linux") || os.startsWith("LINUX")) {
-            return OS.LINUX;
-        }
-        if (os.startsWith("Mac")) {
-            return OS.MAC;
-        }
-        throw new IllegalStateException("Can't determine OS from: " + os);
+        return OS.<String>conditional()
+            .onLinux(() -> "linux-x86_64")
+            .onWindows(() -> "windows-x86_64")
+            .onMac(() -> "darwin-x86_64")
+            .supply();
     }
 }

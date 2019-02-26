@@ -20,10 +20,10 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.Distribution;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.internal.os.OperatingSystem;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -228,15 +228,26 @@ public class ElasticsearchNode {
         services.loggedExec(spec -> {
             spec.setEnvironment(getESEnvironment());
             spec.workingDir(workingDir);
-            if (OperatingSystem.current().isWindows()) {
-                spec.executable("cmd");
-                spec.args("/c");
-                spec.args("bin\\" + tool + ".bat");
-                spec.args((Object[]) args);
-            } else {
-                spec.executable("./bin/" + tool);
-                spec.args((Object[]) args);
-            }
+            spec.executable(
+                OS.conditionalString()
+                    .onUnix(() -> "./bin/" + tool)
+                    .onWindows(() -> "cmd")
+                    .supply()
+            );
+            spec.args(
+                OS.<List<String>>conditional()
+                    .onWindows(() -> {
+                        ArrayList<String> result = new ArrayList<>();
+                        result.add("/c");
+                        result.add("bin\\" + tool + ".bat");
+                        for (String arg : args) {
+                            result.add(arg);
+                        }
+                        return result;
+                    })
+                    .onUnix(() -> Arrays.asList(args))
+                    .supply()
+            );
         });
     }
 
@@ -254,12 +265,11 @@ public class ElasticsearchNode {
 
     private void startElasticsearchProcess() {
         final ProcessBuilder processBuilder = new ProcessBuilder();
-        final List<String> command;
-        if (OperatingSystem.current().isWindows()) {
-            command = Arrays.asList("cmd", "/c", "bin\\elasticsearch.bat");
-        } else {
-            command = Arrays.asList("./bin/elasticsearch");
-        }
+
+        List<String> command = OS.<List<String>>conditional()
+            .onUnix(() -> Arrays.asList("./bin/elasticsearch"))
+            .onWindows(() -> Arrays.asList("cmd", "/c", "bin\\elasticsearch.bat"))
+            .supply();
         processBuilder.command(command);
         processBuilder.directory(workingDir.toFile());
         Map<String, String> environment = processBuilder.environment();

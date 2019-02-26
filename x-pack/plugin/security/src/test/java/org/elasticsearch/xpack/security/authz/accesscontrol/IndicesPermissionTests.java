@@ -293,8 +293,10 @@ public class IndicesPermissionTests extends ESTestCase {
 
     public void testSecurityIndicesPermissions() {
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6,
+            RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
         final MetaData metaData = new MetaData.Builder()
-                .put(new IndexMetaData.Builder(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX)
+                .put(new IndexMetaData.Builder(internalSecurityIndex)
                         .settings(indexSettings)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
@@ -307,17 +309,17 @@ public class IndicesPermissionTests extends ESTestCase {
         // allow_restricted_indices: false
         IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, false, "*");
         Map<String, IndicesAccessControl.IndexAccessControl> authzMap = new IndicesPermission(group).authorize(SearchAction.NAME,
-                Sets.newHashSet(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX, RestrictedIndicesNames.SECURITY_INDEX_NAME), lookup,
+                Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_INDEX_NAME), lookup,
                 fieldPermissionsCache);
-        assertThat(authzMap.get(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX).isGranted(), is(false));
+        assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(false));
         assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_INDEX_NAME).isGranted(), is(false));
 
         // allow_restricted_indices: true
         group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, true, "*");
         authzMap = new IndicesPermission(group).authorize(SearchAction.NAME,
-                Sets.newHashSet(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX, RestrictedIndicesNames.SECURITY_INDEX_NAME), lookup,
+                Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_INDEX_NAME), lookup,
                 fieldPermissionsCache);
-        assertThat(authzMap.get(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX).isGranted(), is(true));
+        assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(true));
         assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_INDEX_NAME).isGranted(), is(true));
     }
 

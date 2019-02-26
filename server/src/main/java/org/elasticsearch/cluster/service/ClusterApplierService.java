@@ -387,12 +387,12 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         logger.debug("processing [{}]: execute", task.source);
         final ClusterState previousClusterState = state.get();
 
-        long startTimeMS = threadPool.relativeTimeInMillis();
+        long startTimeMS = currentTimeInMillis();
         final ClusterState newClusterState;
         try {
             newClusterState = task.apply(previousClusterState);
         } catch (Exception e) {
-            TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, threadPool.relativeTimeInMillis() - startTimeMS));
+            TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
             logger.trace(() -> new ParameterizedMessage(
                 "failed to execute cluster state applier in [{}], state:\nversion [{}], source [{}]\n{}",
                 executionTime, previousClusterState.version(), task.source, previousClusterState), e);
@@ -402,7 +402,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
 
         if (previousClusterState == newClusterState) {
-            TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, threadPool.relativeTimeInMillis() - startTimeMS));
+            TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
             logger.debug("processing [{}]: took [{}] no change in cluster state", task.source, executionTime);
             warnAboutSlowTaskIfNeeded(executionTime, task.source);
             task.listener.onSuccess(task.source);
@@ -415,14 +415,14 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             }
             try {
                 applyChanges(task, previousClusterState, newClusterState);
-                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, threadPool.relativeTimeInMillis() - startTimeMS));
+                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
                 logger.debug("processing [{}]: took [{}] done applying updated cluster state (version: {}, uuid: {})", task.source,
                     executionTime, newClusterState.version(),
                     newClusterState.stateUUID());
                 warnAboutSlowTaskIfNeeded(executionTime, task.source);
                 task.listener.onSuccess(task.source);
             } catch (Exception e) {
-                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, threadPool.relativeTimeInMillis() - startTimeMS));
+                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, currentTimeInMillis() - startTimeMS));
                 if (logger.isTraceEnabled()) {
                     logger.warn(new ParameterizedMessage(
                             "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
@@ -618,6 +618,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         public void run() {
             listener.offMaster();
         }
+    }
+
+    // this one is overridden in tests so we can control time
+    protected long currentTimeInMillis() {
+        return threadPool.relativeTimeInMillis();
     }
 
 }

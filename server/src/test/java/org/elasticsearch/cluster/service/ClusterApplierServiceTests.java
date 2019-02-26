@@ -141,9 +141,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
         Logger clusterLogger = LogManager.getLogger(ClusterApplierService.class);
         Loggers.addAppender(clusterLogger, mockAppender);
         try {
-            clusterApplierService.currentTimeOverride = System.nanoTime();
+            clusterApplierService.currentTimeOverride = threadPool.relativeTimeInMillis();
             clusterApplierService.runOnApplierThread("test1",
-                currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(1).nanos(),
+                currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(1).millis(),
                 new ClusterApplyListener() {
                     @Override
                     public void onSuccess(String source) { }
@@ -155,7 +155,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
             });
             clusterApplierService.runOnApplierThread("test2",
                 currentState -> {
-                    clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(2).nanos();
+                    clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(2).millis();
                     throw new IllegalArgumentException("Testing handling of exceptions in the cluster state task");
                 },
                 new ClusterApplyListener() {
@@ -214,9 +214,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
         try {
             final CountDownLatch latch = new CountDownLatch(4);
             final CountDownLatch processedFirstTask = new CountDownLatch(1);
-            clusterApplierService.currentTimeOverride = System.nanoTime();
+            clusterApplierService.currentTimeOverride = threadPool.relativeTimeInMillis();
             clusterApplierService.runOnApplierThread("test1",
-                currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(1).nanos(),
+                currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(1).millis(),
                 new ClusterApplyListener() {
                     @Override
                     public void onSuccess(String source) {
@@ -232,7 +232,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
             processedFirstTask.await();
             clusterApplierService.runOnApplierThread("test2",
                 currentState -> {
-                    clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(32).nanos();
+                    clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(32).millis();
                     throw new IllegalArgumentException("Testing handling of exceptions in the cluster state task");
                 },
                 new ClusterApplyListener() {
@@ -247,7 +247,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     }
                 });
             clusterApplierService.runOnApplierThread("test3",
-                currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(34).nanos(),
+                currentState -> clusterApplierService.currentTimeOverride += TimeValue.timeValueSeconds(34).millis(),
                 new ClusterApplyListener() {
                     @Override
                     public void onSuccess(String source) {
@@ -507,6 +507,14 @@ public class ClusterApplierServiceTests extends ESTestCase {
         TimedClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
             super("test_node", settings, clusterSettings, threadPool);
             this.clusterSettings = clusterSettings;
+        }
+
+        @Override
+        protected long currentTimeInMillis() {
+            if (currentTimeOverride != null) {
+                return currentTimeOverride;
+            }
+            return super.currentTimeInMillis();
         }
     }
 }

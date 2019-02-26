@@ -160,8 +160,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 }
 
                 @Override
-                public void onFailure(final Exception e) {
-
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
                 }
             });
         assertFalse(context.hasMoreOperationsToExecute());
@@ -321,7 +321,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 assertNotNull(update);
                 updateCalled.incrementAndGet();
                 listener.onResponse(new AcknowledgedResponse(true));
-            }, listener -> {},
+            }, listener -> listener.onResponse(null),
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void aVoid) {
@@ -384,8 +384,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         items[0] = new BulkItemRequest(0, writeRequest);
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        UpdateHelper updateHelper = null;
-
         // Return an exception when trying to update the mapping, or when waiting for it to come
         RuntimeException err = new RuntimeException("some kind of exception");
 
@@ -394,12 +392,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         randomlySetIgnoredPrimaryResponse(items[0]);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
+        TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
             errorOnWait == false ? new ThrowingMappingUpdatePerformer(err) : new NoopMappingUpdatePerformer(),
-            errorOnWait ? listener -> {
-                throw err;
-            } : listener -> {
-            }, new ActionListener<Void>() {
+            errorOnWait ? listener -> listener.onFailure(err) : listener -> listener.onResponse(null),
+            new ActionListener<Void>() {
                 @Override
                 public void onResponse(final Void aVoid) {
 

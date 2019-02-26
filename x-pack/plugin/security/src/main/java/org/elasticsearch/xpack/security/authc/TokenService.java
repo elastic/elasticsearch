@@ -170,7 +170,7 @@ public final class TokenService extends AbstractComponent {
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting("xpack.security.authc.token.delete.timeout",
             TimeValue.MINUS_ONE, Property.NodeScope);
     public static final Setting<Boolean> BWC_ENABLED = Setting.boolSetting("xpack.security.authc.token.compat.enabled",
-            false, Property.NodeScope);
+            false, Property.NodeScope, Property.Deprecated);
 
     static final String INVALIDATED_TOKEN_DOC_TYPE = "invalidated-token";
     static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;

@@ -237,6 +237,11 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.number_of_shards", 1))
                 .execute().actionGet();
 
+        final boolean closed = randomBoolean();
+        if (closed) {
+            client().admin().indices().prepareClose("test").get();
+        }
+
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(2));
 
@@ -249,8 +254,11 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),
             equalTo(ShardRoutingState.INITIALIZING));
 
-        healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
-            .setWaitForYellowStatus().execute().actionGet();
+        healthResponse = client().admin().cluster().prepareHealth()
+            .setIndices("test")
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForYellowStatus()
+            .execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> get the state, verify shard 1 primary allocated");
@@ -259,8 +267,10 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).getId()).iterator().next().state(),
             equalTo(ShardRoutingState.STARTED));
 
-        client().prepareIndex("test", "type", "1").setSource("field", "value")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        if (closed == false) {
+            client().prepareIndex("test", "type", "1").setSource("field", "value")
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        }
         final Index index = resolveIndex("test");
 
         logger.info("--> closing all nodes");
@@ -278,7 +288,10 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         // wait a bit for the cluster to realize that the shard is not there...
         // TODO can we get around this? the cluster is RED, so what do we wait for?
         client().admin().cluster().prepareReroute().get();
-        assertThat(client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet().getStatus(),
+        assertThat(client().admin().cluster().prepareHealth()
+                .setIndices("test")
+                .setWaitForNodes("2")
+                .execute().actionGet().getStatus(),
             equalTo(ClusterHealthStatus.RED));
         logger.info("--> explicitly allocate primary");
         state = client().admin().cluster().prepareReroute()

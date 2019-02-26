@@ -159,7 +159,8 @@ task verifyVersions {
  * the enabled state of every bwc task. It should be set back to true
  * after the backport of the backcompat code is complete.
  */
-final boolean bwc_tests_enabled = true
+
+boolean bwc_tests_enabled = true
 final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
@@ -170,6 +171,11 @@ if (bwc_tests_enabled == false) {
   println "See ${bwc_tests_disabled_issue}"
   println "==========================================================="
 }
+if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } != null) {
+  // Disable BWC tests for checkPart* tasks as it's expected that this will run un it's own check
+  bwc_tests_enabled = false
+}
+
 subprojects {
   ext.bwc_tests_enabled = bwc_tests_enabled
 }
@@ -603,9 +609,10 @@ if (System.properties.get("build.compare") != null) {
 
 allprojects {
   task resolveAllDependencies {
-    doLast {
-      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
-    }
+      dependsOn tasks.matching { it.name == "pullFixture"}
+      doLast {
+        configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
+      }
   }
 }
 

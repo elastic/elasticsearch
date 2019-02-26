@@ -231,31 +231,25 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
 
-            final ActionListener<AcknowledgedResponse> mappingUpdatedListener = new ActionListener<AcknowledgedResponse>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    assert context.requiresWaitingForMappingUpdate();
-                    waitForMappingUpdate.accept(new ActionListener<Void>() {
-                        @Override
-                        public void onResponse(Void aVoid) {
-                            context.resetForExecutionForRetry();
-                            itemDoneListener.onResponse(aVoid);
-                        }
+            final ActionListener<AcknowledgedResponse> mappingUpdatedListener = ActionListener.wrap(r -> {
+                assert context.requiresWaitingForMappingUpdate();
+                waitForMappingUpdate.accept(new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        context.resetForExecutionForRetry();
+                        itemDoneListener.onResponse(aVoid);
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            context.failOnMappingUpdate(e);
-                            itemDoneListener.onFailure(e);
-                        }
-                    });
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    context.failOnMappingUpdate(e);
-                    itemDoneListener.onFailure(e);
-                }
-            };
+                    @Override
+                    public void onFailure(Exception e) {
+                        context.failOnMappingUpdate(e);
+                        itemDoneListener.onFailure(e);
+                    }
+                });
+            }, e -> {
+                context.failOnMappingUpdate(e);
+                itemDoneListener.onFailure(e);
+            });
 
             final ActionListener<Void> completionListener = ActionListener.wrap(
                 v -> {

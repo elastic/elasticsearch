@@ -419,7 +419,6 @@ public class ElasticsearchNode {
             config.put("cluster.initial_master_nodes", "[" + nodeName + "]");
         }
         try {
-            Files.delete(configFile);
             Files.write(
                 configFile,
                 config.entrySet().stream()

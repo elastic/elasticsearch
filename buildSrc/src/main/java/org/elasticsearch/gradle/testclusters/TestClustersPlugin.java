@@ -109,7 +109,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                           if (file.getName().endsWith(".zip")) {
                               return project.zipTree(file);
                           } else if (file.getName().endsWith("tar.gz")) {
-                              return project.tarTree(project.getResources().gzip(file));
+                              return project.tarTree(file);
                           } else {
                               throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
                           }

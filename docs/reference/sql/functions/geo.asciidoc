@@ -32,8 +32,8 @@ include-tagged::{sql-specs}/geo/docs.csv-spec[aswkt]
 --------------------------------------------------
 
 
-[[sql-functions-geo-st-as-wkt]]
-===== `ST_AsWKT`
+[[sql-functions-geo-st-wkt-to-sql]]
+===== `ST_WKTToSQL`
 
 .Synopsis:
 [source, sql]

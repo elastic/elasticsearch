@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterP
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -94,6 +95,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             .build();
 
     private final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+    private final String concreteSecurityIndexName = randomFrom(
+        RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
 
     public void testRolesWhenDlsFlsUnlicensed() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
@@ -695,7 +698,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
-        return new SecurityIndexManager.State(true, true, true, true, null, indexStatus);
+        return new SecurityIndexManager.State(true, true, true, true, null, concreteSecurityIndexName, indexStatus);
     }
 
     public void testCacheClearOnIndexHealthChange() {
@@ -770,13 +773,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
         };
 
         compositeRolesStore.onSecurityIndexStateChange(
-            new SecurityIndexManager.State(true, false, true, true, null, null),
-            new SecurityIndexManager.State(true, true, true, true, null, null));
+            new SecurityIndexManager.State(true, false, true, true, null, concreteSecurityIndexName, null),
+            new SecurityIndexManager.State(true, true, true, true, null, concreteSecurityIndexName, null));
         assertEquals(1, numInvalidation.get());
 
         compositeRolesStore.onSecurityIndexStateChange(
-            new SecurityIndexManager.State(true, true, true, true, null, null),
-            new SecurityIndexManager.State(true, false, true, true, null, null));
+            new SecurityIndexManager.State(true, true, true, true, null, concreteSecurityIndexName, null),
+            new SecurityIndexManager.State(true, false, true, true, null, concreteSecurityIndexName, null));
         assertEquals(2, numInvalidation.get());
     }
 

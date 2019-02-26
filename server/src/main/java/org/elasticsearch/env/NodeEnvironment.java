@@ -19,12 +19,8 @@
 
 package org.elasticsearch.env;
 
-import java.io.UncheckedIOException;
-import java.util.Iterator;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
@@ -34,22 +30,22 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -63,6 +59,7 @@ import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
@@ -74,6 +71,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -84,6 +82,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -1041,28 +1041,48 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     private void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
-        List<Path> shardDataPaths = collectIndexSubPaths(nodePaths, this::isShardPath);
+        List<Path> shardDataPaths = collectShardDataPaths(nodePaths);
         if (shardDataPaths.isEmpty() == false) {
             throw new IllegalStateException("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
                 + "=false, but has shard data: "
-                + shardDataPaths);
+                + shardDataPaths
+                + ". Use 'elasticsearch-node repurpose' tool to clean up"
+            );
         }
     }
 
     private void ensureNoIndexMetaData(final NodePath[] nodePaths) throws IOException {
-        List<Path> indexMetaDataPaths = collectIndexSubPaths(nodePaths, this::isIndexMetaDataPath);
+        List<Path> indexMetaDataPaths = collectIndexMetaDataPaths(nodePaths);
         if (indexMetaDataPaths.isEmpty() == false) {
             throw new IllegalStateException("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
                 + "=false and "
                 + Node.NODE_MASTER_SETTING.getKey()
                 + "=false, but has index metadata: "
-                + indexMetaDataPaths);
+                + indexMetaDataPaths
+                + ". Use 'elasticsearch-node repurpose' tool to clean up"
+            );
         }
     }
 
-    private List<Path> collectIndexSubPaths(NodePath[] nodePaths, Predicate<Path> subPathPredicate) throws IOException {
+    /**
+     * Collect the paths containing shard data in the indicated node paths. The returned paths will point to the shard data folder.
+     */
+    static List<Path> collectShardDataPaths(NodePath[] nodePaths) throws IOException {
+        return collectIndexSubPaths(nodePaths, NodeEnvironment::isShardPath);
+    }
+
+
+    /**
+     * Collect the paths containing index meta data in the indicated node paths. The returned paths will point to the
+     * {@link MetaDataStateFormat#STATE_DIR_NAME} folder
+     */
+    static List<Path> collectIndexMetaDataPaths(NodePath[] nodePaths) throws IOException {
+        return collectIndexSubPaths(nodePaths, NodeEnvironment::isIndexMetaDataPath);
+    }
+
+    private static List<Path> collectIndexSubPaths(NodePath[] nodePaths, Predicate<Path> subPathPredicate) throws IOException {
         List<Path> indexSubPaths = new ArrayList<>();
         for (NodePath nodePath : nodePaths) {
             Path indicesPath = nodePath.indicesPath;
@@ -1084,12 +1104,12 @@ public final class NodeEnvironment  implements Closeable {
         return indexSubPaths;
     }
 
-    private boolean isShardPath(Path path) {
+    private static boolean isShardPath(Path path) {
         return Files.isDirectory(path)
             && path.getFileName().toString().chars().allMatch(Character::isDigit);
     }
 
-    private boolean isIndexMetaDataPath(Path path) {
+    private static boolean isIndexMetaDataPath(Path path) {
         return Files.isDirectory(path)
             && path.getFileName().toString().equals(MetaDataStateFormat.STATE_DIR_NAME);
     }

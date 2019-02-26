@@ -816,7 +816,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     public void onFailure(final Exception e) {
                         throw new AssertionError(e);
                     }
-                });
+                },
+                r -> threadPool.executor(ThreadPool.Names.WRITE).execute(r));
         } catch (Exception e) {
             listener.onFailure(e);
         }

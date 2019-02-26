@@ -141,7 +141,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     mappingUpdateListener.onFailure(
                         new MapperException("timed out while waiting for a dynamic mapping update"));
                 }
-            }), listener
+            }),
+            listener,
+            r -> threadPool.executor(ThreadPool.Names.WRITE).execute(r)
         );
     }
 
@@ -152,7 +154,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater,
         Consumer<ActionListener<Void>> waitForMappingUpdate,
-        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
+        Consumer<Runnable> executor) {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
         executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
             new ActionListener<Void>() {
@@ -160,7 +163,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 public void onResponse(Void aVoid) {
                     assert context.isInitial(); // either completed and moved to next or reset
                     if (context.hasMoreOperationsToExecute()) {
-                        executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, this);
+                        executor.accept(
+                            () -> executeBulkItemRequest(
+                                context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, this)
+                        );
                     } else {
                         listener.onResponse(
                             new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(),
@@ -178,7 +184,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     /** Executes bulk item requests and handles request execution exceptions */
     static void executeBulkItemRequest(BulkPrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
                                        MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate,
-                                       ActionListener<Void> listener) {
+                                       ActionListener<Void> itemDoneListener) {
         try {
             final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
@@ -195,7 +201,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     context.setRequestToExecute(updateRequest);
                     context.markOperationAsExecuted(result);
                     context.markAsCompleted(context.getExecutionResult());
-                    listener.onResponse(null);
+                    itemDoneListener.onResponse(null);
                     return;
                 }
                 // execute translated update request
@@ -233,13 +239,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         @Override
                         public void onResponse(Void aVoid) {
                             context.resetForExecutionForRetry();
-                            listener.onResponse(aVoid);
+                            itemDoneListener.onResponse(aVoid);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             context.failOnMappingUpdate(e);
-                            listener.onFailure(e);
+                            itemDoneListener.onFailure(e);
                         }
                     });
                 }
@@ -247,7 +253,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 @Override
                 public void onFailure(Exception e) {
                     context.failOnMappingUpdate(e);
-                    listener.onFailure(e);
+                    itemDoneListener.onFailure(e);
                 }
             };
 
@@ -261,17 +267,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
                         if (context.getRetryCounter() < updateRequest.retryOnConflict()) {
                             context.resetForExecutionForRetry();
-                            listener.onResponse(null);
+                            itemDoneListener.onResponse(null);
                             return;
                         }
                     }
                     finalizePrimaryOperationOnCompletion(context, opType, updateResult);
-                    listener.onResponse(null);
+                    itemDoneListener.onResponse(null);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(e);
+                    itemDoneListener.onFailure(e);
                 }
             };
 
@@ -281,32 +287,32 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 executeIndexRequestOnPrimary(context, mappingUpdater, mappingUpdatedListener, completionListener);
             }
         } catch (Exception e) {
-            listener.onFailure(e);
+            itemDoneListener.onFailure(e);
         }
     }
 
     private static void finalizePrimaryOperationOnCompletion(BulkPrimaryExecutionContext context, DocWriteRequest.OpType opType,
                                                              UpdateHelper.Result updateResult) {
         final BulkItemResponse executionResult = context.getExecutionResult();
+        final BulkItemResponse response;
         if (opType == DocWriteRequest.OpType.UPDATE) {
-            final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
-            context.markAsCompleted(
-                processUpdateResponse(updateRequest, context.getConcreteIndex(), executionResult, updateResult));
-        } else if (executionResult.isFailed()) {
-            final Exception failure = executionResult.getFailure().getCause();
-            final DocWriteRequest docWriteRequest = context.getCurrent();
-            if (TransportShardBulkAction.isConflictException(failure)) {
-                logger.trace(() -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
-                    context.getPrimary().shardId(), docWriteRequest.opType().getLowercase(), docWriteRequest), failure);
-            } else {
-                logger.debug(() -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
-                    context.getPrimary().shardId(), docWriteRequest.opType().getLowercase(), docWriteRequest), failure);
-            }
-
-            context.markAsCompleted(executionResult);
+            response = processUpdateResponse(
+                (UpdateRequest) context.getCurrent(), context.getConcreteIndex(), executionResult, updateResult);
         } else {
-            context.markAsCompleted(executionResult);
+            if (executionResult.isFailed()) {
+                final Exception failure = executionResult.getFailure().getCause();
+                final DocWriteRequest<?> docWriteRequest = context.getCurrent();
+                if (TransportShardBulkAction.isConflictException(failure)) {
+                    logger.trace(() -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
+                        context.getPrimary().shardId(), docWriteRequest.opType().getLowercase(), docWriteRequest), failure);
+                } else {
+                    logger.debug(() -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
+                        context.getPrimary().shardId(), docWriteRequest.opType().getLowercase(), docWriteRequest), failure);
+                }
+            }
+            response = executionResult;
         }
+        context.markAsCompleted(response);
         assert context.isInitial();
     }
 

@@ -1031,17 +1031,7 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void perform(Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
-            shardOperationOnPrimary(request, indexShard, new ActionListener<PrimaryResult<ReplicaRequest, Response>>() {
-                @Override
-                public void onResponse(PrimaryResult<ReplicaRequest, Response> replicaRequestResponsePrimaryResult) {
-                    listener.onResponse(replicaRequestResponsePrimaryResult);
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            shardOperationOnPrimary(request, indexShard, listener);
         }
 
         @Override

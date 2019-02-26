@@ -53,6 +53,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -251,45 +252,55 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         rejectItem.abort("index", rejectionCause);
 
         UpdateHelper updateHelper = null;
+        final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.performOnPrimary(
             bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
             listener -> {
-            }, new ActionListener<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>>() {
-                @Override
-                public void onResponse(final TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse> result) {
-                    // since at least 1 item passed, the tran log location should exist,
-                    assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, notNullValue());
-                    // and the response should exist and match the item count
-                    assertThat(result.finalResponseIfSuccessful, notNullValue());
-                    assertThat(result.finalResponseIfSuccessful.getResponses(), arrayWithSize(items.length));
+            }, ActionListener.runAfter(
+                new ActionListener<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>>() {
+                    @Override
+                    public void onResponse(final TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse> result) {
+                        // since at least 1 item passed, the tran log location should exist,
+                        assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, notNullValue());
+                        // and the response should exist and match the item count
+                        assertThat(result.finalResponseIfSuccessful, notNullValue());
+                        assertThat(result.finalResponseIfSuccessful.getResponses(), arrayWithSize(items.length));
 
-                    // check each response matches the input item, including the rejection
-                    for (int i = 0; i < items.length; i++) {
-                        BulkItemResponse response = result.finalResponseIfSuccessful.getResponses()[i];
-                        assertThat(response.getItemId(), equalTo(i));
-                        assertThat(response.getIndex(), equalTo("index"));
-                        assertThat(response.getType(), equalTo("_doc"));
-                        assertThat(response.getId(), equalTo("id_" + i));
-                        assertThat(response.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
-                        if (response.getItemId() == rejectItem.id()) {
-                            assertTrue(response.isFailed());
-                            assertThat(response.getFailure().getCause(), equalTo(rejectionCause));
-                            assertThat(response.status(), equalTo(rejectionStatus));
-                        } else {
-                            assertFalse(response.isFailed());
+                        // check each response matches the input item, including the rejection
+                        for (int i = 0; i < items.length; i++) {
+                            BulkItemResponse response = result.finalResponseIfSuccessful.getResponses()[i];
+                            assertThat(response.getItemId(), equalTo(i));
+                            assertThat(response.getIndex(), equalTo("index"));
+                            assertThat(response.getType(), equalTo("_doc"));
+                            assertThat(response.getId(), equalTo("id_" + i));
+                            assertThat(response.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+                            if (response.getItemId() == rejectItem.id()) {
+                                assertTrue(response.isFailed());
+                                assertThat(response.getFailure().getCause(), equalTo(rejectionCause));
+                                assertThat(response.status(), equalTo(rejectionStatus));
+                            } else {
+                                assertFalse(response.isFailed());
+                            }
+                        }
+
+                        // Check that the non-rejected updates made it to the shard
+                        try {
+                            assertDocCount(shard, items.length - 1);
+                            closeShards(shard);
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
                         }
                     }
-                }
 
-                @Override
-                public void onFailure(final Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+                    @Override
+                    public void onFailure(final Exception e) {
+                        throw new AssertionError(e);
+                    }
+                },
+                latch::countDown),
+            r -> threadPool.executor(ThreadPool.Names.WRITE).execute(r));
 
-        // Check that the non-rejected updates made it to the shard
-        assertDocCount(shard, items.length - 1);
-        closeShards(shard);
+        latch.await();
     }
 
     public void testExecuteBulkIndexRequestWithMappingUpdates() throws Exception {
@@ -1003,7 +1014,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 public void onFailure(final Exception e) {
                     throw new AssertionError(e);
                 }
-            });
+            },
+            r -> threadPool.executor(ThreadPool.Names.WRITE).execute(r));
     }
 
     private void randomlySetIgnoredPrimaryResponse(BulkItemRequest primaryRequest) {

@@ -1434,10 +1434,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
         updateRetentionLeasesOnReplica(loadRetentionLeases());
-        assert recoveryState.getRecoverySource() == RecoverySource.ExistingStoreRecoverySource.INSTANCE
-            || recoveryState.getRecoverySource().getType().equals(RecoverySource.Type.PEER)
-            || getRetentionLeases().leases().isEmpty() : "expected empty set of retention leases with recovery source "
-            + recoveryState.getRecoverySource() + " but got " + getRetentionLeases();
+        assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
+            : "expected empty set of retention leases with recovery source [" + recoveryState.getRecoverySource()
+            + "] but got " + getRetentionLeases();
         trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();

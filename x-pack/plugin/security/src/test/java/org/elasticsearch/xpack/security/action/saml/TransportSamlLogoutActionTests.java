@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -95,11 +96,14 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     private List<BulkRequest> bulkRequests;
     private TransportSamlLogoutAction action;
     private Client client;
+    private boolean tokenBwc;
 
     @Before
     public void setup() throws Exception {
+        tokenBwc = randomBoolean();
         final Settings settings = Settings.builder()
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+                .put(TokenService.BWC_ENABLED.getKey(), tokenBwc)
                 .put("path.home", createTempDir())
                 .build();
 
@@ -254,17 +258,25 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         assertThat(indexRequest1, notNullValue());
         assertThat(indexRequest1.id(), startsWith("token"));
 
-        assertThat(bulkRequests.size(), equalTo(2));
-        final BulkRequest bulkRequest1 = bulkRequests.get(0);
-        assertThat(bulkRequest1.requests().size(), equalTo(1));
-        assertThat(bulkRequest1.requests().get(0), instanceOf(IndexRequest.class));
-        assertThat(bulkRequest1.requests().get(0).id(), startsWith("invalidated-token_"));
+        assertThat(bulkRequests.size(), equalTo(tokenBwc ? 2 : 1));
+        final BulkRequest tokenRequest;
+        if (tokenBwc) {
+            assertThat(bulkRequests.size(), equalTo(2));
+            final BulkRequest bwcRequest = bulkRequests.get(0);
+            assertThat(bwcRequest.requests().size(), equalTo(1));
+            assertThat(bwcRequest.requests().get(0), instanceOf(IndexRequest.class));
+            assertThat(bwcRequest.requests().get(0).id(), startsWith("invalidated-token_"));
+            tokenRequest = bulkRequests.get(1);
+        } else {
+            assertThat(bulkRequests.size(), equalTo(1));
+            tokenRequest = bulkRequests.get(0);
+        }
+        assertThat(tokenRequest.requests().size(), equalTo(1));
+        assertThat(tokenRequest.requests().get(0), instanceOf(UpdateRequest.class));
+        assertThat(tokenRequest.requests().get(0).id(), startsWith("token_"));
+        assertThat(tokenRequest.requests().get(0).toString(), containsString("\"access_token\":{\"invalidated\":true"));
 
-        final BulkRequest bulkRequest2 = bulkRequests.get(1);
-        assertThat(bulkRequest2.requests().size(), equalTo(1));
-        assertThat(bulkRequest2.requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequest2.requests().get(0).id(), startsWith("token_"));
-        assertThat(bulkRequest2.requests().get(0).toString(), containsString("\"access_token\":{\"invalidated\":true"));
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
 }

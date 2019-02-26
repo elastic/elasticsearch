@@ -48,14 +48,20 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
+    private Boolean tokenServiceBwc;
+
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
+        if (tokenServiceBwc == null) {
+            tokenServiceBwc = randomBoolean();
+        }
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 // crank up the deletion interval and set timeout for delete requests
                 .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueSeconds(1L))
                 .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+                .put(TokenService.BWC_ENABLED.getKey(), tokenServiceBwc)
                 .build();
     }
 
@@ -149,22 +155,22 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
             SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-                    .setSource(SearchSourceBuilder.searchSource()
-                            .query(QueryBuilders.termQuery("doc_type", TokenService.INVALIDATED_TOKEN_DOC_TYPE)))
-                    .setSize(1)
-                    .setTerminateAfter(1)
-                    .get();
+                .setSource(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.termQuery("doc_type", "token")))
+                .setSize(1)
+                .setTerminateAfter(1)
+                .get();
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
             docId.set(searchResponse.getHits().getAt(0).getId());
         });
 
-        // hack doc to modify the time to the day before
-        Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
-        assertTrue(Instant.now().isAfter(dayBefore));
+        // hack doc to modify the creation time to the day before
+        Instant yesterday = created.minus(36L, ChronoUnit.HOURS);
+        assertTrue(Instant.now().isAfter(yesterday));
         client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", docId.get())
-                .setDoc("expiration_time", dayBefore.toEpochMilli())
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+            .setDoc("creation_time", yesterday.toEpochMilli())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
         AtomicBoolean deleteTriggered = new AtomicBoolean(false);
         assertBusy(() -> {
@@ -182,7 +188,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             client.admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
             SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                     .setSource(SearchSourceBuilder.searchSource()
-                            .query(QueryBuilders.termQuery("doc_type", TokenService.INVALIDATED_TOKEN_DOC_TYPE)))
+                            .query(QueryBuilders.termQuery("doc_type", "token")))
                     .setSize(0)
                     .setTerminateAfter(1)
                     .get();

@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.mockito.Mockito;
 
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
@@ -139,21 +141,21 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
             return null;
         }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
-        Boolean[] completed = new Boolean[1];
-        Exception[] failure = new Exception[1];
+        AtomicBoolean completed = new AtomicBoolean(false);
+        AtomicReference<Exception> failure = new AtomicReference<>();
         UnfollowFollowIndexStep step = new UnfollowFollowIndexStep(randomStepKey(), randomStepKey(), client);
         step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
-                completed[0] = complete;
+                completed.set(complete);
             }
 
             @Override
             public void onFailure(Exception e) {
-                failure[0] = e;
+                failure.set(e);
             }
         });
-        assertThat(completed[0], equalTo(true));
-        assertThat(failure[0], nullValue());
+        assertThat(completed.get(), equalTo(true));
+        assertThat(failure.get(), nullValue());
     }
 }

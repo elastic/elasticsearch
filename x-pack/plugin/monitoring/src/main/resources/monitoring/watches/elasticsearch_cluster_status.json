@@ -47,19 +47,8 @@
                           }
                         },
                         {
-                          "bool": {
-                            "should": [
-                              {
-                                "term": {
-                                  "_type": "cluster_state"
-                                }
-                              },
-                              {
-                                "term": {
-                                  "type": "cluster_stats"
-                                }
-                              }
-                            ]
+                          "term": {
+                            "type": "cluster_stats"
                           }
                         },
                         {

@@ -648,7 +648,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Engine.Searcher engineSearcher = indexShard.acquireSearcher(source);
 
         final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
-            engineSearcher, clusterService, indexService, indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), timeout,
+            engineSearcher, clusterService, indexService, indexShard, bigArrays, threadPool::relativeTimeInMillis, timeout,
             fetchPhase, clusterService.state().nodes().getMinNodeVersion());
         boolean success = false;
         try {

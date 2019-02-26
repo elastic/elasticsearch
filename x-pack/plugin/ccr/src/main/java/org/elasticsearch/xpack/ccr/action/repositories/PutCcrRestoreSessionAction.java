@@ -33,7 +33,7 @@ import java.io.IOException;
 public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> {
 
     public static final PutCcrRestoreSessionAction INSTANCE = new PutCcrRestoreSessionAction();
-    private static final String NAME = "internal:admin/ccr/restore/session/put";
+    public static final String NAME = "internal:admin/ccr/restore/session/put";
 
     private PutCcrRestoreSessionAction() {
         super(NAME);

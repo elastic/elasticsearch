@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.security.transport.netty4;
+package org.elasticsearch.xpack.core.security.transport;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -17,9 +17,7 @@ import org.hamcrest.Matchers;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport.getTransportProfileConfigurations;
-
-public class SecurityNetty4TransportTests extends ESTestCase {
+public class ProfileConfigurationsTests extends ESTestCase {
 
     public void testGetSecureTransportProfileConfigurations() {
         final Settings settings = Settings.builder()
@@ -31,7 +29,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration defaultConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        final Map<String, SSLConfiguration> profileConfigurations = getTransportProfileConfigurations(settings, sslService, defaultConfig);
+        final Map<String, SSLConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, defaultConfig);
         assertThat(profileConfigurations.size(), Matchers.equalTo(3));
         assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("full", "cert", "default"));
         assertThat(profileConfigurations.get("full").verificationMode(), Matchers.equalTo(VerificationMode.FULL));
@@ -49,7 +47,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration defaultConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        final Map<String, SSLConfiguration> profileConfigurations = getTransportProfileConfigurations(settings, sslService, defaultConfig);
+        final Map<String, SSLConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, defaultConfig);
         assertThat(profileConfigurations.size(), Matchers.equalTo(2));
         assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("none", "default"));
         assertThat(profileConfigurations.get("none").verificationMode(), Matchers.equalTo(VerificationMode.NONE));

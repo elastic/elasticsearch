@@ -26,6 +26,7 @@ import org.junit.Before;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.singletonMap;
@@ -96,7 +97,10 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         }
 
         atLeastDocsIndexed(followerClient(), "index2", 32);
-        AcknowledgedResponse response = followerClient().admin().indices().close(new CloseIndexRequest("index2")).get();
+
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest("index2");
+        closeIndexRequest.waitForActiveShards(ActiveShardCount.NONE);
+        AcknowledgedResponse response = followerClient().admin().indices().close(closeIndexRequest).get();
         assertThat(response.isAcknowledged(), is(true));
 
         ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
@@ -126,6 +130,6 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
             followerSearchRequest.source().trackTotalHits(true);
             long followerIndexDocs = followerClient().search(followerSearchRequest).actionGet().getHits().getTotalHits().value;
             assertThat(followerIndexDocs, equalTo(leaderIndexDocs));
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 }

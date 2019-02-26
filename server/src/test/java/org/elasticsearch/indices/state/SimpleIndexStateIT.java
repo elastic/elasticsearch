@@ -102,7 +102,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.RED));
 
-        assertAcked(client().admin().indices().prepareClose("test"));
+        assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.NONE));
 
         logger.info("--> updating test index settings to allow allocation");
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()

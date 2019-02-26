@@ -915,7 +915,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
      * Test that the {@link org.elasticsearch.index.engine.NoOpEngine} takes precedence over other
      * engine factories if the index is closed.
      */
-    public void testNoOpEngineFactoryTakesPrecedence() throws IOException {
+    public void testNoOpEngineFactoryTakesPrecedence() {
         final String indexName = "closed-index";
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
         ensureGreen();
@@ -927,7 +927,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+        final IndexService indexService = indicesService.indexServiceSafe(indexMetaData.getIndex());
 
         for (IndexShard indexShard : indexService) {
             assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));

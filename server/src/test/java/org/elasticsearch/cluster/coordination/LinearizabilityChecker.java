@@ -74,8 +74,8 @@ public class LinearizabilityChecker {
          * Next-state function, checking whether transitioning the datatype in the given state under the provided input and output is valid.
          *
          * @param currentState the current state of the datatype
-         * @param input        the input, associated with the given invocation event
-         * @param output       the output, associated with the corresponding response event
+         * @param input the input, associated with the given invocation event
+         * @param output the output, associated with the corresponding response event
          * @return the next state, if the given current state, input and output are a valid transition, or Optional.empty() otherwise
          */
         Optional<Object> nextState(Object currentState, Object input, Object output);
@@ -169,7 +169,7 @@ public class LinearizabilityChecker {
         /**
          * Appends a new response event to the history
          *
-         * @param id     the id of the corresponding invocation event
+         * @param id the id of the corresponding invocation event
          * @param output the output value associated with the response event
          */
         public void respond(int id, Object output) {
@@ -240,8 +240,8 @@ public class LinearizabilityChecker {
     /**
      * Checks whether the provided history is linearizable with respect to the given sequential specification
      *
-     * @param spec                     the sequential specification of the datatype
-     * @param history                  the history of events to check for linearizability
+     * @param spec the sequential specification of the datatype
+     * @param history the history of events to check for linearizability
      * @param missingResponseGenerator used to complete the history with missing responses, return {@link #REMOVE} to remove the history
      *                                 event
      * @return true iff the history is linearizable w.r.t. the given spec
@@ -258,7 +258,7 @@ public class LinearizabilityChecker {
         Object state = spec.initialState(); // the current state of the datatype
         final FixedBitSet linearized = new FixedBitSet(history.size() / 2); // the linearized prefix of the history
 
-        final Cache cache = new Cache();
+        final Cache cache = new Cache(); // cache of explored <state, linearized prefix> pairs
         final Deque<Tuple<Entry, Object>> calls = new LinkedList<>(); // path we're currently exploring
 
         final Entry headEntry = createLinkedEntries(history);

@@ -14,7 +14,11 @@ import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.config.*;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Detector;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.junit.After;
@@ -26,7 +30,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 

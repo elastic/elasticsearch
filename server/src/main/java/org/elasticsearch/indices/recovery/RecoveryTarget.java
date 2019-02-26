@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -360,8 +361,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                     throw new MapperException("mapping updates are not allowed [" + operation + "]");
                 }
-                assert result.getFailure() == null : "unexpected failure while replicating translog entry: " + result.getFailure();
-                ExceptionsHelper.reThrowIfNotNull(result.getFailure());
+                if (result.getFailure() != null) {
+                    if (Assertions.ENABLED) {
+                        throw new AssertionError("unexpected failure while replicating translog entry", result.getFailure());
+                    }
+                    ExceptionsHelper.reThrowIfNotNull(result.getFailure());
+                }
             }
             // update stats only after all operations completed (to ensure that mapping updates don't mess with stats)
             translog.incrementRecoveredOperations(operations.size());

@@ -70,14 +70,14 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
 
         @Override
         protected TopDocsCollector<ScoreDocKey> createTopDocsCollector(int size) {
-            return new ValuesDiversifiedTopDocsCollector(size, maxDocsPerValue);
+            // Make sure we do not allow size > maxDoc, to prevent accidental OOM
+            int minMaxDocsPerValue = Math.min(maxDocsPerValue, context.searcher().getIndexReader().maxDoc());
+            return new ValuesDiversifiedTopDocsCollector(size, minMaxDocsPerValue);
         }
 
         @Override
         protected long getPriorityQueueSlotSize() {
-            // Uses ScoreDocKey
-            // [float + int + int] from ScoreDoc, [Long] from ScoreDocKey
-            return 28L;
+            return SCOREDOCKEY_SIZE;
         }
 
         // This class extends the DiversifiedTopDocsCollector and provides

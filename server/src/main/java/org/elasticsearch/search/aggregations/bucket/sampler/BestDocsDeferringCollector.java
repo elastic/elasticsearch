@@ -26,6 +26,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -58,6 +59,8 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     private PerSegmentCollects perSegCollector;
     private final BigArrays bigArrays;
     private final Consumer<Long> circuitBreakerConsumer;
+
+    private static final long SENTINEL_SIZE = RamUsageEstimator.shallowSizeOfInstance(Object.class);
 
     /**
      * Sole constructor.
@@ -114,7 +117,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     // and need different memory sizes
     protected long getPriorityQueueSlotSize() {
         // Generic sentinel object
-        return 16L;
+        return SENTINEL_SIZE;
     }
 
     @Override
@@ -136,31 +139,34 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     private void runDeferredAggs() throws IOException {
         // ScoreDoc is 12b ([float + int + int])
         circuitBreakerConsumer.accept(12L * shardSize);
-        List<ScoreDoc> allDocs = new ArrayList<>(shardSize);
-        for (int i = 0; i < perBucketSamples.size(); i++) {
-            PerParentBucketSamples perBucketSample = perBucketSamples.get(i);
-            if (perBucketSample == null) {
-                continue;
-            }
-            perBucketSample.getMatches(allDocs);
-        }
-
-        // Sort the top matches by docID for the benefit of deferred collector
-        allDocs.sort((o1, o2) -> {
-            if (o1.doc == o2.doc) {
-                return o1.shardIndex - o2.shardIndex;
-            }
-            return o1.doc - o2.doc;
-        });
         try {
-            for (PerSegmentCollects perSegDocs : entries) {
-                perSegDocs.replayRelatedMatches(allDocs);
+            List<ScoreDoc> allDocs = new ArrayList<>(shardSize);
+            for (int i = 0; i < perBucketSamples.size(); i++) {
+                PerParentBucketSamples perBucketSample = perBucketSamples.get(i);
+                if (perBucketSample == null) {
+                    continue;
+                }
+                perBucketSample.getMatches(allDocs);
             }
-        } catch (IOException e) {
-            throw new ElasticsearchException("IOException collecting best scoring results", e);
+
+            // Sort the top matches by docID for the benefit of deferred collector
+            allDocs.sort((o1, o2) -> {
+                if (o1.doc == o2.doc) {
+                    return o1.shardIndex - o2.shardIndex;
+                }
+                return o1.doc - o2.doc;
+            });
+            try {
+                for (PerSegmentCollects perSegDocs : entries) {
+                    perSegDocs.replayRelatedMatches(allDocs);
+                }
+            } catch (IOException e) {
+                throw new ElasticsearchException("IOException collecting best scoring results", e);
+            }
+        } finally {
+            // done with allDocs now, reclaim some memory
+            circuitBreakerConsumer.accept(-12L * shardSize);
         }
-        // done with allDocs now, reclaim some memory
-        circuitBreakerConsumer.accept(-12L * shardSize);
         deferred.postCollection();
     }
 

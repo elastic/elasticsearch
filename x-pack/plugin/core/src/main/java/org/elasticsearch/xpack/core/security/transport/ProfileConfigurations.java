@@ -18,6 +18,8 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public final class ProfileConfigurations {
 
+    private ProfileConfigurations() {}
+
     public static Map<String, SSLConfiguration> get(Settings settings, SSLService sslService, SSLConfiguration defaultConfiguration) {
         Set<String> profileNames = settings.getGroups("transport.profiles.", true).keySet();
         Map<String, SSLConfiguration> profileConfiguration = new HashMap<>(profileNames.size() + 1);

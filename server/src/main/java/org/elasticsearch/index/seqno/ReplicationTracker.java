@@ -331,12 +331,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     public RetentionLeases loadRetentionLeases(final Path path) throws IOException {
         final RetentionLeases retentionLeases = RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
         if (retentionLeases == null) {
-            if (8 <= Version.CURRENT.major) { // TODO remove this after backporting
-                throw new IllegalStateException("no retention leases file found");
-            } else {
-                // upgrading from a 6.x version in which no retention leases were persisted
-                return RetentionLeases.EMPTY;
-            }
+            // TODO after backporting we expect this to never happen, so adjust this to throw an exception instead.
+            return RetentionLeases.EMPTY;
         }
         return retentionLeases;
     }

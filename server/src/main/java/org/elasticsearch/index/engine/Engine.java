@@ -400,7 +400,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract DeleteResult delete(Delete delete) throws IOException;
 
-    public abstract NoOpResult noOp(NoOp noOp);
+    public abstract NoOpResult noOp(NoOp noOp) throws IOException;
 
     /**
      * Base class for index and delete operation results
@@ -807,14 +807,6 @@ public abstract class Engine implements Closeable {
      * @return the local checkpoint for this Engine
      */
     public abstract long getLocalCheckpoint();
-
-    /**
-     * Waits for all operations up to the provided sequence number to complete.
-     *
-     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
-     * @throws InterruptedException if the thread was interrupted while blocking on the condition
-     */
-    public abstract void waitForOpsToComplete(long seqNo) throws InterruptedException;
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint

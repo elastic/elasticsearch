@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
 import java.util.Objects;
 
 public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> implements XPackPlugin.XPackPersistentTaskParams {
@@ -91,9 +89,5 @@ public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> imp
     @Override
     public int hashCode() {
         return Objects.hash(transformId);
-    }
-
-    public Map<String, String> getHeaders() {
-        return Collections.emptyMap();
     }
 }

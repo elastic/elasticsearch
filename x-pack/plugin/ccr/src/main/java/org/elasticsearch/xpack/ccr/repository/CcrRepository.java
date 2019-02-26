@@ -36,7 +36,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -95,11 +94,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.syncAddRetentionLease;
@@ -336,6 +335,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         CcrRetentionLeases.asyncRenewRetentionLease(
                                 leaderShardId,
                                 retentionLeaseId,
+                                RETAIN_ALL,
                                 remoteClient,
                                 ActionListener.wrap(
                                         r -> {},
@@ -349,7 +349,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                         }));
                     }
                 },
-                RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(indexShard.indexSettings().getSettings()),
+                CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(indexShard.indexSettings().getNodeSettings()),
                 Ccr.CCR_THREAD_POOL_NAME);
 
         final Releasable cancelRenewable = () -> {
@@ -394,7 +394,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 () -> new ParameterizedMessage("{} requesting leader to add retention lease [{}]", shardId, retentionLeaseId));
         final TimeValue timeout = ccrSettings.getRecoveryActionTimeout();
         final Optional<RetentionLeaseAlreadyExistsException> maybeAddAlready =
-                syncAddRetentionLease(leaderShardId, retentionLeaseId, remoteClient, timeout);
+                syncAddRetentionLease(leaderShardId, retentionLeaseId, RETAIN_ALL, remoteClient, timeout);
         maybeAddAlready.ifPresent(addAlready -> {
             logger.trace(() -> new ParameterizedMessage(
                             "{} retention lease [{}] already exists, requesting a renewal",
@@ -402,7 +402,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                             retentionLeaseId),
                     addAlready);
             final Optional<RetentionLeaseNotFoundException> maybeRenewNotFound =
-                    syncRenewRetentionLease(leaderShardId, retentionLeaseId, remoteClient, timeout);
+                    syncRenewRetentionLease(leaderShardId, retentionLeaseId, RETAIN_ALL, remoteClient, timeout);
             maybeRenewNotFound.ifPresent(renewNotFound -> {
                 logger.trace(() -> new ParameterizedMessage(
                                 "{} retention lease [{}] not found while attempting to renew, requesting a final add",
@@ -410,7 +410,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                 retentionLeaseId),
                         renewNotFound);
                 final Optional<RetentionLeaseAlreadyExistsException> maybeFallbackAddAlready =
-                        syncAddRetentionLease(leaderShardId, retentionLeaseId, remoteClient, timeout);
+                        syncAddRetentionLease(leaderShardId, retentionLeaseId, RETAIN_ALL, remoteClient, timeout);
                 maybeFallbackAddAlready.ifPresent(fallbackAddAlready -> {
                     /*
                      * At this point we tried to add the lease and the retention lease already existed. By the time we tried to renew the
@@ -422,15 +422,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             });
         });
     }
-
-    // this setting is intentionally not registered, it is only used in tests
-    public static final Setting<TimeValue> RETENTION_LEASE_RENEW_INTERVAL_SETTING =
-            Setting.timeSetting(
-                    "index.ccr.retention_lease.renew_interval",
-                    new TimeValue(5, TimeUnit.MINUTES),
-                    new TimeValue(0, TimeUnit.MILLISECONDS),
-                    Setting.Property.Dynamic,
-                    Setting.Property.IndexScope);
 
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId leaderShardId) {

@@ -196,6 +196,11 @@ public class ReplicationOperation<
                     replicaException, ReplicationOperation.this::decPendingAndFinishIfNeeded,
                     ReplicationOperation.this::onPrimaryDemoted, throwable -> decPendingAndFinishIfNeeded());
             }
+
+            @Override
+            public String toString() {
+                return "[" + replicaRequest + "][" + shard + "]";
+            }
         });
     }
 

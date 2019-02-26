@@ -159,7 +159,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
-        EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
         IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
         IndexSettings.DEFAULT_PIPELINE,
 

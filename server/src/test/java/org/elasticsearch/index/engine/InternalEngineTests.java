@@ -3232,7 +3232,7 @@ public class InternalEngineTests extends EngineTestCase {
             final ParsedDocument doc3 = testParsedDocument("3", null, testDocumentWithTextField(), B_1, null);
 
             AtomicReference<ThrowingIndexWriter> throwingIndexWriter = new AtomicReference<>();
-            try (Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE,
+            try (InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE,
                 (directory, iwc) -> {
                   throwingIndexWriter.set(new ThrowingIndexWriter(directory, iwc));
                   return throwingIndexWriter.get();
@@ -3297,16 +3297,13 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.close();
                 }
                 // now the engine is closed check we respond correctly
-                try {
-                    if (randomBoolean()) {
-                        engine.index(indexForDoc(doc1));
-                    } else {
-                        engine.delete(new Engine.Delete("test", "", newUid(doc1), primaryTerm.get()));
-                    }
-                    fail("engine should be closed");
-                } catch (Exception e) {
-                    assertThat(e, instanceOf(AlreadyClosedException.class));
-                }
+                expectThrows(AlreadyClosedException.class, () -> engine.index(indexForDoc(doc1)));
+                expectThrows(AlreadyClosedException.class,
+                    () -> engine.delete(new Engine.Delete("test", "", newUid(doc1), primaryTerm.get())));
+                expectThrows(AlreadyClosedException.class, () -> engine.noOp(
+                    new Engine.NoOp(engine.getLocalCheckpointTracker().generateSeqNo(),
+                        engine.config().getPrimaryTermSupplier().getAsLong(),
+                        randomFrom(Engine.Operation.Origin.values()), randomNonNegativeLong(), "test")));
             }
         }
     }
@@ -5361,16 +5358,6 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.flush(true, true);
                 assertThat(Long.parseLong(engine.getLastCommittedSegmentInfos().userData.get(Engine.MIN_RETAINED_SEQNO)),
                     equalTo(engine.getMinRetainedSeqNo()));
-                final RetentionLeases leases = retentionLeasesHolder.get();
-                if (leases.leases().isEmpty()) {
-                    assertThat(
-                            engine.getLastCommittedSegmentInfos().getUserData().get(Engine.RETENTION_LEASES),
-                            equalTo("primary_term:" + primaryTerm + ";version:" + retentionLeasesVersion.get() + ";"));
-                } else {
-                    assertThat(
-                            engine.getLastCommittedSegmentInfos().getUserData().get(Engine.RETENTION_LEASES),
-                            equalTo(RetentionLeases.encodeRetentionLeases(leases)));
-                }
             }
             if (rarely()) {
                 engine.forceMerge(randomBoolean());
@@ -5652,5 +5639,43 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
         }
+    }
+
+    public void testMaxSeqNoInCommitUserData() throws Exception {
+        AtomicBoolean running = new AtomicBoolean(true);
+        Thread rollTranslog = new Thread(() -> {
+            while (running.get() && engine.getTranslog().currentFileGeneration() < 500) {
+                engine.rollTranslogGeneration(); // make adding operations to translog slower
+            }
+        });
+        rollTranslog.start();
+
+        Thread indexing = new Thread(() -> {
+            long seqNo = 0;
+            while (running.get() && seqNo <= 1000) {
+                try {
+                    String id = Long.toString(between(1, 50));
+                    if (randomBoolean()) {
+                        ParsedDocument doc = testParsedDocument(id, null, testDocumentWithTextField(), SOURCE, null);
+                        engine.index(replicaIndexForDoc(doc, 1L, seqNo, false));
+                    } else {
+                        engine.delete(replicaDeleteForDoc(id, 1L, seqNo, 0L));
+                    }
+                    seqNo++;
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        });
+        indexing.start();
+
+        int numCommits = between(5, 20);
+        for (int i = 0; i < numCommits; i++) {
+            engine.flush(false, true);
+        }
+        running.set(false);
+        indexing.join();
+        rollTranslog.join();
+        assertMaxSeqNoInCommitUserData(engine);
     }
 }

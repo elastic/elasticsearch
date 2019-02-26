@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class CompletionSuggestionTests extends ESTestCase {
 
-    public void testToReduce() throws Exception {
+    public void testToReduce() {
         List<Suggest.Suggestion<CompletionSuggestion.Entry>> shardSuggestions = new ArrayList<>();
         int nShards = randomIntBetween(1, 10);
         String name = randomAlphaOfLength(10);
@@ -54,7 +54,7 @@ public class CompletionSuggestionTests extends ESTestCase {
                     maxScore - i, Collections.emptyMap()));
             }
         }
-        CompletionSuggestion reducedSuggestion = CompletionSuggestion.reduceTo(shardSuggestions);
+        CompletionSuggestion reducedSuggestion = (CompletionSuggestion) shardSuggestions.get(0).reduce(shardSuggestions);
         assertNotNull(reducedSuggestion);
         assertThat(reducedSuggestion.getOptions().size(), lessThanOrEqualTo(size));
         int count = 0;
@@ -95,7 +95,7 @@ public class CompletionSuggestionTests extends ESTestCase {
             .distinct()
             .limit(size)
             .collect(Collectors.toList());
-        CompletionSuggestion reducedSuggestion = CompletionSuggestion.reduceTo(shardSuggestions);
+        CompletionSuggestion reducedSuggestion = (CompletionSuggestion) shardSuggestions.get(0).reduce(shardSuggestions);
         assertNotNull(reducedSuggestion);
         assertThat(reducedSuggestion.getOptions().size(), lessThanOrEqualTo(size));
         assertEquals(expected, reducedSuggestion.getOptions());

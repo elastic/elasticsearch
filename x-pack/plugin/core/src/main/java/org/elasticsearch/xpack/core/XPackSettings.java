@@ -44,6 +44,10 @@ public class XPackSettings {
      */
     public static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
 
+    /** Setting for enabling or disabling data frame. Defaults to true. */
+    public static final Setting<Boolean> DATA_FRAME_ENABLED = Setting.boolSetting("xpack.data_frame.enabled", true,
+            Setting.Property.NodeScope);
+
     /** Setting for enabling or disabling security. Defaults to true. */
     public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
 
@@ -209,6 +213,7 @@ public class XPackSettings {
         settings.add(ROLLUP_ENABLED);
         settings.add(PASSWORD_HASHING_ALGORITHM);
         settings.add(INDEX_LIFECYCLE_ENABLED);
+        settings.add(DATA_FRAME_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

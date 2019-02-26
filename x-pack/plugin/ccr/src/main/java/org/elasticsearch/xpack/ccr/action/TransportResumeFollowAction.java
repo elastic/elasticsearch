@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -214,9 +213,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
                     "] as history uuid");
             }
         }
-        // soft deletes are enabled by default on indices created on 7.0.0 or later
-        if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
-            IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndex.getSettings()).onOrAfter(Version.V_7_0_0)) == false) {
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndex.getSettings()) == false) {
             throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
                 "] does not have soft deletes enabled");
         }

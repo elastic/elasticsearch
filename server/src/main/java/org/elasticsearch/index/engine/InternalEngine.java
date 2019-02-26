@@ -1449,13 +1449,19 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public NoOpResult noOp(final NoOp noOp) {
-        NoOpResult noOpResult;
+    public NoOpResult noOp(final NoOp noOp) throws IOException {
+        final NoOpResult noOpResult;
         try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
             markSeqNoAsSeen(noOp.seqNo());
             noOpResult = innerNoOp(noOp);
         } catch (final Exception e) {
-            noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo(), e);
+            try {
+                maybeFailEngine("noop", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
         }
         return noOpResult;
     }

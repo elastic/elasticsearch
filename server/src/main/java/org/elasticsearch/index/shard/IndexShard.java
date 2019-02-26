@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
@@ -78,6 +79,7 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.GetResult;
@@ -108,6 +110,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
@@ -1261,6 +1264,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (state == IndexShardState.STARTED) {
                 throw new IndexShardStartedException(shardId);
             }
+            assert assertSafeCommitExists();
             // we need to refresh again to expose all operations that were index until now. Otherwise
             // we may not expose operations that were indexed with a refresh listener that was immediately
             // responded to in addRefreshListener.
@@ -1477,6 +1481,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert userData.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
             "opening index which was created post 5.5.0 but " + Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
                 + " is not found in commit";
+        return true;
+    }
+
+    private boolean assertSafeCommitExists() {
+        try (Closeable ignored = acquireRetentionLock()) {
+            List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+            long globalCheckpoint = getLastSyncedGlobalCheckpoint();
+            IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
+            SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
+            assert commitInfo.maxSeqNo <= globalCheckpoint :
+                routingEntry() + " safe_commit=" + commitInfo + " global_checkpoint=" + globalCheckpoint;
+            LocalCheckpointTracker checkpointTracker = new LocalCheckpointTracker(commitInfo.maxSeqNo, commitInfo.localCheckpoint);
+            try (Translog.Snapshot historySnapshot = getHistoryOperations("assert_safe_commit_exists", commitInfo.localCheckpoint + 1)) {
+                Translog.Operation op;
+                while ((op = historySnapshot.next()) != null) {
+                    checkpointTracker.markSeqNoAsCompleted(op.seqNo());
+                }
+            }
+            assert checkpointTracker.getCheckpoint() >= globalCheckpoint : routingEntry() + " safe_commit=" + commitInfo
+                + " global_checkpoint=" + globalCheckpoint + " recovered_checkpoint=" + checkpointTracker.getCheckpoint();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         return true;
     }
 

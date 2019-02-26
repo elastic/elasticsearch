@@ -22,7 +22,6 @@ package org.elasticsearch.threadpool;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.Counter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -162,7 +161,8 @@ public class ThreadPool implements Scheduler, Closeable {
     }
 
     public static Setting<TimeValue> ESTIMATED_TIME_INTERVAL_SETTING =
-        Setting.timeSetting("thread_pool.estimated_time_interval", TimeValue.timeValueMillis(200), Setting.Property.NodeScope);
+        Setting.timeSetting("thread_pool.estimated_time_interval",
+            TimeValue.timeValueMillis(200), TimeValue.ZERO, Setting.Property.NodeScope);
 
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
         assert Node.NODE_NAME_SETTING.exists(settings);
@@ -250,10 +250,6 @@ public class ThreadPool implements Scheduler, Closeable {
      */
     public long absoluteTimeInMillis() {
         return cachedTimeThread.absoluteTimeInMillis();
-    }
-
-    public Counter estimatedTimeInMillisCounter() {
-        return cachedTimeThread.counter;
     }
 
     public ThreadPoolInfo info() {
@@ -538,7 +534,6 @@ public class ThreadPool implements Scheduler, Closeable {
     static class CachedTimeThread extends Thread {
 
         final long interval;
-        final TimeCounter counter;
         volatile boolean running = true;
         volatile long relativeMillis;
         volatile long absoluteMillis;
@@ -548,29 +543,42 @@ public class ThreadPool implements Scheduler, Closeable {
             this.interval = interval;
             this.relativeMillis = TimeValue.nsecToMSec(System.nanoTime());
             this.absoluteMillis = System.currentTimeMillis();
-            this.counter = new TimeCounter();
             setDaemon(true);
         }
 
         /**
          * Return the current time used for relative calculations. This is
          * {@link System#nanoTime()} truncated to milliseconds.
+         * <p>
+         * If {@link ThreadPool#ESTIMATED_TIME_INTERVAL_SETTING} is set to 0
+         * then the cache is disabled and the method calls {@link System#nanoTime()}
+         * whenever called. Typically used for testing.
          */
         long relativeTimeInMillis() {
-            return relativeMillis;
+            if (0 < interval) {
+                return relativeMillis;
+            }
+            return TimeValue.nsecToMSec(System.nanoTime());
         }
 
         /**
          * Return the current epoch time, used to find absolute time. This is
          * a cached version of {@link System#currentTimeMillis()}.
+         * <p>
+         * If {@link ThreadPool#ESTIMATED_TIME_INTERVAL_SETTING} is set to 0
+         * then the cache is disabled and the method calls {@link System#currentTimeMillis()}
+         * whenever called. Typically used for testing.
          */
         long absoluteTimeInMillis() {
-            return absoluteMillis;
+            if (0 < interval) {
+                return absoluteMillis;
+            }
+            return System.currentTimeMillis();
         }
 
         @Override
         public void run() {
-            while (running) {
+            while (running && 0 < interval) {
                 relativeMillis = TimeValue.nsecToMSec(System.nanoTime());
                 absoluteMillis = System.currentTimeMillis();
                 try {
@@ -579,19 +587,6 @@ public class ThreadPool implements Scheduler, Closeable {
                     running = false;
                     return;
                 }
-            }
-        }
-
-        private class TimeCounter extends Counter {
-
-            @Override
-            public long addAndGet(long delta) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long get() {
-                return relativeMillis;
             }
         }
     }

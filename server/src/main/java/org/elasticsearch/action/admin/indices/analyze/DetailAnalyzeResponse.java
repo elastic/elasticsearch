@@ -296,8 +296,10 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         XContentBuilder toXContentWithoutObject(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.NAME, this.name);
             builder.startArray(AnalyzeResponse.Fields.TOKENS);
-            for (AnalyzeResponse.AnalyzeToken token : tokens) {
-                token.toXContent(builder, params);
+            if (tokens != null) {
+                for (AnalyzeResponse.AnalyzeToken token : tokens) {
+                    token.toXContent(builder, params);
+                }
             }
             builder.endArray();
             return builder;

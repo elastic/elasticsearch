@@ -41,6 +41,12 @@ public final class DataFrameField {
     public static final String TRANSFORM = "transform";
     public static final String DATA_FRAME_SIGNATURE = "data-frame-transform";
 
+    /**
+     * Parameter to indicate whether we are serialising to X Content for internal storage. Default the field is invisible (e.g. for get
+     * API's)
+     */
+    public static final String FOR_INTERNAL_STORAGE = "for_internal_storage";
+
     private DataFrameField() {
     }
 }

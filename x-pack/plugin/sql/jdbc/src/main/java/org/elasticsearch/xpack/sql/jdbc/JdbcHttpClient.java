@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 class JdbcHttpClient {
     private final HttpClient httpClient;
     private final JdbcConfiguration conCfg;
-    private InfoResponse serverInfo;
+    private final InfoResponse serverInfo;
 
     /**
      * The SQLException is the only type of Exception the JDBC API can throw (and that the user expects).
@@ -40,6 +40,8 @@ class JdbcHttpClient {
     JdbcHttpClient(JdbcConfiguration conCfg) throws SQLException {
         httpClient = new HttpClient(conCfg);
         this.conCfg = conCfg;
+        this.serverInfo = fetchServerInfo();
+        checkServerVersion();
     }
 
     boolean ping(long timeoutInMs) throws SQLException {
@@ -72,16 +74,22 @@ class JdbcHttpClient {
     }
 
     InfoResponse serverInfo() throws SQLException {
-        if (serverInfo == null) {
-            serverInfo = fetchServerInfo();
-        }
         return serverInfo;
     }
 
     private InfoResponse fetchServerInfo() throws SQLException {
         MainResponse mainResponse = httpClient.serverInfo();
         Version version = Version.fromString(mainResponse.getVersion());
-        return new InfoResponse(mainResponse.getClusterName(), version.major, version.minor);
+        return new InfoResponse(mainResponse.getClusterName(), version.major, version.minor, version.revision);
+    }
+    
+    private void checkServerVersion() throws SQLException {
+        if (serverInfo.majorVersion != Version.CURRENT.major
+                || serverInfo.minorVersion != Version.CURRENT.minor
+                || serverInfo.revisionVersion != Version.CURRENT.revision) {
+            throw new SQLException("This version of the JDBC driver is only compatible with Elasticsearch version " +
+                    Version.CURRENT.toString() + ", attempting to connect to a server version " + serverInfo.versionString());
+        }
     }
 
     /**

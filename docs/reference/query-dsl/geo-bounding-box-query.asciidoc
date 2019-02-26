@@ -271,7 +271,7 @@ GET /_search
 ==== geo_point Type
 
 The filter *requires* the `geo_point` type to be set on the relevant
-field.
+field. `geo_point` type must be set by creating the mapping of the index manually (explicitly set the field mapping), since dynamic mapping won’t work. 
 
 [float]
 ==== Multi Location Per Document

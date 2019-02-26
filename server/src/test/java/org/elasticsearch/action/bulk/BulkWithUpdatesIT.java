@@ -43,6 +43,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -290,6 +291,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse(), nullValue());
     }
 
+    @TestLogging("org.elasticsearch.action:TRACE")
     public void testBulkUpdateLargerVolume() throws Exception {
         createIndex("test");
         ensureGreen();

@@ -68,17 +68,6 @@ public class BackgroundIndexer implements AutoCloseable {
     volatile int maxFieldSize = 140;
 
     /**
-     * Start indexing in the background using a random number of threads.
-     *
-     * @param index  index name to index into
-     * @param type   document type
-     * @param client client to use
-     */
-    public BackgroundIndexer(String index, String type, Client client) {
-        this(index, type, client, -1);
-    }
-
-    /**
      * Start indexing in the background using a random number of threads. Indexing will be paused after numOfDocs docs has
      * been indexed.
      *
@@ -239,11 +228,6 @@ public class BackgroundIndexer implements AutoCloseable {
 
     }
 
-    /** Start indexing with no limit to the number of documents */
-    public void start() {
-        start(-1);
-    }
-
     /**
      * Start indexing
      *
@@ -259,11 +243,6 @@ public class BackgroundIndexer implements AutoCloseable {
     public void pauseIndexing() {
         availableBudget.drainPermits();
         setBudget(0);
-    }
-
-    /** Continue indexing after it has paused. No new document limit will be set */
-    public void continueIndexing() {
-        continueIndexing(-1);
     }
 
     /**
@@ -297,16 +276,6 @@ public class BackgroundIndexer implements AutoCloseable {
 
     public void assertNoFailures() {
         Assert.assertThat(failures, emptyIterable());
-    }
-
-    /** the minimum size in code points of a payload field in the indexed documents */
-    public void setMinFieldSize(int fieldSize) {
-        minFieldSize = fieldSize;
-    }
-
-    /** the minimum size in code points of a payload field in the indexed documents */
-    public void setMaxFieldSize(int fieldSize) {
-        maxFieldSize = fieldSize;
     }
 
     public void setAssertNoFailuresOnStop(final boolean assertNoFailuresOnStop) {

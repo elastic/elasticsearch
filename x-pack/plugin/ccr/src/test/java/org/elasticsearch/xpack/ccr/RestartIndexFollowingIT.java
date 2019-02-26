@@ -6,14 +6,18 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
+import java.util.List;
 import java.util.Locale;
 
 import static java.util.Collections.singletonMap;
@@ -66,6 +70,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
                 equalTo(firstBatchNumDocs + secondBatchNumDocs));
         });
 
+        cleanRemoteCluster();
         getLeaderCluster().fullRestart();
         ensureLeaderGreen("index1");
         // Remote connection needs to be re-configured, because all the nodes in leader cluster have been restarted:
@@ -82,11 +87,30 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         });
     }
 
-    private void setupRemoteCluster() {
+    private void setupRemoteCluster() throws Exception {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         String address = getLeaderCluster().getMasterNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", address));
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        assertBusy(() -> {
+            List<RemoteConnectionInfo> infos =
+                followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+            assertThat(infos.size(), equalTo(1));
+            assertThat(infos.get(0).getNumNodesConnected(), equalTo(1));
+        });
+    }
+
+    private void cleanRemoteCluster() throws Exception {
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", (String) null));
+        assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        assertBusy(() -> {
+            List<RemoteConnectionInfo> infos =
+                followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+            assertThat(infos.size(), equalTo(0));
+        });
     }
 
 }

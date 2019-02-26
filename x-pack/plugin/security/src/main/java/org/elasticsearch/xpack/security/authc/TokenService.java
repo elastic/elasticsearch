@@ -169,6 +169,8 @@ public final class TokenService extends AbstractComponent {
             TimeValue.timeValueMinutes(30L), Property.NodeScope);
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting("xpack.security.authc.token.delete.timeout",
             TimeValue.MINUS_ONE, Property.NodeScope);
+    public static final Setting<Boolean> BWC_ENABLED = Setting.boolSetting("xpack.security.authc.token.compat.enabled",
+            false, Property.NodeScope, Property.Deprecated);
 
     static final String INVALIDATED_TOKEN_DOC_TYPE = "invalidated-token";
     static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
@@ -185,6 +187,7 @@ public final class TokenService extends AbstractComponent {
     private final SecurityIndexManager securityIndex;
     private final ExpiredTokenRemover expiredTokenRemover;
     private final boolean enabled;
+    private final boolean bwcEnabled;
     private volatile TokenKeys keyCache;
     private volatile long lastExpirationRunMs;
     private final AtomicLong createdTimeStamps = new AtomicLong(-1);
@@ -217,6 +220,7 @@ public final class TokenService extends AbstractComponent {
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.enabled = isTokenServiceEnabled(settings);
+        this.bwcEnabled = BWC_ENABLED.get(settings);
         this.expiredTokenRemover = new ExpiredTokenRemover(settings, client);
         ensureEncryptionCiphersSupported();
         KeyAndCache keyAndCache = new KeyAndCache(new KeyAndTimestamp(tokenPassphrase, createdTimeStamps.incrementAndGet()),
@@ -434,8 +438,12 @@ public final class TokenService extends AbstractComponent {
                                                 }), client::get);
                                         });
                                 }}, listener::onFailure));
-                        } else {
+                        } else if (bwcEnabled) {
                             decryptToken(in, cipher, version, listener);
+                        } else {
+                            logger.debug("Found [{}] version token, but old token compatibility is disabled", version);
+                            listener.onFailure(
+                                new IllegalArgumentException("Cannot authenticate using token from version [" + version + "]"));
                         }
                     } catch (GeneralSecurityException e) {
                         // could happen with a token that is not ours
@@ -636,6 +644,8 @@ public final class TokenService extends AbstractComponent {
             logger.warn("Failed to invalidate [{}] tokens after [{}] attempts", tokenIds.size(),
                 attemptCount.get());
             listener.onFailure(invalidGrantException("failed to invalidate tokens"));
+        } else if (bwcEnabled == false) {
+            indexInvalidation(tokenIds, listener, attemptCount, "access_token", previousResult);
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String tokenId : tokenIds) {

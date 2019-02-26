@@ -9,6 +9,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.util.Map;
@@ -19,7 +20,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class XPackUsageIT extends ESCCRRestTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39126")
     public void testXPackCcrUsage() throws Exception {
         if ("follow".equals(targetCluster) == false) {
             logger.info("skipping test, waiting for target cluster [follow]" );
@@ -42,6 +42,9 @@ public class XPackUsageIT extends ESCCRRestTestCase {
             assertThat(ccrUsage.get("follower_indices_count"), equalTo(previousFollowerIndicesCount + 2));
             assertThat(ccrUsage.get("auto_follow_patterns_count"), equalTo(previousAutoFollowPatternsCount + 1));
             assertThat((Integer) ccrUsage.get("last_follow_time_in_millis"), greaterThanOrEqualTo(0));
+            // We need to wait until index following is active for auto followed indices:
+            // (otherwise pause follow may fail, if there are no shard follow tasks, in case this test gets executed too quickly)
+            assertIndexFollowingActive("messages-20200101");
         });
 
         deleteAutoFollowPattern("my_pattern");
@@ -81,6 +84,15 @@ public class XPackUsageIT extends ESCCRRestTestCase {
         Map<String, ?> response = toMap(client().performRequest(request));
         logger.info("xpack usage response={}", response);
         return  (Map<?, ?>) response.get("ccr");
+    }
+
+    private void assertIndexFollowingActive(String expectedFollowerIndex) throws IOException {
+        Request statsRequest = new Request("GET", "/" + expectedFollowerIndex + "/_ccr/info");
+        Map<?, ?> response = toMap(client().performRequest(statsRequest));
+        String actualFollowerIndex = ObjectPath.eval("follower_indices.0.follower_index", response);
+        assertThat(actualFollowerIndex, equalTo(expectedFollowerIndex));
+        String followStatus = ObjectPath.eval("follower_indices.0.status", response);
+        assertThat(followStatus, equalTo("active"));
     }
 
 }

@@ -45,7 +45,8 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging("org.elasticsearch.xpack.ccr:TRACE,org.elasticsearch.index.shard:DEBUG")
+@TestLogging("org.elasticsearch.xpack.ccr:TRACE,org.elasticsearch.xpack.ccr.action.ShardChangesAction:DEBUG,"
+    + "org.elasticsearch.index.shard:TRACE")
 public class FollowerFailOverIT extends CcrIntegTestCase {
 
     @Override
@@ -53,7 +54,6 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38633")
     public void testFailOverOnFollower() throws Exception {
         int numberOfReplicas = between(1, 2);
         getFollowerCluster().startMasterOnlyNode();

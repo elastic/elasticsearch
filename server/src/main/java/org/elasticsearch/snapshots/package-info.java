@@ -45,7 +45,9 @@
  * {@link org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus} that tracks the assignment of which node is to snapshot which
  * shard. All shard snapshots are executed on the shard's primary node. Thus all shards for which the primary node was found to have a
  * healthy copy of the shard are marked as being in state {@code INIT} in this map. If the primary for a shard is unassigned, it is marked
- * as {@code MISSING} in this map. In case the primary is initializing at this point, it is marked as in state {@code WAITING}.</li>
+ * as {@code MISSING} in this map. In case the primary is initializing at this point, it is marked as in state {@code WAITING}. In case a
+ * shard's primary is relocated at any point after its {@code SnapshotsInProgress.Entry} has moved to state {@code STARTED} and thus been
+ * assigned to a specific cluster node, that shard's snapshot will fail and move to state {@code FAILED}.</li>
  *
  * <li>The new {@code SnapshotsInProgress.Entry} is then observed by
  * {@link org.elasticsearch.snapshots.SnapshotShardsService#clusterChanged} on all nodes and since the entry is in state {@code STARTED}

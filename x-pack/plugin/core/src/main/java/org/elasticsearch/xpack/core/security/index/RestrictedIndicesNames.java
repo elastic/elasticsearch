@@ -18,17 +18,10 @@ public final class RestrictedIndicesNames {
     public static final String INTERNAL_SECURITY_INDEX_7 = ".security-7";
     public static final String SECURITY_INDEX_NAME = ".security";
 
-    /**
-     * A set of names for the security indices
-     */
-    public static final Set<String> SECURITY_INDICES = Collections.unmodifiableSet(
+    public static final Set<String> RESTRICTED_NAMES = Collections.unmodifiableSet(
         Sets.newHashSet(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX_6, INTERNAL_SECURITY_INDEX_7));
 
-    /**
-     * All restricted indices (currently only security indices, but there could be more in the future)
-     */
-    public static final Set<String> NAMES_SET = SECURITY_INDICES;
-    public static final Automaton NAMES_AUTOMATON = Automatons.patterns(NAMES_SET);
+    public static final Automaton NAMES_AUTOMATON = Automatons.patterns(RESTRICTED_NAMES);
 
     private RestrictedIndicesNames() {
     }

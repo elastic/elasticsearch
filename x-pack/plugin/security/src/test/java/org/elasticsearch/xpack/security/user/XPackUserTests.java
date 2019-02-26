@@ -29,12 +29,12 @@ public class XPackUserTests extends ESTestCase {
         assertThat(predicate.test(index), Matchers.is(true));
     }
 
-    public void testXPackUserCannotAccessRestricitedIndices() {
+    public void testXPackUserCannotAccessRestrictedIndices() {
         final String action = randomFrom(GetAction.NAME, SearchAction.NAME, IndexAction.NAME);
         final Predicate<String> predicate = XPackUser.ROLE.indices().allowedIndicesMatcher(action);
         assertThat(predicate.test(SecurityIndexManager.SECURITY_INDEX_NAME), Matchers.is(false));
         assertThat(predicate.test(SecurityIndexManager.INTERNAL_SECURITY_INDEX), Matchers.is(false));
-        for (String index : RestrictedIndicesNames.NAMES_SET) {
+        for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
             assertThat(predicate.test(index), Matchers.is(false));
         }
     }

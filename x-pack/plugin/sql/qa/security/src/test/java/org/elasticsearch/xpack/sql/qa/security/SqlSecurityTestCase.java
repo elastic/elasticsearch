@@ -641,7 +641,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                          * SQL drops them from the interface. So we might have access to them, but we
                                          * don't show them.
                                          */
-                                        indices.removeAll(RestrictedIndicesNames.NAMES_SET);
+                                        indices.removeAll(RestrictedIndicesNames.RESTRICTED_NAMES);
                                     }
                                 }
                                 // Use a sorted list for indices for consistent error reporting

@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.InternalCompositeT
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilterTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFiltersTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridTests;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridTests;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
@@ -140,6 +141,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalFilterTests());
         aggsTests.add(new InternalSamplerTests());
         aggsTests.add(new GeoHashGridTests());
+        aggsTests.add(new GeoTileGridTests());
         aggsTests.add(new InternalRangeTests());
         aggsTests.add(new InternalDateRangeTests());
         aggsTests.add(new InternalGeoDistanceTests());

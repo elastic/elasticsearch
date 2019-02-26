@@ -36,15 +36,15 @@ optional_source\n
 --------------------------------------------------
 // NOTCONSOLE
 
-*NOTE*: the final line of data must end with a newline character `\n`. Each newline character
+*NOTE*: The final line of data must end with a newline character `\n`. Each newline character
 may be preceded by a carriage return `\r`. When sending requests to this endpoint the
 `Content-Type` header should be set to `application/x-ndjson`.
 
-The possible actions are `index`, `create`, `delete` and `update`.
+The possible actions are `index`, `create`, `delete`, and `update`.
 `index` and `create` expect a source on the next
 line, and have the same semantics as the `op_type` parameter to the
 standard index API (i.e. create will fail if a document with the same
-index and type exists already, whereas index will add or replace a
+index exists already, whereas index will add or replace a
 document as necessary). `delete` does not expect a source on the
 following line, and has the same semantics as the standard delete API.
 `update` expects that the partial doc, upsert and script and its options
@@ -172,9 +172,8 @@ The result of this bulk operation is:
 // TESTRESPONSE[s/"_seq_no" : 3/"_seq_no" : $body.items.3.update._seq_no/]
 // TESTRESPONSE[s/"_primary_term" : 4/"_primary_term" : $body.items.3.update._primary_term/]
 
-The endpoints are `/_bulk`, `/{index}/_bulk`, and `{index}/{type}/_bulk`.
-When the index or the index/type are provided, they will be used by
-default on bulk items that don't provide them explicitly.
+The endpoints are `/_bulk` and `/{index}/_bulk`. When the index is provided, it
+will be used by default on bulk items that don't provide it explicitly.
 
 A note on the format. The idea here is to make processing of this as
 fast as possible. As some of the actions will be redirected to other
@@ -215,7 +214,7 @@ documents. See <<optimistic-concurrency-control>> for more details.
 Each bulk item can include the version value using the
 `version` field. It automatically follows the behavior of the
 index / delete operation based on the `_version` mapping. It also
-support the `version_type` (see <<index-versioning, versioning>>)
+support the `version_type` (see <<index-versioning, versioning>>).
 
 [float]
 [[bulk-routing]]
@@ -246,20 +245,20 @@ NOTE: Only the shards that receive the bulk request will be affected by
 `refresh`. Imagine a `_bulk?refresh=wait_for` request with three
 documents in it that happen to be routed to different shards in an index
 with five shards. The request will only wait for those three shards to
-refresh. The other two shards of that make up the index do not
+refresh. The other two shards that make up the index do not
 participate in the `_bulk` request at all.
 
 [float]
 [[bulk-update]]
 === Update
 
-When using `update` action `retry_on_conflict` can be used as field in
+When using the `update` action, `retry_on_conflict` can be used as a field in
 the action itself (not in the extra payload line), to specify how many
 times an update should be retried in the case of a version conflict.
 
-The `update` action payload, supports the following options: `doc`
+The `update` action payload supports the following options: `doc`
 (partial document), `upsert`, `doc_as_upsert`, `script`, `params` (for
-script), `lang` (for script) and `_source`. See update documentation for details on
+script), `lang` (for script), and `_source`. See update documentation for details on
 the options. Example with update actions:
 
 [source,js]
@@ -283,4 +282,4 @@ POST _bulk
 [[bulk-security]]
 === Security
 
-See <<url-access-control>>
+See <<url-access-control>>.

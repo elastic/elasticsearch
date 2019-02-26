@@ -164,7 +164,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private void retryRecovery(final long recoveryId, final TimeValue retryAfter, final TimeValue activityTimeout) {
         RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout);
         if (newTarget != null) {
-            threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.recoveryId()));
+            threadPool.schedule(new RecoveryRunner(newTarget.recoveryId()), retryAfter, ThreadPool.Names.GENERIC);
         }
     }
 
@@ -518,17 +518,21 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         }
                     });
                 };
-                recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps(),
-                    request.maxSeenAutoIdTimestampOnPrimary(), request.maxSeqNoOfUpdatesOrDeletesOnPrimary(),
-                    ActionListener.wrap(
-                        checkpoint -> listener.onResponse(new RecoveryTranslogOperationsResponse(checkpoint)),
-                        e -> {
-                            if (e instanceof MapperException) {
-                                retryOnMappingException.accept(e);
-                            } else {
-                                listener.onFailure(e);
-                            }
-                        })
+                recoveryTarget.indexTranslogOperations(
+                        request.operations(),
+                        request.totalTranslogOps(),
+                        request.maxSeenAutoIdTimestampOnPrimary(),
+                        request.maxSeqNoOfUpdatesOrDeletesOnPrimary(),
+                        request.retentionLeases(),
+                        ActionListener.wrap(
+                                checkpoint -> listener.onResponse(new RecoveryTranslogOperationsResponse(checkpoint)),
+                                e -> {
+                                    if (e instanceof MapperException) {
+                                        retryOnMappingException.accept(e);
+                                    } else {
+                                        listener.onFailure(e);
+                                    }
+                                })
                 );
             }
         }

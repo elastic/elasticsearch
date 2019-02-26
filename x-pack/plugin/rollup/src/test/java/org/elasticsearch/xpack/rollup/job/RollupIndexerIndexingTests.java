@@ -397,7 +397,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34762")
     public void testRandomizedDateHisto() throws Exception {
         String rollupIndex = randomAlphaOfLengthBetween(5, 10);
 
@@ -413,7 +412,9 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         final List<Map<String, Object>> dataset = new ArrayList<>();
         int numDocs = randomIntBetween(1,100);
         for (int i = 0; i < numDocs; i++) {
-            long timestamp = new DateTime().minusHours(randomIntBetween(1,100)).getMillis();
+            // Make sure the timestamp is sufficiently in the past that we don't get bitten
+            // by internal rounding, causing no docs to match
+            long timestamp = new DateTime().minusDays(2).minusHours(randomIntBetween(11,100)).getMillis();
             dataset.add(asMap(timestampField, timestamp, valueField, randomLongBetween(1, 100)));
         }
         executeTestCase(dataset, job, System.currentTimeMillis(), (resp) -> {

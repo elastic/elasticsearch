@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,9 +38,9 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
@@ -63,7 +64,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -76,6 +76,18 @@ import static org.hamcrest.Matchers.not;
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
+
+    private enum ConflictMode {
+        none,
+        external,
+        create;
+
+
+        static ConflictMode randomMode() {
+            ConflictMode[] values = values();
+            return values[randomInt(values.length-1)];
+        }
+    }
 
     /**
      * Test that we do not loose document whose indexing request was successful, under a randomly selected disruption scheme
@@ -113,7 +125,9 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         final AtomicReference<CountDownLatch> countDownLatchRef = new AtomicReference<>();
         final List<Exception> exceptedExceptions = new CopyOnWriteArrayList<>();
 
-        logger.info("starting indexers");
+        final ConflictMode conflictMode = ConflictMode.randomMode();
+
+        logger.info("starting indexers using conflict mode " + conflictMode);
         try {
             for (final String node : nodes) {
                 final Semaphore semaphore = new Semaphore(0);
@@ -133,11 +147,17 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                 id = Integer.toString(idGenerator.incrementAndGet());
                                 int shard = Math.floorMod(Murmur3HashFunction.hash(id), numPrimaries);
                                 logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
-                                IndexResponse response =
-                                        client.prepareIndex("test", "type", id)
-                                                .setSource("{}", XContentType.JSON)
-                                                .setTimeout(timeout)
-                                                .get(timeout);
+                                IndexRequestBuilder indexRequestBuilder = client.prepareIndex("test", "type", id)
+                                    .setSource("{}", XContentType.JSON)
+                                    .setTimeout(timeout);
+
+                                if (conflictMode == ConflictMode.external) {
+                                    indexRequestBuilder.setVersion(randomIntBetween(1,10)).setVersionType(VersionType.EXTERNAL);
+                                } else if (conflictMode == ConflictMode.create) {
+                                    indexRequestBuilder.setCreate(true);
+                                }
+
+                                IndexResponse response = indexRequestBuilder.get(timeout);
                                 assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
                                 ackedDocs.put(id, node);
                                 logger.trace("[{}] indexed id [{}] through node [{}], response [{}]", name, id, node, response);
@@ -358,27 +378,6 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         }
     }
 
-    public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {
-        // test for https://github.com/elastic/elasticsearch/issues/8823
-        Settings zen1Settings = Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build(); // TODO: needs adaptions for Zen2
-        String masterNode = internalCluster().startMasterOnlyNode(zen1Settings);
-        internalCluster().startDataOnlyNode(zen1Settings);
-        ensureStableCluster(2);
-        assertAcked(prepareCreate("index").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
-        index("index", "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
-        ensureGreen();
-
-        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
-            @Override
-            public boolean clearData(String nodeName) {
-                return true;
-            }
-        });
-
-        ensureGreen("index");
-        assertTrue(client().prepareGet("index", "_doc", "1").get().isExists());
-    }
-
     public void testCannotJoinIfMasterLostDataFolder() throws Exception {
         String masterNode = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
@@ -411,13 +410,9 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
      * Test for https://github.com/elastic/elasticsearch/issues/11665
      */
     public void testIndicesDeleted() throws Exception {
-        final Settings settings = Settings.builder()
-            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait on isolated data node
-            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // wait till cluster state is committed
-            .build();
         final String idxName = "test";
-        final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(2, settings);
-        final String dataNode = internalCluster().startDataOnlyNode(settings);
+        final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(2);
+        final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
         assertAcked(prepareCreate("test"));
 

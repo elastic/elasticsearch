@@ -5,7 +5,6 @@
         reason: using multiple field collapsing from 7.0 on
     - do:
         indices.create:
-          include_type_name: false
           index: addresses
           body:
             settings:

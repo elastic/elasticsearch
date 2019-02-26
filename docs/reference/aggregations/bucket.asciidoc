@@ -39,6 +39,8 @@ include::bucket/geodistance-aggregation.asciidoc[]
 
 include::bucket/geohashgrid-aggregation.asciidoc[]
 
+include::bucket/geotilegrid-aggregation.asciidoc[]
+
 include::bucket/global-aggregation.asciidoc[]
 
 include::bucket/histogram-aggregation.asciidoc[]
@@ -62,4 +64,3 @@ include::bucket/significantterms-aggregation.asciidoc[]
 include::bucket/significanttext-aggregation.asciidoc[]
 
 include::bucket/terms-aggregation.asciidoc[]
-

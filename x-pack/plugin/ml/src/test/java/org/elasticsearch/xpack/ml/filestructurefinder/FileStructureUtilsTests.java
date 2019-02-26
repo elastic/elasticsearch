@@ -331,8 +331,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("foo"));
         Map<String, String> expectedTimeMapping = new HashMap<>();
         expectedTimeMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
-        // TODO: remove the "8" prefix when Java time formats are the default
-        expectedTimeMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "8" + "yyyy-MM-dd HH:mm:ss,SSS");
+        expectedTimeMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "yyyy-MM-dd HH:mm:ss,SSS");
         assertEquals(expectedTimeMapping, mappings.get("time"));
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("bar"));
         assertNull(mappings.get("nothing"));
@@ -372,8 +371,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertNotNull(dateProcessor);
         assertEquals(timestampField, dateProcessor.get("field"));
         assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
-        // TODO: remove the call to jodaBwcJavaTimestampFormatsForIngestPipeline() when Java time formats are the default
-        assertEquals(FileStructureUtils.jodaBwcJavaTimestampFormatsForIngestPipeline(timestampFormats), dateProcessor.get("formats"));
+        assertEquals(timestampFormats, dateProcessor.get("formats"));
 
         // After removing the two expected fields there should be nothing left in the pipeline
         assertEquals(Collections.emptyMap(), pipeline);
@@ -406,8 +404,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertNotNull(dateProcessor);
         assertEquals(timestampField, dateProcessor.get("field"));
         assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
-        // TODO: remove the call to jodaBwcJavaTimestampFormatsForIngestPipeline() when Java time formats are the default
-        assertEquals(FileStructureUtils.jodaBwcJavaTimestampFormatsForIngestPipeline(timestampFormats), dateProcessor.get("formats"));
+        assertEquals(timestampFormats, dateProcessor.get("formats"));
 
         Map<String, Object> removeProcessor = (Map<String, Object>) processors.get(2).get("remove");
         assertNotNull(removeProcessor);

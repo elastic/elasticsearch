@@ -4,18 +4,16 @@ setup:
           index: source
           body:
             mappings:
-              doc:
-                properties:
-                  join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
+              properties:
+                join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
 
   - do:
       indices.create:
           index: dest
           body:
             mappings:
-              doc:
-                properties:
-                  join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
+              properties:
+                join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
 
   - do:
       index:

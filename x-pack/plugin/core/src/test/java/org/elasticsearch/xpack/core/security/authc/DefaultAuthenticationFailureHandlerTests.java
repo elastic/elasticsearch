@@ -122,8 +122,9 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
         final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
         final String negotiateAuthScheme = randomFrom("Negotiate", "Negotiate Ijoijksdk");
+        final String apiKeyAuthScheme = "ApiKey";
         final Map<String, List<String>> failureResponeHeaders = new HashMap<>();
-        final List<String> supportedSchemes = Arrays.asList(basicAuthScheme, bearerAuthScheme, negotiateAuthScheme);
+        final List<String> supportedSchemes = Arrays.asList(basicAuthScheme, bearerAuthScheme, negotiateAuthScheme, apiKeyAuthScheme);
         Collections.shuffle(supportedSchemes, random());
         failureResponeHeaders.put("WWW-Authenticate", supportedSchemes);
         final DefaultAuthenticationFailureHandler failuerHandler = new DefaultAuthenticationFailureHandler(failureResponeHeaders);
@@ -134,7 +135,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         assertThat(ese, is(notNullValue()));
         assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
         assertThat(ese.getMessage(), equalTo("error attempting to authenticate request"));
-        assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, basicAuthScheme);
+        assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, apiKeyAuthScheme, basicAuthScheme);
     }
 
     private void assertWWWAuthenticateWithSchemes(final ElasticsearchSecurityException ese, final String... schemes) {

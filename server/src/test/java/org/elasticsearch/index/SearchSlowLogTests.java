@@ -55,7 +55,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
         ThreadPool threadPool = indexService.getThreadPool();
-        return new TestSearchContext(threadPool, bigArrays, indexService) {
+        return new TestSearchContext(bigArrays, indexService) {
             final ShardSearchRequest request = new ShardSearchRequest() {
                 private SearchSourceBuilder searchSourceBuilder;
                 @Override
@@ -134,17 +134,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public void setProfile(boolean profile) {
-
-                }
-
-                @Override
-                public boolean isProfile() {
-                    return false;
-                }
-
-                @Override
-                public BytesReference cacheKey() throws IOException {
+                public BytesReference cacheKey() {
                     return null;
                 }
 

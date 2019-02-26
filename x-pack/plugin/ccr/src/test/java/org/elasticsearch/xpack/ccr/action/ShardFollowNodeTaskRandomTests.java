@@ -14,6 +14,7 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -82,11 +84,11 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             new ShardId("follow_index", "", 0),
             new ShardId("leader_index", "", 0),
             testRun.maxOperationCount,
-            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
-            concurrency,
             testRun.maxOperationCount,
-            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             concurrency,
+            concurrency,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             10240,
             new ByteSizeValue(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
@@ -98,7 +100,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> {
             assert delay.millis() < 100 : "The delay should be kept to a minimum, so that this test does not take to long to run";
             if (stopped.get() == false) {
-                threadPool.schedule(delay, ThreadPool.Names.GENERIC, task);
+                threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
             }
         };
         List<Translog.Operation> receivedOperations = Collections.synchronizedList(new ArrayList<>());
@@ -175,6 +177,23 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     }
                 };
                 threadPool.generic().execute(task);
+            }
+
+            @Override
+            protected Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(final LongSupplier followerGlobalCheckpoint) {
+                return new Scheduler.Cancellable() {
+
+                    @Override
+                    public boolean cancel() {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        return true;
+                    }
+
+                };
             }
 
             @Override

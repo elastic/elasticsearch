@@ -157,7 +157,7 @@ public final class MockTransportService extends TransportService {
                                  Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
                                  @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
         super(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
-            new StubbableConnectionManager(new ConnectionManager(settings, transport, threadPool), settings, transport, threadPool));
+            new StubbableConnectionManager(new ConnectionManager(settings, transport), settings, transport));
         this.original = transport.getDelegate();
     }
 
@@ -368,7 +368,7 @@ public final class MockTransportService extends TransportService {
                         runnable.run();
                     } else {
                         requestsToSendWhenCleared.add(runnable);
-                        threadPool.schedule(delay, ThreadPool.Names.GENERIC, runnable);
+                        threadPool.schedule(runnable, delay, ThreadPool.Names.GENERIC);
                     }
                 }
             }

@@ -1,0 +1,18 @@
+{
+  "data_frame.get_data_frame_transform": {
+    "documentation": "TODO",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_data_frame/transforms/{transform_id}",
+      "paths": [ "/_data_frame/transforms/{transform_id}"],
+      "parts": {
+        "transform_id": {
+          "type": "string",
+          "required": false,
+          "description": "The id of the transforms to get, '_all' or '*' implies get all transforms"
+        }
+      }
+    },
+    "body": null
+  }
+}

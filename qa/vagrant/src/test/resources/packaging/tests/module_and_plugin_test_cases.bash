@@ -171,7 +171,7 @@ fi
   sudo chmod +x $JAVA
 
   [ "$status" -eq 1 ]
-  local expected="could not find java; set JAVA_HOME or ensure java is in PATH"
+  local expected="could not find java; set JAVA_HOME"
   [[ "$output" == *"$expected"* ]] || {
     echo "Expected error message [$expected] but found: $output"
     false

@@ -4,7 +4,6 @@
 "Index phonetic content":
     - do:
         indices.create:
-            include_type_name: false
             index:  phonetic_sample
             body:
                 settings:

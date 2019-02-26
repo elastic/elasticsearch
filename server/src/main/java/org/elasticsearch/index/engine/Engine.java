@@ -114,7 +114,6 @@ public abstract class Engine implements Closeable {
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
-    public static final String RETENTION_LEASES = "retention_leases";
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
 
     protected final ShardId shardId;
@@ -744,7 +743,7 @@ public abstract class Engine implements Closeable {
     /**
      * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
-    public abstract Closeable acquireRetentionLockForPeerRecovery();
+    public abstract Closeable acquireRetentionLock();
 
     /**
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
@@ -767,9 +766,16 @@ public abstract class Engine implements Closeable {
                                                                 MapperService mapperService, long startingSeqNo) throws IOException;
 
     /**
-     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
+     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its translog
      */
     public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Gets the minimum retained sequence number for this engine.
+     *
+     * @return the minimum retained sequence number
+     */
+    public abstract long getMinRetainedSeqNo();
 
     public abstract TranslogStats getTranslogStats();
 

@@ -52,6 +52,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -90,6 +92,8 @@ public class MetaDataIndexStateService {
     public static final int INDEX_CLOSED_BLOCK_ID = 4;
     public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false,
         false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE);
+    public static final Setting<Boolean> VERIFIED_BEFORE_CLOSE_SETTING =
+        Setting.boolSetting("index.verified_before_close", false, Setting.Property.IndexScope, Setting.Property.PrivateIndex);
 
     private final ClusterService clusterService;
     private final AllocationService allocationService;
@@ -223,10 +227,6 @@ public class MetaDataIndexStateService {
         // Check if index closing conflicts with any running snapshots
         SnapshotsService.checkIndexClosing(currentState, indicesToClose);
 
-        // If the cluster is in a mixed version that does not support the shard close action,
-        // we use the previous way to close indices and directly close them without sanity checks
-        final boolean useDirectClose = currentState.nodes().getMinNodeVersion().before(Version.V_6_7_0);
-
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
 
@@ -244,19 +244,11 @@ public class MetaDataIndexStateService {
                     }
                 }
             }
-            if (useDirectClose) {
-                logger.debug("closing index {} directly", index);
-                metadata.put(IndexMetaData.builder(indexToClose).state(IndexMetaData.State.CLOSE)); // increment version?
-                blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
-                routingTable.remove(index.getName());
-                indexBlock = INDEX_CLOSED_BLOCK;
-            } else {
-                if (indexBlock == null) {
-                    // Create a new index closed block
-                    indexBlock = createIndexClosingBlock();
-                }
-                assert Strings.hasLength(indexBlock.uuid()) : "Closing block should have a UUID";
+            if (indexBlock == null) {
+                // Create a new index closed block
+                indexBlock = createIndexClosingBlock();
             }
+            assert Strings.hasLength(indexBlock.uuid()) : "Closing block should have a UUID";
             blocks.addIndexBlock(index.getName(), indexBlock);
             blockedIndices.put(index, indexBlock);
         }
@@ -384,6 +376,11 @@ public class MetaDataIndexStateService {
     static ClusterState closeRoutingTable(final ClusterState currentState,
                                           final Map<Index, ClusterBlock> blockedIndices,
                                           final Map<Index, AcknowledgedResponse> results) {
+
+        // Remove the index routing table of closed indices if the cluster is in a mixed version
+        // that does not support the replication of closed indices
+        final boolean removeRoutingTable = currentState.nodes().getMinNodeVersion().before(Version.V_8_0_0);
+
         final MetaData.Builder metadata = MetaData.builder(currentState.metaData());
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
@@ -409,11 +406,22 @@ public class MetaDataIndexStateService {
                     continue;
                 }
 
-                logger.debug("closing index {} succeeded", index);
-                metadata.put(IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE));
                 blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
                 blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
-                routingTable.addAsFromOpenToClose(metadata.getSafe(index));
+                final IndexMetaData.Builder updatedMetaData = IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE);
+                if (removeRoutingTable) {
+                    metadata.put(updatedMetaData);
+                    routingTable.remove(index.getName());
+                } else {
+                    metadata.put(updatedMetaData
+                        .settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                        .settings(Settings.builder()
+                            .put(indexMetaData.getSettings())
+                            .put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)));
+                    routingTable.addAsFromOpenToClose(metadata.getSafe(index));
+                }
+
+                logger.debug("closing index {} succeeded", index);
                 closedIndices.add(index.getName());
             } catch (final IndexNotFoundException e) {
                 logger.debug("index {} has been deleted since it was blocked before closing, ignoring", index);
@@ -493,7 +501,15 @@ public class MetaDataIndexStateService {
         for (IndexMetaData indexMetaData : indicesToOpen) {
             final Index index = indexMetaData.getIndex();
             if (indexMetaData.getState() != IndexMetaData.State.OPEN) {
-                IndexMetaData updatedIndexMetaData = IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.OPEN).build();
+                final Settings.Builder updatedSettings = Settings.builder().put(indexMetaData.getSettings());
+                updatedSettings.remove(VERIFIED_BEFORE_CLOSE_SETTING.getKey());
+
+                IndexMetaData updatedIndexMetaData = IndexMetaData.builder(indexMetaData)
+                    .state(IndexMetaData.State.OPEN)
+                    .settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                    .settings(updatedSettings)
+                    .build();
+
                 // The index might be closed because we couldn't import it due to old incompatible version
                 // We need to check that this index can be upgraded to the current version
                 updatedIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(updatedIndexMetaData, minIndexCompatibilityVersion);
@@ -557,4 +573,9 @@ public class MetaDataIndexStateService {
             EnumSet.of(ClusterBlockLevel.WRITE));
     }
 
+    public static boolean isIndexVerifiedBeforeClosed(final IndexMetaData indexMetaData) {
+        return indexMetaData.getState() == IndexMetaData.State.CLOSE
+            && VERIFIED_BEFORE_CLOSE_SETTING.exists(indexMetaData.getSettings())
+            && VERIFIED_BEFORE_CLOSE_SETTING.get(indexMetaData.getSettings());
+    }
 }

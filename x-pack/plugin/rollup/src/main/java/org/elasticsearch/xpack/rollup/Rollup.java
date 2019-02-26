@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -104,6 +105,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
 
 
+    private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
     private final Settings settings;
     private final boolean enabled;
     private final boolean transportClientMode;
@@ -195,12 +197,19 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             return emptyList();
         }
 
-        SchedulerEngine schedulerEngine = new SchedulerEngine(settings, getClock());
-        return Collections.singletonList(new RollupJobTask.RollupJobPersistentTasksExecutor(client, schedulerEngine, threadPool));
+        schedulerEngine.set(new SchedulerEngine(settings, getClock()));
+        return Collections.singletonList(new RollupJobTask.RollupJobPersistentTasksExecutor(client, schedulerEngine.get(), threadPool));
     }
 
     // overridable by tests
     protected Clock getClock() {
         return Clock.systemUTC();
+    }
+
+    @Override
+    public void close() {
+        if (schedulerEngine.get() != null) {
+            schedulerEngine.get().stop();
+        }
     }
 }

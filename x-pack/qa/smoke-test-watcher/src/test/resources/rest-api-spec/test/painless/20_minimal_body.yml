@@ -5,7 +5,7 @@
           wait_for_status: green
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_logging_watch"
         body:  >
           {
@@ -34,7 +34,7 @@
   - match: { _id: "my_logging_watch" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_logging_watch"
 
   - match: { "watch_record.watch_id": "my_logging_watch" }

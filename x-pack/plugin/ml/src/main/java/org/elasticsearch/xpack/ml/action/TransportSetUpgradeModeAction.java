@@ -197,13 +197,9 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                                 (t) -> t.getAssignment().equals(AWAITING_UPGRADE))
                                 .isEmpty() &&
 
-                            // Datafeeds to wait for a non-"Awaiting upgrade" assignment and for the job task allocations to converge
-                            // If we do not wait, deleting datafeeds, or attempting to unallocate them again causes issues as the
-                            // job's task allocationId could have changed during either process.
+                            // Wait for datafeeds to not be "Awaiting upgrade"
                             persistentTasksCustomMetaData.findTasks(DATAFEED_TASK_NAME,
-                                (t) ->
-                                    t.getAssignment().equals(AWAITING_UPGRADE) ||
-                                    t.getAssignment().getExplanation().contains("state is stale"))
+                                (t) -> t.getAssignment().equals(AWAITING_UPGRADE))
                                 .isEmpty(),
                         request.timeout(),
                         ActionListener.wrap(r -> wrappedListener.onResponse(new AcknowledgedResponse(true)), wrappedListener::onFailure)

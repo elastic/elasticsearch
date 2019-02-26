@@ -1,7 +1,7 @@
 ---
 setup:
   - do:
-      xpack.license.post:
+      license.post:
         body: >
           {
             "license": {
@@ -27,7 +27,7 @@ setup:
 ---
 "Upgrade info - all":
   - do:
-      xpack.migration.get_assistance: { index: _all }
+      migration.get_assistance: { index: _all }
 
   - length: { indices: 0 }
 
@@ -35,13 +35,13 @@ setup:
 "Upgrade test - should fail as index is already up to date":
   - do:
       catch: /illegal_state_exception/
-      xpack.migration.upgrade: { index: test1 }
+      migration.upgrade: { index: test1 }
 
 ---
 "Upgrade test - wait_for_completion:false":
 
   - do:
-      xpack.migration.upgrade:
+      migration.upgrade:
         index: test1
         wait_for_completion: false
 

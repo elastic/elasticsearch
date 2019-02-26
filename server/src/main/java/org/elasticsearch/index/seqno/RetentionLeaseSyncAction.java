@@ -26,6 +26,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -124,6 +125,7 @@ public class RetentionLeaseSyncAction extends
     protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(
             final Request request,
             final IndexShard primary) throws IOException {
+        assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
         Objects.requireNonNull(request);
         Objects.requireNonNull(primary);
         primary.persistRetentionLeases();
@@ -161,6 +163,7 @@ public class RetentionLeaseSyncAction extends
         public Request(final ShardId shardId, final RetentionLeases retentionLeases) {
             super(Objects.requireNonNull(shardId));
             this.retentionLeases = Objects.requireNonNull(retentionLeases);
+            waitForActiveShards(ActiveShardCount.NONE);
         }
 
         @Override

@@ -32,10 +32,9 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
     private final List<String> invalidatedTokens;
     private final List<String> previouslyInvalidatedTokens;
     private final List<ElasticsearchException> errors;
-    private final int attemptCount;
 
     public TokensInvalidationResult(List<String> invalidatedTokens, List<String> previouslyInvalidatedTokens,
-                                    @Nullable List<ElasticsearchException> errors, int attemptCount) {
+                                    @Nullable List<ElasticsearchException> errors) {
         Objects.requireNonNull(invalidatedTokens, "invalidated_tokens must be provided");
         this.invalidatedTokens = invalidatedTokens;
         Objects.requireNonNull(previouslyInvalidatedTokens, "previously_invalidated_tokens must be provided");
@@ -45,18 +44,16 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         } else {
             this.errors = Collections.emptyList();
         }
-        this.attemptCount = attemptCount;
     }
 
     public TokensInvalidationResult(StreamInput in) throws IOException {
         this.invalidatedTokens = in.readStringList();
         this.previouslyInvalidatedTokens = in.readStringList();
         this.errors = in.readList(StreamInput::readException);
-        this.attemptCount = in.readVInt();
     }
 
     public static TokensInvalidationResult emptyResult() {
-        return new TokensInvalidationResult(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0);
+        return new TokensInvalidationResult(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
     }
 
 
@@ -70,10 +67,6 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
 
     public List<ElasticsearchException> getErrors() {
         return errors;
-    }
-
-    public int getAttemptCount() {
-        return attemptCount;
     }
 
     @Override
@@ -100,6 +93,5 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         out.writeStringCollection(invalidatedTokens);
         out.writeStringCollection(previouslyInvalidatedTokens);
         out.writeCollection(errors, StreamOutput::writeException);
-        out.writeVInt(attemptCount);
     }
 }

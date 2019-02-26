@@ -387,6 +387,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertEquals("token has already been refreshed", e.getHeader("error_description").get(0));
     }
 
+    @TestLogging("org.elasticsearch.xpack.security.authc:DEBUG")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
@@ -403,31 +404,44 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
         final int numberOfThreads = scaledRandomIntBetween((numberOfProcessors + 1) / 2, numberOfProcessors * 3);
         List<Thread> threads = new ArrayList<>(numberOfThreads);
+        final CountDownLatch readyLatch = new CountDownLatch(numberOfThreads + 1);
         final CountDownLatch completedLatch = new CountDownLatch(numberOfThreads);
-        AtomicReference<Boolean> failed = new AtomicReference<>();
+        AtomicBoolean failed = new AtomicBoolean();
         for (int i = 0; i < numberOfThreads; i++) {
             threads.add(new Thread(() -> {
-                CreateTokenRequest refreshRequest = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).request();
-                securityClient.refreshToken(refreshRequest, ActionListener.wrap(result -> {
+                Client threadClient = client().filterWithHeader(Collections.singletonMap("Authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+                SecurityClient threadSecurityClient = new SecurityClient(threadClient);
+                CreateTokenRequest refreshRequest = threadSecurityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).request();
+                readyLatch.countDown();
+                try {
+                    readyLatch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                threadSecurityClient.refreshToken(refreshRequest, ActionListener.wrap(result -> {
                     accessTokens.add(result.getTokenString());
                     refreshTokens.add(result.getRefreshToken());
+                    logger.info("received access token [{}] and refresh token [{}]", result.getTokenString(), result.getRefreshToken());
                     completedLatch.countDown();
                 }, e -> {
+                    failed.set(true);
                     completedLatch.countDown();
                     logger.error("caught exception", e);
-                    failed.set(true);
                 }));
-
             }));
         }
         for (Thread thread : threads) {
             thread.start();
         }
+        readyLatch.countDown();
+        readyLatch.await();
         for (Thread thread : threads) {
             thread.join();
         }
         completedLatch.await();
-        assertThat(failed, equalTo(false));
+        assertThat(failed.get(), equalTo(false));
         assertThat(accessTokens.size(), equalTo(1));
         assertThat(refreshTokens.size(), equalTo(1));
     }

@@ -4,6 +4,5 @@ CREATE TABLE "geo" (
                     "region" VARCHAR(50),
                     "region_point" VARCHAR(50),
                     "shape" GEOMETRY
-
 )
   AS SELECT * FROM CSVREAD('classpath:/geo/geo.csv');

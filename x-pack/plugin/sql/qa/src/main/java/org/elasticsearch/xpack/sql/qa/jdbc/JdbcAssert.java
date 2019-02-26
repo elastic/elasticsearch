@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import com.carrotsearch.hppc.IntObjectHashMap;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -268,8 +269,8 @@ public class JdbcAssert {
                     } else if (type == Types.FLOAT) {
                         assertEquals(msg, (float) expectedObject, (float) actualObject, lenientFloatingNumbers ? 1f : 0.0f);
                     } else if (type == Types.OTHER) {
-                        if (actualObject instanceof org.elasticsearch.geo.geometry.Geometry) {
-                            // We need to convert the actual object to Geometry for comparision
+                        if (actualObject instanceof Geometry) {
+                            // We need to convert the expected object to libs/geo Geometry for comparision
                             try {
                                 expectedObject = WellKnownText.fromWKT(expectedObject.toString());
                             } catch (IOException | ParseException ex) {

@@ -41,8 +41,8 @@ public abstract class GeoSqlSpecTestCase extends SpecBaseIntegrationTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = new SqlSpecParser();
         List<Object[]> tests = new ArrayList<>();
-        tests.addAll(readScriptSpec("/geo/geosql.sql-spec", parser));
         tests.addAll(readScriptSpec("/ogc/ogc.sql-spec", parser));
+        tests.addAll(readScriptSpec("/geo/geosql.sql-spec", parser));
         return tests;
     }
 

@@ -11,9 +11,8 @@ SELECT city, ST_GEOMFROMTEXT(ST_ASWKT(shape)) shape_wkt, region FROM "geo" ORDER
 selectRegionUsingWktToSqlWithoutConvertion
 SELECT region, city, shape, ST_GEOMFROMTEXT(region_point) region_wkt  FROM geo ORDER BY region, city;
 
-// TODO: the ordering of geometries differs so ORDER BY needs to be wrapped into string for now
 selectCitiesWithAGroupByWktToSql
-SELECT COUNT(city) city_by_region, ST_GEOMFROMTEXT(region_point) region FROM geo WHERE city LIKE '%a%' GROUP BY ST_GEOMFROMTEXT(region_point) ORDER BY ST_ASWKT(ST_GEOMFROMTEXT(region_point));
+SELECT COUNT(city) city_by_region, ST_GEOMFROMTEXT(region_point) region_geom FROM geo WHERE city LIKE '%a%' GROUP BY region_geom ORDER BY city_by_region;
 
 selectCitiesWithEOrderByWktToSql
-SELECT region, city FROM geo WHERE city LIKE '%e%' ORDER BY ST_ASWKT(ST_GEOMFROMTEXT(region_point)), city;
+SELECT region, city, UCASE(ST_ASWKT(ST_GEOMFROMTEXT(region_point))) region_wkt FROM geo WHERE city LIKE '%e%' ORDER BY region_wkt, city;

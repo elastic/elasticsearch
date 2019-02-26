@@ -472,10 +472,10 @@ final class StoreRecovery {
                     indexShard.shardPath().resolveTranslog(), commitInfo.maxSeqNo, shardId, indexShard.getPendingPrimaryTerm());
                 store.associateIndexWithNewTranslog(translogUUID);
                 assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
-                translogState.totalOperations(historySnapshot.totalOperations());
                 indexShard.openEngineAndSkipTranslogRecovery();
                 indexShard.advanceMaxSeqNoOfUpdatesOrDeletes(commitInfo.maxSeqNo);
                 translogState.totalOperations(historySnapshot.totalOperations());
+                translogState.totalOperationsOnStart(historySnapshot.totalOperations());
                 Translog.Operation operation;
                 while ((operation = historySnapshot.next()) != null) {
                     final Engine.Result result = indexShard.applyTranslogOperation(operation, Engine.Operation.Origin.SNAPSHOT_RECOVERY);

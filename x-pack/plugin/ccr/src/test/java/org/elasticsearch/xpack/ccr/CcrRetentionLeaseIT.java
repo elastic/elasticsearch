@@ -244,9 +244,10 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final List<ShardStats> shardsStats = getShardsStats(stats);
                 for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                     final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
-                    assertThat(currentRetentionLeases.leases(), hasSize(1));
-                    final RetentionLease retentionLease =
-                            currentRetentionLeases.leases().iterator().next();
+                    final List<RetentionLease> ccrLeases = currentRetentionLeases.leases().stream()
+                            .filter(RetentionLease::isNotPeerRecoveryRetentionLease).collect(Collectors.toList());
+                    assertThat(ccrLeases, hasSize(1));
+                    final RetentionLease retentionLease = ccrLeases.iterator().next();
                     assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, leaderIndex)));
                     retentionLeases.add(currentRetentionLeases);
                 }
@@ -261,12 +262,13 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final List<ShardStats> shardsStats = getShardsStats(stats);
                 for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                     final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
-                    assertThat(currentRetentionLeases.leases(), hasSize(1));
-                    final RetentionLease retentionLease =
-                            currentRetentionLeases.leases().iterator().next();
+                    final List<RetentionLease> ccrLeases = currentRetentionLeases.leases().stream()
+                        .filter(RetentionLease::isNotPeerRecoveryRetentionLease).collect(Collectors.toList());
+                    assertThat(ccrLeases, hasSize(1));
+                    final RetentionLease retentionLease = ccrLeases.iterator().next();
                     assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, leaderIndex)));
                     // we assert that retention leases are being renewed by an increase in the timestamp
-                    assertThat(retentionLease.timestamp(), greaterThan(retentionLeases.get(i).leases().iterator().next().timestamp()));
+                    assertThat(retentionLease.timestamp(), greaterThan(retentionLeases.get(i).get(retentionLease.id()).timestamp()));
                 }
             });
             latch.countDown();
@@ -423,9 +425,11 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
         final List<ShardStats> shardsStats = getShardsStats(stats);
         for (final ShardStats shardStats : shardsStats) {
-            assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
+            final Collection<RetentionLease> ccrLeases = shardStats.getRetentionLeaseStats().retentionLeases().leases()
+                .stream().filter(RetentionLease::isNotPeerRecoveryRetentionLease).collect(Collectors.toList());
+            assertThat(ccrLeases, hasSize(1));
             assertThat(
-                    shardStats.getRetentionLeaseStats().retentionLeases().leases().iterator().next().id(),
+                    ccrLeases.iterator().next().id(),
                     equalTo(retentionLeaseId));
         }
 
@@ -488,7 +492,9 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
             final List<ShardStats> afterUnfollowShardsStats = getShardsStats(afterUnfollowStats);
             for (final ShardStats shardStats : afterUnfollowShardsStats) {
-                assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
+                final Collection<RetentionLease> ccrLeases = shardStats.getRetentionLeaseStats().retentionLeases().leases()
+                    .stream().filter(RetentionLease::isNotPeerRecoveryRetentionLease).collect(Collectors.toList());
+                assertThat(ccrLeases, empty());
             }
         } finally {
             for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getDataNodes().values()) {

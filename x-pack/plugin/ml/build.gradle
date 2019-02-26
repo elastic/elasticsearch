@@ -42,6 +42,7 @@ dependencies {
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(':modules:lang-painless')
     // This should not be here
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 
@@ -100,6 +101,7 @@ task internalClusterTest(type: RandomizedTestingTask,
                          dependsOn: unitTest.dependsOn) {
   include '**/*IT.class'
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  systemProperties 'java.security.policy': file("src/main/plugin-metadata/plugin-security-test.policy").absolutePath
 }
 check.dependsOn internalClusterTest
 internalClusterTest.mustRunAfter test

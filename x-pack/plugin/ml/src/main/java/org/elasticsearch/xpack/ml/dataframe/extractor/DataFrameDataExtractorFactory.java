@@ -140,6 +140,7 @@ public class DataFrameDataExtractorFactory {
                                                  FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Set<String> fields = fieldCapabilitiesResponse.get().keySet();
         fields.removeAll(IGNORE_FIELDS);
+        // TODO a better solution may be to have some sort of known prefix and filtering that
         fields.removeAll(resultFields);
         removeFieldsWithIncompatibleTypes(fields, fieldCapabilitiesResponse);
         includeAndExcludeFields(fields, desiredFields, index);

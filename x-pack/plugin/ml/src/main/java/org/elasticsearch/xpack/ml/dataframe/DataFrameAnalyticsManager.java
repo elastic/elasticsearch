@@ -100,8 +100,7 @@ public class DataFrameAnalyticsManager {
                         break;
                     // The task has fully reindexed the documents and we should continue on with our analyses
                     case ANALYZING:
-                        // TODO determine where to start analytics again???
-                        // For outlier detection, there is no saved model state, so it has to be rebuilt anyways
+                        // TODO apply previously stored model state if applicable
                         startAnalytics(task, config);
                         break;
                     // If we are already at REINDEXING, we are not 100% sure if we reindexed ALL the docs.
@@ -152,7 +151,7 @@ public class DataFrameAnalyticsManager {
                     RefreshAction.INSTANCE,
                     new RefreshRequest(config.getDest()),
                     refreshListener),
-            e -> task.markAsFailed(e)
+            task::markAsFailed
         );
 
         // Reindex
@@ -197,7 +196,7 @@ public class DataFrameAnalyticsManager {
                     task::markAsFailed
                 ));
             },
-            e -> task.markAsFailed(e)
+            task::markAsFailed
         );
 
         // TODO This could fail with errors. In that case we get stuck with the copied index.

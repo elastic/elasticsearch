@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -336,10 +337,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
-        service.localShardFailed(failedShard, "simulated", new CorruptIndexException("simulated", (String) null), new
-            ShardStateAction.Listener() {
+        service.localShardFailed(failedShard, "simulated", new CorruptIndexException("simulated", (String) null),
+            new ActionListener<Void>() {
                 @Override
-                public void onSuccess() {
+                public void onResponse(final Void aVoid) {
                     success.set(true);
                     latch.countDown();
                 }

@@ -349,7 +349,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertAcked(xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest(index)));
         assertIndexFrozen(index);
         assertThat(client().admin().cluster().prepareState().get().getState().metaData().index(index).getSettingsVersion(),
-            equalTo(settingsVersion + 1));
+            greaterThan(settingsVersion));
     }
 
     public void testFreezeEmptyIndexWithTranslogOps() throws Exception {

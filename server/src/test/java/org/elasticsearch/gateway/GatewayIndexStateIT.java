@@ -65,7 +65,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class GatewayIndexStateIT extends ESIntegTestCase {
@@ -172,7 +171,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> trying to index into a closed index ...");
         try {

@@ -1,0 +1,14 @@
+{
+  "data_frame.preview_data_frame_transform": {
+    "documentation": "TODO",
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_data_frame/transforms/_preview",
+      "paths": [ "/_data_frame/transforms/_preview" ]
+    },
+    "body": {
+      "description" : "The definition for the data_frame transform to preview",
+      "required": true
+    }
+  }
+}

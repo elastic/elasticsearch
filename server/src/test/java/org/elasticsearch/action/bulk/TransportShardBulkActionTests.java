@@ -320,16 +320,16 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 // There should indeed be a mapping update
                 assertNotNull(update);
                 updateCalled.incrementAndGet();
-            }, listener -> {
-            },
+                listener.onResponse(new AcknowledgedResponse(true));
+            }, listener -> {},
             new ActionListener<Void>() {
                 @Override
-                public void onResponse(final Void aVoid) {
+                public void onResponse(Void aVoid) {
 
                 }
 
                 @Override
-                public void onFailure(final Exception e) {
+                public void onFailure(Exception e) {
                     throw new AssertionError(e);
                 }
             });

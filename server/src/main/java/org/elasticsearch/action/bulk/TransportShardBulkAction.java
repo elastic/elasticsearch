@@ -148,25 +148,25 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
-        final ActionListener<Void> wrappedListener = new ActionListener<Void>() {
-            @Override
-            public void onResponse(final Void aVoid) {
-                assert context.isInitial(); // either completed and moved to next or reset
-                if (context.hasMoreOperationsToExecute()) {
-                    executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, this);
-                } else {
-                    listener.onResponse(
-                        new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(), context.getLocationToSync(),
-                        null, context.getPrimary(), logger));
+        executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void aVoid) {
+                    assert context.isInitial(); // either completed and moved to next or reset
+                    if (context.hasMoreOperationsToExecute()) {
+                        executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, this);
+                    } else {
+                        listener.onResponse(
+                            new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(),
+                                context.getLocationToSync(), null, context.getPrimary(), logger));
+                    }
                 }
-            }
 
-            @Override
-            public void onFailure(final Exception e) {
-                listener.onFailure(e);
-            }
-        };
-        executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, wrappedListener);
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 
     /** Executes bulk item requests and handles request execution exceptions */
@@ -220,17 +220,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             final ActionListener<AcknowledgedResponse> acknowledgedResponseActionListener = new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(final AcknowledgedResponse acknowledgedResponse) {
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (context.requiresWaitingForMappingUpdate()) {
                         waitForMappingUpdate.accept(new ActionListener<Void>() {
                             @Override
-                            public void onResponse(final Void aVoid) {
+                            public void onResponse(Void aVoid) {
                                 context.resetForExecutionForRetry();
                                 listener.onResponse(aVoid);
                             }
 
                             @Override
-                            public void onFailure(final Exception e) {
+                            public void onFailure(Exception e) {
                                 context.failOnMappingUpdate(e);
                                 listener.onResponse(null);
                             }
@@ -514,7 +514,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 // failure to update the mapping should translate to a failure of specific requests. Other requests
                 // still need to be executed and replicated.
                 onComplete.accept(exceptionToResult.apply(e));
-                return;
             }
         } else {
             onComplete.accept(result);

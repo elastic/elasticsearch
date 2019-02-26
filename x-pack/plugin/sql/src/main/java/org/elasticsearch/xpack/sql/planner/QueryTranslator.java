@@ -419,9 +419,6 @@ final class QueryTranslator {
         if (e instanceof DateTimeFunction) {
             return nameOf(((DateTimeFunction) e).field());
         }
-        if (e instanceof Literal) {
-            return String.valueOf(e.fold());
-        }
         if (e instanceof NamedExpression) {
             return ((NamedExpression) e).name();
         }

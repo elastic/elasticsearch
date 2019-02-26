@@ -257,13 +257,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 }
             };
 
-            final ActionListener<Void> completionListener = new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void aVoid) {
+            final ActionListener<Void> completionListener = ActionListener.wrap(
+                v -> {
                     assert context.isOperationExecuted();
-                    if (opType == DocWriteRequest.OpType.UPDATE &&
-                        context.getExecutionResult().isFailed() &&
-                        isConflictException(context.getExecutionResult().getFailure().getCause())) {
+                    if (opType == DocWriteRequest.OpType.UPDATE && context.getExecutionResult().isFailed()
+                        && isConflictException(context.getExecutionResult().getFailure().getCause())) {
                         final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
                         if (context.getRetryCounter() < updateRequest.retryOnConflict()) {
                             context.resetForExecutionForRetry();
@@ -273,13 +271,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     }
                     finalizePrimaryOperationOnCompletion(context, opType, updateResult);
                     itemDoneListener.onResponse(null);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    itemDoneListener.onFailure(e);
-                }
-            };
+                },
+                itemDoneListener::onFailure
+            );
 
             if (context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE) {
                 executeDeleteRequestOnPrimary(context, mappingUpdater, mappingUpdatedListener, completionListener);

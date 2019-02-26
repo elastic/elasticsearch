@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -354,6 +355,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(bulkRequests.get(bulkIndex).requests().get(0).id(), equalTo("token_" + tokenToInvalidate2.v1().getId()));
         UpdateRequest updateRequest4 = (UpdateRequest) bulkRequests.get(bulkIndex).requests().get(0);
         assertThat(updateRequest4.toString().contains("access_token"), equalTo(true));
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
     private Function<SearchRequest, SearchHit[]> findTokenByRefreshToken(SearchHit[] searchHits) {

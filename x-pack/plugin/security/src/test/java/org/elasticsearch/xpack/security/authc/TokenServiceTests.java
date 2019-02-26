@@ -34,6 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -226,6 +227,8 @@ public class TokenServiceTests extends ESTestCase {
             UserToken fromOtherService = future.get();
             assertAuthenticationEquals(authentication, fromOtherService.getAuthentication());
         }
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
     public void testInvalidAuthorizationHeader() throws Exception {
@@ -241,6 +244,8 @@ public class TokenServiceTests extends ESTestCase {
             UserToken serialized = future.get();
             assertThat(serialized, nullValue());
         }
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
     public void testRotateKey() throws Exception {
@@ -289,6 +294,8 @@ public class TokenServiceTests extends ESTestCase {
             UserToken serialized = future.get();
             assertAuthenticationEquals(authentication, serialized.getAuthentication());
         }
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
     private void rotateKeys(TokenService tokenService) {
@@ -336,6 +343,8 @@ public class TokenServiceTests extends ESTestCase {
             UserToken serialized = future.get();
             assertAuthenticationEquals(authentication, serialized.getAuthentication());
         }
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
     public void testPruneKeys() throws Exception {
@@ -400,6 +409,7 @@ public class TokenServiceTests extends ESTestCase {
             assertAuthenticationEquals(authentication, serialized.getAuthentication());
         }
 
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
     public void testPassphraseWorks() throws Exception {
@@ -433,8 +443,8 @@ public class TokenServiceTests extends ESTestCase {
             anotherService.getAndValidateToken(requestContext, future);
             assertNull(future.get());
         }
-        assertWarnings("[xpack.security.authc.token.passphrase] setting was deprecated in Elasticsearch and will be removed in a future" +
-                " release! See the breaking changes documentation for the next major version.");
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED, TokenService.TOKEN_PASSPHRASE });
     }
 
     public void testGetTokenWhenKeyCacheHasExpired() throws Exception {
@@ -448,6 +458,8 @@ public class TokenServiceTests extends ESTestCase {
 
         tokenService.clearActiveKeyCache();
         assertThat(tokenService.getUserTokenString(token), notNullValue());
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
     public void testInvalidatedToken() throws Exception {
@@ -495,6 +507,8 @@ public class TokenServiceTests extends ESTestCase {
             assertThat(headerValue, containsString("Bearer realm="));
             assertThat(headerValue, containsString("expired"));
         }
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
     public void testComputeSecretKeyIsConsistent() throws Exception {
@@ -578,6 +592,8 @@ public class TokenServiceTests extends ESTestCase {
             assertThat(headerValue, containsString("Bearer realm="));
             assertThat(headerValue, containsString("expired"));
         }
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
     public void testTokenServiceDisabled() throws Exception {
@@ -687,6 +703,8 @@ public class TokenServiceTests extends ESTestCase {
             tokenService.getAndValidateToken(requestContext, future);
             assertAuthenticationEquals(token.getAuthentication(), future.get().getAuthentication());
         }
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
     public void testDecodePre6xToken() throws GeneralSecurityException, ExecutionException, InterruptedException, IOException {
@@ -711,8 +729,8 @@ public class TokenServiceTests extends ESTestCase {
             assertEquals(Version.V_5_6_0, serialized.getAuthentication().getVersion());
             assertArrayEquals(new String[]{"admin"}, serialized.getAuthentication().getUser().roles());
         }
-        assertWarnings("[xpack.security.authc.token.passphrase] setting was deprecated in Elasticsearch and will be removed in a future" +
-                " release! See the breaking changes documentation for the next major version.");
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED, TokenService.TOKEN_PASSPHRASE });
     }
 
     public void testV5TokensAreNotAcceptedByDefault() throws Exception {
@@ -748,6 +766,8 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.getAuthenticationAndMetaData(userTokenString, authFuture);
         Authentication retrievedAuth = authFuture.actionGet().v1();
         assertEquals(authentication, retrievedAuth);
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
     private void mockGetTokenFromId(UserToken userToken) {

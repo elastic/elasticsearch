@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -274,6 +275,8 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         assertThat(tokenRequest.requests().get(0), instanceOf(UpdateRequest.class));
         assertThat(tokenRequest.requests().get(0).id(), startsWith("token_"));
         assertThat(tokenRequest.requests().get(0).toString(), containsString("\"access_token\":{\"invalidated\":true"));
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
 }

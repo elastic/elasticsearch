@@ -1433,12 +1433,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
-        // only recover retention leases if recovering from an existing store _and_ not bootstrapping a new history UUID.
-        if (recoveryState.getRecoverySource() == RecoverySource.ExistingStoreRecoverySource.INSTANCE) {
-            updateRetentionLeasesOnReplica(loadRetentionLeases());
-        } else {
-            assert getRetentionLeases().leases().isEmpty() : getRetentionLeases();
-        }
+        updateRetentionLeasesOnReplica(loadRetentionLeases());
+        assert recoveryState.getRecoverySource() == RecoverySource.ExistingStoreRecoverySource.INSTANCE
+            || recoveryState.getRecoverySource().getType().equals(RecoverySource.Type.PEER)
+            || getRetentionLeases().leases().isEmpty() : "expected empty set of retention leases with recovery source "
+            + recoveryState.getRecoverySource() + " but got " + getRetentionLeases();
         trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();

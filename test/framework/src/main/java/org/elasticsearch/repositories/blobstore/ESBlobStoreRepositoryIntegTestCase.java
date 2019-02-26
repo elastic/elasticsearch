@@ -323,7 +323,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         final RetentionLeases restoredRetentionLeases = Arrays.stream(client().admin().indices().prepareStats(indexName).get()
             .getShards()).filter(s -> s.getShardRouting().shardId().equals(shardId)).findFirst().get()
             .getRetentionLeaseStats().retentionLeases();
-        assertFalse(restoredRetentionLeases.toString(), restoredRetentionLeases.contains(leaseId));
+        assertFalse(restoredRetentionLeases.toString() + " has no " + leaseId, restoredRetentionLeases.contains(leaseId));
     }
 
     protected void addRandomDocuments(String name, int numDocs) throws ExecutionException, InterruptedException {

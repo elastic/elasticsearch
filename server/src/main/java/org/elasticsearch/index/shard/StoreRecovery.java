@@ -404,6 +404,8 @@ final class StoreRecovery {
             } else if (indexShouldExists) {
                 if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
                     store.bootstrapNewHistory();
+                    assert indexShard.getRetentionLeases().leases().isEmpty() : indexShard.getRetentionLeases(); // not yet loaded
+                    indexShard.persistRetentionLeases();
                 }
                 // since we recover from local, just fill the files and size
                 try {
@@ -471,6 +473,8 @@ final class StoreRecovery {
                 indexShard.shardPath().resolveTranslog(), localCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+            assert indexShard.getRetentionLeases().leases().isEmpty() : indexShard.getRetentionLeases(); // not loaded yet
+            indexShard.persistRetentionLeases();
             indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();

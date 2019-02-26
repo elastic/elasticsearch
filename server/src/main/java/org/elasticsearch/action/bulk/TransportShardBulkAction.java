@@ -527,14 +527,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             T result = toExecute.get();
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 // try to update the mappings and mark the context as needing to try again.
-                try {
-                    context.markAsRequiringMappingUpdate();
-                    mappingUpdater.accept(result.getRequiredMappingUpdate());
-                } catch (Exception e) {
-                    // failure to update the mapping should translate to a failure of specific requests. Other requests
-                    // still need to be executed and replicated.
-                    context.failOnMappingUpdate(e);
-                }
+                context.markAsRequiringMappingUpdate();
+                mappingUpdater.accept(result.getRequiredMappingUpdate());
             } else {
                 onComplete.accept(result);
             }

@@ -392,7 +392,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         randomlySetIgnoredPrimaryResponse(items[0]);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
+        TransportShardBulkAction.executeBulkItemRequest(
+            context, null, threadPool::relativeTimeInMillis,
             errorOnWait == false ? new ThrowingMappingUpdatePerformer(err) : new NoopMappingUpdatePerformer(),
             errorOnWait ? listener -> listener.onFailure(err) : listener -> listener.onResponse(null),
             new ActionListener<Void>() {
@@ -403,7 +404,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
                 @Override
                 public void onFailure(final Exception e) {
-                    throw new AssertionError(e);
+                    assertEquals(err, e);
                 }
             });
         assertFalse(context.hasMoreOperationsToExecute());
@@ -1053,6 +1054,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     public static class NoopMappingUpdatePerformer implements MappingUpdatePerformer {
         @Override
         public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<AcknowledgedResponse> listener) {
+            listener.onResponse(new AcknowledgedResponse(true));
         }
     }
 
@@ -1066,7 +1068,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         @Override
         public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<AcknowledgedResponse> listener) {
-            throw e;
+            listener.onFailure(e);
         }
     }
 }

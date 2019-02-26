@@ -414,6 +414,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 indexShard.shardPath().resolveTranslog(), SequenceNumbers.UNASSIGNED_SEQ_NO, shardId,
                 indexShard.getPendingPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);
+
+            assert indexShard.getRetentionLeases().leases().isEmpty() : indexShard.getRetentionLeases(); // not loaded yet
+            indexShard.persistRetentionLeases();
+            assert indexShard.loadRetentionLeases().leases().isEmpty();
+
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are

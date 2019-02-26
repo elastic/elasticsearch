@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -294,7 +295,8 @@ public final class Verifier {
      */
     private static boolean checkGroupBy(LogicalPlan p, Set<Failure> localFailures,
             Map<String, Function> resolvedFunctions, Set<LogicalPlan> groupingFailures) {
-        return checkGroupByAgg(p, localFailures, resolvedFunctions)
+        return checkGroupByInexactField(p, localFailures)
+                && checkGroupByAgg(p, localFailures, resolvedFunctions)
                 && checkGroupByOrder(p, localFailures, groupingFailures)
                 && checkGroupByHaving(p, localFailures, groupingFailures, resolvedFunctions);
     }
@@ -463,6 +465,21 @@ public final class Verifier {
         return false;
     }
 
+    private static boolean checkGroupByInexactField(LogicalPlan p, Set<Failure> localFailures) {
+        if (p instanceof Aggregate) {
+            Aggregate a = (Aggregate) p;
+
+            // The grouping can not be an aggregate function or an inexact field (e.g. text without a keyword)
+            a.groupings().forEach(e -> e.forEachUp(c -> {
+                Tuple<Boolean, String> hasExact = c.hasExact();
+                if (hasExact.v1() == Boolean.FALSE) {
+                    localFailures.add(fail(c, "Grouping field of data type [" + c.dataType().typeName + "] for grouping; " +
+                        hasExact.v2()));
+                }
+            }, FieldAttribute.class));
+        }
+        return true;
+    }
 
     // check whether plain columns specified in an agg are mentioned in the group-by
     private static boolean checkGroupByAgg(LogicalPlan p, Set<Failure> localFailures, Map<String, Function> functions) {

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 
 import java.util.Map;
 import java.util.Objects;
@@ -14,6 +15,7 @@ import java.util.Objects;
  * SQL-related information about an index field
  */
 public class EsField {
+
     private final DataType esDataType;
     private final boolean aggregatable;
     private final Map<String, EsField> properties;
@@ -83,6 +85,15 @@ public class EsField {
      */
     public boolean isExact() {
         return true;
+    }
+
+    /**
+     * {True, null} if this field has an exact field which can be retrieved by {@link EsField#getExactField()}
+     * {False, String} if this field doesn't have an underlying exact field, the v2 of the tuple is a string containing
+     * an error message explaining why that is.
+     */
+    public Tuple<Boolean, String> hasExact() {
+        return new Tuple<>(Boolean.TRUE, null);
     }
 
     @Override

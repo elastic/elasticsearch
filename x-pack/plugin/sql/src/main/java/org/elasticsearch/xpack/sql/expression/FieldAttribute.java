@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -81,8 +82,8 @@ public class FieldAttribute extends TypedAttribute {
         return nestedParent;
     }
 
-    public boolean isInexact() {
-        return field.isExact() == false;
+    public Tuple<Boolean, String> hasExact() {
+        return field.hasExact();
     }
 
     public FieldAttribute exactAttribute() {

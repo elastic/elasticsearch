@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.expression.function.grouping;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
@@ -19,6 +18,10 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBe;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeNumeric;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeNumericOrDate;
 
 public class Histogram extends GroupingFunction {
 
@@ -41,13 +44,13 @@ public class Histogram extends GroupingFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = Expressions.typeMustBeNumericOrDate(field(), "HISTOGRAM", ParamOrdinal.FIRST);
+        TypeResolution resolution = typeMustBeNumericOrDate(field(), "HISTOGRAM", ParamOrdinal.FIRST);
         if (resolution == TypeResolution.TYPE_RESOLVED) {
             // interval must be Literal interval
             if (field().dataType().isDateBased()) {
-                resolution = Expressions.typeMustBe(interval, DataTypes::isInterval, "(Date) HISTOGRAM", ParamOrdinal.SECOND, "interval");
+                resolution = typeMustBe(interval, DataTypes::isInterval, "(Date) HISTOGRAM", ParamOrdinal.SECOND, "interval");
             } else {
-                resolution = Expressions.typeMustBeNumeric(interval, "(Numeric) HISTOGRAM", ParamOrdinal.SECOND);
+                resolution = typeMustBeNumeric(interval, "(Numeric) HISTOGRAM", ParamOrdinal.SECOND);
             }
         }
 

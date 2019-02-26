@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Bina
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeExact;
+
 // marker class to indicate operations that rely on values
 public abstract class BinaryComparison extends BinaryOperator<Object, Object, Boolean, BinaryComparisonOperation> {
 
@@ -22,7 +24,7 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
 
     @Override
     protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
-        return TypeResolution.TYPE_RESOLVED;
+        return typeMustBeExact(e, sourceText(), paramOrdinal);
     }
 
     @Override

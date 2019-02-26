@@ -10,6 +10,8 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeStringAndExact;
+
 /**
  * A binary string function with two string parameters and a numeric result
  */
@@ -21,7 +23,7 @@ public abstract class BinaryStringStringFunction extends BinaryStringFunction<St
 
     @Override
     protected TypeResolution resolveSecondParameterInputType(Expression e) {
-        return Expressions.typeMustBeString(e, sourceText(), Expressions.ParamOrdinal.SECOND);
+        return typeMustBeStringAndExact(e, sourceText(), Expressions.ParamOrdinal.SECOND);
     }
 
     @Override

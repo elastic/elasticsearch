@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeNumeric;
+
 public abstract class BinaryNumericFunction extends BinaryScalarFunction {
 
     private final BinaryMathOperation operation;
@@ -36,12 +38,12 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = Expressions.typeMustBeNumeric(left(), sourceText(), ParamOrdinal.FIRST);
+        TypeResolution resolution = typeMustBeNumeric(left(), sourceText(), ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
 
         }
-        return Expressions.typeMustBeNumeric(right(), sourceText(), ParamOrdinal.SECOND);
+        return typeMustBeNumeric(right(), sourceText(), ParamOrdinal.SECOND);
     }
 
     @Override

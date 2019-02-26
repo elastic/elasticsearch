@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
@@ -16,7 +15,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.expressionMustBeConstant;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeNumeric;
 
 public class PercentileRank extends AggregateFunction implements EnclosedAgg {
 
@@ -42,17 +42,17 @@ public class PercentileRank extends AggregateFunction implements EnclosedAgg {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!value.foldable()) {
-            return new TypeResolution(format(null, "Second argument of PERCENTILE_RANK must be a constant, received [{}]",
-                Expressions.name(value)));
-        }
-
-        TypeResolution resolution = super.resolveType();
+        TypeResolution resolution = expressionMustBeConstant(value, sourceText(), ParamOrdinal.SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        return Expressions.typeMustBeNumeric(value, sourceText(), ParamOrdinal.DEFAULT);
+        resolution = super.resolveType();
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        return typeMustBeNumeric(value, sourceText(), ParamOrdinal.DEFAULT);
     }
 
     public Expression value() {

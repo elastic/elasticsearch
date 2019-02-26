@@ -9,6 +9,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -32,10 +34,14 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
+import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -45,9 +51,11 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
+import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
@@ -60,6 +68,7 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
@@ -73,6 +82,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IndexScopedSettings indexScopedSettings;
+    private final TimeValue retentionLeaseRenewInterval;
     private volatile TimeValue waitForMetadataTimeOut;
 
     public ShardFollowTasksExecutor(Client client,
@@ -84,6 +94,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indexScopedSettings = settingsModule.getIndexScopedSettings();
+        this.retentionLeaseRenewInterval = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(settingsModule.getSettings());
         this.waitForMetadataTimeOut = CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.get(settingsModule.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT,
             newVal -> this.waitForMetadataTimeOut = newVal);
@@ -245,6 +256,96 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     errorHandler.accept(e);
                 }
             }
+
+            @Override
+            protected Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(final LongSupplier followerGlobalCheckpoint) {
+                final String retentionLeaseId = CcrRetentionLeases.retentionLeaseId(
+                        clusterService.getClusterName().value(),
+                        params.getFollowShardId().getIndex(),
+                        params.getRemoteCluster(),
+                        params.getLeaderShardId().getIndex());
+
+                /*
+                 * We are going to attempt to renew the retention lease. If this fails it is either because the retention lease does not
+                 * exist, or something else happened. If the retention lease does not exist, we will attempt to add the retention lease
+                 * again. If that fails, it had better not be because the retention lease already exists. Either way, we will attempt to
+                 * renew again on the next scheduled execution.
+                 */
+                final ActionListener<RetentionLeaseActions.Response> listener = ActionListener.wrap(
+                        r -> {},
+                        e -> {
+                            /*
+                             * We have to guard against the possibility that the shard follow node task has been stopped and the retention
+                             * lease deliberately removed via the act of unfollowing. Note that the order of operations is important in
+                             * TransportUnfollowAction. There, we first stop the shard follow node task, and then remove the retention
+                             * leases on the leader. This means that if we end up here with the retention lease not existing because of an
+                             * unfollow action, then we know that the unfollow action has already stopped the shard follow node task and
+                             * there is no race condition with the unfollow action.
+                             */
+                            if (isCancelled() || isCompleted()) {
+                                return;
+                            }
+                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                            logRetentionLeaseFailure(retentionLeaseId, cause);
+                            // noinspection StatementWithEmptyBody
+                            if (cause instanceof RetentionLeaseNotFoundException) {
+                                // note that we do not need to mark as system context here as that is restored from the original renew
+                                logger.trace(
+                                        "{} background adding retention lease [{}] while following",
+                                        params.getFollowShardId(),
+                                        retentionLeaseId);
+                                CcrRetentionLeases.asyncAddRetentionLease(
+                                        params.getLeaderShardId(),
+                                        retentionLeaseId,
+                                        followerGlobalCheckpoint.getAsLong(),
+                                        remoteClient(params),
+                                        ActionListener.wrap(
+                                                r -> {},
+                                                inner -> {
+                                                    /*
+                                                     * If this fails that the retention lease already exists, something highly unusual is
+                                                     * going on. Log it, and renew again after another renew interval has passed.
+                                                     */
+                                                    final Throwable innerCause = ExceptionsHelper.unwrapCause(inner);
+                                                    assert innerCause instanceof RetentionLeaseAlreadyExistsException == false;
+                                                    logRetentionLeaseFailure(retentionLeaseId, innerCause);
+                                                }));
+                            } else {
+                                 // if something else happened, we will attempt to renew again after another renew interval has passed
+                            }
+                        });
+
+                return threadPool.scheduleWithFixedDelay(
+                        () -> {
+                            final ThreadContext threadContext = threadPool.getThreadContext();
+                            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                                // we have to execute under the system context so that if security is enabled the management is authorized
+                                threadContext.markAsSystemContext();
+                                logger.trace(
+                                        "{} background renewing retention lease [{}] while following",
+                                        params.getFollowShardId(),
+                                        retentionLeaseId);
+                                CcrRetentionLeases.asyncRenewRetentionLease(
+                                        params.getLeaderShardId(),
+                                        retentionLeaseId,
+                                        followerGlobalCheckpoint.getAsLong(),
+                                        remoteClient(params),
+                                        listener);
+                            }
+                        },
+                        retentionLeaseRenewInterval,
+                        Ccr.CCR_THREAD_POOL_NAME);
+            }
+
+            private void logRetentionLeaseFailure(final String retentionLeaseId, final Throwable cause) {
+                assert cause instanceof ElasticsearchSecurityException == false : cause;
+                logger.warn(new ParameterizedMessage(
+                                "{} background management of retention lease [{}] failed while following",
+                                params.getFollowShardId(),
+                                retentionLeaseId),
+                        cause);
+            }
+
         };
     }
 

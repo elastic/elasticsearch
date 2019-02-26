@@ -26,8 +26,8 @@ import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsActio
 import org.elasticsearch.xpack.dataframe.persistence.DataFramePersistentTaskUtils;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
-import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,8 +48,9 @@ public class TransportGetDataFrameTransformsStatsAction extends
     protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,
             List<FailedNodeException> failedNodeExceptions) {
         List<DataFrameTransformStateAndStats> responses = tasks.stream()
-                .map(GetDataFrameTransformsStatsAction.Response::getTransformsStateAndStats).flatMap(Collection::stream)
-                .collect(Collectors.toList());
+            .flatMap(r -> r.getTransformsStateAndStats().stream())
+            .sorted(Comparator.comparing(DataFrameTransformStateAndStats::getId))
+            .collect(Collectors.toList());
         return new Response(responses, taskOperationFailures, failedNodeExceptions);
     }
 

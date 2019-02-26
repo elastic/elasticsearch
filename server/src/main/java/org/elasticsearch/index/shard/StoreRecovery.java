@@ -404,7 +404,7 @@ final class StoreRecovery {
             } else if (indexShouldExists) {
                 if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
                     store.bootstrapNewHistory();
-                    assert indexShard.getRetentionLeases().leases().isEmpty() : indexShard.getRetentionLeases(); // not yet loaded
+                    assert indexShard.getRetentionLeases().leases().isEmpty() : indexShard.getRetentionLeases(); // not loaded yet
                     indexShard.persistRetentionLeases();
                 }
                 // since we recover from local, just fill the files and size

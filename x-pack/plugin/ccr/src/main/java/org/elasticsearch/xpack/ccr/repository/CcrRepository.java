@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.MissingHistoryOperationsException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -71,14 +72,15 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAwareRequest;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.CcrRequests;
+import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionRequest;
-import org.elasticsearch.xpack.ccr.action.repositories.GetCcrHistoryOperationAction;
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAction;
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
@@ -88,12 +90,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
@@ -361,8 +365,15 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         final RestoreSession restoreSession = openSession(metadata.name(), remoteClient, leaderShardId, indexShard, recoveryState);
         try {
             restoreSession.restoreFiles();
-            updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, indexShard.routingEntry().index());
-            return restoreSession.getHistorySnapshot(() -> IOUtils.close(restoreSession, cancelRenewable));
+            final AtomicLong syncedMappingVersion = new AtomicLong(
+                updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, indexShard.routingEntry().index()));
+            return restoreSession.getHistorySnapshot(
+                requiredMappingVersion -> {
+                    if (requiredMappingVersion > syncedMappingVersion.get()) {
+                        syncedMappingVersion.set(
+                            updateMappings(remoteClient, leaderIndex, requiredMappingVersion, client, indexShard.routingEntry().index()));
+                    }
+                }, () -> IOUtils.close(restoreSession, cancelRenewable));
         } catch (Exception e) {
             try {
                 IOUtils.close(restoreSession, cancelRenewable);
@@ -428,7 +439,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
-    private void updateMappings(Client leaderClient, Index leaderIndex, long leaderMappingVersion,
+    private long updateMappings(Client leaderClient, Index leaderIndex, long leaderMappingVersion,
                                 Client followerClient, Index followerIndex) {
         final PlainActionFuture<IndexMetaData> indexMetadataFuture = new PlainActionFuture<>();
         final long startTimeInNanos = System.nanoTime();
@@ -444,6 +455,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 .masterNodeTimeout(TimeValue.timeValueMinutes(30));
             followerClient.admin().indices().putMapping(putMappingRequest).actionGet(ccrSettings.getRecoveryActionTimeout());
         }
+        return leaderIndexMetadata.getMappingVersion();
     }
 
     RestoreSession openSession(String repositoryName, Client remoteClient, ShardId leaderShardId, IndexShard indexShard,
@@ -570,13 +582,26 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             logger.trace("[{}] completed CCR restore", shardId);
         }
 
-        Translog.Snapshot getHistorySnapshot(final Closeable onClose) {
+        static final class GetHistoryRequest extends ShardChangesAction.Request implements RemoteClusterAwareRequest {
+            private final DiscoveryNode targetNode;
+            GetHistoryRequest(ShardId shardId, String expectedHistoryUUID, DiscoveryNode targetNode) {
+                super(shardId, expectedHistoryUUID);
+                this.targetNode = targetNode;
+            }
+            @Override
+            public DiscoveryNode getPreferredTargetNode() {
+                return targetNode;
+            }
+        }
+
+        Translog.Snapshot getHistorySnapshot(final LongConsumer syncMapping, final Closeable onClose) {
             final SequenceNumbers.CommitInfo commitInfo =
                 SequenceNumbers.loadSeqNoInfoFromLuceneCommit(sourceMetaData.getCommitUserData().entrySet());
+            final String historyUUID = sourceMetaData.getCommitUserData().get(Engine.HISTORY_UUID_KEY);
             final int totalOperations = Math.toIntExact(commitInfo.maxSeqNo - commitInfo.localCheckpoint);
             return new Translog.Snapshot() {
                 int index = 0;
-                List<Translog.Operation> operations = Collections.emptyList(); // last read batch
+                Translog.Operation[] operations = new Translog.Operation[0]; // last read batch
                 long localCheckpoint = commitInfo.localCheckpoint;
 
                 @Override
@@ -586,28 +611,33 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
                 @Override
                 public Translog.Operation next() {
-                    if (localCheckpoint < commitInfo.maxSeqNo && index >= operations.size()) {
-                        final GetCcrHistoryOperationAction.Request request = new GetCcrHistoryOperationAction.Request(
-                            node, sessionUUID, localCheckpoint + 1, commitInfo.maxSeqNo, ccrSettings.getChunkSize());
-                        final GetCcrHistoryOperationAction.Response response =
-                            remoteClient.execute(GetCcrHistoryOperationAction.INSTANCE, request)
-                                .actionGet(ccrSettings.getRecoveryActionTimeout());
-                        index = 0;
-                        operations = response.operations();
-                        final long nanosPaused = ccrSettings.getRateLimiter().maybePause(Math.toIntExact(response.batchSize().getBytes()));
+                    if (localCheckpoint < commitInfo.maxSeqNo && index >= operations.length) {
+                        // We prefer to send the request to the primary node because the global checkpoint on replicas
+                        // may be lagged behind the max_seq_no of the copying index commit.
+                        final GetHistoryRequest request = new GetHistoryRequest(shardId, historyUUID, node);
+                        request.setFromSeqNo(localCheckpoint + 1);
+                        request.setMaxOperationCount(Math.toIntExact(commitInfo.maxSeqNo - localCheckpoint));
+                        request.setMaxBatchSize(ccrSettings.getChunkSize());
+                        request.setPollTimeout(TimeValue.MINUS_ONE); // do not wait for the advancement of the global checkpoint
+                        final ShardChangesAction.Response response = remoteClient.execute(ShardChangesAction.INSTANCE, request)
+                            .actionGet(ccrSettings.getRecoveryActionTimeout());
+                        syncMapping.accept(response.getMappingVersion());
+                        long batchSizeInBytes = Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+                        long nanosPaused = ccrSettings.getRateLimiter().maybePause(Math.toIntExact(batchSizeInBytes));
                         throttleListener.accept(nanosPaused);
+                        index = 0;
+                        operations = response.getOperations();
                     }
-                    if (index < operations.size()) {
-                        final Translog.Operation op = operations.get(index++);
+                    if (index < operations.length) {
+                        final Translog.Operation op = operations[index++];
                         if (op.seqNo() != localCheckpoint + 1) {
-                            throw new MissingHistoryOperationsException(
-                                "expected seq_no [" + (localCheckpoint + 1) + "], found [" + op + "]");
+                            throw new MissingHistoryOperationsException("expected seq#[" + (localCheckpoint + 1) + "] found [" + op + "]");
                         }
                         localCheckpoint = op.seqNo();
                         return op;
                     } else {
                         if (localCheckpoint < commitInfo.maxSeqNo) {
-                            throw new MissingHistoryOperationsException("Not every operation are read " +
+                            throw new MissingHistoryOperationsException("Not every operation are returned " +
                                 "local_checkpoint [" + localCheckpoint + "] max_seq_no [" + commitInfo.maxSeqNo + "]");
                         }
                         return null;

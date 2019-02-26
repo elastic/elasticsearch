@@ -856,7 +856,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     public static void assertSafeCommitExists(IndexShard shard) throws IOException {
         try {
-            if (shard.state != IndexShardState.STARTED) {
+            if (shard.state != IndexShardState.STARTED && shard.state != IndexShardState.POST_RECOVERY) {
                 return;
             }
             Engine engine = getEngine(shard);
@@ -894,7 +894,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     }
                 }
             }
-        } catch (AlreadyClosedException e) {
+        } catch (AlreadyClosedException ignored) {
 
         }
     }

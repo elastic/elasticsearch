@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc.oidc;
 
 import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 
 import com.nimbusds.oauth2.sdk.ParseException;
@@ -15,9 +16,11 @@ import com.nimbusds.oauth2.sdk.id.ClientID;
 import com.nimbusds.oauth2.sdk.id.Issuer;
 import com.nimbusds.oauth2.sdk.id.State;
 import com.nimbusds.openid.connect.sdk.AuthenticationRequest;
+import com.nimbusds.openid.connect.sdk.LogoutRequest;
 import com.nimbusds.openid.connect.sdk.Nonce;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -29,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -62,6 +66,7 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.MAIL_CLAIM;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.NAME_CLAIM;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_ENDSESSION_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_ISSUER;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_JWKSET_PATH;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_NAME;
@@ -71,6 +76,7 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.PRINCIPAL_CLAIM;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_ID;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_SECRET;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_POST_LOGOUT_REDIRECT_URI;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_REDIRECT_URI;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_RESPONSE_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES;
@@ -150,7 +156,9 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         if (token instanceof OpenIdConnectToken) {
             OpenIdConnectToken oidcToken = (OpenIdConnectToken) token;
             openIdConnectAuthenticator.authenticate(oidcToken, ActionListener.wrap(
-                jwtClaimsSet -> buildUserFromClaims(jwtClaimsSet, listener),
+                jwtClaimsSet -> {
+                    buildUserFromClaims(jwtClaimsSet, listener);
+                },
                 e -> {
                     logger.debug("Failed to consume the OpenIdConnectToken ", e);
                     if (e instanceof ElasticsearchSecurityException) {
@@ -178,8 +186,20 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             return;
         }
 
+        final Map<String, Object> tokenMetadata = new HashMap<>();
+        tokenMetadata.put("id_token_hint", claims.getClaim("id_token_hint"));
+        ActionListener<AuthenticationResult> wrappedAuthResultListener = ActionListener.wrap(auth -> {
+            if (auth.isAuthenticated()) {
+                // Add the ID Token as metadata on the authentication, so that it can be used for logout requests
+                Map<String, Object> metadata = new HashMap<>(auth.getMetadata());
+                metadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
+                auth = AuthenticationResult.success(auth.getUser(), metadata);
+            }
+            authResultListener.onResponse(auth);
+        }, authResultListener::onFailure);
+
         if (delegatedRealms.hasDelegation()) {
-            delegatedRealms.resolve(principal, authResultListener);
+            delegatedRealms.resolve(principal, wrappedAuthResultListener);
             return;
         }
 
@@ -204,8 +224,8 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMetadata, config);
         roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
             final User user = new User(principal, roles.toArray(Strings.EMPTY_ARRAY), name, mail, userMetadata, true);
-            authResultListener.onResponse(AuthenticationResult.success(user));
-        }, authResultListener::onFailure));
+            wrappedAuthResultListener.onResponse(AuthenticationResult.success(user));
+        }, wrappedAuthResultListener::onFailure));
 
     }
 
@@ -217,6 +237,14 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         } catch (URISyntaxException e) {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI:" + RP_REDIRECT_URI.getKey(), e);
+        }
+        final String postLogoutRedirectUriString = config.getSetting(RP_POST_LOGOUT_REDIRECT_URI);
+        final URI postLogoutRedirectUri;
+        try {
+            postLogoutRedirectUri = new URI(postLogoutRedirectUriString);
+        } catch (URISyntaxException e) {
+            // This should never happen as it's already validated in the settings
+            throw new SettingsException("Invalid URI:" + RP_POST_LOGOUT_REDIRECT_URI.getKey(), e);
         }
         final ClientID clientId = new ClientID(require(config, RP_CLIENT_ID));
         final SecureString clientSecret = config.getSetting(RP_CLIENT_SECRET);
@@ -235,7 +263,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         final JWSAlgorithm signatureAlgorithm = JWSAlgorithm.parse(require(config, RP_SIGNATURE_ALGORITHM));
 
         return new RelyingPartyConfiguration(clientId, clientSecret, redirectUri, responseType, requestedScope,
-            signatureAlgorithm);
+            signatureAlgorithm, postLogoutRedirectUri);
     }
 
     private OpenIdConnectProviderConfiguration buildOpenIdConnectProviderConfiguration(RealmConfig config) {
@@ -266,9 +294,17 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI: " + OP_USERINFO_ENDPOINT.getKey(), e);
         }
+        URI endsessionEndpoint;
+        try {
+            endsessionEndpoint = (config.getSetting(OP_ENDSESSION_ENDPOINT, () -> null) == null) ? null :
+                new URI(config.getSetting(OP_ENDSESSION_ENDPOINT, () -> null));
+        } catch (URISyntaxException e) {
+            // This should never happen as it's already validated in the settings
+            throw new SettingsException("Invalid URI: " + OP_ENDSESSION_ENDPOINT.getKey(), e);
+        }
 
         return new OpenIdConnectProviderConfiguration(providerName, issuer, jwkSetUrl, authorizationEndpoint, tokenEndpoint,
-            userinfoEndpoint);
+            userinfoEndpoint, endsessionEndpoint);
     }
 
     private static String require(RealmConfig config, Setting.AffixSetting<String> setting) {
@@ -319,6 +355,17 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
     public boolean isIssuerValid(String issuer) {
         return this.opConfiguration.getIssuer().getValue().equals(issuer);
+    }
+
+    public OpenIdConnectLogoutResponse buildLogoutResponse(JWT idTokenHint) {
+        if (opConfiguration.getEndsessionEndpoint() != null) {
+            final State state = new State();
+            final LogoutRequest logoutRequest = new LogoutRequest(opConfiguration.getEndsessionEndpoint(), idTokenHint,
+                rpConfiguration.getPostLogoutRedirectUri(), state);
+            return new OpenIdConnectLogoutResponse(logoutRequest.toURI().toString());
+        } else {
+            return new OpenIdConnectLogoutResponse((String) null);
+        }
     }
 
     @Override
@@ -424,4 +471,3 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         }
     }
 }
-

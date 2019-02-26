@@ -9,6 +9,7 @@ import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.oauth2.sdk.ResponseType;
 import com.nimbusds.oauth2.sdk.Scope;
 import com.nimbusds.oauth2.sdk.id.ClientID;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 
 import java.net.URI;
@@ -24,16 +25,17 @@ public class RelyingPartyConfiguration {
     private final ResponseType responseType;
     private final Scope requestedScope;
     private final JWSAlgorithm signatureAlgorithm;
+    private final URI postLogoutRedirectUri;
 
     public RelyingPartyConfiguration(ClientID clientId, SecureString clientSecret, URI redirectUri, ResponseType responseType,
-                                     Scope requestedScope,
-                                     JWSAlgorithm algorithm) {
+                                     Scope requestedScope, JWSAlgorithm algorithm, @Nullable URI postLogoutRedirectUri) {
         this.clientId = Objects.requireNonNull(clientId, "clientId must be provided");
         this.clientSecret = Objects.requireNonNull(clientSecret, "clientSecret must be provided");
         this.redirectUri = Objects.requireNonNull(redirectUri, "redirectUri must be provided");
         this.responseType = Objects.requireNonNull(responseType, "responseType must be provided");
         this.requestedScope = Objects.requireNonNull(requestedScope, "responseType must be provided");
         this.signatureAlgorithm = Objects.requireNonNull(algorithm, "algorithm must be provided");
+        this.postLogoutRedirectUri = postLogoutRedirectUri;
     }
 
     public ClientID getClientId() {
@@ -58,5 +60,9 @@ public class RelyingPartyConfiguration {
 
     public JWSAlgorithm getSignatureAlgorithm() {
         return signatureAlgorithm;
+    }
+
+    public URI getPostLogoutRedirectUri() {
+        return postLogoutRedirectUri;
     }
 }

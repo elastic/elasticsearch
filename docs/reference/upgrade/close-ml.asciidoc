@@ -1,5 +1,16 @@
 [testenv="platinum"]
 
+////////////
+Take us out of upgrade mode after running any snippets on this page.
+
+[source,js]
+--------------------------------------------------
+POST _ml/set_upgrade_mode?enabled=false
+--------------------------------------------------
+// CONSOLE
+// TEARDOWN
+////////////
+
 If your {ml} indices were created earlier than the previous major version, they
 must be reindexed. In those circumstances, there must be no machine learning
 jobs running during the upgrade. 

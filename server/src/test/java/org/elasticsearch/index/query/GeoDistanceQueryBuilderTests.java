@@ -25,7 +25,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.search.internal.SearchContext;
@@ -71,13 +70,30 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         }
 
         if (randomBoolean()) {
-            qb.geoDistance(randomFrom(GeoDistance.values()));
-        }
-
-        if (randomBoolean()) {
             qb.ignoreUnmapped(randomBoolean());
         }
         return qb;
+    }
+
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+    }
+
+    @Override
+    public void testUnknownField() throws IOException {
+        super.testUnknownField();
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+    }
+
+    @Override
+    public void testValidOutput() throws IOException {
+        super.testValidOutput();
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
     }
 
     public void testIllegalValues() {
@@ -110,9 +126,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals("geohash must not be null or empty", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> query.geohash(""));
         assertEquals("geohash must not be null or empty", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> query.geoDistance(null));
-        assertEquals("geoDistance must not be null", e.getMessage());
     }
 
     /**
@@ -325,6 +338,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals(json, -70.0, parsed.point().getLon(), 0.0001);
         assertEquals(json, 40.0, parsed.point().getLat(), 0.0001);
         assertEquals(json, 12000.0, parsed.distance(), 0.0001);
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
     }
 
     public void testIgnoreUnmapped() throws IOException {
@@ -356,5 +371,22 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "}";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[geo_distance] query doesn't support multiple fields, found [point1] and [point2]", e.getMessage());
+    }
+
+    public void testDistanceTypeIsDeprecated() throws IOException {
+        String json =
+            "{\n" +
+                "  \"geo_distance\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"distance\" : 12000.0,\n" +
+                "    \"distance_type\" : \"arc\",\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        parseQuery(json);
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
     }
 }

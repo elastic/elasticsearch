@@ -65,6 +65,8 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         assertNotSame(newAgg, testAgg);
         assertEquals(testAgg, newAgg);
         assertEquals(testAgg.hashCode(), newAgg.hashCode());
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
     }
 
     /**
@@ -93,6 +95,8 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         assertThat(parsed.getPipelineAggregatorFactories(), hasSize(0));
         assertEquals(factoriesBuilder, parsed);
         assertEquals(factoriesBuilder.hashCode(), parsed.hashCode());
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
     }
 
     /**
@@ -131,6 +135,8 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         assertNotSame(newAgg, testAgg);
         assertEquals(testAgg, newAgg);
         assertEquals(testAgg.hashCode(), newAgg.hashCode());
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
     }
 
     protected AggregationBuilder parse(XContentParser parser) throws IOException {

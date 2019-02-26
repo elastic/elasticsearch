@@ -28,8 +28,8 @@ import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigMa
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
-import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -52,8 +52,10 @@ public class TransportGetDataFrameTransformsAction extends
     @Override
     protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,
             List<FailedNodeException> failedNodeExceptions) {
-        List<DataFrameTransformConfig> configs = tasks.stream().map(GetDataFrameTransformsAction.Response::getTransformConfigurations)
-                .flatMap(Collection::stream).collect(Collectors.toList());
+        List<DataFrameTransformConfig> configs = tasks.stream()
+            .flatMap(r -> r.getTransformConfigurations().stream())
+            .sorted(Comparator.comparing(DataFrameTransformConfig::getId))
+            .collect(Collectors.toList());
         return new Response(configs, taskOperationFailures, failedNodeExceptions);
     }
 

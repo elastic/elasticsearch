@@ -32,7 +32,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, DataFrameIndexerTransformStats> {
 
-    private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
+    public static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
     private static final Logger logger = LogManager.getLogger(DataFrameIndexer.class);
 
     private Pivot pivot;

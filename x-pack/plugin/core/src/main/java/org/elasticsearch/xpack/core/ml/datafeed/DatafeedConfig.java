@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -18,11 +20,9 @@ import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -71,19 +71,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         (objectMap, id, warnings) -> {
         try {
             return QUERY_TRANSFORMER.fromMap(objectMap, warnings);
-        } catch (IOException | XContentParseException exception) {
+        } catch (Exception exception) {
             // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
             if (exception.getCause() instanceof IllegalArgumentException) {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT,
-                        id,
-                        exception.getCause().getMessage()),
-                    exception.getCause());
-            } else {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT, exception, id),
-                    exception);
+                exception = (Exception)exception.getCause();
             }
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT, id), exception);
         }
     };
 
@@ -92,21 +85,16 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         (objectMap, id, warnings) -> {
         try {
             return AGG_TRANSFORMER.fromMap(objectMap, warnings);
-        } catch (IOException | XContentParseException exception) {
+        } catch (Exception exception) {
             // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
             if (exception.getCause() instanceof IllegalArgumentException) {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT,
-                        id,
-                        exception.getCause().getMessage()),
-                    exception.getCause());
-            } else {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, exception.getMessage(), id),
-                    exception);
+                exception = (Exception)exception.getCause();
             }
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, id), exception);
         }
     };
+
+    private static final Logger logger = LogManager.getLogger(DatafeedConfig.class);
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("datafeeds");
@@ -164,15 +152,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             builder.setQueryDelay(TimeValue.parseTimeValue(val, QUERY_DELAY.getPreferredName())), QUERY_DELAY);
         parser.declareString((builder, val) ->
             builder.setFrequency(TimeValue.parseTimeValue(val, FREQUENCY.getPreferredName())), FREQUENCY);
-        if (ignoreUnknownFields) {
-            parser.declareObject(Builder::setQuery, (p, c) -> p.mapOrdered(), QUERY);
-            parser.declareObject(Builder::setAggregations, (p, c) -> p.mapOrdered(), AGGREGATIONS);
-            parser.declareObject(Builder::setAggregations, (p, c) -> p.mapOrdered(), AGGS);
-        } else {
-            parser.declareObject(Builder::setParsedQuery, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), QUERY);
-            parser.declareObject(Builder::setParsedAggregations, (p, c) -> AggregatorFactories.parseAggregators(p), AGGREGATIONS);
-            parser.declareObject(Builder::setParsedAggregations, (p, c) -> AggregatorFactories.parseAggregators(p), AGGS);
-        }
+        parser.declareObject((builder, val) -> builder.setQuery(val, ignoreUnknownFields), (p, c) -> p.mapOrdered(), QUERY);
+        parser.declareObject((builder, val) -> builder.setAggregationsSafe(val, ignoreUnknownFields), (p, c) -> p.mapOrdered(),
+            AGGREGATIONS);
+        parser.declareObject((builder, val) -> builder.setAggregationsSafe(val, ignoreUnknownFields), (p, c) -> p.mapOrdered(),
+            AGGS);
         parser.declareObject(Builder::setScriptFields, (p, c) -> {
             List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();
             while (p.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -582,7 +566,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private TimeValue queryDelay;
         private TimeValue frequency;
         private List<String> indices = Collections.emptyList();
-        private Map<String, Object> query;
+        private Map<String, Object> query = Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap());
         private Map<String, Object> aggregations;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
         private Integer scrollSize = DEFAULT_SCROLL_SIZE;
@@ -590,11 +574,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private Map<String, String> headers = Collections.emptyMap();
         private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
 
-        public Builder() {
-            try {
-                this.query = QUERY_TRANSFORMER.toMap(QueryBuilders.matchAllQuery());
-            } catch (IOException ex) { /*Should never happen*/ }
-        }
+        public Builder() { }
 
         public Builder(String id, String jobId) {
             this();
@@ -647,48 +627,74 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.frequency = frequency;
         }
 
-        public void setParsedQuery(QueryBuilder query) {
+        public void setQuery(Map<String, Object> query) {
+            setQuery(query, true);
+        }
+
+        public void setQuery(Map<String, Object> query, boolean lenient) {
+            this.query = ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName());
             try {
-                setQuery(QUERY_TRANSFORMER.toMap(ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName())));
-            } catch (IOException | XContentParseException exception) {
-                if (exception.getCause() instanceof IllegalArgumentException) {
-                    // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT,
-                            id,
-                            exception.getCause().getMessage()),
-                        exception.getCause());
+                QUERY_TRANSFORMER.fromMap(query);
+            } catch(Exception ex) {
+                String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT, id);
+
+                if (ex.getCause() instanceof IllegalArgumentException) {
+                    ex = (Exception)ex.getCause();
+                }
+
+                if (lenient) {
+                    logger.warn(msg, ex);
                 } else {
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT, id, exception.getMessage()), exception);
+                    throw ExceptionsHelper.badRequestException(msg, ex);
                 }
             }
         }
 
-        public void setQuery(Map<String, Object> query) {
-            this.query = ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName());
-        }
-
+        // Kept for easier testing
         public void setParsedAggregations(AggregatorFactories.Builder aggregations) {
             try {
                 setAggregations(AGG_TRANSFORMER.toMap(aggregations));
-            } catch (IOException | XContentParseException exception) {
+            } catch (Exception exception) {
                 // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
                 if (exception.getCause() instanceof IllegalArgumentException) {
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT,
-                            id,
-                            exception.getCause().getMessage()),
-                        exception.getCause());
-                } else {
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, id, exception.getMessage()), exception);
+                    exception = (Exception)exception.getCause();
                 }
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, id), exception);
             }
         }
 
+        private void setAggregationsSafe(Map<String, Object> aggregations, boolean lenient) {
+            if (this.aggregations != null) {
+                throw ExceptionsHelper.badRequestException("Found two aggregation definitions: [aggs] and [aggregations]");
+            }
+            setAggregations(aggregations, lenient);
+        }
+
         void setAggregations(Map<String, Object> aggregations) {
+            setAggregations(aggregations, true);
+        }
+
+        void setAggregations(Map<String, Object> aggregations, boolean lenient) {
             this.aggregations = aggregations;
+            try {
+                if (aggregations != null && aggregations.isEmpty()) {
+                    throw new Exception("[aggregations] are empty");
+                }
+                AGG_TRANSFORMER.fromMap(aggregations);
+            } catch (Exception ex) {
+                String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, id);
+
+                if (ex.getCause() instanceof IllegalArgumentException) {
+                    ex = (Exception)ex.getCause();
+                }
+
+                if (lenient) {
+                    logger.warn(msg, ex);
+                } else {
+                    throw ExceptionsHelper.badRequestException(msg, ex);
+                }
+            }
         }
 
         public void setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {

@@ -103,8 +103,8 @@ public abstract class TransportWriteAction<
     /**
      * Called on the primary with a reference to the primary {@linkplain IndexShard} to modify.
      *
-     * @return the result of the operation on primary, including current translog location and operation response and failure
-     * async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
+     * @param listener listener for the result of the operation on primary, including current translog location and operation response
+     * and failure async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
      */
     @Override
     protected abstract void shardOperationOnPrimary(

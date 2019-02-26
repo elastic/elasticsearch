@@ -116,9 +116,13 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
             new IndexNameExpressionResolver());
         final GlobalCheckpointSyncAction.Request primaryRequest = new GlobalCheckpointSyncAction.Request(indexShard.shardId());
         if (randomBoolean()) {
-            action.shardOperationOnPrimary(primaryRequest, indexShard, new ActionListener<TransportReplicationAction.PrimaryResult<GlobalCheckpointSyncAction.Request, ReplicationResponse>>() {
+            action.shardOperationOnPrimary(primaryRequest, indexShard,
+                    new ActionListener<
+                        TransportReplicationAction.PrimaryResult<GlobalCheckpointSyncAction.Request, ReplicationResponse>>() {
                 @Override
-                public void onResponse(final TransportReplicationAction.PrimaryResult<GlobalCheckpointSyncAction.Request, ReplicationResponse> requestReplicationResponsePrimaryResult) {
+                public void onResponse(
+                    TransportReplicationAction.PrimaryResult<
+                        GlobalCheckpointSyncAction.Request, ReplicationResponse> requestReplicationResponsePrimaryResult) {
 
                 }
 

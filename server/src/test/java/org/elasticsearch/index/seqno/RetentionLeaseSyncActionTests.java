@@ -116,9 +116,12 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 new IndexNameExpressionResolver());
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
-        action.shardOperationOnPrimary(request, indexShard, new ActionListener<TransportReplicationAction.PrimaryResult<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response>>() {
+        action.shardOperationOnPrimary(request, indexShard,
+                new ActionListener<
+                    TransportReplicationAction.PrimaryResult<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response>>() {
             @Override
-            public void onResponse(final TransportReplicationAction.PrimaryResult<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response> result) {
+            public void onResponse(
+                    TransportReplicationAction.PrimaryResult<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response> result) {
                 // the retention leases on the shard should be persisted
                 try {
                     verify(indexShard).persistRetentionLeases();
@@ -168,7 +171,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 action.shardOperationOnReplica(request, indexShard);
         // the retention leases on the shard should be updated
         verify(indexShard).updateRetentionLeasesOnReplica(retentionLeases);
-        // the retention leases on the shard should be persisteed
+        // the retention leases on the shard should be persisted
         verify(indexShard).persistRetentionLeases();
         // the result should indicate success
         final AtomicBoolean success = new AtomicBoolean();

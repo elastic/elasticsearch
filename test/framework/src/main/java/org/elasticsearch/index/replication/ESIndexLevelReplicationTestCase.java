@@ -93,7 +93,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -202,7 +201,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         protected ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            primary = newShard(primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);
+            primary = newShard(
+                primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);
             replicas = new CopyOnWriteArrayList<>();
             this.indexMetaData = indexMetaData;
             updateAllocationIDsOnPrimary();
@@ -767,17 +767,18 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected void performOnPrimary(IndexShard primary, BulkShardRequest request, ActionListener<PrimaryResult> listener) {
-            executeShardBulkOnPrimary(primary, request, new ActionListener<TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>>() {
-                @Override
-                public void onResponse(TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result) {
-                    listener.onResponse(new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful));
-                }
+            executeShardBulkOnPrimary(
+                primary, request, new ActionListener<TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>>() {
+                    @Override
+                    public void onResponse(TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result) {
+                        listener.onResponse(new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful));
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
         }
 
         @Override
@@ -817,22 +818,23 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
     }
 
-    private <Request extends ReplicatedWriteRequest & DocWriteRequest>
-    BulkShardRequest executeReplicationRequestOnPrimary(IndexShard primary, Request request) throws Exception {
+    private <Request extends ReplicatedWriteRequest & DocWriteRequest> BulkShardRequest executeReplicationRequestOnPrimary(
+            IndexShard primary, Request request) throws Exception {
         final BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, request.getRefreshPolicy(),
             new BulkItemRequest[]{new BulkItemRequest(0, request)});
         final CompletableFuture<BulkShardRequest> res = new CompletableFuture<>();
-        executeShardBulkOnPrimary(primary, bulkShardRequest, new ActionListener<TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>>() {
-            @Override
-            public void onResponse(final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result) {
-                res.complete(result.replicaRequest());
-            }
+        executeShardBulkOnPrimary(
+            primary, bulkShardRequest, new ActionListener<TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>>() {
+                @Override
+                public void onResponse(final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result) {
+                    res.complete(result.replicaRequest());
+                }
 
-            @Override
-            public void onFailure(final Exception e) {
-                res.completeExceptionally(e);
-            }
-        });
+                @Override
+                public void onFailure(final Exception e) {
+                    res.completeExceptionally(e);
+                }
+            });
         return res.get();
     }
 

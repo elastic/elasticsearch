@@ -53,7 +53,6 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.Collections;

@@ -93,7 +93,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testRetentionLeaseBackgroundSyncActionOnPrimary() throws WriteStateException {
+    public void testRetentionLeaseBackgroundSyncActionOnPrimary() {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -121,9 +121,11 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
                 new RetentionLeaseBackgroundSyncAction.Request(indexShard.shardId(), retentionLeases);
 
         action.shardOperationOnPrimary(request, indexShard,
-            new ActionListener<TransportReplicationAction.PrimaryResult<RetentionLeaseBackgroundSyncAction.Request, ReplicationResponse>>() {
+                new ActionListener<
+                    TransportReplicationAction.PrimaryResult<RetentionLeaseBackgroundSyncAction.Request, ReplicationResponse>>() {
             @Override
-            public void onResponse(TransportReplicationAction.PrimaryResult<RetentionLeaseBackgroundSyncAction.Request, ReplicationResponse> result) {
+            public void onResponse(
+                TransportReplicationAction.PrimaryResult<RetentionLeaseBackgroundSyncAction.Request, ReplicationResponse> result) {
                 // the retention leases on the shard should be persisted
                 try {
                     verify(indexShard).persistRetentionLeases();

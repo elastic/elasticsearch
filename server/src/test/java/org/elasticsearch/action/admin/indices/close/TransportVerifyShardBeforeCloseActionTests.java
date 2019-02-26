@@ -140,9 +140,14 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
             new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, taskId);
 
         if (randomBoolean()) {
-            action.shardOperationOnPrimary(request, indexShard, new ActionListener<TransportReplicationAction.PrimaryResult<TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse>>() {
+            action.shardOperationOnPrimary(request, indexShard,
+                new ActionListener<
+                    TransportReplicationAction.PrimaryResult<TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse>>() {
                 @Override
-                public void onResponse(final TransportReplicationAction.PrimaryResult<TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse> shardRequestReplicationResponsePrimaryResult) {
+                public void onResponse(
+                        TransportReplicationAction.PrimaryResult<
+                            TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse
+                            > shardRequestReplicationResponsePrimaryResult) {
                     assertNotNull(shardRequestReplicationResponsePrimaryResult);
                 }
 
@@ -152,9 +157,14 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
                 }
             });
         } else {
-            action.shardOperationOnPrimary(request, indexShard, new ActionListener<TransportReplicationAction.PrimaryResult<TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse>>() {
+            action.shardOperationOnPrimary(request, indexShard,
+                    new ActionListener<
+                        TransportReplicationAction.PrimaryResult<
+                            TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse>>() {
                 @Override
-                public void onResponse(final TransportReplicationAction.PrimaryResult<TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse> shardRequestReplicationResponsePrimaryResult) {
+                public void onResponse(TransportReplicationAction.PrimaryResult<
+                        TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse
+                        > shardRequestReplicationResponsePrimaryResult) {
                     assertNotNull(shardRequestReplicationResponsePrimaryResult);
                 }
 
@@ -293,7 +303,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
                         }
 
                         @Override
-                        public void perform(TransportVerifyShardBeforeCloseAction.ShardRequest request, ActionListener<PrimaryResult> listener) {
+                        public void perform(
+                                TransportVerifyShardBeforeCloseAction.ShardRequest request, ActionListener<PrimaryResult> listener) {
                             listener.onResponse(new PrimaryResult(request));
                         }
 

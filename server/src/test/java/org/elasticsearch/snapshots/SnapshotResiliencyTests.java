@@ -122,7 +122,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
@@ -279,7 +278,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
                                         assertNoFailureListener(
                                             bulkResponse -> {
-                                                assertFalse("Failures in bulkresponse: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+                                                assertFalse(
+                                                    "Failures in bulkresponse: " + bulkResponse.buildFailureMessage(),
+                                                    bulkResponse.hasFailures());
                                                 if (countdown.decrementAndGet() == 0) {
                                                     afterIndexing.run();
                                                 }

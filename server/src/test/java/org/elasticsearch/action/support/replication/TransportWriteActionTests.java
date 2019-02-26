@@ -138,7 +138,8 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
         TestAction testAction = new TestAction();
-                testAction.shardOperationOnPrimary(request, indexShard, new ActionListener<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>>() {
+                testAction.shardOperationOnPrimary(request, indexShard,
+                        new ActionListener<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>>() {
                     @Override
                     public void onResponse(final TransportReplicationAction.PrimaryResult<TestRequest, TestResponse> result) {
                         CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
@@ -174,7 +175,8 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         TestAction testAction = new TestAction();
-        testAction.shardOperationOnPrimary(request, indexShard, new ActionListener<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>>() {
+        testAction.shardOperationOnPrimary(request, indexShard,
+                new ActionListener<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>>() {
             @Override
             public void onResponse(final TransportReplicationAction.PrimaryResult<TestRequest, TestResponse> result) {
                 CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
@@ -212,7 +214,8 @@ public class TransportWriteActionTests extends ESTestCase {
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
 
         TestAction testAction = new TestAction();
-        testAction.shardOperationOnPrimary(request, indexShard, new ActionListener<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>>() {
+        testAction.shardOperationOnPrimary(request, indexShard,
+                new ActionListener<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>>() {
             @Override
             public void onResponse(final TransportReplicationAction.PrimaryResult<TestRequest, TestResponse> result) {
                 CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
@@ -262,7 +265,8 @@ public class TransportWriteActionTests extends ESTestCase {
     public void testDocumentFailureInShardOperationOnPrimary() throws Exception {
         TestRequest request = new TestRequest();
         TestAction testAction = new TestAction(true, true);
-        testAction.shardOperationOnPrimary(request, indexShard, new ActionListener<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>>() {
+        testAction.shardOperationOnPrimary(request, indexShard,
+                new ActionListener<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>>() {
             @Override
             public void onResponse(final TransportReplicationAction.PrimaryResult<TestRequest, TestResponse> writePrimaryResult) {
                 CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();

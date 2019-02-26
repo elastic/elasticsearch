@@ -252,7 +252,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 }
 
                 @Override
-                public void onFailure(final Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
             };

@@ -188,7 +188,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             client.admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
             SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                     .setSource(SearchSourceBuilder.searchSource()
-                            .query(QueryBuilders.termQuery("doc_type", TokenService.INVALIDATED_TOKEN_DOC_TYPE)))
+                            .query(QueryBuilders.termQuery("doc_type", "token")))
                     .setSize(0)
                     .setTerminateAfter(1)
                     .get();

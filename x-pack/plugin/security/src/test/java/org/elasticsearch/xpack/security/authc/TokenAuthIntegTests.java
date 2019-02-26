@@ -368,9 +368,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             docId.set(searchResponse.getHits().getAt(0).getId());
         });
 
-        // hack doc to modify the refresh time to 10 seconds ago so that we don't hit the lenient refresh case
+        // hack doc to modify the refresh time to 50 seconds ago so that we don't hit the lenient refresh case
         Instant refreshed = Instant.now();
-        Instant aWhileAgo = refreshed.minus(10L, ChronoUnit.SECONDS);
+        Instant aWhileAgo = refreshed.minus(50L, ChronoUnit.SECONDS);
         assertTrue(Instant.now().isAfter(aWhileAgo));
         UpdateResponse updateResponse = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", docId.get())
             .setDoc("refresh_token", Collections.singletonMap("refresh_time", aWhileAgo.toEpochMilli()))
@@ -379,15 +379,15 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .get();
         assertNotNull(updateResponse);
         Map<String, Object> refreshTokenMap = (Map<String, Object>) updateResponse.getGetResult().sourceAsMap().get("refresh_token");
-        assertTrue(Instant.ofEpochMilli((long) refreshTokenMap.get("refresh_time")).isBefore(Instant.now().minus(4L, ChronoUnit.SECONDS)));
+        assertTrue(
+            Instant.ofEpochMilli((long) refreshTokenMap.get("refresh_time")).isBefore(Instant.now().minus(30L, ChronoUnit.SECONDS)));
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
                 () -> securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
         assertEquals("invalid_grant", e.getMessage());
         assertEquals(RestStatus.BAD_REQUEST, e.status());
-        assertEquals("token has already been refreshed", e.getHeader("error_description").get(0));
+        assertEquals("token has already been refreshed more than 30 seconds in the past", e.getHeader("error_description").get(0));
     }
 
-    @TestLogging("org.elasticsearch.xpack.security.authc:DEBUG")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
@@ -409,11 +409,13 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         AtomicBoolean failed = new AtomicBoolean();
         for (int i = 0; i < numberOfThreads; i++) {
             threads.add(new Thread(() -> {
+                // Each thread gets its own client so that more than one nodes will be hit
                 Client threadClient = client().filterWithHeader(Collections.singletonMap("Authorization",
                     UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
                         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
                 SecurityClient threadSecurityClient = new SecurityClient(threadClient);
-                CreateTokenRequest refreshRequest = threadSecurityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).request();
+                CreateTokenRequest refreshRequest =
+                    threadSecurityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).request();
                 readyLatch.countDown();
                 try {
                     readyLatch.await();

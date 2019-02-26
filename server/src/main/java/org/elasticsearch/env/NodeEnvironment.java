@@ -532,7 +532,7 @@ public final class NodeEnvironment  implements Closeable {
 
     private boolean isShardLocked(ShardId id) {
         try {
-            shardLock(id, 0, "checking if shard is locked").close();
+            shardLock(id, "checking if shard is locked").close();
             return false;
         } catch (ShardLockObtainFailedException ex) {
             return true;
@@ -551,7 +551,7 @@ public final class NodeEnvironment  implements Closeable {
      */
     public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, IndexSettings indexSettings)
             throws IOException, ShardLockObtainFailedException {
-        final List<ShardLock> locks = lockAllForIndex(index, indexSettings, lockTimeoutMS, "deleting index directory");
+        final List<ShardLock> locks = lockAllForIndex(index, indexSettings, "deleting index directory", lockTimeoutMS);
         try {
             deleteIndexDirectoryUnderLock(index, indexSettings);
         } finally {
@@ -586,8 +586,8 @@ public final class NodeEnvironment  implements Closeable {
      * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
      * @return the {@link ShardLock} instances for this index.
      */
-    public List<ShardLock> lockAllForIndex(Index index, IndexSettings settings, long lockTimeoutMS,
-                                           final String lockDetails) throws ShardLockObtainFailedException {
+    public List<ShardLock> lockAllForIndex(final Index index, final IndexSettings settings,
+                                           final String lockDetails, final long lockTimeoutMS) throws ShardLockObtainFailedException {
         final int numShards = settings.getNumberOfShards();
         if (numShards <= 0) {
             throw new IllegalArgumentException("settings must contain a non-null > 0 number of shards");
@@ -599,7 +599,7 @@ public final class NodeEnvironment  implements Closeable {
         try {
             for (int i = 0; i < numShards; i++) {
                 long timeoutLeftMS = Math.max(0, lockTimeoutMS - TimeValue.nsecToMSec((System.nanoTime() - startTimeNS)));
-                allLocks.add(shardLock(new ShardId(index, i), timeoutLeftMS, lockDetails));
+                allLocks.add(shardLock(new ShardId(index, i), lockDetails, timeoutLeftMS));
             }
             success = true;
         } finally {
@@ -624,7 +624,7 @@ public final class NodeEnvironment  implements Closeable {
      * @return the shard lock. Call {@link ShardLock#close()} to release the lock
      */
     public ShardLock shardLock(ShardId id, final String details) throws ShardLockObtainFailedException {
-        return shardLock(id, 0, details);
+        return shardLock(id, details, 0);
     }
 
     /**
@@ -637,7 +637,8 @@ public final class NodeEnvironment  implements Closeable {
      * @param lockTimeoutMS the lock timeout in milliseconds
      * @return the shard lock. Call {@link ShardLock#close()} to release the lock
      */
-    public ShardLock shardLock(final ShardId shardId, long lockTimeoutMS, final String details) throws ShardLockObtainFailedException {
+    public ShardLock shardLock(final ShardId shardId, final String details,
+                               final long lockTimeoutMS) throws ShardLockObtainFailedException {
         logger.trace("acquiring node shardlock on [{}], timeout [{}], details [{}]", shardId, lockTimeoutMS, details);
         final InternalShardLock shardLock;
         final boolean acquired;
@@ -647,7 +648,7 @@ public final class NodeEnvironment  implements Closeable {
                 shardLock.incWaitCount();
                 acquired = false;
             } else {
-                shardLock = new InternalShardLock(shardId);
+                shardLock = new InternalShardLock(shardId, details);
                 shardLocks.put(shardId, shardLock);
                 acquired = true;
             }
@@ -674,11 +675,11 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     /**
-     * A functional interface that people can use to reference {@link #shardLock(ShardId, long, String)}
+     * A functional interface that people can use to reference {@link #shardLock(ShardId, String, long)}
      */
     @FunctionalInterface
     public interface ShardLocker {
-        ShardLock lock(ShardId shardId, long lockTimeoutMS, String lockDetails) throws ShardLockObtainFailedException;
+        ShardLock lock(ShardId shardId, String lockDetails, long lockTimeoutMS) throws ShardLockObtainFailedException;
     }
 
     /**
@@ -704,10 +705,10 @@ public final class NodeEnvironment  implements Closeable {
         private String lockDetails;
         private final ShardId shardId;
 
-        InternalShardLock(ShardId shardId) {
+        InternalShardLock(final ShardId shardId, final String details) {
             this.shardId = shardId;
             mutex.acquireUninterruptibly();
-            lockDetails = "initial creation lock";
+            lockDetails = details;
         }
 
         protected void release() {

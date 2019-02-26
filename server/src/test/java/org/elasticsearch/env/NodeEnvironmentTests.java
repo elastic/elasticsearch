@@ -149,7 +149,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             Files.createDirectories(path.resolve("1"));
         }
         try {
-            env.lockAllForIndex(index, idxSettings, randomIntBetween(0, 10), "3");
+            env.lockAllForIndex(index, idxSettings, "3", randomIntBetween(0, 10));
             fail("shard 0 is locked");
         } catch (ShardLockObtainFailedException ex) {
             // expected
@@ -159,7 +159,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         // can lock again?
         env.shardLock(new ShardId(index, 0), "4").close();
 
-        List<ShardLock> locks = env.lockAllForIndex(index, idxSettings, randomIntBetween(0, 10), "5");
+        List<ShardLock> locks = env.lockAllForIndex(index, idxSettings, "5", randomIntBetween(0, 10));
         try {
             env.shardLock(new ShardId(index, 0), "6");
             fail("shard is locked");
@@ -353,8 +353,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                     for (int i = 0; i < iters; i++) {
                         int shard = randomIntBetween(0, counts.length - 1);
                         try {
-                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), 
-                                    scaledRandomIntBetween(0, 10), "1")) {
+                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), "1",
+                                    scaledRandomIntBetween(0, 10))) {
                                 counts[shard].value++;
                                 countsAtomic[shard].incrementAndGet();
                                 assertEquals(flipFlop[shard].incrementAndGet(), 1);

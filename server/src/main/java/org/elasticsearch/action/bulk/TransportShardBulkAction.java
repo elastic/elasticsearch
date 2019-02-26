@@ -119,20 +119,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::relativeTimeInMillis,
             new ConcreteMappingUpdatePerformer(),
-            listener1 -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
+            mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    listener1.onResponse(null);
+                    mappingUpdateListener.onResponse(null);
                 }
 
                 @Override
                 public void onClusterServiceClose() {
-                    listener1.onFailure(new NodeClosedException(clusterService.localNode()));
+                    mappingUpdateListener.onFailure(new NodeClosedException(clusterService.localNode()));
                 }
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener1.onFailure(
+                    mappingUpdateListener.onFailure(
                         new MapperException("timed out while waiting for a dynamic mapping update"));
                 }
             }), listener
@@ -189,6 +189,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     context.setRequestToExecute(updateRequest);
                     context.markOperationAsExecuted(result);
                     context.markAsCompleted(context.getExecutionResult());
+                    listener.onResponse(null);
                     return;
                 }
                 // execute translated update request
@@ -232,7 +233,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                             @Override
                             public void onFailure(Exception e) {
                                 context.failOnMappingUpdate(e);
-                                listener.onResponse(null);
+                                listener.onFailure(e);
                             }
                         });
                     } else {

@@ -1578,7 +1578,7 @@ public class InternalEngine extends Engine {
             }
             throw new RefreshFailedEngineException(shardId, e);
         }
-        assert lastRefreshedCheckpoint() >= localCheckpointBeforeRefresh : "refresh checkpoint was not advanced; " +
+        assert refreshed == false || lastRefreshedCheckpoint() >= localCheckpointBeforeRefresh : "refresh checkpoint was not advanced; " +
             "local_checkpoint=" + localCheckpointBeforeRefresh + " refresh_checkpoint=" + lastRefreshedCheckpoint();
         // TODO: maybe we should just put a scheduled job in threadPool?
         // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes

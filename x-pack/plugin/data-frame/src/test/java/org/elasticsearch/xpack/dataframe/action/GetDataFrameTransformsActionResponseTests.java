@@ -43,4 +43,27 @@ public class GetDataFrameTransformsActionResponseTests extends ESTestCase {
         assertEquals(expectedInvalidTransforms, XContentMapValues.extractValue("invalid_transforms.transforms", responseAsMap));
         assertWarnings(LoggerMessageFormat.format(Response.INVALID_TRANSFORMS_DEPRECATION_WARNING, 2));
     }
+
+    public void testNoHeaderInResponse() throws IOException {
+        List<DataFrameTransformConfig> transforms = new ArrayList<>();
+
+        for (int i = 0; i < randomIntBetween(1, 10); ++i) {
+            transforms.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
+        }
+
+        Response r = new Response(transforms);
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        r.toXContent(builder, XContent.EMPTY_PARAMS);
+        Map<String, Object> responseAsMap = createParser(builder).map();
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> transformsResponse = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms",
+                responseAsMap);
+
+        assertEquals(transforms.size(), transformsResponse.size());
+        for (int i = 0; i < transforms.size(); ++i) {
+            assertEquals(transforms.get(i).getSource(), XContentMapValues.extractValue("source", transformsResponse.get(i)));
+            assertEquals(null, XContentMapValues.extractValue("headers", transformsResponse.get(i)));
+        }
+    }
 }

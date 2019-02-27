@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfig;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
 

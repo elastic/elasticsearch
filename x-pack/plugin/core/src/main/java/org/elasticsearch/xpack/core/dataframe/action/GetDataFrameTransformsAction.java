@@ -4,8 +4,9 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.action;
+package org.elasticsearch.xpack.core.dataframe.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -15,26 +16,34 @@ import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfig;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransformsStatsAction.Response> {
+public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsAction.Response>{
 
-    public static final GetDataFrameTransformsStatsAction INSTANCE = new GetDataFrameTransformsStatsAction();
-    public static final String NAME = "cluster:monitor/data_frame_stats/get";
-    public GetDataFrameTransformsStatsAction() {
+    public static final GetDataFrameTransformsAction INSTANCE = new GetDataFrameTransformsAction();
+    public static final String NAME = "cluster:monitor/data_frame/get";
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+            LogManager.getLogger(GetDataFrameTransformsAction.class));
+
+    private GetDataFrameTransformsAction() {
         super(NAME);
     }
 
@@ -112,28 +121,31 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
-        protected RequestBuilder(ElasticsearchClient client, GetDataFrameTransformsStatsAction action) {
+        protected RequestBuilder(ElasticsearchClient client, GetDataFrameTransformsAction action) {
             super(client, action, new Request());
         }
     }
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
-        private List<DataFrameTransformStateAndStats> transformsStateAndStats;
 
-        public Response(List<DataFrameTransformStateAndStats> transformsStateAndStats) {
+        public static final String INVALID_TRANSFORMS_DEPRECATION_WARNING = "Found [{}] invalid transforms";
+        private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms");
+
+        private List<DataFrameTransformConfig> transformConfigurations;
+
+        public Response(List<DataFrameTransformConfig> transformConfigs) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.transformsStateAndStats = transformsStateAndStats;
+            this.transformConfigurations = transformConfigs;
         }
 
-        public Response(List<DataFrameTransformStateAndStats> transformsStateAndStats, List<TaskOperationFailure> taskFailures,
+        public Response(List<DataFrameTransformConfig> transformConfigs, List<TaskOperationFailure> taskFailures,
                 List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.transformsStateAndStats = transformsStateAndStats;
+            this.transformConfigurations = transformConfigs;
         }
 
         public Response() {
             super(Collections.emptyList(), Collections.emptyList());
-            this.transformsStateAndStats = Collections.emptyList();
         }
 
         public Response(StreamInput in) throws IOException {
@@ -141,34 +153,52 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             readFrom(in);
         }
 
-        public List<DataFrameTransformStateAndStats> getTransformsStateAndStats() {
-            return transformsStateAndStats;
+        public List<DataFrameTransformConfig> getTransformConfigurations() {
+            return transformConfigurations;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            transformsStateAndStats = in.readList(DataFrameTransformStateAndStats::new);
+            transformConfigurations = in.readList(DataFrameTransformConfig::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(transformsStateAndStats);
+            out.writeList(transformConfigurations);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            List<String> invalidTransforms = new ArrayList<>();
             builder.startObject();
-            builder.field(DataFrameField.COUNT.getPreferredName(), transformsStateAndStats.size());
-            builder.field(DataFrameField.TRANSFORMS.getPreferredName(), transformsStateAndStats);
+            builder.field(DataFrameField.COUNT.getPreferredName(), transformConfigurations.size());
+            // XContentBuilder does not support passing the params object for Iterables
+            builder.field(DataFrameField.TRANSFORMS.getPreferredName());
+            builder.startArray();
+            for (DataFrameTransformConfig configResponse : transformConfigurations) {
+                configResponse.toXContent(builder, params);
+                if (configResponse.isValid() == false) {
+                    invalidTransforms.add(configResponse.getId());
+                }
+            }
+            builder.endArray();
+            if (invalidTransforms.isEmpty() == false) {
+                builder.startObject(INVALID_TRANSFORMS.getPreferredName());
+                builder.field(DataFrameField.COUNT.getPreferredName(), invalidTransforms.size());
+                builder.field(DataFrameField.TRANSFORMS.getPreferredName(), invalidTransforms);
+                builder.endObject();
+                deprecationLogger.deprecated(INVALID_TRANSFORMS_DEPRECATION_WARNING, invalidTransforms.size());
+            }
+
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(transformsStateAndStats);
+            return Objects.hash(transformConfigurations);
         }
 
         @Override
@@ -182,7 +212,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             }
 
             final Response that = (Response) other;
-            return Objects.equals(this.transformsStateAndStats, that.transformsStateAndStats);
+            return Objects.equals(this.transformConfigurations, that.transformConfigurations);
         }
 
         @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xpack.core.dataframe.transform.pivot.AggregationConfig;
 import org.elasticsearch.xpack.dataframe.transforms.AbstractSerializingDataFrameTestCase;
 import org.elasticsearch.xpack.dataframe.transforms.MockDeprecatedAggregationBuilder;
 import org.junit.Before;

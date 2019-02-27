@@ -28,6 +28,8 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.xpack.core.dataframe.transform.pivot.AggregationConfig;
+import org.elasticsearch.xpack.core.dataframe.transform.pivot.PivotConfig;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Aggregations.AggregationType;
 import org.junit.After;
 import org.junit.Before;

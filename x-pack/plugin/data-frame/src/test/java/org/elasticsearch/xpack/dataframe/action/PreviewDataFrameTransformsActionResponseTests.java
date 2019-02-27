@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.dataframe.action.PreviewDataFrameTransformAction.Response;
+import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction.Response;
 
 import java.io.IOException;
 import java.util.ArrayList;

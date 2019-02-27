@@ -14,6 +14,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transform.pivot.GroupConfig;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -33,8 +34,9 @@ final class AggregationResultUtils {
      * @return a map containing the results of the aggregation in a consumable way
      */
     public static Stream<Map<String, Object>> extractCompositeAggregationResults(CompositeAggregation agg,
-            GroupConfig groups, Collection<AggregationBuilder> aggregationBuilders,
-            DataFrameIndexerTransformStats dataFrameIndexerTransformStats) {
+                                                                     GroupConfig groups,
+                                                                     Collection<AggregationBuilder> aggregationBuilders,
+                                                                     DataFrameIndexerTransformStats dataFrameIndexerTransformStats) {
         return agg.getBuckets().stream().map(bucket -> {
             dataFrameIndexerTransformStats.incrementNumDocuments(bucket.getDocCount());
 

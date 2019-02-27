@@ -24,6 +24,8 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transform.pivot.GroupConfig;
+import org.elasticsearch.xpack.core.dataframe.transform.pivot.PivotConfig;
 
 import java.io.IOException;
 import java.util.Collection;

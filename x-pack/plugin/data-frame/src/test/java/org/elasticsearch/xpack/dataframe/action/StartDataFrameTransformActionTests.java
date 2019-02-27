@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.dataframe.action.StartDataFrameTransformAction.Request;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction.Request;
 
 public class StartDataFrameTransformActionTests extends AbstractWireSerializingTestCase<Request> {
     @Override

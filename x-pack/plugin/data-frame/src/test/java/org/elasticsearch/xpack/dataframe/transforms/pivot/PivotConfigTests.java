@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.dataframe.transform.pivot.PivotConfig;
 import org.elasticsearch.xpack.dataframe.transforms.AbstractSerializingDataFrameTestCase;
 
 import java.io.IOException;

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.dataframe.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.dataframe.action.StopDataFrameTransformAction.Request;
+import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction.Request;
 
 public class StopDataFrameTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 

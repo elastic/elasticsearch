@@ -20,10 +20,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.dataframe.action.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.dataframe.action.DataFrameTransformStateAndStatsTests;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction.Response;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
 import org.junit.Before;
 
 import java.io.IOException;

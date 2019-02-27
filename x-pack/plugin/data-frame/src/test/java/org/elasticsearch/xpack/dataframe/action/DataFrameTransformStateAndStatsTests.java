@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.dataframe.action;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStatsTests;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformStateTests;
 import org.elasticsearch.xpack.dataframe.transforms.AbstractSerializingDataFrameTestCase;
 

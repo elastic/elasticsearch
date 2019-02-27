@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.action;
+package org.elasticsearch.xpack.core.dataframe.transform;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -14,8 +14,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformState;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
 
 import java.io.IOException;
 import java.util.Objects;

@@ -6,23 +6,21 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
-import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
 
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 
 public class CurrentDateTimeTests extends AbstractNodeTestCase<CurrentDateTime, Expression> {
 
     public static CurrentDateTime randomCurrentDateTime() {
-        return new CurrentDateTime(EMPTY, Literal.of(EMPTY, randomInt(10)),
-            new Configuration(randomZone(), Protocol.FETCH_SIZE,
-                Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null, null));
+        return new CurrentDateTime(EMPTY, Literal.of(EMPTY, randomInt(10)), TestUtils.randomConfiguration());
     }
 
     @Override
@@ -37,9 +35,10 @@ public class CurrentDateTimeTests extends AbstractNodeTestCase<CurrentDateTime, 
 
     @Override
     protected CurrentDateTime mutate(CurrentDateTime instance) {
-        return new CurrentDateTime(instance.source(), Literal.of(EMPTY, randomInt(10)),
-            new Configuration(randomZone(), Protocol.FETCH_SIZE,
-                Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null, null));
+        ZonedDateTime now = instance.configuration().now();
+        ZoneId mutatedZoneId = randomValueOtherThanMany(o -> Objects.equals(now.getOffset(), o.getRules().getOffset(now.toInstant())),
+                () -> randomZone());
+        return new CurrentDateTime(instance.source(), Literal.of(EMPTY, randomInt(10)), TestUtils.randomConfiguration(mutatedZoneId));
     }
 
     @Override

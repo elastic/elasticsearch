@@ -1175,6 +1175,9 @@ public class AuthenticationServiceTests extends ESTestCase {
                 } else if (e instanceof NegativeArraySizeException) {
                     assertThat(e.getMessage(), containsString("array size must be positive but was: "));
                     latch.countDown();
+                } else if (e instanceof IllegalArgumentException) {
+                    assertThat(e.getMessage(), containsString("Cannot authenticate using token from version"));
+                    latch.countDown();
                 } else {
                     logger.error("unexpected exception", e);
                     latch.countDown();

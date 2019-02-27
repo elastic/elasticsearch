@@ -110,7 +110,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(random(), 0, 0, 1000, 2000);
 
         // don't wait for initial state, we want to add the disruption while the cluster is forming
-        internalCluster().startNodes(3, Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "3s").build());
+        internalCluster().startNodes(3);
 
         logger.info("applying disruption while cluster is forming ...");
 

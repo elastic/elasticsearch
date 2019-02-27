@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
@@ -128,7 +129,8 @@ public class SqlSession {
             // Note: JOINs are not supported but we detect them when
             listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
         } else if (preAnalysis.indices.size() == 1) {
-            TableIdentifier table = preAnalysis.indices.get(0);
+            Tuple<TableIdentifier, Boolean> tuple = preAnalysis.indices.get(0);
+            TableIdentifier table = tuple.v1();
 
             String cluster = table.cluster();
 
@@ -136,7 +138,8 @@ public class SqlSession {
                 listener.onFailure(new MappingException("Cannot inspect indices in cluster/catalog [{}]", cluster));
             }
 
-            indexResolver.resolveAsMergedMapping(table.index(), null,
+            boolean includeFrozen = configuration.includeFrozen() || tuple.v2();
+            indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen,
                     wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
         } else {
             try {

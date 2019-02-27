@@ -22,6 +22,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
@@ -89,6 +90,8 @@ public class SysTables extends Command {
             }
         }
         
+        boolean includeFrozen = session.configuration().includeFrozen();
+
         // enumerate types
         // if no types are specified (the parser takes care of the % case)
         if (types == null) {
@@ -98,7 +101,8 @@ public class SysTables extends Command {
                     && pattern != null && pattern.pattern().isEmpty() && index == null) {
                 List<List<?>> values = new ArrayList<>();
                 // send only the types, everything else is made of empty strings
-                for (IndexType type : IndexType.VALID) {
+                Set<IndexType> typeSet = includeFrozen ? IndexType.VALID : IndexType.VALID_WO_FROZEN;
+                for (IndexType type : typeSet) {
                     Object[] enumeration = new Object[10];
                     enumeration[3] = type.toSql();
                     values.add(asList(enumeration));
@@ -142,7 +146,7 @@ public class SysTables extends Command {
     }
 
     private String legacyName(IndexType indexType) {
-        return legacyTableTypes && indexType == IndexType.INDEX ? "TABLE" : indexType.toSql();
+        return legacyTableTypes && IndexType.INDICES_ONLY.contains(indexType) ? IndexType.SQL_TABLE : indexType.toSql();
     }
 
     @Override

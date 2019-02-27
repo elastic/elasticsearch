@@ -48,7 +48,7 @@ public class SysTablesTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
     private final Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
-    private final IndexInfo index = new IndexInfo("test", IndexType.INDEX);
+    private final IndexInfo index = new IndexInfo("test", IndexType.STANDARD_INDEX);
     private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);
 
     //
@@ -107,7 +107,7 @@ public class SysTablesTests extends ESTestCase {
         executeCommand("SYS TABLES CATALOG LIKE '' LIKE '' TYPE '%'", r -> {
             assertEquals(2, r.size());
 
-            Iterator<IndexType> it = IndexType.VALID.stream().sorted(Comparator.comparing(IndexType::toSql)).iterator();
+            Iterator<IndexType> it = IndexType.VALID_WO_FROZEN.stream().sorted(Comparator.comparing(IndexType::toSql)).iterator();
 
             for (int t = 0; t < r.size(); t++) {
                 assertEquals(it.next().toSql(), r.column(3));

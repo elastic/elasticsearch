@@ -1000,8 +1000,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.performOnPrimary(
             bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
-            listener -> {
-            },
+            listener -> listener.onResponse(null),
             new LatchedActionListener<>(
                 new ActionListener<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>>() {
                     @Override

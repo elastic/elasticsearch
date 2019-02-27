@@ -333,63 +333,6 @@
                     }
                   }
                 },
-                "hipchat" : {
-                  "type": "object",
-                  "dynamic": true,
-                  "properties": {
-                    "account": {
-                      "type": "keyword"
-                    },
-                    "sent_messages": {
-                      "type": "nested",
-                      "include_in_parent": true,
-                      "dynamic": true,
-                      "properties": {
-                        "status": {
-                          "type": "keyword"
-                        },
-                        "reason": {
-                          "type": "text"
-                        },
-                        "request" : {
-                          "type" : "object",
-                          "enabled" : false
-                        },
-                        "response" : {
-                          "type" : "object",
-                          "enabled" : false
-                        },
-                        "room" : {
-                          "type": "keyword"
-                        },
-                        "user" : {
-                          "type": "keyword"
-                        },
-                        "message" : {
-                          "type" : "object",
-                          "dynamic" : true,
-                          "properties" : {
-                            "message_format" : {
-                              "type" : "keyword"
-                            },
-                            "color" : {
-                              "type" : "keyword"
-                            },
-                            "notify" : {
-                              "type" : "boolean"
-                            },
-                            "message" : {
-                              "type" : "text"
-                            },
-                            "from" : {
-                              "type" : "text"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                },
                 "jira" : {
                   "type": "object",
                   "dynamic": true,

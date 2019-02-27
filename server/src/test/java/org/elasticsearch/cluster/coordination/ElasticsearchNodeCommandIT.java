@@ -250,7 +250,6 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         expectThrows(() -> detachCluster(environment, 0, true), ElasticsearchNodeCommand.ABORTED_BY_USER_MSG);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39220")
     public void test3MasterNodes2Failed() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(2);
         List<String> masterNodes = new ArrayList<>();
@@ -268,8 +267,12 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         logger.info("--> start 2nd and 3rd master-eligible nodes and bootstrap");
         masterNodes.addAll(internalCluster().startMasterOnlyNodes(2)); // node ordinals 2 and 3
 
+        logger.info("--> wait for all nodes to join the cluster");
+        ensureStableCluster(4);
+
         logger.info("--> create index test");
         createIndex("test");
+        ensureGreen("test");
 
         logger.info("--> stop 2nd and 3d master eligible node");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(1)));

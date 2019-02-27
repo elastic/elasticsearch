@@ -540,12 +540,16 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             new SyncRetentionLeases(request, ReplicationGroup.this, wrappedListener).execute();
         }
 
-        public RetentionLease addRetentionLease(String id, long retainingSequenceNumber, String source,
+        public synchronized RetentionLease addRetentionLease(String id, long retainingSequenceNumber, String source,
                                                 ActionListener<Void> listener) {
             return getPrimary().addRetentionLease(id, retainingSequenceNumber, source, listener);
         }
 
-        public void removeRetentionLease(String id, ActionListener<Void> listener) {
+        public synchronized RetentionLease renewRetentionLease(String id, long retainingSequenceNumber, String source) {
+            return getPrimary().renewRetentionLease(id, retainingSequenceNumber, source);
+        }
+
+        public synchronized void removeRetentionLease(String id, ActionListener<Void> listener) {
             getPrimary().removeRetentionLease(id, listener);
         }
 

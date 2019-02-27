@@ -9,15 +9,15 @@ Also see <<breaking-changes-6.7,Breaking changes in 6.7>>.
 [float]
 === Breaking changes
 
+Authentication::
+* Disable BWC mode in TokenService by default {pull}38881[#38881]
+
 CCR::
 * Follow stats api should return a 404 when requesting stats for a non existing index {pull}37220[#37220] (issue: {issue}37021[#37021])
 
 Infra/Packaging::
 * Package ingest-user-agent as a module {pull}36956[#36956]
 * Package ingest-geoip as a module {pull}36898[#36898]
-
-Mapping::
-* Make sure to reject mappings with type _doc when include_type_name is false. {pull}38270[#38270] (issue: {issue}38266[#38266])
 
 Ranking::
 * Forbid negative field boosts in analyzed queries {pull}37930[#37930] (issue: {issue}33309[#33309])
@@ -54,8 +54,14 @@ Features/Java Low Level REST Client::
 * Deprecate the low-level REST client on JDK 7 {pull}38542[#38542] (issue: {issue}29607[#29607])
 * Deprecate maxRetryTimeout in RestClient and increase default value {pull}38425[#38425] (issue: {issue}38085[#38085])
 
+Features/Watcher::
+* Deprecate Hipchat Watcher actions {pull}39160[#39160]
+
 Infra/Core::
 * Core: Deprecate negative epoch timestamps {pull}36793[#36793]
+
+Infra/Packaging::
+* Deprecate fallback to java on PATH {pull}37990[#37990]
 
 Infra/REST API::
 * Deprecate requests that have an unconsumed body {pull}37534[#37534] (issue: {issue}37504[#37504])
@@ -113,6 +119,9 @@ SQL::
 * SQL: Implement FIRST/LAST aggregate functions {pull}37936[#37936] (issue: {issue}35639[#35639])
 * SQL: Introduce SQL DATE data type {pull}37693[#37693] (issue: {issue}37340[#37340])
 
+Security::
+* Switch internal security index to ".security-7" {pull}39337[#39337] (issue: {issue}39284[#39284])
+
 
 
 [[enhancement-6.7.0]]
@@ -140,6 +149,8 @@ Authorization::
 * Create snapshot role {pull}35820[#35820] (issue: {issue}34454[#34454])
 
 CCR::
+* Renew retention leases while following {pull}39335[#39335] (issues: {issue}37165[#37165], {issue}38718[#38718])
+* Reduce refresh when lookup term in FollowingEngine {pull}39184[#39184]
 * Integrate retention leases to recovery from remote {pull}38829[#38829] (issue: {issue}37165[#37165])
 * Enable removal of retention leases {pull}38751[#38751] (issue: {issue}37165[#37165])
 * Concurrent file chunk fetching for CCR restore {pull}38495[#38495]
@@ -157,8 +168,12 @@ CRUD::
 * Enable IPv6 URIs in reindex from remote {pull}36874[#36874]
 * Set acking timeout to 0 on dynamic mapping update {pull}31140[#31140] (issues: {issue}30672[#30672], {issue}30844[#30844])
 
+Client::
+* Fixed required fields and paths list {pull}39358[#39358]
+
 Distributed::
 * Allow retention lease operations under blocks {pull}39089[#39089] (issues: {issue}34648[#34648], {issue}37165[#37165])
+* Remove retention leases when unfollowing {pull}39088[#39088] (issues: {issue}34648[#34648], {issue}37165[#37165])
 * Introduce retention lease state file {pull}39004[#39004] (issues: {issue}37165[#37165], {issue}38588[#38588], {issue}39032[#39032])
 * Introduce retention lease actions {pull}38756[#38756] (issue: {issue}37165[#37165])
 * Add dedicated retention lease exceptions {pull}38754[#38754] (issue: {issue}37165[#37165])
@@ -180,6 +195,9 @@ Distributed::
 * Introduce retention lease expiration {pull}37195[#37195] (issue: {issue}37165[#37165])
 * Introduce shard history retention leases {pull}37167[#37167] (issue: {issue}37165[#37165])
 * Always initialize the global checkpoint {pull}34381[#34381]
+
+Docs Infrastructure::
+* Align generated release notes with doc standards {pull}39234[#39234] (issue: {issue}39155[#39155])
 
 Engine::
 * Specialize pre-closing checks for engine implementations {pull}38702[#38702]
@@ -206,6 +224,7 @@ Features/Indices APIs::
 * New mapping signature and mapping string source fixed. {pull}37401[#37401]
 
 Features/Ingest::
+* minor updates for user-agent ecs for 6.7 {pull}39213[#39213] (issue: {issue}38757[#38757])
 * Dep. check for ECS changes to User Agent processor {pull}38362[#38362] (issue: {issue}36024[#36024])
 * Add ECS schema for user-agent ingest processor {pull}37727[#37727] (issue: {issue}37329[#37329])
 * ingest: compile mustache template only if field includes '{{'' {pull}37207[#37207] (issue: {issue}37120[#37120])
@@ -264,6 +283,7 @@ Mapping::
 * Use index-prefix fields for terms of length min_chars - 1 {pull}36703[#36703]
 
 Recovery::
+* Do not wait for advancement of checkpoint in recovery {pull}39006[#39006] (issues: {issue}38949[#38949], {issue}39000[#39000])
 * SyncedFlushService.getShardRoutingTable() should use metadata to check for index existence {pull}37691[#37691] (issue: {issue}33888[#33888])
 * Make prepare engine step of recovery source non-blocking {pull}37573[#37573] (issue: {issue}37174[#37174])
 * Make recovery source send operations non-blocking {pull}37503[#37503] (issue: {issue}37458[#37458])
@@ -278,6 +298,8 @@ Rollup::
 * Replace the TreeMap in the composite aggregation {pull}36675[#36675]
 
 SQL::
+* SQL: change the default precision for CURRENT_TIMESTAMP function {pull}39391[#39391] (issue: {issue}39288[#39288])
+* SQL: add "validate.properties" property to JDBC's allowed list of settings {pull}39050[#39050] (issue: {issue}38068[#38068])
 * SQL: Allow look-ahead resolution of aliases for WHERE clause {pull}38450[#38450] (issue: {issue}29983[#29983])
 * SQL: Implement CURRENT_DATE {pull}38175[#38175] (issue: {issue}38160[#38160])
 * SQL: Generate relevant error message when grouping functions are not used in GROUP BY {pull}38017[#38017] (issue: {issue}37952[#37952])
@@ -331,6 +353,7 @@ ZenDiscovery::
 === Bug fixes
 
 Aggregations::
+* Only create MatrixStatsResults on final reduction {pull}38130[#38130] (issue: {issue}37587[#37587])
 * Don't load global ordinals with the `map` execution_hint {pull}37833[#37833] (issue: {issue}37705[#37705])
 * Issue #37303 - Invalid variance fix {pull}37384[#37384] (issue: {issue}37303[#37303])
 
@@ -355,6 +378,7 @@ Authentication::
 * Fix NPE in CachingUsernamePasswordRealm {pull}36953[#36953] (issue: {issue}36951[#36951])
 
 CCR::
+* Protect against the leader index being removed {pull}39351[#39351] (issue: {issue}39308[#39308])
 * Fix shard follow task startup error handling {pull}39053[#39053] (issue: {issue}38779[#38779])
 * Filter out upgraded version index settings when starting index following {pull}38838[#38838] (issue: {issue}38835[#38835])
 * Handle the fact that `ShardStats` instance may have no commit or seqno stats {pull}38782[#38782] (issue: {issue}38779[#38779])
@@ -374,6 +398,7 @@ CRUD::
 * Fix Reindex from remote query logic {pull}36908[#36908]
 
 Distributed::
+* Ignore waitForActiveShards when syncing leases {pull}39224[#39224] (issue: {issue}39089[#39089])
 * Fix synchronization in LocalCheckpointTracker#contains {pull}38755[#38755] (issues: {issue}33871[#33871], {issue}38633[#38633])
 * TransportVerifyShardBeforeCloseAction should force a flush {pull}38401[#38401] (issues: {issue}33888[#33888], {issue}37961[#37961])
 * Fix limit on retaining sequence number {pull}37992[#37992] (issue: {issue}37165[#37165])
@@ -382,12 +407,16 @@ Distributed::
 * Replaced the word 'shards' with 'replicas' in an error message. (#36234) {pull}36275[#36275] (issue: {issue}36234[#36234])
 
 Engine::
+* Bubble up exception when processing NoOp {pull}39338[#39338] (issue: {issue}38898[#38898])
+* ReadOnlyEngine should update translog recovery state information {pull}39238[#39238]
 * Advance max_seq_no before add operation to Lucene {pull}38879[#38879] (issue: {issue}31629[#31629])
 
 Features/Features::
+* Link to 7.0 documentation in deprecation checks {pull}39194[#39194]
 * Handle Null in FetchSourceContext#fetchSource {pull}36839[#36839] (issue: {issue}29293[#29293])
 
 Features/ILM::
+* Handle failure to release retention leases in ILM {pull}39281[#39281] (issue: {issue}39181[#39181])
 * Preserve ILM operation mode when creating new lifecycles {pull}38134[#38134] (issues: {issue}38229[#38229], {issue}38230[#38230])
 * Retry ILM steps that fail due to SnapshotInProgressException {pull}37624[#37624] (issues: {issue}37541[#37541], {issue}37552[#37552])
 * Remove `indexing_complete` when removing policy {pull}36620[#36620]
@@ -420,6 +449,7 @@ Features/Monitoring::
 * Allow built-in monitoring_user role to call GET _xpack API {pull}38060[#38060] (issue: {issue}37970[#37970])
 
 Features/Watcher::
+* Resolve concurrency with watcher trigger service {pull}39092[#39092] (issue: {issue}39087[#39087])
 * Only flush Watcher's bulk processor if Watcher is enabled {pull}38803[#38803] (issue: {issue}38798[#38798])
 
 Geo::
@@ -459,6 +489,7 @@ Machine Learning::
 * [ML] Make GetJobStats work with arbitrary wildcards and groups {pull}36683[#36683] (issue: {issue}34745[#34745])
 
 Mapping::
+* Make sure to reject mappings with type _doc when include_type_name is false. {pull}38270[#38270] (issue: {issue}38266[#38266])
 * Treat put-mapping calls with `_doc` as a top-level key as typed calls. {pull}38032[#38032]
 * Update the deprecation message for typed put mapping requests. {pull}37835[#37835]
 * Make sure PutMappingRequest accepts content types other than JSON. {pull}37720[#37720]
@@ -467,6 +498,7 @@ Mapping::
 * Stop automatically nesting mappings in index creation requests. {pull}36924[#36924]
 
 Network::
+* Rebuild remote connections on profile changes {pull}37678[#37678] (issue: {issue}37201[#37201])
 * Reload SSL context on file change for LDAP {pull}36937[#36937] (issues: {issue}30509[#30509], {issue}36923[#36923])
 
 Ranking::
@@ -476,6 +508,7 @@ Recovery::
 * RecoveryMonitor#lastSeenAccessTime should be volatile {pull}36781[#36781]
 
 SQL::
+* SQL: enforce JDBC driver - ES server version parity {pull}38972[#38972] (issue: {issue}38775[#38775])
 * SQL: fall back to using the field name for column label {pull}38842[#38842] (issue: {issue}38831[#38831])
 * SQL: Prevent grouping over grouping functions {pull}38649[#38649] (issue: {issue}38308[#38308])
 * SQL: Relax StackOverflow circuit breaker for constants {pull}38572[#38572] (issue: {issue}38571[#38571])
@@ -513,6 +546,7 @@ Security::
 * Fix potential NPE in UsersTool {pull}37660[#37660]
 
 Snapshot/Restore::
+* Fix Two Races that Lead to Stuck Snapshots {pull}37686[#37686] (issues: {issue}32265[#32265], {issue}32348[#32348])
 * Streamline S3 Repository- and Client-Settings {pull}37393[#37393]
 * SNAPSHOTS: Upgrade GCS Dependencies to 1.55.0 {pull}36634[#36634] (issues: {issue}35229[#35229], {issue}35459[#35459])
 
@@ -533,6 +567,18 @@ ZenDiscovery::
 
 Infra/Core::
 * Speed up converting of temporal accessor to zoned date time {pull}37915[#37915] (issue: {issue}37826[#37826])
+
+
+
+[[upgrade-6.7.0]]
+[float]
+=== Upgrades
+
+Discovery-Plugins::
+* Bump jackson-databind version for AWS SDK {pull}39183[#39183]
+
+Features/Ingest::
+* Bump jackson-databind version for ingest-geoip {pull}39182[#39182]
 
 
 

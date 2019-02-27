@@ -160,7 +160,7 @@ Alternatively, you can manage remote clusters on the
 *Management / Elasticsearch / Remote Clusters* page in {kib}:
 
 [role="screenshot"]
-image::ml/images/remote-clusters.jpg["The Remote Clusters page in {kib}"]
+image::images/remote-clusters.jpg["The Remote Clusters page in {kib}"]
 
 
 [float]
@@ -343,4 +343,4 @@ Alternatively, you can manage auto-follow patterns on the
 *Management / Elasticsearch / Cross Cluster Replication* page in {kib}:
 
 [role="screenshot"]
-image::ml/images/auto-follow-patterns.jpg["The Auto-follow patterns page in {kib}"]
+image::images/auto-follow-patterns.jpg["The Auto-follow patterns page in {kib}"]

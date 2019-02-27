@@ -1106,7 +1106,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     private void waitUntilJobIsClosed(String jobId) throws Exception {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -30,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregationBuilder> {
 
@@ -81,7 +81,8 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregation
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
         XContentParseException ex = expectThrows(XContentParseException.class,
                 () -> DateRangeAggregationBuilder.parse("aggregationName", parser));
-        assertThat(ExceptionsHelper.detailedMessage(ex), containsString("badField"));
+        assertThat(ex.getCause(), notNullValue());
+        assertThat(ex.getCause().getMessage(), containsString("badField"));
     }
 
 }

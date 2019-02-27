@@ -300,7 +300,7 @@ public class HttpClient implements Closeable {
                 Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings)) : Scheme.HTTP;
         int proxyPort = HttpSettings.PROXY_PORT.get(settings);
         if (proxyPort != 0 && Strings.hasText(proxyHost)) {
-            logger.info("Using default proxy for http input and slack/hipchat/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
+            logger.info("Using default proxy for http input and slack/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
         } else if (proxyPort != 0 ^ Strings.hasText(proxyHost)) {
             throw new IllegalArgumentException("HTTP proxy requires both settings: [" + HttpSettings.PROXY_HOST.getKey() + "] and [" +
                     HttpSettings.PROXY_PORT.getKey() + "]");

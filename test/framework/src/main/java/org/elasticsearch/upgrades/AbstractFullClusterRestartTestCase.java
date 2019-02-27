@@ -33,10 +33,6 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
 
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
 
-    public final boolean isRunningAgainstAncientCluster() {
-        return isRunningAgainstOldCluster() && oldClusterVersion.before(Version.V_7_0_0);
-    }
-
     public final Version getOldClusterVersion() {
         return oldClusterVersion;
     }

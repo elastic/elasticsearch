@@ -656,9 +656,9 @@ public final class TokenService {
         ensureEnabled();
         findTokenFromRefreshToken(refreshToken,
             ActionListener.wrap(tuple -> {
-                final Authentication userAuth = Authentication.readFromContext(client.threadPool().getThreadContext());
+                final Authentication clientAuth = Authentication.readFromContext(client.threadPool().getThreadContext());
                 final String tokenDocId = tuple.v1().getHits().getHits()[0].getId();
-                innerRefresh(tokenDocId, userAuth, listener, tuple.v2());
+                innerRefresh(tokenDocId, clientAuth, listener, tuple.v2());
             }, listener::onFailure),
             new AtomicInteger(0));
     }
@@ -719,7 +719,7 @@ public final class TokenService {
      * may be recoverable. The refresh involves retrieval of the token document and then
      * updating the token document to indicate that the document has been refreshed.
      */
-    private void innerRefresh(String tokenDocId, Authentication userAuth, ActionListener<Tuple<UserToken, String>> listener,
+    private void innerRefresh(String tokenDocId, Authentication clientAuth, ActionListener<Tuple<UserToken, String>> listener,
                               AtomicInteger attemptCount) {
         if (attemptCount.getAndIncrement() > MAX_RETRY_ATTEMPTS) {
             logger.warn("Failed to refresh token for doc [{}] after [{}] attempts", tokenDocId, attemptCount.get());
@@ -731,7 +731,7 @@ public final class TokenService {
                 ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
                         final Map<String, Object> source = response.getSource();
-                        final Optional<ElasticsearchSecurityException> invalidSource = checkTokenDocForRefresh(source, userAuth);
+                        final Optional<ElasticsearchSecurityException> invalidSource = checkTokenDocForRefresh(source, clientAuth);
 
                         if (invalidSource.isPresent()) {
                             onFailure.accept(invalidSource.get());
@@ -754,12 +754,12 @@ public final class TokenService {
                                 updateRequest.setIfPrimaryTerm(response.getPrimaryTerm());
                                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
                                     ActionListener.<UpdateResponse>wrap(
-                                        updateResponse -> createUserToken(authentication, userAuth, listener, metadata, true),
+                                        updateResponse -> createUserToken(authentication, clientAuth, listener, metadata, true),
                                         e -> {
                                             Throwable cause = ExceptionsHelper.unwrapCause(e);
                                             if (cause instanceof VersionConflictEngineException ||
                                                 isShardNotAvailableException(e)) {
-                                                innerRefresh(tokenDocId, userAuth,
+                                                innerRefresh(tokenDocId, clientAuth,
                                                     listener, attemptCount);
                                             } else {
                                                 onFailure.accept(e);
@@ -774,7 +774,7 @@ public final class TokenService {
                     }
                 }, e -> {
                     if (isShardNotAvailableException(e)) {
-                        innerRefresh(tokenDocId, userAuth, listener, attemptCount);
+                        innerRefresh(tokenDocId, clientAuth, listener, attemptCount);
                     } else {
                         listener.onFailure(e);
                     }
@@ -786,7 +786,7 @@ public final class TokenService {
      * Performs checks on the retrieved source and returns an {@link Optional} with the exception
      * if there is an issue
      */
-    private Optional<ElasticsearchSecurityException> checkTokenDocForRefresh(Map<String, Object> source, Authentication userAuth) {
+    private Optional<ElasticsearchSecurityException> checkTokenDocForRefresh(Map<String, Object> source, Authentication clientAuth) {
         final Map<String, Object> refreshTokenSrc = (Map<String, Object>) source.get("refresh_token");
         final Map<String, Object> accessTokenSrc = (Map<String, Object>) source.get("access_token");
         if (refreshTokenSrc == null || refreshTokenSrc.isEmpty()) {
@@ -820,18 +820,18 @@ public final class TokenService {
             } else if (userTokenSrc.get("metadata") == null) {
                 return Optional.of(invalidGrantException("token is missing metadata"));
             } else {
-                return checkClient(refreshTokenSrc, userAuth);
+                return checkClient(refreshTokenSrc, clientAuth);
             }
         }
     }
 
-    private Optional<ElasticsearchSecurityException> checkClient(Map<String, Object> refreshTokenSource, Authentication userAuth) {
+    private Optional<ElasticsearchSecurityException> checkClient(Map<String, Object> refreshTokenSource, Authentication clientAuth) {
         Map<String, Object> clientInfo = (Map<String, Object>) refreshTokenSource.get("client");
         if (clientInfo == null) {
             return Optional.of(invalidGrantException("token is missing client information"));
-        } else if (userAuth.getUser().principal().equals(clientInfo.get("user")) == false) {
+        } else if (clientAuth.getUser().principal().equals(clientInfo.get("user")) == false) {
             return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
-        } else if (userAuth.getAuthenticatedBy().getName().equals(clientInfo.get("realm")) == false) {
+        } else if (clientAuth.getAuthenticatedBy().getName().equals(clientInfo.get("realm")) == false) {
             return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
         } else {
             return Optional.empty();

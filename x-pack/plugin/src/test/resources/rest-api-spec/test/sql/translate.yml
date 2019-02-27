@@ -16,7 +16,7 @@
             int: 1
 
   - do:
-      xpack.sql.translate:
+      sql.translate:
         body:
           query: "SELECT * FROM test ORDER BY int asc"
   - match:

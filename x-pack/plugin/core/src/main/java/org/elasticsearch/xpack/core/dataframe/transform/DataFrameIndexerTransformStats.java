@@ -18,6 +18,7 @@ import java.io.IOException;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class DataFrameIndexerTransformStats extends IndexerJobStats {
+    private static final String NAME = "data_frame_indexer_transform_stats";
     private static ParseField NUM_PAGES = new ParseField("pages_processed");
     private static ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
     private static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed");
@@ -30,8 +31,8 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     private static ParseField INDEX_FAILURES = new ParseField("index_failures");
 
     public static final ConstructingObjectParser<DataFrameIndexerTransformStats, Void> PARSER = new ConstructingObjectParser<>(
-            NAME.getPreferredName(), args -> new DataFrameIndexerTransformStats((long) args[0], (long) args[1], (long) args[2],
-                    (long) args[3], (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9]));
+            NAME, args -> new DataFrameIndexerTransformStats((long) args[0], (long) args[1], (long) args[2],
+            (long) args[3], (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9]));
 
     static {
         PARSER.declareLong(constructorArg(), NUM_PAGES);

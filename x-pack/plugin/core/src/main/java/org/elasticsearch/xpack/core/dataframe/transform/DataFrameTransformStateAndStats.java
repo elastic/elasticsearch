@@ -14,13 +14,13 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class DataFrameTransformStateAndStats implements Writeable, ToXContentObject {
 
+    private static final String NAME = "data_frame_transform_state_and_stats";
     public static final ParseField STATE_FIELD = new ParseField("state");
 
     private final String id;
@@ -28,7 +28,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
     private final DataFrameIndexerTransformStats transformStats;
 
     public static final ConstructingObjectParser<DataFrameTransformStateAndStats, Void> PARSER = new ConstructingObjectParser<>(
-            GetDataFrameTransformsAction.NAME,
+            NAME,
             a -> new DataFrameTransformStateAndStats((String) a[0], (DataFrameTransformState) a[1], (DataFrameIndexerTransformStats) a[2]));
 
     static {

@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
@@ -31,7 +30,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DataFrameTransformState implements Task.Status, PersistentTaskState {
-    public static final String NAME = DataFrameField.TASK_NAME;
+    public static final String NAME = "data_frame_transform_state";
 
     private final IndexerState state;
     private final long generation;

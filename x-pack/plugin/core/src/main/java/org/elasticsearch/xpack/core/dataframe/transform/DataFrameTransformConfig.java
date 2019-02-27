@@ -36,7 +36,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransformConfig> implements Writeable, ToXContentObject {
 
-    public static final String NAME = "data_frame_transforms";
+    private static final String NAME = "data_frame_transform";
     public static final ParseField HEADERS = new ParseField("headers");
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DESTINATION = new ParseField("dest");

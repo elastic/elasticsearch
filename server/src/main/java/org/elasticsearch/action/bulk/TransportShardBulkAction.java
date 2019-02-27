@@ -161,16 +161,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void aVoid) {
-                    assert context.isInitial(); // either completed and moved to next or reset
-                    if (context.hasMoreOperationsToExecute()) {
-                        executor.accept(
-                            () -> executeBulkItemRequest(
-                                context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, this)
-                        );
-                    } else {
-                        listener.onResponse(
-                            new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(),
-                                context.getLocationToSync(), null, context.getPrimary(), logger));
+                    try {
+                        assert context.isInitial(); // either completed and moved to next or reset
+                        if (context.hasMoreOperationsToExecute()) {
+                            executor.accept(
+                                () -> executeBulkItemRequest(
+                                    context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, this)
+                            );
+                        } else {
+                            listener.onResponse(
+                                new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(),
+                                    context.getLocationToSync(), null, context.getPrimary(), logger));
+                        }
+                    } catch (Exception e) {
+                        onFailure(e);
                     }
                 }
 
@@ -235,16 +239,19 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final ActionListener<AcknowledgedResponse> mappingUpdatedListener = ActionListener.wrap(r -> {
                     if (context.requiresWaitingForMappingUpdate()) {
                         waitForMappingUpdate.accept(
-                            ActionListener.wrap(
-                                v -> {
+                            new ActionListener<Void>() {
+                                @Override
+                                public void onResponse(final Void aVoid) {
                                     context.resetForExecutionForRetry();
-                                    itemDoneListener.onResponse(v);
-                                },
-                                e -> {
+                                    itemDoneListener.onResponse(null);
+                                }
+
+                                @Override
+                                public void onFailure(final Exception e) {
                                     context.failOnMappingUpdate(e);
                                     itemDoneListener.onResponse(null);
                                 }
-                            )
+                            }
                         );
                     } else {
                         itemDoneListener.onResponse(null);

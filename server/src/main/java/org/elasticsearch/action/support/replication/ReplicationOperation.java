@@ -137,7 +137,7 @@ public class ReplicationOperation<
 
             @Override
             public void onFailure(final Exception e) {
-                throw new AssertionError(e);
+                resultListener.onFailure(e);
             }
         });
     }

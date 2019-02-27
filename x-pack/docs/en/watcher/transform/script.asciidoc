@@ -43,10 +43,10 @@ The following table lists the possible settings that can be configured:
 |======
 | Name      |Required | Default    | Description
 
-| `inline`  | yes    | -          | When using an inline script, this field holds
+| `inline`  | yes     | -          | When using an inline script, this field holds
                                      the script itself.
 
-| `id`      | yes    | -          | When referring to a stored script, this
+| `id`      | yes     | -          | When referring to a stored script, this
                                      field holds the id of the script.
 
 | `lang`    | no      | `painless` | The script language

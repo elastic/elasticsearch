@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.zen;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.ValidateJoinRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -159,32 +160,6 @@ public class MembershipAction {
         }
     }
 
-    public static class ValidateJoinRequest extends TransportRequest {
-        private ClusterState state;
-
-        public ValidateJoinRequest() {}
-
-        public ValidateJoinRequest(ClusterState state) {
-            this.state = state;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.state = ClusterState.readFrom(in, null);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            this.state.writeTo(out);
-        }
-
-        public ClusterState getState() {
-            return state;
-        }
-    }
-
     static class ValidateJoinRequestRequestHandler implements TransportRequestHandler<ValidateJoinRequest> {
         private final Supplier<DiscoveryNode> localNodeSupplier;
         private final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators;
@@ -199,7 +174,7 @@ public class MembershipAction {
         public void messageReceived(ValidateJoinRequest request, TransportChannel channel, Task task) throws Exception {
             DiscoveryNode node = localNodeSupplier.get();
             assert node != null : "local node is null";
-            joinValidators.stream().forEach(action -> action.accept(node, request.state));
+            joinValidators.stream().forEach(action -> action.accept(node, request.getState()));
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }

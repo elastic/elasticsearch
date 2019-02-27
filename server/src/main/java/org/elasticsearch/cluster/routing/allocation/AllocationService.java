@@ -460,6 +460,10 @@ public class AllocationService {
         return System.nanoTime();
     }
 
+    public void cleanCaches() {
+        gatewayAllocator.cleanCaches();
+    }
+
     /**
      * this class is used to describe results of applying a set of
      * {@link org.elasticsearch.cluster.routing.allocation.command.AllocationCommand}

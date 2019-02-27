@@ -175,12 +175,6 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
   // Disable BWC tests for checkPart* tasks as it's expected that this will run un it's own check
   bwc_tests_enabled = false
 }
-if (project.gradle.startParameter.taskNames.contains("bwcTestSnapshots") && bwc_tests_enabled == false) {
-  throw new GradleException("BWC tests are disabled. " +
-          "This can happen if a branch happened to be created when they were disabled and can be solved by mergin at" +
-          "least to the commit on the parent branch that re-enabled them"
-  )
-}
 
 subprojects {
   ext.bwc_tests_enabled = bwc_tests_enabled

@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -397,7 +398,7 @@ public class UnicastZenPingTests extends ESTestCase {
                 Collections.emptySet());
         closeables.push(transportService);
         final int limitPortCounts = randomIntBetween(1, 10);
-        final List<TransportAddress> transportAddresses = UnicastZenPing.resolveHostsLists(
+        final List<TransportAddress> transportAddresses = SeedHostsResolver.resolveHostsLists(
             executorService,
             logger,
             Collections.singletonList("127.0.0.1"),
@@ -441,7 +442,7 @@ public class UnicastZenPingTests extends ESTestCase {
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null,
                 Collections.emptySet());
         closeables.push(transportService);
-        final List<TransportAddress> transportAddresses = UnicastZenPing.resolveHostsLists(
+        final List<TransportAddress> transportAddresses = SeedHostsResolver.resolveHostsLists(
             executorService,
             logger,
             Collections.singletonList(NetworkAddress.format(loopbackAddress)),
@@ -492,7 +493,7 @@ public class UnicastZenPingTests extends ESTestCase {
                 Collections.emptySet());
         closeables.push(transportService);
 
-        final List<TransportAddress> transportAddresses = UnicastZenPing.resolveHostsLists(
+        final List<TransportAddress> transportAddresses = SeedHostsResolver.resolveHostsLists(
             executorService,
             logger,
             Arrays.asList(hostname),
@@ -551,7 +552,7 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(transportService);
         final TimeValue resolveTimeout = TimeValue.timeValueSeconds(randomIntBetween(3, 5));
         try {
-            final List<TransportAddress> transportAddresses = UnicastZenPing.resolveHostsLists(
+            final List<TransportAddress> transportAddresses = SeedHostsResolver.resolveHostsLists(
                 executorService,
                 logger,
                 Arrays.asList("hostname1", "hostname2"),
@@ -718,7 +719,7 @@ public class UnicastZenPingTests extends ESTestCase {
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null,
                 Collections.emptySet());
         closeables.push(transportService);
-        final List<TransportAddress> transportAddresses = UnicastZenPing.resolveHostsLists(
+        final List<TransportAddress> transportAddresses = SeedHostsResolver.resolveHostsLists(
             executorService,
             logger,
             Arrays.asList("127.0.0.1:9300:9300", "127.0.0.1:9301"),

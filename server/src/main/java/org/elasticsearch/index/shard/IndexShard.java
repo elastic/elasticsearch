@@ -2475,7 +2475,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         final PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
         if (replicationTracker.peerRetentionLeasesNeedRenewal(getLocalCheckpointOfSafeCommit())) {
-            peerRecoveryRetentionLeaseRenewer.accept(plainActionFuture);
+            peerRecoveryRetentionLeaseRenewer.accept(ActionListener.wrap(v -> {
+                    replicationTracker.updatePeerRecoveryRetentionLeasesFromCheckpointState();
+                    plainActionFuture.onResponse(null);
+                }, plainActionFuture::onFailure));
         } else {
             plainActionFuture.onResponse(null);
         }

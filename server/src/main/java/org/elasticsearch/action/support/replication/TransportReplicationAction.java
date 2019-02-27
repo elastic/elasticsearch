@@ -1064,6 +1064,11 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
+        public long localCheckpointOfSafeCommit() {
+            return indexShard.getLocalCheckpointOfSafeCommit();
+        }
+
+        @Override
         public long maxSeqNoOfUpdatesOrDeletes() {
             return indexShard.getMaxSeqNoOfUpdatesOrDeletes();
         }

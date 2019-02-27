@@ -101,6 +101,7 @@ public class ReplicationOperation<
         pendingActions.incrementAndGet(); // increase by 1 until we finish all primary coordination
         primaryResult = primary.perform(request);
         primary.updateLocalCheckpointForShard(primaryRouting.allocationId().getId(), primary.localCheckpoint());
+        primary.updateLocalCheckpointOfSafeCommitForShard(primaryRouting.allocationId().getId(), primary.localCheckpointOfSafeCommit());
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         if (replicaRequest != null) {
             if (logger.isTraceEnabled()) {
@@ -341,6 +342,13 @@ public class ReplicationOperation<
          * @return the global checkpoint
          */
         long globalCheckpoint();
+
+        /**
+         * Returns the local checkpoint of the safe commit on the primary shard.
+         *
+         * @return the local checkpoint of the safe commit
+         */
+        long localCheckpointOfSafeCommit();
 
         /**
          * Returns the maximum seq_no of updates (index operations overwrite Lucene) or deletes on the primary.

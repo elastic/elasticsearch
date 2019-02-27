@@ -303,6 +303,11 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
                         }
 
                         @Override
+                        public long localCheckpointOfSafeCommit() {
+                            return 0;
+                        }
+
+                        @Override
                         public long maxSeqNoOfUpdatesOrDeletes() {
                             return 0;
                         }

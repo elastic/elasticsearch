@@ -419,6 +419,21 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
     }
 
+    public synchronized void updatePeerRecoveryRetentionLeasesFromCheckpointState() {
+        assert primaryMode;
+
+        for (final Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
+            final ShardRouting shardRouting = routingTable.getByAllocationId(entry.getKey());
+            final CheckpointState cps = entry.getValue();
+            if (cps.tracked) {
+                renewRetentionLease(
+                    getPeerRecoveryRetentionLeaseId(shardRouting),
+                    cps.localCheckpointOfSafeCommit + 1,
+                    PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+            }
+        }
+    }
+
     public static class CheckpointState implements Writeable {
 
         /**

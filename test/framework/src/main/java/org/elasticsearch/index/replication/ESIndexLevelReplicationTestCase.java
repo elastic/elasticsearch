@@ -680,6 +680,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
 
             @Override
+            public long localCheckpointOfSafeCommit() {
+                return getPrimaryShard().getLocalCheckpointOfSafeCommit();
+            }
+
+            @Override
             public long maxSeqNoOfUpdatesOrDeletes() {
                 return getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes();
             }

@@ -443,6 +443,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardRouting routing;
         final long localCheckpoint;
         final long globalCheckpoint;
+        final long localCheckpointOfSafeCommit;
         final long maxSeqNoOfUpdatesOrDeletes;
         final Supplier<ReplicationGroup> replicationGroupSupplier;
         final Map<String, Long> knownLocalCheckpoints = new HashMap<>();
@@ -454,6 +455,7 @@ public class ReplicationOperationTests extends ESTestCase {
             this.replicationGroupSupplier = replicationGroupSupplier;
             this.localCheckpoint = random().nextLong();
             this.globalCheckpoint = randomNonNegativeLong();
+            this.localCheckpointOfSafeCommit = randomNonNegativeLong();
             this.maxSeqNoOfUpdatesOrDeletes = randomNonNegativeLong();
         }
 
@@ -521,6 +523,11 @@ public class ReplicationOperationTests extends ESTestCase {
         @Override
         public long globalCheckpoint() {
             return globalCheckpoint;
+        }
+
+        @Override
+        public long localCheckpointOfSafeCommit() {
+            return localCheckpointOfSafeCommit;
         }
 
         @Override

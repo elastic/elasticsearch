@@ -71,9 +71,6 @@ public class DiscoveryModule {
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
         new Setting<>("discovery.type", ZEN2_DISCOVERY_TYPE, Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING =
-        Setting.listSetting("discovery.zen.hosts_provider", Collections.emptyList(), Function.identity(),
-            Property.NodeScope, Property.Deprecated);
     public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING =
         Setting.listSetting("discovery.seed_providers", Collections.emptyList(), Function.identity(),
             Property.NodeScope);
@@ -100,7 +97,7 @@ public class DiscoveryModule {
             }
         }
 
-        List<String> seedProviderNames = getSeedProviderNames(settings);
+        List<String> seedProviderNames = DISCOVERY_SEED_PROVIDERS_SETTING.get(settings);
         // for bwc purposes, add settings provider even if not explicitly specified
         if (seedProviderNames.contains("settings") == false) {
             List<String> extendedSeedProviderNames = new ArrayList<>();
@@ -140,17 +137,6 @@ public class DiscoveryModule {
         }
         logger.info("using discovery type [{}] and seed hosts providers {}", discoveryType, seedProviderNames);
         discovery = Objects.requireNonNull(discoverySupplier.get());
-    }
-
-    private List<String> getSeedProviderNames(Settings settings) {
-        if (LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings)) {
-            if (DISCOVERY_SEED_PROVIDERS_SETTING.exists(settings)) {
-                throw new IllegalArgumentException("it is forbidden to set both [" + DISCOVERY_SEED_PROVIDERS_SETTING.getKey() + "] and ["
-                    + LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + "]");
-            }
-            return LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
-        }
-        return DISCOVERY_SEED_PROVIDERS_SETTING.get(settings);
     }
 
     public Discovery getDiscovery() {

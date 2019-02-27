@@ -116,27 +116,6 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertTrue(created.get());
     }
 
-    public void testLegacyHostsProvider() {
-        Settings settings = Settings.builder().put(DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "custom").build();
-        AtomicBoolean created = new AtomicBoolean(false);
-        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> {
-            created.set(true);
-            return hostsResolver -> Collections.emptyList();
-        });
-        newModule(settings, Collections.singletonList(plugin));
-        assertTrue(created.get());
-        assertWarnings("[discovery.zen.hosts_provider] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-            "See the breaking changes documentation for the next major version.");
-    }
-
-    public void testLegacyAndNonLegacyProvidersRejected() {
-        Settings settings = Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey())
-            .putList(DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()).build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            newModule(settings, Collections.emptyList()));
-        assertEquals("it is forbidden to set both [discovery.seed_providers] and [discovery.zen.hosts_provider]", e.getMessage());
-    }
-
     public void testUnknownSeedsProvider() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "dne").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->

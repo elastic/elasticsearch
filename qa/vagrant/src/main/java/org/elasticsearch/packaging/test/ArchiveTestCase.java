@@ -33,10 +33,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
@@ -85,43 +83,17 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         final Shell sh = new Shell();
 
-        Platforms.onWindows(() -> {
-            // on windows, moving bundled java and removing JAVA_HOME is less involved than changing the permissions of the java
-            // executable. we also don't check permissions in the windows scripts anyway
-            final String originalPath = sh.run("$Env:PATH").stdout.trim();
-            final String newPath = Arrays.stream(originalPath.split(";"))
-                .filter(path -> path.contains("Java") == false)
-                .collect(joining(";"));
+        final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
 
-            // note the lack of a $ when clearing the JAVA_HOME env variable - with a $ it deletes the java home directory
-            // https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/providers/environment-provider?view=powershell-6
-            //
-            // this won't persist to another session so we don't have to reset anything
-            final Result runResult = sh.runIgnoreExitCode(
-                "$Env:PATH = '" + newPath + "'; " +
-                "Remove-Item Env:JAVA_HOME; " +
-                bin.elasticsearch
-            );
-
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
+            final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -v");
             assertThat(runResult.exitCode, is(1));
             assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME or bundled"));
-        });
-
-        Platforms.onLinux(() -> {
-            final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
-
-            try {
-                mv(installation.bundledJdk, relocatedJdk);
-                final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString());
-                System.err.println("CODE: " + runResult.exitCode);
-                System.err.println("STDOUT: " + runResult.stdout);
-                System.err.println("STDERR: " + runResult.stderr);
-                assertThat(runResult.exitCode, is(1));
-                assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME or bundled"));
-            } finally {
-                mv(relocatedJdk, installation.bundledJdk);
-            }
-        });
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
     }
 
     public void test40CreateKeystoreManually() {

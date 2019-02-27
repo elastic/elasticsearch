@@ -547,9 +547,9 @@ public class JobManagerTests extends ESTestCase {
         // group-1 will expand to job-1 and job-2
         List<Map<String, DocumentField>> fieldHits = new ArrayList<>();
         fieldHits.add(Collections.singletonMap(Job.ID.getPreferredName(),
-                new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("job-1"))));
+                new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("job-1"), false)));
         fieldHits.add(Collections.singletonMap(Job.ID.getPreferredName(),
-                new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("job-2"))));
+                new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("job-2"), false)));
 
 
         mockClientBuilder.prepareSearchFields(AnomalyDetectorsIndex.configIndexName(), fieldHits);

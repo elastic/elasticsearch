@@ -172,8 +172,11 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
         DataFrameTransformConfig dataFrameTransformConfig = createDataFrameTransformConfigFromString(pivotTransform, "body_id");
         assertEquals("body_id", dataFrameTransformConfig.getId());
 
-        expectThrows(IllegalArgumentException.class,
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> createDataFrameTransformConfigFromString(pivotTransform, "other_id"));
+
+        assertEquals("Inconsistent id; 'body_id' specified in the body differs from 'other_id' specified as a URL argument",
+                ex.getCause().getMessage());
     }
 
     private DataFrameTransformConfig createDataFrameTransformConfigFromString(String json, String id) throws IOException {

@@ -50,8 +50,8 @@ public final class Polygon implements Geometry {
         boolean hasAlt = polygon.hasAlt();
         checkRing(polygon);
         for (LinearRing hole : holes) {
-            if (hole.hasAlt()) {
-               hasAlt = true;
+            if (hole.hasAlt() != hasAlt) {
+                throw new IllegalArgumentException("holes must have the same number of dimensions as the polygon");
             }
             checkRing(hole);
         }

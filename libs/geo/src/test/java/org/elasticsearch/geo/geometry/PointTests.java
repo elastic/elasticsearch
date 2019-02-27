@@ -26,8 +26,8 @@ import java.text.ParseException;
 
 public class PointTests extends BaseGeometryTestCase<Point> {
     @Override
-    protected Point createTestInstance() {
-        return randomPoint();
+    protected Point createTestInstance(boolean hasAlt) {
+        return randomPoint(hasAlt);
     }
 
     public void testBasicSerialization() throws IOException, ParseException {

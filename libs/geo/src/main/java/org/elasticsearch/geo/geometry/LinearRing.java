@@ -39,7 +39,7 @@ public class LinearRing extends Line {
         if (lats.length < 2) {
             throw new IllegalArgumentException("linear ring cannot contain less than 2 points, found " + lats.length);
         }
-        if (lats[0] != lats[lats.length - 1] || lons[0] != lons[lons.length - 1]) {
+        if (lats[0] != lats[lats.length - 1] || lons[0] != lons[lons.length - 1] || (alts != null && alts[0] != alts[alts.length - 1])) {
             throw new IllegalArgumentException("first and last points of the linear ring must be the same (it must close itself): lats[0]="
                 + lats[0] + " lats[" + (lats.length - 1) + "]=" + lats[lats.length - 1]);
         }

@@ -31,8 +31,7 @@ import java.util.List;
 public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
 
     @Override
-    protected MultiPoint createTestInstance() {
-        boolean hasAlt = randomBoolean();
+    protected MultiPoint createTestInstance(boolean hasAlt) {
         int size = randomIntBetween(1, 10);
         List<Point> arr = new ArrayList<>();
         for (int i = 0; i < size; i++) {

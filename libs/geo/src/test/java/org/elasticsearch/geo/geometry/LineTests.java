@@ -26,8 +26,8 @@ import java.text.ParseException;
 
 public class LineTests extends BaseGeometryTestCase<Line> {
     @Override
-    protected Line createTestInstance() {
-        return randomLine();
+    protected Line createTestInstance(boolean hasAlt) {
+        return randomLine(hasAlt);
     }
 
     public void testBasicSerialization() throws IOException, ParseException {

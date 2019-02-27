@@ -26,7 +26,8 @@ import java.text.ParseException;
 
 public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
     @Override
-    protected Rectangle createTestInstance() {
+    protected Rectangle createTestInstance(boolean hasAlt) {
+        assumeFalse("3rd dimension is not supported yet", hasAlt);
         return randomRectangle();
     }
 

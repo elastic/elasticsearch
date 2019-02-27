@@ -32,6 +32,8 @@ public class GeometryCollection<G extends Geometry> implements Geometry, Iterabl
 
     private final List<G> shapes;
 
+    private boolean hasAlt;
+
     public GeometryCollection() {
         shapes = Collections.emptyList();
     }
@@ -39,6 +41,12 @@ public class GeometryCollection<G extends Geometry> implements Geometry, Iterabl
     public GeometryCollection(List<G> shapes) {
         if (shapes == null || shapes.isEmpty()) {
             throw new IllegalArgumentException("the list of shapes cannot be null or empty");
+        }
+        hasAlt = shapes.get(0).hasAlt();
+        for (G shape : shapes) {
+            if (shape.hasAlt() != hasAlt) {
+                throw new IllegalArgumentException("all elements of the collection should have the same number of dimension");
+            }
         }
         this.shapes = shapes;
     }
@@ -86,12 +94,7 @@ public class GeometryCollection<G extends Geometry> implements Geometry, Iterabl
 
     @Override
     public boolean hasAlt() {
-        for (G g : shapes) {
-            if (g.hasAlt()) {
-                return true;
-            }
-        }
-        return false;
+        return hasAlt;
     }
 
     @Override

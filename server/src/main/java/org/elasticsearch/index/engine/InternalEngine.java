@@ -764,6 +764,7 @@ public class InternalEngine extends Engine {
                     return true;
                 case LOCAL_TRANSLOG_RECOVERY:
                 case LOCAL_RESET:
+                case SNAPSHOT_RECOVERY:
                     assert index.isRetry();
                     return true; // allow to optimize in order to update the max safe time stamp
                 default:

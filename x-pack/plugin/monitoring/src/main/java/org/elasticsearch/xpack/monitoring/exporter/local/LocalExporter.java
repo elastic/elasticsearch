@@ -74,7 +74,10 @@ import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
+import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
+import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.loadPipeline;
+import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
 import static org.elasticsearch.xpack.monitoring.Monitoring.CLEAN_WATCHER_HISTORY;
 
 public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
@@ -87,6 +90,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
     private final CleanerService cleanerService;
+    private final boolean useIngest;
     private final DateFormatter dateTimeFormatter;
     private final List<String> clusterAlertBlacklist;
 
@@ -100,6 +104,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         this.client = client;
         this.clusterService = config.clusterService();
         this.licenseState = config.licenseState();
+        this.useIngest = USE_INGEST_PIPELINE_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         this.clusterAlertBlacklist = ClusterAlertsUtil.getClusterAlertsBlacklist(config);
         this.cleanerService = cleanerService;
         this.dateTimeFormatter = dateTimeFormatter(config);
@@ -196,7 +201,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             clusterService.removeListener(this);
         }
 
-        return new LocalBulk(name(), logger, client, dateTimeFormatter);
+        return new LocalBulk(name(), logger, client, dateTimeFormatter, useIngest);
     }
 
     /**
@@ -218,7 +223,16 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             }
         }
 
-
+        // if we don't have the ingest pipeline, then it's going to fail anyway
+        if (useIngest) {
+            for (final String pipelineId : PIPELINE_IDS) {
+                if (hasIngestPipeline(clusterState, pipelineId) == false) {
+                    logger.debug("monitoring ingest pipeline [{}] does not exist, so service cannot start (waiting on master)",
+                                 pipelineName(pipelineId));
+                    return false;
+                }
+            }
+        }
 
         logger.trace("monitoring index templates and pipelines are installed, service can start");
 
@@ -268,6 +282,26 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             }
         }
 
+        if (useIngest) {
+            final List<String> missingPipelines = Arrays.stream(PIPELINE_IDS)
+                    .filter(id -> hasIngestPipeline(clusterState, id) == false)
+                    .collect(Collectors.toList());
+
+            // if we don't have the ingest pipeline, then install it
+            if (missingPipelines.isEmpty() == false) {
+                for (final String pipelineId : missingPipelines) {
+                    final String pipelineName = pipelineName(pipelineId);
+                    logger.debug("pipeline [{}] not found", pipelineName);
+                    asyncActions.add(() -> putIngestPipeline(pipelineId,
+                                                             new ResponseActionListener<>("pipeline",
+                                                                                          pipelineName,
+                                                                                          pendingResponses)));
+                }
+            } else {
+                logger.trace("all pipelines found");
+            }
+        }
+
         // avoid constantly trying to setup Watcher, which requires a lot of overhead and avoid attempting to setup during a cluster state
         // change
         if (state.get() == State.RUNNING && clusterStateChange == false && canUseWatcher()) {
@@ -313,7 +347,55 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
     }
 
-      private boolean hasTemplate(final ClusterState clusterState, final String templateName) {
+    /**
+     * Determine if the ingest pipeline for {@code pipelineId} exists in the cluster or not with an appropriate minimum version.
+     *
+     * @param clusterState The current cluster state
+     * @param pipelineId The ID of the pipeline to check (e.g., "3")
+     * @return {@code true} if the {@code clusterState} contains the pipeline with an appropriate minimum version
+     */
+    private boolean hasIngestPipeline(final ClusterState clusterState, final String pipelineId) {
+        final String pipelineName = MonitoringTemplateUtils.pipelineName(pipelineId);
+        final IngestMetadata ingestMetadata = clusterState.getMetaData().custom(IngestMetadata.TYPE);
+
+        // we ensure that we both have the pipeline and its version represents the current (or later) version
+        if (ingestMetadata != null) {
+            final PipelineConfiguration pipeline = ingestMetadata.getPipelines().get(pipelineName);
+
+            return pipeline != null && hasValidVersion(pipeline.getConfigAsMap().get("version"), LAST_UPDATED_VERSION);
+        }
+
+        return false;
+    }
+
+    /**
+     * Create the pipeline required to handle past data as well as to future-proof ingestion for <em>current</em> documents (the pipeline
+     * is initially empty, but it can be replaced later with one that translates it as-needed).
+     * <p>
+     * This should only be invoked by the <em>elected</em> master node.
+     * <p>
+     * Whenever we eventually make a backwards incompatible change, then we need to override any pipeline that already exists that is
+     * older than this one. This uses the Elasticsearch version, down to the alpha portion, to determine the version of the last change.
+     * <pre><code>
+     * {
+     *   "description": "...",
+     *   "pipelines" : [ ... ],
+     *   "version": 6000001
+     * }
+     * </code></pre>
+     */
+    private void putIngestPipeline(final String pipelineId, final ActionListener<AcknowledgedResponse> listener) {
+        final String pipelineName = pipelineName(pipelineId);
+        final BytesReference pipeline = BytesReference.bytes(loadPipeline(pipelineId, XContentType.JSON));
+        final PutPipelineRequest request = new PutPipelineRequest(pipelineName, pipeline, XContentType.JSON);
+
+        logger.debug("installing ingest pipeline [{}]", pipelineName);
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request, listener,
+                client.admin().cluster()::putPipeline);
+    }
+
+    private boolean hasTemplate(final ClusterState clusterState, final String templateName) {
         final IndexTemplateMetaData template = clusterState.getMetaData().getTemplates().get(templateName);
 
         return template != null && hasValidVersion(template.getVersion(), LAST_UPDATED_VERSION);

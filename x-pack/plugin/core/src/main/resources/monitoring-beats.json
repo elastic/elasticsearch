@@ -5,7 +5,7 @@
   "settings": {
     "index.auto_expand_replicas": "0-1",
     "index.codec": "best_compression",
-    "index.format": 7,
+    "index.format": 6,
     "index.number_of_replicas": 0,
     "index.number_of_shards": 1
   },

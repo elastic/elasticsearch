@@ -21,6 +21,7 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -52,7 +53,7 @@ public class RetentionLeaseStatsTests extends ESSingleNodeTestCase {
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
             final CountDownLatch latch = new CountDownLatch(1);
-            final ActionListener<Void> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+            final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
             latch.await();
         }

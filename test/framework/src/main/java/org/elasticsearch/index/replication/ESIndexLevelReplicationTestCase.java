@@ -183,14 +183,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         private final RetentionLeaseSyncer retentionLeaseSyncer = new RetentionLeaseSyncer() {
             @Override
-            public void sync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<Void> listener) {
+            public void sync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<ReplicationResponse> listener) {
                 syncRetentionLeases(shardId, retentionLeases, listener);
             }
 
             @Override
-            public void backgroundSync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<Void> listener) {
+            public void backgroundSync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<ReplicationResponse> listener) {
                 sync(shardId, retentionLeases, ActionListener.wrap(
-                    r -> listener.onResponse(null),
+                    listener::onResponse,
                     e -> {
                         throw new AssertionError("failed to background sync retention lease", e);
                     }));
@@ -533,15 +533,15 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return replicationTargets;
         }
 
-        protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<Void> listener) {
+        protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
             RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(shardId, leases);
             ActionListener<RetentionLeaseSyncAction.Response> wrappedListener = ActionListener.wrap(
-                r -> listener.onResponse(null), listener::onFailure);
+                r -> listener.onResponse(new ReplicationResponse()), listener::onFailure);
             new SyncRetentionLeases(request, ReplicationGroup.this, wrappedListener).execute();
         }
 
         public synchronized RetentionLease addRetentionLease(String id, long retainingSequenceNumber, String source,
-                                                ActionListener<Void> listener) {
+                                                ActionListener<ReplicationResponse> listener) {
             return getPrimary().addRetentionLease(id, retainingSequenceNumber, source, listener);
         }
 
@@ -549,7 +549,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return getPrimary().renewRetentionLease(id, retainingSequenceNumber, source);
         }
 
-        public synchronized void removeRetentionLease(String id, ActionListener<Void> listener) {
+        public synchronized void removeRetentionLease(String id, ActionListener<ReplicationResponse> listener) {
             getPrimary().removeRetentionLease(id, listener);
         }
 

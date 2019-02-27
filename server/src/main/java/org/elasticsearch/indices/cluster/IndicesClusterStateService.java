@@ -26,6 +26,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -165,7 +166,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     public void sync(
                             final ShardId shardId,
                             final RetentionLeases retentionLeases,
-                            final ActionListener<Void> listener) {
+                            final ActionListener<ReplicationResponse> listener) {
                         Objects.requireNonNull(retentionLeaseSyncAction).sync(shardId, retentionLeases, listener);
                     }
 
@@ -173,7 +174,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     public void backgroundSync(
                             final ShardId shardId,
                             final RetentionLeases retentionLeases,
-                            final ActionListener<Void> listener) {
+                            final ActionListener<ReplicationResponse> listener) {
                         Objects.requireNonNull(retentionLeaseBackgroundSyncAction).backgroundSync(shardId, retentionLeases, listener);
                     }
                 });

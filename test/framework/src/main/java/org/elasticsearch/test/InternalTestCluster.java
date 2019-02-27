@@ -40,6 +40,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.support.AdapterActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -155,8 +156,8 @@ import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING
 import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
 import static org.elasticsearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
 import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
-import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
+import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
@@ -2495,14 +2496,14 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public void syncRetentionLeases(Index... indices) {
-        final List<PlainActionFuture<Void>> futures = new ArrayList<>();
+        final List<PlainActionFuture<ReplicationResponse>> futures = new ArrayList<>();
         for (final Index index : indices) {
             for (final IndicesService indicesService : getInstances(IndicesService.class)) {
                 final IndexService indexService = indicesService.indexService(index);
                 if (indexService != null) {
                     for (final IndexShard indexShard : indexService) {
                         if (indexShard.routingEntry().primary()) {
-                            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+                            final PlainActionFuture<ReplicationResponse> future = new PlainActionFuture<>();
                             futures.add(future);
                             indexShard.syncRetentionLeases(future);
                         }

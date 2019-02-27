@@ -41,6 +41,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -1938,7 +1939,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final String id,
             final long retainingSequenceNumber,
             final String source,
-            final ActionListener<Void> listener) {
+            final ActionListener<ReplicationResponse> listener) {
         Objects.requireNonNull(listener);
         assert assertPrimaryMode();
         verifyNotClosed();
@@ -1978,7 +1979,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param id       the identifier of the retention lease
      * @param listener the callback when the retention lease is successfully removed and synced to replicas
      */
-    public void removeRetentionLease(final String id, final ActionListener<Void> listener) {
+    public void removeRetentionLease(final String id, final ActionListener<ReplicationResponse> listener) {
         Objects.requireNonNull(listener);
         assert assertPrimaryMode();
         verifyNotClosed();
@@ -2020,7 +2021,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Syncs the current retention leases to all replicas.
      */
-    public void syncRetentionLeases(ActionListener<Void> listener) {
+    public void syncRetentionLeases(ActionListener<ReplicationResponse> listener) {
         assert assertPrimaryMode();
         verifyNotClosed();
         final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
@@ -2030,7 +2031,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     shardId,
                     retentionLeases.v2(),
                     ActionListener.wrap(
-                            r -> listener.onResponse(null),
+                            listener::onResponse,
                             e -> {
                                 logger.warn(new ParameterizedMessage(
                                         "failed to sync retention leases [{}] after expiration check",
@@ -2042,7 +2043,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.trace("background syncing retention leases [{}] after expiration check", retentionLeases.v2());
             retentionLeaseSyncer.backgroundSync(shardId, retentionLeases.v2(),
                 ActionListener.wrap(
-                    r -> listener.onResponse(null),
+                    listener::onResponse,
                     e -> {
                         logger.warn(new ParameterizedMessage(
                                 "failed to background sync retention leases [{}] after expiration check",

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -161,7 +162,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * A callback when a new retention lease is created or an existing retention lease is removed. In practice, this callback invokes the
      * retention lease sync action, to sync retention leases to replicas.
      */
-    private final BiConsumer<RetentionLeases, ActionListener<Void>> onSyncRetentionLeases;
+    private final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases;
 
     /**
      * This set contains allocation IDs for which there is a thread actively waiting for the local checkpoint to advance to at least the
@@ -232,7 +233,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final String id,
             final long retainingSequenceNumber,
             final String source,
-            final ActionListener<Void> listener) {
+            final ActionListener<ReplicationResponse> listener) {
         Objects.requireNonNull(listener);
         final RetentionLease retentionLease;
         final RetentionLeases currentRetentionLeases;
@@ -291,7 +292,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param id       the identifier of the retention lease
      * @param listener the callback when the retention lease is successfully removed and synced to replicas
      */
-    public void removeRetentionLease(final String id, final ActionListener<Void> listener) {
+    public void removeRetentionLease(final String id, final ActionListener<ReplicationResponse> listener) {
         Objects.requireNonNull(listener);
         final RetentionLeases currentRetentionLeases;
         synchronized (this) {
@@ -632,7 +633,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final long globalCheckpoint,
             final LongConsumer onGlobalCheckpointUpdated,
             final LongSupplier currentTimeMillisSupplier,
-            final BiConsumer<RetentionLeases, ActionListener<Void>> onSyncRetentionLeases) {
+            final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;

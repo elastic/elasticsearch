@@ -21,6 +21,7 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Setting;
@@ -101,7 +102,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
             final CountDownLatch latch = new CountDownLatch(1);
-            final ActionListener<Void> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+            final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             // simulate a peer recovery which locks the soft deletes policy on the primary
             final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLock() : () -> {};
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
@@ -148,7 +149,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
             final CountDownLatch latch = new CountDownLatch(1);
-            final ActionListener<Void> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+            final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             // simulate a peer recovery which locks the soft deletes policy on the primary
             final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLock() : () -> {};
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
@@ -225,7 +226,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
             final CountDownLatch latch = new CountDownLatch(1);
-            final ActionListener<Void> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+            final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             final RetentionLease currentRetentionLease = primary.addRetentionLease(id, retainingSequenceNumber, source, listener);
             latch.await();
             final long leaseCreatedBeforeMillis = getCurrentMillisOnPrimary.getAsLong();
@@ -371,7 +372,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
             final CountDownLatch latch = new CountDownLatch(1);
-            final ActionListener<Void> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+            final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
             latch.await();
             currentRetentionLeases.put(id, primary.renewRetentionLease(id, retainingSequenceNumber, source));
@@ -423,7 +424,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     final String nextSource = randomAlphaOfLength(8);
                     retentionLease.set(primary.renewRetentionLease(idForInitialRetentionLease, nextRetainingSequenceNumber, nextSource));
                     if (relyOnPeriodicSync) {
-                        listener.onResponse(null);
+                        listener.onResponse(new ReplicationResponse());
                     } else {
                         primary.syncRetentionLeases(listener);
                     }
@@ -460,7 +461,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
     private void runUnderBlockTest(
             final String idForInitialRetentionLease,
             final long initialRetainingSequenceNumber,
-            final BiConsumer<IndexShard, ActionListener<Void>> primaryConsumer,
+            final BiConsumer<IndexShard, ActionListener<ReplicationResponse>> primaryConsumer,
             final Consumer<IndexShard> afterSync,
             final boolean relyOnPeriodicSync) throws InterruptedException {
 
@@ -481,7 +482,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
 
         final String source = randomAlphaOfLength(8);
         final CountDownLatch latch = new CountDownLatch(1);
-        final ActionListener<Void> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+        final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
         primary.addRetentionLease(idForInitialRetentionLease, initialRetainingSequenceNumber, source, listener);
         latch.await();
 
@@ -500,10 +501,10 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
 
             primaryConsumer.accept(
                     primary,
-                    new ActionListener<Void>() {
+                    new ActionListener<ReplicationResponse>() {
 
                         @Override
-                        public void onResponse(final Void aVoid) {
+                        public void onResponse(final ReplicationResponse replicationResponse) {
                             success.set(true);
                             actionLatch.countDown();
                         }
@@ -554,7 +555,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     final String nextSource = randomAlphaOfLength(8);
                     retentionLease.set(primary.renewRetentionLease(idForInitialRetentionLease, nextRetainingSequenceNumber, nextSource));
                     if (relyOnPeriodicSync) {
-                        listener.onResponse(null);
+                        listener.onResponse(new ReplicationResponse());
                     } else {
                         primary.syncRetentionLeases(listener);
                     }
@@ -590,7 +591,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
     private void runWaitForShardsTest(
             final String idForInitialRetentionLease,
             final long initialRetainingSequenceNumber,
-            final BiConsumer<IndexShard, ActionListener<Void>> primaryConsumer,
+            final BiConsumer<IndexShard, ActionListener<ReplicationResponse>> primaryConsumer,
             final Consumer<IndexShard> afterSync,
             final boolean relyOnPeriodicSync) throws InterruptedException {
         final int numDataNodes = internalCluster().numDataNodes();
@@ -611,7 +612,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
 
         final String source = randomAlphaOfLength(8);
         final CountDownLatch latch = new CountDownLatch(1);
-        final ActionListener<Void> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+        final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
         primary.addRetentionLease(idForInitialRetentionLease, initialRetainingSequenceNumber, source, listener);
         latch.await();
 
@@ -629,10 +630,10 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
 
         primaryConsumer.accept(
                 primary,
-                new ActionListener<Void>() {
+                new ActionListener<ReplicationResponse>() {
 
                     @Override
-                    public void onResponse(final Void aVoid) {
+                    public void onResponse(final ReplicationResponse replicationResponse) {
                         success.set(true);
                         actionLatch.countDown();
                     }

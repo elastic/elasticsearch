@@ -102,7 +102,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     public void backgroundSync(
             final ShardId shardId,
             final RetentionLeases retentionLeases,
-            final ActionListener<Void> listener) {
+            final ActionListener<ReplicationResponse> listener) {
         Objects.requireNonNull(shardId);
         Objects.requireNonNull(retentionLeases);
         final ThreadContext threadContext = threadPool.getThreadContext();
@@ -112,7 +112,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             execute(
                     new Request(shardId, retentionLeases),
                     ActionListener.wrap(
-                            r -> listener.onResponse(null),
+                            listener::onResponse,
                             e -> {
                                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
                                     getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);

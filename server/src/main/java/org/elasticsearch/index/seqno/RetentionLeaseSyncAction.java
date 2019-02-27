@@ -101,7 +101,7 @@ public class RetentionLeaseSyncAction extends
     public void sync(
             final ShardId shardId,
             final RetentionLeases retentionLeases,
-            final ActionListener<Void> listener) {
+            final ActionListener<ReplicationResponse> listener) {
         Objects.requireNonNull(shardId);
         Objects.requireNonNull(retentionLeases);
         Objects.requireNonNull(listener);
@@ -112,7 +112,7 @@ public class RetentionLeaseSyncAction extends
             execute(
                     new RetentionLeaseSyncAction.Request(shardId, retentionLeases),
                     ActionListener.wrap(
-                            r -> listener.onResponse(null),
+                            listener::onResponse,
                             e -> {
                                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
                                     getLogger().warn(new ParameterizedMessage("{} retention lease sync failed", shardId), e);

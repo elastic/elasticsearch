@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -577,7 +578,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         followerGroup.getPrimary().routingEntry().index(),
                         "remote",
                         leaderGroup.getPrimary().routingEntry().index());
-                final PlainActionFuture<Void> response = new PlainActionFuture<>();
+                final PlainActionFuture<ReplicationResponse> response = new PlainActionFuture<>();
                 leaderGroup.addRetentionLease(
                         retentionLeaseId,
                         followerGlobalCheckpoint.getAsLong(),

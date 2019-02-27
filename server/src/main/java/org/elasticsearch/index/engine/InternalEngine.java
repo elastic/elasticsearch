@@ -1707,6 +1707,10 @@ public class InternalEngine extends Engine {
                         logger.trace("starting commit for flush; commitTranslog=true");
                         commitIndexWriter(indexWriter, translog, null);
                         logger.trace("finished commit for flush");
+
+                        // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
+                        logger.debug("new commit on flush");
+
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush", SearcherScope.INTERNAL);
                         translog.trimUnreferencedReaders();

@@ -81,6 +81,27 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
         assertThat(ex.getCause().getMessage(), containsString("badField"));
     }
 
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+    }
+
+    @Override
+    public void testFromXContentMulti() throws IOException {
+        super.testFromXContentMulti();
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+    }
+
+    @Override
+    public void testToString() throws IOException {
+        super.testToString();
+        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+    }
+
     /**
      * We never render "null" values to xContent, but we should test that we can parse them (and they return correct defaults)
      */

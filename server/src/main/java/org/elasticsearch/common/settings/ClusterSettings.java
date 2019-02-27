@@ -68,9 +68,6 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
-import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.FaultDetection;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
@@ -291,7 +288,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ClusterService.USER_DEFINED_META_DATA,
                     SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                     SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
-                    ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
                     TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                     RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
                     RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS,
@@ -390,20 +386,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     DiscoveryModule.DISCOVERY_TYPE_SETTING,
                     DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING,
                     DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING,
-                    FaultDetection.PING_RETRIES_SETTING,
-                    FaultDetection.PING_TIMEOUT_SETTING,
-                    FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING,
-                    FaultDetection.PING_INTERVAL_SETTING,
-                    FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING,
-                    ZenDiscovery.PING_TIMEOUT_SETTING,
-                    ZenDiscovery.JOIN_TIMEOUT_SETTING,
-                    ZenDiscovery.JOIN_RETRY_ATTEMPTS_SETTING,
-                    ZenDiscovery.JOIN_RETRY_DELAY_SETTING,
-                    ZenDiscovery.MAX_PINGS_FROM_ANOTHER_MASTER_SETTING,
-                    ZenDiscovery.SEND_LEAVE_REQUEST_SETTING,
-                    ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING,
-                    ZenDiscovery.MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING,
-                    ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING,
                     SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING,
                     SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
                     SeedHostsResolver.DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING,

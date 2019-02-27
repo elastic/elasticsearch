@@ -23,7 +23,8 @@ import static org.mockito.Mockito.mock;
 public class RestDeleteDataFrameTransformActionTests extends ESTestCase {
 
     public void testBodyRejection() throws Exception {
-        final RestDeleteDataFrameTransformAction handler = new RestDeleteDataFrameTransformAction(Settings.EMPTY, mock(RestController.class));
+        final RestDeleteDataFrameTransformAction handler = new RestDeleteDataFrameTransformAction(Settings.EMPTY,
+                mock(RestController.class));
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             {

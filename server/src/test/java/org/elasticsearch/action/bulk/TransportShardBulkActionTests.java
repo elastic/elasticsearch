@@ -997,28 +997,35 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest =
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
+        final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.performOnPrimary(
             bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
             listener -> {
-            }, new ActionListener<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>>() {
-                @Override
-                public void onResponse(final TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse> result) {
-                    assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>)result).location, equalTo(resultLocation));
-                    BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();
-                    assertThat(primaryResponse.getItemId(), equalTo(0));
-                    assertThat(primaryResponse.getId(), equalTo("id"));
-                    assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
-                    DocWriteResponse response = primaryResponse.getResponse();
-                    assertThat(response.status(), equalTo(RestStatus.CREATED));
-                    assertThat(response.getSeqNo(), equalTo(13L));
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    throw new AssertionError(e);
-                }
             },
+            new LatchedActionListener<>(
+                new ActionListener<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>>() {
+                    @Override
+                    public void onResponse(final TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse> result) {
+                        assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, equalTo(resultLocation));
+                        BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();
+                        assertThat(primaryResponse.getItemId(), equalTo(0));
+                        assertThat(primaryResponse.getId(), equalTo("id"));
+                        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
+                        DocWriteResponse response = primaryResponse.getResponse();
+                        assertThat(response.status(), equalTo(RestStatus.CREATED));
+                        assertThat(response.getSeqNo(), equalTo(13L));
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+                        throw new AssertionError(e);
+                    }
+                },
+                latch
+            ),
             r -> threadPool.executor(ThreadPool.Names.WRITE).execute(r));
+
+        latch.await();
     }
 
     private void randomlySetIgnoredPrimaryResponse(BulkItemRequest primaryRequest) {

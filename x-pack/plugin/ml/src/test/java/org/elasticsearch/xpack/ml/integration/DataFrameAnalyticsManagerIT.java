@@ -164,7 +164,7 @@ public class DataFrameAnalyticsManagerIT extends BaseMlIntegTestCase {
         String id = "test_outlier_detection_from_analyze_state";
         DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex);
         putDataFrameAnalyticsConfig(config);
-        // Create the "results" index, as if we ran reindex already in the process, but did not transition from the state properly
+        // Create the "results" index to simulate running reindex already and having partially ran analysis
         createAnalysesResultsIndex(config.getDest(), true);
         List<AnalyticsResult> results = buildExpectedResults(sourceIndex);
 

@@ -101,8 +101,7 @@ public class DataFrameDataExtractorFactory {
     public static void create(Client client,
                               DataFrameAnalyticsConfig config,
                               ActionListener<DataFrameDataExtractorFactory> listener) {
-        List<DataFrameAnalysis> analyses = DataFrameAnalysesUtils.readAnalyses(config.getAnalyses());
-        Set<String> resultFields = analyses.stream().flatMap(analysis -> analysis.getResultFields().stream()).collect(Collectors.toSet());
+        Set<String> resultFields = resolveResultsFields(config);
         validateIndexAndExtractFields(client, config.getHeaders(), config.getDest(), config.getAnalysesFields(), resultFields,
             ActionListener.wrap(
                 extractedFields -> listener.onResponse(
@@ -121,8 +120,7 @@ public class DataFrameDataExtractorFactory {
     public static void validateConfigAndSourceIndex(Client client,
                                                     DataFrameAnalyticsConfig config,
                                                     ActionListener<Boolean> listener) {
-        List<DataFrameAnalysis> analyses = DataFrameAnalysesUtils.readAnalyses(config.getAnalyses());
-        Set<String> resultFields = analyses.stream().flatMap(analysis -> analysis.getResultFields().stream()).collect(Collectors.toSet());
+        Set<String> resultFields = resolveResultsFields(config);
         validateIndexAndExtractFields(client, config.getHeaders(), config.getSource(), config.getAnalysesFields(), resultFields,
             ActionListener.wrap(
                 fields -> {
@@ -226,5 +224,10 @@ public class DataFrameDataExtractorFactory {
             // This response gets discarded - the listener handles the real response
             return null;
         });
+    }
+
+    private static Set<String> resolveResultsFields(DataFrameAnalyticsConfig config) {
+        List<DataFrameAnalysis> analyses = DataFrameAnalysesUtils.readAnalyses(config.getAnalyses());
+        return analyses.stream().flatMap(analysis -> analysis.getResultFields().stream()).collect(Collectors.toSet());
     }
 }

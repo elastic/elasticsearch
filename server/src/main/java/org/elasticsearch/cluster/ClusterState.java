@@ -60,7 +60,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -80,9 +79,8 @@ import static org.elasticsearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
  * The cluster state can be updated only on the master node. All updates are performed by on a
  * single thread and controlled by the {@link ClusterService}. After every update the
  * {@link Discovery#publish} method publishes a new version of the cluster state to all other nodes in the
- * cluster.  The actual publishing mechanism is delegated to the {@link Discovery#publish} method and depends on
- * the type of discovery. In the Zen Discovery it is handled in the {@link PublishClusterStateAction#publish} method. The
- * publishing mechanism can be overridden by other discovery.
+ * cluster. The actual publishing mechanism is delegated to the {@link Discovery#publish} method and depends on
+ * the type of discovery.
  * <p>
  * The cluster state implements the {@link Diffable} interface in order to support publishing of cluster state
  * differences instead of the entire state on each change. The publishing mechanism should only send differences

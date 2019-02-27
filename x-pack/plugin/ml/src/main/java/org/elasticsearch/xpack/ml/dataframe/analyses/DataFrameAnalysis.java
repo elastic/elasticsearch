@@ -10,6 +10,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public interface DataFrameAnalysis extends ToXContentObject {
 
@@ -31,6 +32,13 @@ public interface DataFrameAnalysis extends ToXContentObject {
     }
 
     Type getType();
+
+    /**
+     * The fields that will contain the results of the analysis
+     *
+     * @return Set of Strings representing the result fields for the constructed analysis
+     */
+    Set<String> getResultFields();
 
     interface Factory {
 

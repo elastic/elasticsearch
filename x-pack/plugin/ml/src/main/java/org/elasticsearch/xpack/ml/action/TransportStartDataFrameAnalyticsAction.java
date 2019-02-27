@@ -281,12 +281,23 @@ public class TransportStartDataFrameAnalyticsAction
         protected void nodeOperation(AllocatedPersistentTask task, StartDataFrameAnalyticsAction.TaskParams params,
                                      PersistentTaskState state) {
             LOGGER.info("[{}] Starting data frame analytics", params.getId());
-            DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
-                task.getAllocationId());
-            task.updatePersistentTaskState(startedState, ActionListener.wrap(
-                response -> manager.execute((DataFrameAnalyticsTask) task),
-                task::markAsFailed
-            ));
+            DataFrameAnalyticsTaskState analyticsTaskState = (DataFrameAnalyticsTaskState) state;
+
+            // If we are "stopping" there is nothing to do
+            if (analyticsTaskState != null && analyticsTaskState.getState() == DataFrameAnalyticsState.STOPPING) {
+                return;
+            }
+
+            if (analyticsTaskState == null) {
+                DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
+                    task.getAllocationId());
+                task.updatePersistentTaskState(startedState, ActionListener.wrap(
+                    response -> manager.execute((DataFrameAnalyticsTask) task, DataFrameAnalyticsState.STARTED),
+                    task::markAsFailed));
+            } else {
+                manager.execute((DataFrameAnalyticsTask)task, analyticsTaskState.getState());
+            }
+
         }
     }
 }

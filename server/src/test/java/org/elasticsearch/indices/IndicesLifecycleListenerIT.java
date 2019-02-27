@@ -212,7 +212,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
         assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(1));
 
-        if (Version.CURRENT.onOrAfter(Version.V_8_0_0)) {
+        if (Version.CURRENT.onOrAfter(Version.V_7_1_0)) {
             assertShardStatesMatch(stateChangeListenerNode1, 6, CLOSED, CREATED, RECOVERING, POST_RECOVERY, STARTED);
             assertShardStatesMatch(stateChangeListenerNode2, 6, CLOSED, CREATED, RECOVERING, POST_RECOVERY, STARTED);
         } else {

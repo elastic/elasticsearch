@@ -138,9 +138,9 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
         state = ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder(state.nodes())
                 .add(new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.V_7_1_0))
+                    new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.V_7_0_0))
                 .add(new DiscoveryNode("new_node", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.V_8_0_0)))
+                    new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.V_7_1_0)))
             .build();
 
         state = MetaDataIndexStateService.closeRoutingTable(state, blockedIndices, results);
@@ -244,6 +244,14 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             ClusterState state = addOpenedIndex("index-1", randomIntBetween(1, 3), randomIntBetween(0, 3), initialState);
             state = addOpenedIndex("index-2", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
             state = addOpenedIndex("index-3", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
+            final boolean mixedVersions = randomBoolean();
+            if (mixedVersions) {
+                state = ClusterState.builder(state)
+                    .nodes(DiscoveryNodes.builder(state.nodes())
+                        .add(new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(),
+                             new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.V_6_0_0)))
+                    .build();
+            }
 
             Index index1 = state.metaData().index("index-1").getIndex();
             Index index2 = state.metaData().index("index-2").getIndex();
@@ -255,7 +263,21 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
 
             for (Index index : indices) {
                 assertTrue(blockedIndices.containsKey(index));
-                assertHasBlock(index.getName(), updatedState, blockedIndices.get(index));
+                if (mixedVersions) {
+                    IndexMetaData indexMetaData = updatedState.metaData().index(index);
+                    assertThat(indexMetaData.getState(), is(IndexMetaData.State.CLOSE));
+                    Settings indexSettings = indexMetaData.getSettings();
+                    assertThat(indexSettings.hasValue(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(false));
+                    assertTrue(updatedState.blocks().hasIndexBlock(index.getName(), MetaDataIndexStateService.INDEX_CLOSED_BLOCK));
+                    assertThat("Index must have only 1 block with [id=" + MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
+                        updatedState.blocks().indices().getOrDefault(index.getName(), emptySet()).stream()
+                            .filter(block -> block.id() == MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID).count(), equalTo(1L));
+                    assertThat("Index routing table should have been removed when closing the index on mixed cluster version",
+                        updatedState.routingTable().index(index), nullValue());
+                } else {
+                    assertIsOpened(index.getName(), updatedState);
+                    assertHasBlock(index.getName(), updatedState, blockedIndices.get(index));
+                }
             }
         }
     }

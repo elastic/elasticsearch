@@ -921,6 +921,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         ensureGreen();
 
         assertAcked(client().admin().indices().prepareClose(indexName));
+        ensureGreen();
 
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final ClusterState clusterState = clusterService.state();

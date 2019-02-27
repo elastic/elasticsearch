@@ -250,6 +250,10 @@ public class MetaDataIndexStateService {
         // Check if index closing conflicts with any running snapshots
         SnapshotsService.checkIndexClosing(currentState, indicesToClose);
 
+        // If the cluster is in a mixed version that does not support the shard close action,
+        // we use the previous way to close indices and directly close them without sanity checks
+        final boolean useDirectClose = currentState.nodes().getMinNodeVersion().before(Version.V_6_7_0);
+
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
 
@@ -267,11 +271,19 @@ public class MetaDataIndexStateService {
                     }
                 }
             }
-            if (indexBlock == null) {
-                // Create a new index closed block
-                indexBlock = createIndexClosingBlock();
+            if (useDirectClose) {
+                logger.debug("closing index {} directly", index);
+                metadata.put(IndexMetaData.builder(indexToClose).state(IndexMetaData.State.CLOSE));
+                blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
+                routingTable.remove(index.getName());
+                indexBlock = INDEX_CLOSED_BLOCK;
+            } else {
+                if (indexBlock == null) {
+                    // Create a new index closed block
+                    indexBlock = createIndexClosingBlock();
+                }
+                assert Strings.hasLength(indexBlock.uuid()) : "Closing block should have a UUID";
             }
-            assert Strings.hasLength(indexBlock.uuid()) : "Closing block should have a UUID";
             blocks.addIndexBlock(index.getName(), indexBlock);
             blockedIndices.put(index, indexBlock);
         }
@@ -402,7 +414,7 @@ public class MetaDataIndexStateService {
 
         // Remove the index routing table of closed indices if the cluster is in a mixed version
         // that does not support the replication of closed indices
-        final boolean removeRoutingTable = currentState.nodes().getMinNodeVersion().before(Version.V_8_0_0);
+        final boolean removeRoutingTable = currentState.nodes().getMinNodeVersion().before(Version.V_7_1_0);
 
         final MetaData.Builder metadata = MetaData.builder(currentState.metaData());
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());

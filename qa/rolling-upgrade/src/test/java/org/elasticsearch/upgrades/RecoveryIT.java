@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
@@ -341,7 +342,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
 
         final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(Version.V_8_0_0)) {
+        if (indexVersionCreated.onOrAfter(Version.V_7_1_0)) {
             // index was created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -361,7 +362,11 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String indexName =
             String.join("_", "index", CLUSTER_TYPE.toString(), Integer.toString(minimumNodeVersion.id)).toLowerCase(Locale.ROOT);
 
-        if (indexExists(indexName) == false) {
+        final Request indexExistsRequest = new Request("HEAD", "/" + indexName);
+        indexExistsRequest.setOptions(allowTypesRemovalWarnings());
+
+        final Response indexExistsResponse = client().performRequest(indexExistsRequest);
+        if (RestStatus.OK.getStatus() != indexExistsResponse.getStatusLine().getStatusCode()) {
             createIndex(indexName, Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
@@ -370,7 +375,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (minimumNodeVersion.onOrAfter(Version.V_8_0_0)) {
+        if (minimumNodeVersion.onOrAfter(Version.V_7_1_0)) {
             // index is created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);

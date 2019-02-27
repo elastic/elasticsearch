@@ -320,7 +320,10 @@ public class CloseIndexIT extends ESIntegTestCase {
             .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i)).collect(toList()));
         ensureGreen(indexName);
 
-        final CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose(indexName).get();
+        final CloseIndexResponse closeIndexResponse = client().admin().indices()
+            .prepareClose(indexName)
+            .setWaitForActiveShards(ActiveShardCount.DEFAULT)
+            .get();
         assertThat(client().admin().cluster().prepareHealth(indexName).get().getStatus(), is(ClusterHealthStatus.GREEN));
         assertTrue(closeIndexResponse.isAcknowledged());
         assertTrue(closeIndexResponse.isShardsAcknowledged());

@@ -224,8 +224,11 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         };
 
         // execution happens on the test thread, so no need to register an actual listener to callback
-        action.sync(indexShard.shardId(), retentionLeases, ActionListener.wrap(() -> {}));
+        final AtomicBoolean listenerInvoked = new AtomicBoolean();
+        action.sync(indexShard.shardId(), retentionLeases,
+            ActionListener.wrap(() -> assertTrue(listenerInvoked.compareAndSet(false, true))));
         assertTrue(invoked.get());
+        assertTrue(listenerInvoked.get()); // executed on the test thread so there's no need to wait
     }
 
     public void testBlocks() {

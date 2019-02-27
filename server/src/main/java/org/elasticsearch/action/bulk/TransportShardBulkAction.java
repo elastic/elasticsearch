@@ -539,15 +539,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
 
         @Override
-        public synchronized void onResponse(Boolean async) {
+        public void onResponse(Boolean async) {
             final Runnable runnable = () -> {
                 try {
                     while (context.hasMoreOperationsToExecute()) {
-                        if (
-                            executeBulkItemRequest(
-                                context, updateHelper, nowInMillisSupplier, mappingUpdater,
-                                waitForMappingUpdate, this) == false
-                        ) {
+                        if (executeBulkItemRequest(
+                            context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, this) == false) {
                             return;
                         }
                         assert context.isInitial(); // either completed and moved to next or reset

@@ -17,7 +17,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeNumeric;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
 
 public abstract class MathFunction extends UnaryScalarFunction {
 
@@ -56,7 +56,7 @@ public abstract class MathFunction extends UnaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return typeMustBeNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
+        return isNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override

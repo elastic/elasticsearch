@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.Reg
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeStringAndExact;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isStringAndExact;
 
 public abstract class RegexMatch extends UnaryScalarFunction {
 
@@ -41,7 +41,7 @@ public abstract class RegexMatch extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return typeMustBeStringAndExact(field(), sourceText(), Expressions.ParamOrdinal.DEFAULT);
+        return isStringAndExact(field(), sourceText(), Expressions.ParamOrdinal.DEFAULT);
     }
 
     @Override

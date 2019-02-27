@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeNumeric;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
 
 public abstract class ArithmeticOperation extends BinaryOperator<Object, Object, Object, BinaryArithmeticOperation> {
 
@@ -26,7 +26,7 @@ public abstract class ArithmeticOperation extends BinaryOperator<Object, Object,
     
     @Override
     protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
-        return typeMustBeNumeric(e, sourceText(), paramOrdinal);
+        return isNumeric(e, sourceText(), paramOrdinal);
     }
 
     @Override

@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeNumeric;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
 
 /**
  * A binary string function with a numeric second parameter and a string result
@@ -28,7 +28,7 @@ public abstract class BinaryStringNumericFunction extends BinaryStringFunction<N
 
     @Override
     protected TypeResolution resolveSecondParameterInputType(Expression e) {
-        return typeMustBeNumeric(e, sourceText(), Expressions.ParamOrdinal.SECOND);
+        return isNumeric(e, sourceText(), Expressions.ParamOrdinal.SECOND);
     }
 
     @Override

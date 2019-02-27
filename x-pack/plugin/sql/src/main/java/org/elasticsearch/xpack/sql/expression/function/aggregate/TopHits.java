@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.TypeResolutions;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Collections;
 
 import static org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.expressionMustBeTableColumn;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeExact;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNotFoldable;
 
 /**
  * Super class of Aggregation functions on field types other than numeric, that need to be
@@ -36,23 +36,23 @@ public abstract class TopHits extends AggregateFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = expressionMustBeTableColumn(field(), sourceText(), ParamOrdinal.FIRST);
+        TypeResolution resolution = isNotFoldable(field(), sourceText(), ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        resolution = typeMustBeExact(field(), sourceText(), ParamOrdinal.FIRST);
+        resolution = TypeResolutions.isExact(field(), sourceText(), ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
 
         if (orderField() != null) {
-            resolution = expressionMustBeTableColumn(orderField(), sourceText(), ParamOrdinal.SECOND);
+            resolution = isNotFoldable(orderField(), sourceText(), ParamOrdinal.SECOND);
             if (resolution.unresolved()) {
                 return resolution;
             }
 
-            resolution = typeMustBeExact(orderField(), sourceText(), ParamOrdinal.SECOND);
+            resolution = TypeResolutions.isExact(orderField(), sourceText(), ParamOrdinal.SECOND);
             if (resolution.unresolved()) {
                 return resolution;
             }

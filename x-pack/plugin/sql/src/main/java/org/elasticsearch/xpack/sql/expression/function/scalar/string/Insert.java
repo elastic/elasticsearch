@@ -21,8 +21,8 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeNumeric;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeStringAndExact;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.InsertFunctionProcessor.doProcess;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -48,22 +48,22 @@ public class Insert extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = typeMustBeStringAndExact(source, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = isStringAndExact(source, sourceText(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        TypeResolution startResolution = typeMustBeNumeric(start, sourceText(), ParamOrdinal.SECOND);
+        TypeResolution startResolution = isNumeric(start, sourceText(), ParamOrdinal.SECOND);
         if (startResolution.unresolved()) {
             return startResolution;
         }
         
-        TypeResolution lengthResolution = typeMustBeNumeric(length, sourceText(), ParamOrdinal.THIRD);
+        TypeResolution lengthResolution = isNumeric(length, sourceText(), ParamOrdinal.THIRD);
         if (lengthResolution.unresolved()) {
             return lengthResolution;
         }
         
-        return typeMustBeStringAndExact(replacement, sourceText(), ParamOrdinal.FOURTH);
+        return isStringAndExact(replacement, sourceText(), ParamOrdinal.FOURTH);
     }
 
     @Override

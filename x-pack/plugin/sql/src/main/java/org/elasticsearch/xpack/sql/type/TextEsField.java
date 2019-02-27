@@ -30,19 +30,14 @@ public class TextEsField extends EsField {
     }
 
     @Override
-    public boolean isExact() {
-        return false;
-    }
-
-    @Override
-    public Tuple<Boolean, String> hasExact() {
+    public Exact getExactInfo() {
         return PROCESS_EXACT_FIELD.apply(findExact());
     }
 
     private Tuple<EsField, String> findExact() {
         EsField field = null;
         for (EsField property : getProperties().values()) {
-            if (property.getDataType() == DataType.KEYWORD && property.isExact()) {
+            if (property.getDataType() == DataType.KEYWORD && property.getExactInfo().hasExact()) {
                 if (field != null) {
                     return new Tuple<>(null, "Multiple exact keyword candidates available for [" + getName() +
                         "]; specify which one to use");
@@ -57,11 +52,11 @@ public class TextEsField extends EsField {
         return new Tuple<>(field, null);
     }
 
-    private Function<Tuple<EsField, String>, Tuple<Boolean, String>> PROCESS_EXACT_FIELD = tuple -> {
+    private Function<Tuple<EsField, String>, Exact> PROCESS_EXACT_FIELD = tuple -> {
         if (tuple.v1() == null) {
-            return new Tuple<>(Boolean.FALSE, tuple.v2());
+            return new Exact(false, tuple.v2());
         } else {
-            return new Tuple<>(Boolean.TRUE, null);
+            return new Exact(true, null);
         }
     };
 }

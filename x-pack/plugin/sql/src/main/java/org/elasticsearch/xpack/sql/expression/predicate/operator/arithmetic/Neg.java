@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeNumeric;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
 
 /**
  * Negation function (@{code -x}).
@@ -38,7 +38,7 @@ public class Neg extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return typeMustBeNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
+        return isNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override

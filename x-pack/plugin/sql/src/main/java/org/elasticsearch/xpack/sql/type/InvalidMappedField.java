@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.sql.type;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.Objects;
@@ -52,12 +51,7 @@ public class InvalidMappedField extends EsField {
     }
 
     @Override
-    public boolean isExact() {
-        return false;
-    }
-
-    @Override
-    public Tuple<Boolean, String> hasExact() {
-        return new Tuple<>(Boolean.FALSE, "Field [" + getName() + "] is invalid, cannot access it");
+    public Exact getExactInfo() {
+        return new Exact(false, "Field [" + getName() + "] is invalid, cannot access it");
     }
 }

@@ -18,7 +18,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeInteger;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
@@ -45,7 +45,7 @@ public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
-        return typeMustBeInteger(field(), sourceText(), ParamOrdinal.DEFAULT);
+        return isInteger(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override

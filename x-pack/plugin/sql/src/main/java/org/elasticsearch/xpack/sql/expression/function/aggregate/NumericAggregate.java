@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeNumeric;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
 
 abstract class NumericAggregate extends AggregateFunction {
 
@@ -26,7 +26,7 @@ abstract class NumericAggregate extends AggregateFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return typeMustBeNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
+        return isNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override

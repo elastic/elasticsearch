@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeStringAndExact;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.ConcatFunctionProcessor.process;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -38,12 +38,12 @@ public class Concat extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = typeMustBeStringAndExact(left(), functionName(), ParamOrdinal.FIRST);
+        TypeResolution resolution = isStringAndExact(left(), functionName(), ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        return typeMustBeStringAndExact(right(), functionName(), ParamOrdinal.SECOND);
+        return isStringAndExact(right(), functionName(), ParamOrdinal.SECOND);
     }
 
     @Override

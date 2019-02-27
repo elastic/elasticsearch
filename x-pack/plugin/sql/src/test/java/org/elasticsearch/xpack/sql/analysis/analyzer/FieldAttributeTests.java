@@ -113,9 +113,9 @@ public class FieldAttributeTests extends ESTestCase {
         assertThat(attr.path(), is("some"));
         assertThat(attr.name(), is("some.string"));
         assertThat(attr.dataType(), is(DataType.TEXT));
-        assertThat(attr.hasExact().v1(), is(Boolean.TRUE));
+        assertTrue(attr.getExactInfo().hasExact());
         FieldAttribute exact = attr.exactAttribute();
-        assertThat(exact.hasExact().v1(), is(Boolean.TRUE));
+        assertTrue(exact.getExactInfo().hasExact());
         assertThat(exact.name(), is("some.string.typical"));
         assertThat(exact.dataType(), is(KEYWORD));
     }
@@ -125,8 +125,8 @@ public class FieldAttributeTests extends ESTestCase {
         assertThat(attr.path(), is("some"));
         assertThat(attr.name(), is("some.ambiguous"));
         assertThat(attr.dataType(), is(DataType.TEXT));
-        assertThat(attr.hasExact().v1(), is(Boolean.FALSE));
-        assertThat(attr.hasExact().v2(),
+        assertFalse(attr.getExactInfo().hasExact());
+        assertThat(attr.getExactInfo().errorMsg(),
             is("Multiple exact keyword candidates available for [ambiguous]; specify which one to use"));
         SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> attr.exactAttribute());
         assertThat(e.getMessage(),
@@ -138,7 +138,7 @@ public class FieldAttributeTests extends ESTestCase {
         assertThat(attr.path(), is("some.string"));
         assertThat(attr.name(), is("some.string.normalized"));
         assertThat(attr.dataType(), is(KEYWORD));
-        assertThat(attr.hasExact().v1(), is(Boolean.FALSE));
+        assertFalse(attr.getExactInfo().hasExact());
     }
 
     public void testDottedFieldPath() {

@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeExact;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isExact;
 
 public class Order extends Expression {
 
@@ -48,7 +48,7 @@ public class Order extends Expression {
 
     @Override
     protected TypeResolution resolveType() {
-        return typeMustBeExact(child, "ORDER BY cannot be applied to field of data type[{}]: {}");
+        return isExact(child, "ORDER BY cannot be applied to field of data type[{}]: {}");
     }
 
     @Override

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.TypeResolutions;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggNameInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -20,7 +21,6 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeExact;
 
 /**
  * A type of {@code Function} that takes multiple values and extracts a single value out of them. For example, {@code AVG()}.
@@ -82,7 +82,7 @@ public abstract class AggregateFunction extends Function {
 
     @Override
     protected TypeResolution resolveType() {
-        return typeMustBeExact(field, sourceText(), Expressions.ParamOrdinal.DEFAULT);
+        return TypeResolutions.isExact(field, sourceText(), Expressions.ParamOrdinal.DEFAULT);
     }
 
     @Override

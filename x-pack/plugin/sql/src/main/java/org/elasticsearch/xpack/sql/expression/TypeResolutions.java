@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.EsField;
 
 import java.util.Locale;
 import java.util.StringJoiner;
@@ -19,68 +19,68 @@ import static org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import static org.elasticsearch.xpack.sql.expression.Expressions.name;
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 
-public final class TypeResolutionUtils {
+public final class TypeResolutions {
 
-    private TypeResolutionUtils() {}
+    private TypeResolutions() {}
 
-    public static TypeResolution typeMustBeBoolean(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt == BOOLEAN, operationName, paramOrd, "boolean");
+    public static TypeResolution isBoolean(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, dt -> dt == BOOLEAN, operationName, paramOrd, "boolean");
     }
 
-    public static TypeResolution typeMustBeInteger(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, DataType::isInteger, operationName, paramOrd, "integer");
+    public static TypeResolution isInteger(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, DataType::isInteger, operationName, paramOrd, "integer");
     }
 
-    public static TypeResolution typeMustBeNumeric(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, DataType::isNumeric, operationName, paramOrd, "numeric");
+    public static TypeResolution isNumeric(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, DataType::isNumeric, operationName, paramOrd, "numeric");
     }
 
-    public static TypeResolution typeMustBeString(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, DataType::isString, operationName, paramOrd, "string");
+    public static TypeResolution isString(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, DataType::isString, operationName, paramOrd, "string");
     }
 
-    public static TypeResolution typeMustBeDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, DataType::isDateBased, operationName, paramOrd, "date", "datetime");
+    public static TypeResolution isDate(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, DataType::isDateBased, operationName, paramOrd, "date", "datetime");
     }
 
-    public static TypeResolution typeMustBeNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt.isNumeric() || dt.isDateBased(), operationName, paramOrd, "date", "datetime", "numeric");
+    public static TypeResolution isNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, dt -> dt.isNumeric() || dt.isDateBased(), operationName, paramOrd, "date", "datetime", "numeric");
     }
 
-    public static TypeResolution typeMustBeExact(Expression e, String message) {
+    public static TypeResolution isExact(Expression e, String message) {
         if (e instanceof FieldAttribute) {
-            Tuple<Boolean, String> hasExact = ((FieldAttribute) e).hasExact();
-            if (hasExact.v1() == Boolean.FALSE) {
-                return new TypeResolution(format(null, message, e.dataType().typeName, hasExact.v2()));
+            EsField.Exact exact = ((FieldAttribute) e).getExactInfo();
+            if (exact.hasExact() == false) {
+                return new TypeResolution(format(null, message, e.dataType().typeName, exact.errorMsg()));
             }
         }
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    public static TypeResolution typeMustBeExact(Expression e, String operationName, ParamOrdinal paramOrd) {
+    public static TypeResolution isExact(Expression e, String operationName, ParamOrdinal paramOrd) {
         if (e instanceof FieldAttribute) {
-            Tuple<Boolean, String> hasExact = ((FieldAttribute) e).hasExact();
-            if (hasExact.v1() == Boolean.FALSE) {
+            EsField.Exact exact = ((FieldAttribute) e).getExactInfo();
+            if (exact.hasExact() == false) {
                 return new TypeResolution(format(null, "[{}] cannot operate on {}field of data type [{}]: {}",
                     operationName,
                     paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ?
                         "" : paramOrd.name().toLowerCase(Locale.ROOT) + " argument ",
-                    e.dataType().typeName, hasExact.v2()));
+                    e.dataType().typeName, exact.errorMsg()));
             }
         }
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    public static TypeResolution typeMustBeStringAndExact(Expression e, String operationName, ParamOrdinal paramOrd) {
-        TypeResolution resolution = typeMustBe(e, DataType::isString, operationName, paramOrd, "string");
+    public static TypeResolution isStringAndExact(Expression e, String operationName, ParamOrdinal paramOrd) {
+        TypeResolution resolution = isString(e, operationName, paramOrd);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        return typeMustBeExact(e, operationName, paramOrd);
+        return isExact(e, operationName, paramOrd);
     }
 
-    public static TypeResolution expressionMustBeConstant(Expression e, String operationName, ParamOrdinal paramOrd) {
+    public static TypeResolution isFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
         if (!e.foldable()) {
             return new TypeResolution(format(null, "{}argument of [{}] must be a constant, received [{}]",
                 paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
@@ -90,7 +90,7 @@ public final class TypeResolutionUtils {
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    public static TypeResolution expressionMustBeTableColumn(Expression e, String operationName, ParamOrdinal paramOrd) {
+    public static TypeResolution isNotFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
         if (e.foldable()) {
             return new TypeResolution(format(null, "{}argument of [{}] must be a table column, found constant [{}]",
                 paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
@@ -100,11 +100,11 @@ public final class TypeResolutionUtils {
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    public static TypeResolution typeMustBe(Expression e,
-                                                       Predicate<DataType> predicate,
-                                                       String operationName,
-                                                       ParamOrdinal paramOrd,
-                                                       String... acceptedTypes) {
+    public static TypeResolution isType(Expression e,
+                                        Predicate<DataType> predicate,
+                                        String operationName,
+                                        ParamOrdinal paramOrd,
+                                        String... acceptedTypes) {
         return predicate.test(e.dataType()) || DataTypes.isNull(e.dataType())?
             TypeResolution.TYPE_RESOLVED :
             new TypeResolution(format(null, "{}argument of [{}] must be [{}], found value [{}] type [{}]",

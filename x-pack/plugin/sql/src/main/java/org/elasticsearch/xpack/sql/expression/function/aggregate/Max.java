@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeNumericOrDate;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumericOrDate;
 
 /**
  * Find the maximum value in matching documents.
@@ -49,7 +49,7 @@ public class Max extends NumericAggregate implements EnclosedAgg {
         if (field().dataType().isString()) {
             return TypeResolution.TYPE_RESOLVED;
         } else {
-            return typeMustBeNumericOrDate(field(), sourceText(), ParamOrdinal.DEFAULT);
+            return isNumericOrDate(field(), sourceText(), ParamOrdinal.DEFAULT);
         }
     }
 }

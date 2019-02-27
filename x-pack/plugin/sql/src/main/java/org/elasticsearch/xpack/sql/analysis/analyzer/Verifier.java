@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -42,6 +41,7 @@ import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -471,10 +471,10 @@ public final class Verifier {
 
             // The grouping can not be an aggregate function or an inexact field (e.g. text without a keyword)
             a.groupings().forEach(e -> e.forEachUp(c -> {
-                Tuple<Boolean, String> hasExact = c.hasExact();
-                if (hasExact.v1() == Boolean.FALSE) {
+                EsField.Exact exact = c.getExactInfo();
+                if (exact.hasExact() == false) {
                     localFailures.add(fail(c, "Grouping field of data type [" + c.dataType().typeName + "] for grouping; " +
-                        hasExact.v2()));
+                        exact.errorMsg()));
                 }
             }, FieldAttribute.class));
         }

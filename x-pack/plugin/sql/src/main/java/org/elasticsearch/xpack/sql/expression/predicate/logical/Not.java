@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeBoolean;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isBoolean;
 
 public class Not extends UnaryScalarFunction {
 
@@ -38,7 +38,7 @@ public class Not extends UnaryScalarFunction {
         if (DataType.BOOLEAN == field().dataType()) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return typeMustBeBoolean(field(), sourceText(), ParamOrdinal.DEFAULT);
+        return isBoolean(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override

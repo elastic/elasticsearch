@@ -16,7 +16,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeDate;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDate;
 
 abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     
@@ -36,7 +36,7 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return typeMustBeDate(field(), sourceText(), ParamOrdinal.DEFAULT);
+        return isDate(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     public ZoneId zoneId() {

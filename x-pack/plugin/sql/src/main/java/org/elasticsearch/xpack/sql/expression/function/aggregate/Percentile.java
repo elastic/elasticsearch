@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.expressionMustBeConstant;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutionUtils.typeMustBeNumeric;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
 
 public class Percentile extends NumericAggregate implements EnclosedAgg {
 
@@ -42,7 +42,7 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = expressionMustBeConstant(percent, sourceText(), ParamOrdinal.SECOND);
+        TypeResolution resolution = isFoldable(percent, sourceText(), ParamOrdinal.SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -52,7 +52,7 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
             return resolution;
         }
 
-        return typeMustBeNumeric(percent, sourceText(), ParamOrdinal.DEFAULT);
+        return isNumeric(percent, sourceText(), ParamOrdinal.DEFAULT);
     }
 
     public Expression percent() {

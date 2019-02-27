@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Nullability;
-import org.elasticsearch.xpack.sql.expression.TypeResolutionUtils;
+import org.elasticsearch.xpack.sql.expression.TypeResolutions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
@@ -108,7 +108,7 @@ public class In extends ScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = TypeResolutionUtils.typeMustBeExact(value, functionName(), Expressions.ParamOrdinal.DEFAULT);
+        TypeResolution resolution = TypeResolutions.isExact(value, functionName(), Expressions.ParamOrdinal.DEFAULT);
         if (resolution != TypeResolution.TYPE_RESOLVED) {
             return resolution;
         }

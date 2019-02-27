@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
-import org.elasticsearch.common.collect.Tuple;
-
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -35,13 +33,8 @@ public class KeywordEsField extends EsField {
     }
 
     @Override
-    public boolean isExact() {
-        return normalized == false;
-    }
-
-    @Override
-    public Tuple<Boolean, String> hasExact() {
-        return new Tuple<>(normalized == false, null);
+    public Exact getExactInfo() {
+        return new Exact(normalized == false, "Normalized keyword field cannot be used for exact match operations");
     }
 
     @Override

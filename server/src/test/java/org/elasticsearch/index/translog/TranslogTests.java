@@ -985,6 +985,7 @@ public class TranslogTests extends ESTestCase {
                                 throw new AssertionError("unsupported operation type [" + type + "]");
                         }
                         Translog.Location location = translog.add(op);
+                        tracker.advanceMaxSeqNo(id);
                         tracker.markSeqNoAsCompleted(id);
                         Translog.Location existing = writtenOps.put(op, location);
                         if (existing != null) {

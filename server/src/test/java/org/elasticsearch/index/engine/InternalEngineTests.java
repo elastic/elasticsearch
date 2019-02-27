@@ -4064,13 +4064,12 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             assertThat(initialEngine.getLocalCheckpoint(), equalTo(expectedLocalCheckpoint.get()));
-            assertThat(initialEngine.getSeqNoStats(-1).getMaxSeqNo(), equalTo((long) (docs - 1)));
             initialEngine.flush(true, true);
-
             latchReference.get().countDown();
             for (final Thread thread : threads) {
                 thread.join();
             }
+            assertThat(initialEngine.getSeqNoStats(-1).getMaxSeqNo(), equalTo((long) (docs - 1)));
         } finally {
             IOUtils.close(initialEngine);
         }

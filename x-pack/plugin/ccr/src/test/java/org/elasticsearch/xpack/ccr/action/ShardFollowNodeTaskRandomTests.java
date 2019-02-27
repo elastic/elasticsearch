@@ -129,6 +129,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 Consumer<BulkShardOperationsResponse> handler,
                 Consumer<Exception> errorHandler) {
                 for(Translog.Operation op : operations) {
+                    tracker.advanceMaxSeqNo(op.seqNo());
                     tracker.markSeqNoAsCompleted(op.seqNo());
                 }
                 receivedOperations.addAll(operations);

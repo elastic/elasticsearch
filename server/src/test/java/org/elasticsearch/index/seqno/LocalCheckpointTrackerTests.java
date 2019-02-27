@@ -59,6 +59,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         long seqNo1, seqNo2;
         assertThat(tracker.getCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         seqNo1 = tracker.generateSeqNo();
+        tracker.advanceMaxSeqNo(seqNo1);
         assertThat(seqNo1, equalTo(0L));
         tracker.markSeqNoAsCompleted(seqNo1);
         assertThat(tracker.getCheckpoint(), equalTo(0L));
@@ -66,6 +67,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.contains(atLeast(1)), equalTo(false));
         seqNo1 = tracker.generateSeqNo();
         seqNo2 = tracker.generateSeqNo();
+        tracker.advanceMaxSeqNo(seqNo2);
         assertThat(seqNo1, equalTo(1L));
         assertThat(seqNo2, equalTo(2L));
         tracker.markSeqNoAsCompleted(seqNo2);
@@ -81,13 +83,16 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
     public void testSimpleReplica() {
         assertThat(tracker.getCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         assertThat(tracker.contains(randomNonNegativeLong()), equalTo(false));
+        tracker.advanceMaxSeqNo(0L);
         tracker.markSeqNoAsCompleted(0L);
         assertThat(tracker.getCheckpoint(), equalTo(0L));
         assertThat(tracker.contains(0), equalTo(true));
+        tracker.advanceMaxSeqNo(2L);
         tracker.markSeqNoAsCompleted(2L);
         assertThat(tracker.getCheckpoint(), equalTo(0L));
         assertThat(tracker.contains(1L), equalTo(false));
         assertThat(tracker.contains(2L), equalTo(true));
+        tracker.advanceMaxSeqNo(1L);
         tracker.markSeqNoAsCompleted(1L);
         assertThat(tracker.getCheckpoint(), equalTo(2L));
         assertThat(tracker.contains(between(0, 2)), equalTo(true));
@@ -100,6 +105,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
          * sequence numbers this could lead to excessive memory usage resulting in out of memory errors.
          */
         long seqNo = randomNonNegativeLong();
+        tracker.advanceMaxSeqNo(seqNo);
         tracker.markSeqNoAsCompleted(seqNo);
         assertThat(tracker.processedSeqNo.size(), equalTo(1));
         assertThat(tracker.contains(seqNo), equalTo(true));
@@ -117,6 +123,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         }
         Collections.shuffle(seqNoList, random());
         for (Long seqNo : seqNoList) {
+            tracker.advanceMaxSeqNo(seqNo);
             tracker.markSeqNoAsCompleted(seqNo);
         }
         assertThat(tracker.checkpoint, equalTo(maxOps - 1L));
@@ -149,6 +156,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
                     barrier.await();
                     for (int i = 0; i < opsPerThread; i++) {
                         long seqNo = tracker.generateSeqNo();
+                        tracker.advanceMaxSeqNo(seqNo);
                         logger.info("[t{}] started   [{}]", threadId, seqNo);
                         if (seqNo != unFinishedSeq) {
                             tracker.markSeqNoAsCompleted(seqNo);
@@ -202,6 +210,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
                     Integer[] ops = seqNoPerThread[threadId];
                     for (int seqNo : ops) {
                         if (seqNo != unFinishedSeq) {
+                            tracker.advanceMaxSeqNo(seqNo);
                             tracker.markSeqNoAsCompleted(seqNo);
                             logger.info("[t{}] completed [{}]", threadId, seqNo);
                         }
@@ -216,6 +225,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.getMaxSeqNo(), equalTo(maxOps - 1L));
         assertThat(tracker.getCheckpoint(), equalTo(unFinishedSeq - 1L));
         assertThat(tracker.contains(unFinishedSeq), equalTo(false));
+        tracker.advanceMaxSeqNo(unFinishedSeq);
         tracker.markSeqNoAsCompleted(unFinishedSeq);
         assertThat(tracker.getCheckpoint(), equalTo(maxOps - 1L));
         assertThat(tracker.contains(unFinishedSeq), equalTo(true));
@@ -251,10 +261,12 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         final List<Integer> elements = IntStream.rangeClosed(0, seqNo).boxed().collect(Collectors.toList());
         Randomness.shuffle(elements);
         for (int i = 0; i < elements.size() - 1; i++) {
+            tracker.advanceMaxSeqNo(elements.get(i));
             tracker.markSeqNoAsCompleted(elements.get(i));
             assertFalse(complete.get());
         }
 
+        tracker.advanceMaxSeqNo(elements.get(elements.size() - 1));
         tracker.markSeqNoAsCompleted(elements.get(elements.size() - 1));
         // synchronize with the waiting thread to mark that it is complete
         barrier.await();
@@ -276,9 +288,23 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         for (int i = 0; i < numOps; i++) {
             long seqNo = randomLongBetween(0, 1000);
             seqNos.add(seqNo);
+            tracker.advanceMaxSeqNo(seqNo);
             tracker.markSeqNoAsCompleted(seqNo);
         }
         final long seqNo = randomNonNegativeLong();
         assertThat(tracker.contains(seqNo), equalTo(seqNo <= localCheckpoint || seqNos.contains(seqNo)));
+    }
+
+    public void testAdvanceMaxSeqNo() {
+        final long maxSeqNo = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, 100);
+        final long localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo);
+        final LocalCheckpointTracker tracker = new LocalCheckpointTracker(maxSeqNo, localCheckpoint);
+        assertThat(tracker.generateSeqNo(), equalTo(maxSeqNo + 1));
+        tracker.advanceMaxSeqNo(randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo));
+        assertThat(tracker.getMaxSeqNo(), equalTo(maxSeqNo));
+        final long newMaxSeqNo = randomLongBetween(maxSeqNo, maxSeqNo + 10000);
+        tracker.advanceMaxSeqNo(newMaxSeqNo);
+        assertThat(tracker.getMaxSeqNo(), equalTo(newMaxSeqNo));
+        assertThat(tracker.generateSeqNo(), equalTo(newMaxSeqNo + 1));
     }
 }

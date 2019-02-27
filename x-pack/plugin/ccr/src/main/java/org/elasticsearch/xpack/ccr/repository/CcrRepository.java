@@ -490,6 +490,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     long offset = 0;
                     while (offset < fileLength && error.get() == null) {
                         final long requestSeqId = requestSeqIdTracker.generateSeqNo();
+                        requestSeqIdTracker.advanceMaxSeqNo(requestSeqId);
                         try {
                             requestSeqIdTracker.waitForOpsToComplete(requestSeqId - ccrSettings.getMaxConcurrentFileChunks());
 

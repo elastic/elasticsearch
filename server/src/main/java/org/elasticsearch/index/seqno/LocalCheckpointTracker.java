@@ -46,9 +46,14 @@ public class LocalCheckpointTracker {
     volatile long checkpoint;
 
     /**
+     * The max sequence number seen in this tracker
+     */
+    private volatile long maxSeqNo;
+
+    /**
      * The next available sequence number.
      */
-    private volatile long nextSeqNo;
+    private long nextSeqNo;
 
     /**
      * Initialize the local checkpoint service. The {@code maxSeqNo} should be set to the last sequence number assigned, or
@@ -68,8 +73,9 @@ public class LocalCheckpointTracker {
             throw new IllegalArgumentException(
                 "max seq. no. must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] but was [" + maxSeqNo + "]");
         }
-        nextSeqNo = maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1;
-        checkpoint = localCheckpoint;
+        this.maxSeqNo = maxSeqNo;
+        this.nextSeqNo = maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1;
+        this.checkpoint = localCheckpoint;
     }
 
     /**
@@ -78,15 +84,19 @@ public class LocalCheckpointTracker {
      * @return the next assigned sequence number
      */
     public synchronized long generateSeqNo() {
+        assert nextSeqNo > maxSeqNo :  nextSeqNo + " <= " + maxSeqNo;
         return nextSeqNo++;
     }
 
     /**
-     * Marks the provided sequence number as seen and updates the max_seq_no if needed.
+     * Marks the provided sequence number as seen and updates the max_seq_no and next_seq_no if needed.
      */
     public synchronized void advanceMaxSeqNo(long seqNo) {
         if (seqNo >= nextSeqNo) {
             nextSeqNo = seqNo + 1;
+        }
+        if (seqNo > maxSeqNo) {
+            maxSeqNo = seqNo;
         }
     }
 
@@ -96,9 +106,9 @@ public class LocalCheckpointTracker {
      * @param seqNo the sequence number to mark as completed
      */
     public synchronized void markSeqNoAsCompleted(final long seqNo) {
-        // make sure we track highest seen sequence number
-        if (seqNo >= nextSeqNo) {
-            nextSeqNo = seqNo + 1;
+        if (seqNo > maxSeqNo) {
+            assert false : "complete an unseen seq_no=" + seqNo + " > max_seq_no=" + maxSeqNo;
+            throw new IllegalArgumentException("complete an unseen seq_no=" + seqNo + " > max_seq_no=" + maxSeqNo);
         }
         if (seqNo <= checkpoint) {
             // this is possible during recovery where we might replay an operation that was also replicated
@@ -122,12 +132,12 @@ public class LocalCheckpointTracker {
     }
 
     /**
-     * The maximum sequence number issued so far.
+     * The maximum sequence number seen so far.
      *
      * @return the maximum sequence number
      */
     public long getMaxSeqNo() {
-        return nextSeqNo - 1;
+        return maxSeqNo;
     }
 
 
@@ -159,7 +169,7 @@ public class LocalCheckpointTracker {
      */
     public boolean contains(final long seqNo) {
         assert seqNo >= 0 : "invalid seq_no=" + seqNo;
-        if (seqNo >= nextSeqNo) {
+        if (seqNo > maxSeqNo) {
             return false;
         }
         if (seqNo <= checkpoint) {

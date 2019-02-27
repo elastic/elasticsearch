@@ -852,7 +852,9 @@ public class InternalEngine extends Engine {
                  *  or calls updateDocument.
                  */
                 final IndexingStrategy plan = indexingStrategyForOperation(index);
-
+                if (plan.seqNoForIndexing != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    localCheckpointTracker.advanceMaxSeqNo(plan.seqNoForIndexing);
+                }
                 final IndexResult indexResult;
                 if (plan.earlyResultOnPreFlightError.isPresent()) {
                     indexResult = plan.earlyResultOnPreFlightError.get();
@@ -943,7 +945,6 @@ public class InternalEngine extends Engine {
                 }
             }
         }
-        markSeqNoAsSeen(index.seqNo());
         return plan;
     }
 
@@ -1221,7 +1222,9 @@ public class InternalEngine extends Engine {
             ensureOpen();
             lastWriteNanos = delete.startTime();
             final DeletionStrategy plan = deletionStrategyForOperation(delete);
-
+            if (plan.seqNoOfDeletion != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                localCheckpointTracker.advanceMaxSeqNo(plan.seqNoOfDeletion);
+            }
             if (plan.earlyResultOnPreflightError.isPresent()) {
                 deleteResult = plan.earlyResultOnPreflightError.get();
             } else if (plan.deleteFromLucene || plan.addStaleOpToLucene) {
@@ -1297,7 +1300,6 @@ public class InternalEngine extends Engine {
                     delete.seqNo(), delete.version());
             }
         }
-        markSeqNoAsSeen(delete.seqNo());
         return plan;
     }
 
@@ -1453,7 +1455,6 @@ public class InternalEngine extends Engine {
         final NoOpResult noOpResult;
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            markSeqNoAsSeen(noOp.seqNo());
             noOpResult = innerNoOp(noOp);
         } catch (final Exception e) {
             try {
@@ -1469,8 +1470,8 @@ public class InternalEngine extends Engine {
     private NoOpResult innerNoOp(final NoOp noOp) throws IOException {
         assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
         assert noOp.seqNo() > SequenceNumbers.NO_OPS_PERFORMED;
-        final long seqNo = noOp.seqNo();
-        try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {
+        try (Releasable ignored = noOpKeyedLock.acquire(noOp.seqNo())) {
+            localCheckpointTracker.advanceMaxSeqNo(noOp.seqNo());
             final NoOpResult noOpResult;
             final Optional<Exception> preFlightError = preFlightCheckForNoOp(noOp);
             if (preFlightError.isPresent()) {
@@ -1508,13 +1509,10 @@ public class InternalEngine extends Engine {
                     noOpResult.setTranslogLocation(location);
                 }
             }
+            localCheckpointTracker.markSeqNoAsCompleted(noOp.seqNo());
             noOpResult.setTook(System.nanoTime() - noOp.startTime());
             noOpResult.freeze();
             return noOpResult;
-        } finally {
-            if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                localCheckpointTracker.markSeqNoAsCompleted(seqNo);
-            }
         }
     }
 
@@ -2422,13 +2420,6 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Marks the given seq_no as seen and advances the max_seq_no of this engine to at least that value.
-     */
-    protected final void markSeqNoAsSeen(long seqNo) {
-        localCheckpointTracker.advanceMaxSeqNo(seqNo);
-    }
-
-    /**
      * Checks if the given operation has been processed in this engine or not.
      * @return true if the given operation was processed; otherwise false.
      */
@@ -2541,6 +2532,7 @@ public class InternalEngine extends Engine {
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
                 if (operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    tracker.advanceMaxSeqNo(operation.seqNo());
                     tracker.markSeqNoAsCompleted(operation.seqNo());
                 }
             }

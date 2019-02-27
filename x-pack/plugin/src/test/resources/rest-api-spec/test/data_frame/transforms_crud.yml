@@ -89,11 +89,15 @@ setup:
       data_frame.get_data_frame_transform:
         transform_id: "*"
   - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform" }
+  - match: { transforms.1.id: "airline-transform-dos" }
 
   - do:
       data_frame.get_data_frame_transform:
         transform_id: "_all"
   - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform" }
+  - match: { transforms.1.id: "airline-transform-dos" }
 
   - do:
       data_frame.delete_data_frame_transform:

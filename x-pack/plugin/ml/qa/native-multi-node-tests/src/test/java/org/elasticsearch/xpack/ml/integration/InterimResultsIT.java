@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
@@ -13,6 +14,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.junit.After;
 
@@ -135,7 +137,12 @@ public class InterimResultsIT extends MlNativeAutodetectIntegTestCase {
 
         List<Bucket> interimResults = getInterimResults(job.getId());
         assertThat(interimResults.size(), equalTo(1));
-        assertThat(interimResults.get(0).getRecords().isEmpty(), is(true));
+
+        // We expect there are no records. The bucket count is low but at the same time
+        // it is too early into the bucket to consider it an anomaly. Let's verify that.
+        List<AnomalyRecord> records = interimResults.get(0).getRecords();
+        List<String> recordsJson = records.stream().map(Strings::toString).collect(Collectors.toList());
+        assertThat("Found interim records: " + recordsJson, records.isEmpty(), is(true));
 
         closeJob(jobId);
     }

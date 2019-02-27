@@ -757,6 +757,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert opPrimaryTerm <= getOperationPrimaryTerm()
                 : "op term [ " + opPrimaryTerm + " ] > shard term [" + getOperationPrimaryTerm() + "]";
         assert versionType.validateVersionForWrites(version);
+
+        String resolvedType = mapperService.resolveDocumentType(sourceToParse.type());
+        if (resolvedType != sourceToParse.type()) {
+            sourceToParse = SourceToParse.source(
+                    sourceToParse.index(), resolvedType, sourceToParse.id(), sourceToParse.source(), sourceToParse.getXContentType())
+                    .parent(sourceToParse.parent())
+                    .routing(sourceToParse.routing());
+        }
+
         ensureWriteAllowed(origin);
         Engine.Index operation;
         try {
@@ -869,6 +878,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert opPrimaryTerm <= getOperationPrimaryTerm()
                 : "op term [ " + opPrimaryTerm + " ] > shard term [" + getOperationPrimaryTerm() + "]";
         assert versionType.validateVersionForWrites(version);
+
+        type = mapperService.resolveDocumentType(type);
+
         ensureWriteAllowed(origin);
         if (indexSettings().isSingleType()) {
             // When there is a single type, the unique identifier is only composed of the _id,
@@ -893,11 +905,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return delete(engine, delete);
     }
 
-    private static Engine.Delete prepareDelete(String type, String id, Term uid, long seqNo, long primaryTerm, long version,
+    private Engine.Delete prepareDelete(String type, String id, Term uid, long seqNo, long primaryTerm, long version,
                                                VersionType versionType, Engine.Operation.Origin origin,
                                                long ifSeqNo, long ifPrimaryTerm) {
         long startTime = System.nanoTime();
-        return new Engine.Delete(type, id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+        return new Engine.Delete(mapperService.resolveDocumentType(type), id, uid, seqNo, primaryTerm, version, versionType, origin,
+                startTime, ifSeqNo, ifPrimaryTerm);
     }
 
     private Term extractUidForDelete(String type, String id) {
@@ -935,6 +948,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
+        String resolvedType = mapperService.resolveDocumentType(get.type());
+        if (mapperService.hasMapping(resolvedType) == false) {
+            return Engine.GetResult.NOT_EXISTS;
+        }
         return getEngine().get(get, this::acquireSearcher);
     }
 
@@ -2492,7 +2509,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private DocumentMapperForType docMapper(String type) {
-        return mapperService.documentMapperWithAutoCreate(type);
+        return mapperService.documentMapperWithAutoCreate(mapperService.resolveDocumentType(type));
     }
 
     private EngineConfig newEngineConfig() {

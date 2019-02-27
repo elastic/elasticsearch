@@ -216,7 +216,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        DocumentMapper docMapper = mapperService.documentMapper(type);
+        DocumentMapper docMapper = mapperService.documentMapper(mapperService.resolveDocumentType(type));
         if (docMapper.parentFieldMapper().active()) {
             String parentId = ParentFieldSubFetchPhase.getParentId(docMapper.parentFieldMapper(),
                 docIdAndVersion.reader, docIdAndVersion.docId);

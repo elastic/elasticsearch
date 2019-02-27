@@ -197,7 +197,7 @@ public class DocumentMapperParser {
 
         String rootName = root.keySet().iterator().next();
         Tuple<String, Map<String, Object>> mapping;
-        if (type == null || type.equals(rootName)) {
+        if (type == null || type.equals(rootName) || mapperService.resolveDocumentType(type).equals(rootName)) {
             mapping = new Tuple<>(rootName, (Map<String, Object>) root.get(rootName));
         } else {
             mapping = new Tuple<>(type, root);

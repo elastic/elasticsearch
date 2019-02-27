@@ -53,21 +53,21 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             return request;
         }
         //clusterAlias and absoluteStartMillis do not have public getters/setters hence we randomize them only in this test specifically.
-        return SearchRequest.withLocalReduction(request, request.indices(),
+        return SearchRequest.crossClusterSearch(request, request.indices(),
             randomAlphaOfLengthBetween(5, 10), randomNonNegativeLong(), randomBoolean());
     }
 
     public void testWithLocalReduction() {
-        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(null, Strings.EMPTY_ARRAY, "", 0, randomBoolean()));
+        expectThrows(NullPointerException.class, () -> SearchRequest.crossClusterSearch(null, Strings.EMPTY_ARRAY, "", 0, randomBoolean()));
         SearchRequest request = new SearchRequest();
-        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(request, null, "", 0, randomBoolean()));
-        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(request,
+        expectThrows(NullPointerException.class, () -> SearchRequest.crossClusterSearch(request, null, "", 0, randomBoolean()));
+        expectThrows(NullPointerException.class, () -> SearchRequest.crossClusterSearch(request,
             new String[]{null}, "", 0, randomBoolean()));
-        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(request,
+        expectThrows(NullPointerException.class, () -> SearchRequest.crossClusterSearch(request,
             Strings.EMPTY_ARRAY, null, 0, randomBoolean()));
-        expectThrows(IllegalArgumentException.class, () -> SearchRequest.withLocalReduction(request,
+        expectThrows(IllegalArgumentException.class, () -> SearchRequest.crossClusterSearch(request,
             Strings.EMPTY_ARRAY, "", -1, randomBoolean()));
-        SearchRequest searchRequest = SearchRequest.withLocalReduction(request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
+        SearchRequest searchRequest = SearchRequest.crossClusterSearch(request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
         assertNull(searchRequest.validate());
     }
 

@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.zen;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 import java.util.ArrayList;

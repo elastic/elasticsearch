@@ -26,3 +26,4 @@ public final class RestrictedIndicesNames {
     private RestrictedIndicesNames() {
     }
 }
+

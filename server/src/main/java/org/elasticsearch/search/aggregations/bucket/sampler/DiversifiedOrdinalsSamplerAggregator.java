@@ -27,7 +27,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;

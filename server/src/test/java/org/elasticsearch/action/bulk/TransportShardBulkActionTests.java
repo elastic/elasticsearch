@@ -155,9 +155,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(), listener -> {
-            }, new ActionListener<Void>() {
+            }, new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(final Void aVoid) {
+                public void onResponse(final Boolean aVoid) {
 
                 }
 
@@ -193,9 +193,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         TransportShardBulkAction.executeBulkItemRequest(secondContext, updateHelper,
             threadPool::absoluteTimeInMillis, new ThrowingMappingUpdatePerformer(new RuntimeException("fail")), listener -> {
             },
-            new ActionListener<Void>() {
+            new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(final Void aVoid) {
+                public void onResponse(final Boolean aVoid) {
 
                 }
 
@@ -334,9 +334,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 updateCalled.incrementAndGet();
                 listener.onResponse(new AcknowledgedResponse(true));
             }, listener -> listener.onResponse(null),
-            new ActionListener<Void>() {
+            new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(Void aVoid) {
+                public void onResponse(Boolean aVoid) {
 
                 }
 
@@ -359,9 +359,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
             (update, shardId, type, listener) -> fail("should not have had to update the mappings"), listener -> {
             },
-            new ActionListener<Void>() {
+            new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(final Void aVoid) {
+                public void onResponse(final Boolean aVoid) {
 
                 }
 
@@ -409,9 +409,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             context, null, threadPool::relativeTimeInMillis,
             errorOnWait == false ? new ThrowingMappingUpdatePerformer(err) : new NoopMappingUpdatePerformer(),
             errorOnWait ? listener -> listener.onFailure(err) : listener -> listener.onResponse(null),
-            new LatchedActionListener<>(new ActionListener<Void>() {
+            new LatchedActionListener<>(new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(final Void aVoid) {
+                public void onResponse(final Boolean aVoid) {
 
                 }
 
@@ -461,9 +461,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(), listener -> {
-            }, new ActionListener<Void>() {
+            }, new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(final Void aVoid) {
+                public void onResponse(final Boolean aVoid) {
 
                 }
 
@@ -514,9 +514,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(), listener -> {
-            }, new ActionListener<Void>() {
+            }, new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(final Void aVoid) {
+                public void onResponse(final Boolean aVoid) {
 
                 }
 
@@ -581,9 +581,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(), listener -> {
-            }, new ActionListener<Void>() {
+            }, new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(final Void aVoid) {
+                public void onResponse(final Boolean aVoid) {
 
                 }
 
@@ -638,9 +638,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(), listener -> {
-            }, new ActionListener<Void>() {
+            }, new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(final Void aVoid) {
+                public void onResponse(final Boolean aVoid) {
 
                 }
 
@@ -698,11 +698,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), listener -> {
-            },
-            new ActionListener<Void>() {
+            new NoopMappingUpdatePerformer(), listener -> listener.onResponse(null),
+            new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(final Void aVoid) {
+                public void onResponse(final Boolean aVoid) {
 
                 }
 
@@ -758,9 +757,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(), listener -> {
-            }, new ActionListener<Void>() {
+            }, new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(final Void aVoid) {
+                public void onResponse(final Boolean aVoid) {
 
                 }
 
@@ -814,10 +813,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), listener -> {
-            }, new ActionListener<Void>() {
+            new NoopMappingUpdatePerformer(), listener -> listener.onResponse(null),
+            new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(final Void aVoid) {
+                public void onResponse(final Boolean aVoid) {
 
                 }
 
@@ -860,9 +859,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(), listener -> {
-            }, new ActionListener<Void>() {
+            }, new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(final Void aVoid) {
+                public void onResponse(final Boolean aVoid) {
 
                 }
 
@@ -904,9 +903,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         while (context.hasMoreOperationsToExecute()) {
             TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
                 new NoopMappingUpdatePerformer(), listener -> {
-                }, new ActionListener<Void>() {
+                }, new ActionListener<Boolean>() {
                     @Override
-                    public void onResponse(final Void aVoid) {
+                    public void onResponse(final Boolean aVoid) {
 
                     }
 

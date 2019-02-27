@@ -38,7 +38,17 @@ public class SSLEngineUtils {
 
     public static void extractClientCertificates(Logger logger, ThreadContext threadContext, TcpChannel tcpChannel) {
         SSLEngine sslEngine = getSSLEngine(tcpChannel);
-        extract(logger, threadContext, sslEngine, tcpChannel);
+        if (sslEngine != null) {
+            extract(logger, threadContext, sslEngine, tcpChannel);
+        } else {
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "Channel does not have TLS/SSL enabled [{}]", tcpChannel));
+            } else if (logger.isDebugEnabled()) {
+                logger.debug("Channel does not have TLS/SSL enabled [{}]", tcpChannel);
+            }
+        }
     }
 
     public static SSLEngine getSSLEngine(HttpChannel httpChannel) {
@@ -62,7 +72,7 @@ public class SSLEngineUtils {
             SslHandler handler = nettyChannel.pipeline().get(SslHandler.class);
             if (handler == null) {
                 if (nettyChannel.isOpen()) {
-                    assert false : "Must have SslHandler";
+                    return null;
                 } else {
                     throw new ChannelException("Channel is closed.");
                 }

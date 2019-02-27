@@ -105,7 +105,6 @@ public class UserFunctionIT extends ESRestTestCase {
         assertResponse(expected, actual);
     }
     
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35980")
     public void testSingleRandomUserWithWhereEvaluatingFalse() throws IOException {
         index("{\"test\":\"doc1\"}",
               "{\"test\":\"doc2\"}",

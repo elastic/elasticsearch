@@ -53,7 +53,7 @@ class JdbcHttpClient {
                 SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, null, Protocol.TIME_ZONE,
                 fetch,
                 TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
-                new RequestInfo(Mode.JDBC));
+                false, new RequestInfo(Mode.JDBC));
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }

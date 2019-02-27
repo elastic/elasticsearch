@@ -322,10 +322,6 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void waitForOpsToComplete(long seqNo) {
-    }
-
-    @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         return new SeqNoStats(seqNoStats.getMaxSeqNo(), seqNoStats.getLocalCheckpoint(), globalCheckpoint);
     }

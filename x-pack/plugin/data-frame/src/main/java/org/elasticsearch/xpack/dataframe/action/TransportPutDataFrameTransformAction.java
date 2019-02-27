@@ -26,6 +26,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
@@ -34,7 +35,11 @@ import org.elasticsearch.xpack.dataframe.action.PutDataFrameTransformAction.Resp
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.persistence.DataframeIndex;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
+
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TransportPutDataFrameTransformAction
         extends TransportMasterNodeAction<PutDataFrameTransformAction.Request, PutDataFrameTransformAction.Response> {
@@ -79,7 +84,15 @@ public class TransportPutDataFrameTransformAction
 
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        String transformId = request.getConfig().getId();
+        // set headers to run data frame transform as calling user
+        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
+                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        DataFrameTransformConfig config = request.getConfig();
+        config.setHeaders(filteredHeaders);
+
+        String transformId = config.getId();
         // quick check whether a transform has already been created under that name
         if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, transformId) != null) {
             listener.onFailure(new ResourceAlreadyExistsException(
@@ -88,17 +101,17 @@ public class TransportPutDataFrameTransformAction
         }
 
         // create the transform, for now we only have pivot and no support for custom queries
-        Pivot pivot = new Pivot(request.getConfig().getSource(), new MatchAllQueryBuilder(), request.getConfig().getPivotConfig());
+        Pivot pivot = new Pivot(config.getSource(), new MatchAllQueryBuilder(), config.getPivotConfig());
 
         // the non-state creating steps are done first, so we minimize the chance to end up with orphaned state transform validation
         pivot.validate(client, ActionListener.wrap(validationResult -> {
             // deduce target mappings
             pivot.deduceMappings(client, ActionListener.wrap(mappings -> {
                 // create the destination index
-                DataframeIndex.createDestinationIndex(client, request.getConfig(), mappings, ActionListener.wrap(createIndexResult -> {
+                DataframeIndex.createDestinationIndex(client, config, mappings, ActionListener.wrap(createIndexResult -> {
                     DataFrameTransform transform = createDataFrameTransform(transformId, threadPool);
                     // create the transform configuration and store it in the internal index
-                    dataFrameTransformsConfigManager.putTransformConfiguration(request.getConfig(), ActionListener.wrap(r -> {
+                    dataFrameTransformsConfigManager.putTransformConfiguration(config, ActionListener.wrap(r -> {
                         // finally start the persistent task
                         persistentTasksService.sendStartRequest(transform.getId(), DataFrameTransform.NAME, transform,
                                 ActionListener.wrap(persistentTask -> {

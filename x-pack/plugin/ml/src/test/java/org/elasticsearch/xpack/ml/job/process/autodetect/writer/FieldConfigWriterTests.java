@@ -30,8 +30,6 @@ import java.io.OutputStreamWriter;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -239,12 +237,12 @@ public class FieldConfigWriterTests extends ESTestCase {
         analysisConfig = builder.build();
 
         scheduledEvents.add(new ScheduledEvent.Builder().description("The Ashes")
-                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1511395200000L), ZoneOffset.UTC))
-                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1515369600000L), ZoneOffset.UTC))
+                .startTime(Instant.ofEpochMilli(1511395200000L))
+                .endTime(Instant.ofEpochMilli(1515369600000L))
                 .calendarId("calendar_id").build());
         scheduledEvents.add(new ScheduledEvent.Builder().description("elasticon")
-                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519603200000L), ZoneOffset.UTC))
-                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(1519862400000L), ZoneOffset.UTC))
+                .startTime(Instant.ofEpochMilli(1519603200000L))
+                .endTime(Instant.ofEpochMilli(1519862400000L))
                 .calendarId("calendar_id").build());
 
         writer = mock(OutputStreamWriter.class);

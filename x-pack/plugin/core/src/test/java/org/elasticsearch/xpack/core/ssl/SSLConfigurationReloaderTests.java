@@ -67,6 +67,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
@@ -330,20 +331,31 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
+        final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
         new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
-                fail("reload should not be called! [keystore reload exception]");
+                try {
+                    super.reloadSSLContext(configuration);
+                } catch (Exception e) {
+                    exceptionRef.set(e);
+                    throw e;
+                } finally {
+                    latch.countDown();
+                }
             }
         };
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
         // truncate the keystore
-        try (OutputStream out = Files.newOutputStream(keystorePath, StandardOpenOption.TRUNCATE_EXISTING)) {
+        try (OutputStream ignore = Files.newOutputStream(keystorePath, StandardOpenOption.TRUNCATE_EXISTING)) {
         }
 
-        // we intentionally don't wait here as we rely on concurrency to catch a failure
+        latch.await();
+        assertNotNull(exceptionRef.get());
+        assertThat(exceptionRef.get().getMessage(), containsString("failed to initialize a KeyManagerFactory"));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
     }
 
@@ -371,20 +383,31 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
+        final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
         new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
-                fail("reload should not be called! [pem key reload exception]");
+                try {
+                    super.reloadSSLContext(configuration);
+                } catch (Exception e) {
+                    exceptionRef.set(e);
+                    throw e;
+                } finally {
+                    latch.countDown();
+                }
             }
         };
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
         // truncate the file
-        try (OutputStream os = Files.newOutputStream(keyPath, StandardOpenOption.TRUNCATE_EXISTING)) {
+        try (OutputStream ignore = Files.newOutputStream(keyPath, StandardOpenOption.TRUNCATE_EXISTING)) {
         }
 
-        // we intentionally don't wait here as we rely on concurrency to catch a failure
+        latch.await();
+        assertNotNull(exceptionRef.get());
+        assertThat(exceptionRef.get().getMessage(), containsString("Error parsing Private Key"));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
     }
 
@@ -406,20 +429,31 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
+        final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
         new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
-                fail("reload should not be called! [truststore reload exception]");
+                try {
+                    super.reloadSSLContext(configuration);
+                } catch (Exception e) {
+                    exceptionRef.set(e);
+                    throw e;
+                } finally {
+                    latch.countDown();
+                }
             }
         };
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
         // truncate the truststore
-        try (OutputStream os = Files.newOutputStream(trustStorePath, StandardOpenOption.TRUNCATE_EXISTING)) {
+        try (OutputStream ignore = Files.newOutputStream(trustStorePath, StandardOpenOption.TRUNCATE_EXISTING)) {
         }
 
-        // we intentionally don't wait here as we rely on concurrency to catch a failure
+        latch.await();
+        assertNotNull(exceptionRef.get());
+        assertThat(exceptionRef.get().getMessage(), containsString("failed to initialize a TrustManagerFactory"));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
     }
 
@@ -438,10 +472,19 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.sslConfiguration(settings.getByPrefix("xpack.security.transport.ssl."));
+        final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
         new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
-                fail("reload should not be called! [pem trust reload exception]");
+                try {
+                    super.reloadSSLContext(configuration);
+                } catch (Exception e) {
+                    exceptionRef.set(e);
+                    throw e;
+                } finally {
+                    latch.countDown();
+                }
             }
         };
 
@@ -454,9 +497,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         }
         atomicMoveIfPossible(updatedCert, clientCertPath);
 
-        // we intentionally don't wait here as we rely on concurrency to catch a failure
+        latch.await();
+        assertNotNull(exceptionRef.get());
+        assertThat(exceptionRef.get().getMessage(), containsString("failed to initialize a TrustManagerFactory"));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
-
     }
 
     private void validateSSLConfigurationIsReloaded(Settings settings, Environment env, Consumer<SSLContext> preChecks,

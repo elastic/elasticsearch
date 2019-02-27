@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.TransportShardBulkAction.ReplicaItemExecutionMode;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -403,11 +404,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         randomlySetIgnoredPrimaryResponse(items[0]);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
+        final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.executeBulkItemRequest(
             context, null, threadPool::relativeTimeInMillis,
             errorOnWait == false ? new ThrowingMappingUpdatePerformer(err) : new NoopMappingUpdatePerformer(),
             errorOnWait ? listener -> listener.onFailure(err) : listener -> listener.onResponse(null),
-            new ActionListener<Void>() {
+            new LatchedActionListener<>(new ActionListener<Void>() {
                 @Override
                 public void onResponse(final Void aVoid) {
 
@@ -417,7 +419,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 public void onFailure(final Exception e) {
                     assertEquals(err, e);
                 }
-            });
+            }, latch));
+        latch.await();
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Translog shouldn't be synced, as there were conflicting mappings

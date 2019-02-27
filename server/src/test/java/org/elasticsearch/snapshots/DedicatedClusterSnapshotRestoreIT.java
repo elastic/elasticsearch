@@ -855,7 +855,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertEquals(0, snapshotInfo.failedShards());
     }
 
-
     public void testMasterAndDataShutdownDuringSnapshot() throws Exception {
         logger.info("-->  starting three master nodes and two data nodes");
         internalCluster().startMasterOnlyNodes(3);
@@ -988,7 +987,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
      * can be restored when the node the shrunken index was created on is no longer part of
      * the cluster.
      */
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/38256")
     public void testRestoreShrinkIndex() throws Exception {
         logger.info("-->  starting a master node and a data node");
         internalCluster().startMasterOnlyNode();

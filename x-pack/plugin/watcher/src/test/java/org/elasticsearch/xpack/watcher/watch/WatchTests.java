@@ -114,14 +114,13 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.support.Month;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.MonthTimes;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.WeekTimes;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.YearTimes;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -147,7 +146,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 
 public class WatchTests extends ESTestCase {
@@ -178,7 +176,7 @@ public class WatchTests extends ESTestCase {
 
     public void testParserSelfGenerated() throws Exception {
         Clock clock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
-        DateTime now = new DateTime(clock.millis(), UTC);
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         TransformRegistry transformRegistry = transformRegistry();
         boolean includeStatus = randomBoolean();
         Schedule schedule = randomSchedule();
@@ -248,8 +246,10 @@ public class WatchTests extends ESTestCase {
             }
         };
 
-        DateTime now = new DateTime(UTC);
+        Clock fixedClock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
+
         ClockMock clock = ClockMock.frozen();
+        ZonedDateTime now = Instant.ofEpochMilli(fixedClock.millis()).atZone(ZoneOffset.UTC);
         clock.setTime(now);
 
         List<ActionWrapper> actions = randomActions();
@@ -257,12 +257,12 @@ public class WatchTests extends ESTestCase {
         for (ActionWrapper action : actions) {
             actionsStatuses.put(action.id(), new ActionStatus(now));
         }
-        WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), unmodifiableMap(actionsStatuses));
+        WatchStatus watchStatus = new WatchStatus(clock.instant().atZone(ZoneOffset.UTC), unmodifiableMap(actionsStatuses));
 
         WatchParser watchParser = new WatchParser(triggerService, actionRegistry, inputRegistry, null, clock);
         XContentBuilder builder = jsonBuilder().startObject().startObject("trigger").endObject().field("status", watchStatus).endObject();
         Watch watch = watchParser.parse("foo", true, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L);
-        assertThat(watch.status().state().getTimestamp().getMillis(), is(clock.millis()));
+        assertThat(watch.status().state().getTimestamp().toInstant().toEpochMilli(), is(clock.millis()));
         for (ActionWrapper action : actions) {
             assertThat(watch.status().actionStatus(action.id()), is(actionsStatuses.get(action.id())));
         }
@@ -548,7 +548,7 @@ public class WatchTests extends ESTestCase {
     private ExecutableTransform randomTransform() {
         String type = randomFrom(ScriptTransform.TYPE, SearchTransform.TYPE, ChainTransform.TYPE);
         TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
-        DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
+        ZoneOffset timeZone = randomBoolean() ? ZoneOffset.UTC : null;
         switch (type) {
             case ScriptTransform.TYPE:
                 return new ExecutableScriptTransform(new ScriptTransform(mockScript("_script")), logger, scriptService);
@@ -588,7 +588,7 @@ public class WatchTests extends ESTestCase {
                     new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer, Collections.emptyMap())));
         }
         if (randomBoolean()) {
-            DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
+            ZoneOffset timeZone = randomBoolean() ? ZoneOffset.UTC : null;
             TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
             WriteRequest.RefreshPolicy refreshPolicy = randomBoolean() ? null : randomFrom(WriteRequest.RefreshPolicy.values());
             IndexAction action = new IndexAction("_index", null, randomBoolean() ? "123" : null, null, timeout, timeZone,

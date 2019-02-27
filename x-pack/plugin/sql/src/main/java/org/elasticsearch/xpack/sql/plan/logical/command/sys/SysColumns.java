@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.sql.type.EsField;
 import java.sql.DatabaseMetaData;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -143,7 +142,7 @@ public class SysColumns extends Command {
                             indexName,
                             name,
                             odbcCompatible(type.sqlType.getVendorTypeNumber(), isOdbcClient),
-                            type.esType.toUpperCase(Locale.ROOT),
+                            type.toString(),
                             type.displaySize,
                             // TODO: is the buffer_length correct?
                             type.size,

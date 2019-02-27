@@ -44,9 +44,8 @@
         index: test
         body:
           mappings:
-            _doc:
-              _source:
-                enabled: false
+            _source:
+              enabled: false
   - do:
       index:
         index:  test

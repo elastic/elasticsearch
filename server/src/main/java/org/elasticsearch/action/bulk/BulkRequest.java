@@ -46,9 +46,9 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.document.RestBulkAction;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -501,8 +501,11 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 .create(true).setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                     } else if ("update".equals(action)) {
+                        if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
+                            throw new IllegalArgumentException("Update requests do not support versioning. " +
+                                "Please use `if_seq_no` and `if_primary_term` instead");
+                        }
                         UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).retryOnConflict(retryOnConflict)
-                                .version(version).versionType(versionType)
                                 .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .routing(routing);
                         // EMPTY is safe here because we never call namedObject
@@ -516,14 +519,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                         }
                         IndexRequest upsertRequest = updateRequest.upsertRequest();
                         if (upsertRequest != null) {
-                            upsertRequest.version(version);
-                            upsertRequest.versionType(versionType);
                             upsertRequest.setPipeline(defaultPipeline);
-                        }
-                        IndexRequest doc = updateRequest.doc();
-                        if (doc != null) {
-                            doc.version(version);
-                            doc.versionType(versionType);
                         }
 
                         internalAdd(updateRequest, payload);

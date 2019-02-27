@@ -230,16 +230,16 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void checkNoMonitorMain(String user) throws Exception {
-            // Most SQL actually works fine without monitor/main
-            expectMatchesAdmin("SELECT * FROM test", user, "SELECT * FROM test");
-            expectMatchesAdmin("SHOW TABLES LIKE 'test'", user, "SHOW TABLES LIKE 'test'");
-            expectMatchesAdmin("DESCRIBE test", user, "DESCRIBE test");
-
-            // But there are a few things that don't work
-            try (Connection es = es(userProperties(user))) {
-                expectUnauthorized("cluster:monitor/main", user, () -> es.getMetaData().getDatabaseMajorVersion());
-                expectUnauthorized("cluster:monitor/main", user, () -> es.getMetaData().getDatabaseMinorVersion());
-            }
+            // Without monitor/main the JDBC driver - ES server version comparison doesn't take place, which fails everything else
+            expectUnauthorized("cluster:monitor/main", user, () -> es(userProperties(user)));
+            expectUnauthorized("cluster:monitor/main", user, () -> es(userProperties(user)).getMetaData().getDatabaseMajorVersion()); 
+            expectUnauthorized("cluster:monitor/main", user, () -> es(userProperties(user)).getMetaData().getDatabaseMinorVersion());
+            expectUnauthorized("cluster:monitor/main", user, 
+                    () -> es(userProperties(user)).createStatement().executeQuery("SELECT * FROM test"));
+            expectUnauthorized("cluster:monitor/main", user, 
+                    () -> es(userProperties(user)).createStatement().executeQuery("SHOW TABLES LIKE 'test'"));
+            expectUnauthorized("cluster:monitor/main", user, 
+                    () -> es(userProperties(user)).createStatement().executeQuery("DESCRIBE test"));
         }
 
         private void expectUnauthorized(String action, String user, ThrowingRunnable r) {

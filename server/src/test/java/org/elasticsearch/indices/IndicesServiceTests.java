@@ -642,5 +642,4 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .build();
     }
 
-
 }

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.xpack.sql.analysis.AnalysisException;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
@@ -105,6 +105,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveRefs(),
                 new ResolveOrdinalInOrderByAndGroupBy(),
                 new ResolveMissingRefs(),
+                new ResolveFilterRefs(),
                 new ResolveFunctions(),
                 new ResolveAliases(),
                 new ProjectedAggregations(),
@@ -219,7 +220,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // compound fields
             else if (allowCompound == false && fa.dataType().isPrimitive() == false) {
                 named = u.withUnresolvedMessage(
-                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esType + "] only its subfields");
+                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName + "] only its subfields");
             }
         }
         return named;
@@ -516,6 +517,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 int max = ordinalReference.size();
 
                 for (Order order : orderBy.order()) {
+                    Expression child = order.child();
                     Integer ordinal = findOrdinal(order.child());
                     if (ordinal != null) {
                         changed = true;
@@ -524,7 +526,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                                     order.nullsPosition()));
                         }
                         else {
-                            throw new AnalysisException(order, "Invalid %d specified in OrderBy (valid range is [1, %d])", ordinal, max);
+                            // report error
+                            String message = LoggerMessageFormat.format("Invalid ordinal [{}] specified in [{}] (valid range is [1, {}])",
+                                    ordinal, orderBy.sourceText(), max);
+                            UnresolvedAttribute ua = new UnresolvedAttribute(child.source(), orderBy.sourceText(), null, message);
+                            newOrder.add(new Order(order.source(), ua, order.direction(), order.nullsPosition()));
                         }
                     }
                     else {
@@ -551,17 +557,24 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     Integer ordinal = findOrdinal(exp);
                     if (ordinal != null) {
                         changed = true;
+                        String errorMessage = null;
                         if (ordinal > 0 && ordinal <= max) {
                             NamedExpression reference = aggregates.get(ordinal - 1);
                             if (containsAggregate(reference)) {
-                                throw new AnalysisException(exp, "Group ordinal " + ordinal + " refers to an aggregate function "
-                                        + reference.nodeName() + " which is not compatible/allowed with GROUP BY");
+                                errorMessage = LoggerMessageFormat.format(
+                                        "Ordinal [{}] in [{}] refers to an invalid argument, aggregate function [{}]",
+                                        ordinal, agg.sourceText(), reference.sourceText());
+
+                            } else {
+                                newGroupings.add(reference);
                             }
-                            newGroupings.add(reference);
                         }
                         else {
-                            throw new AnalysisException(exp, "Invalid ordinal " + ordinal
-                                    + " specified in Aggregate (valid range is [1, " + max + "])");
+                            errorMessage = LoggerMessageFormat.format("Invalid ordinal [{}] specified in [{}] (valid range is [1, {}])",
+                                    ordinal, agg.sourceText(), max);
+                        }
+                        if (errorMessage != null) {
+                            newGroupings.add(new UnresolvedAttribute(exp.source(), agg.sourceText(), null, errorMessage));
                         }
                     }
                     else {
@@ -576,10 +589,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         private Integer findOrdinal(Expression expression) {
-            if (expression instanceof Literal) {
-                Literal l = (Literal) expression;
-                if (l.dataType().isInteger()) {
-                    Object v = l.value();
+            if (expression.foldable()) {
+                if (expression.dataType().isInteger()) {
+                    Object v = Foldables.valueOf(expression);
                     if (v instanceof Number) {
                         return Integer.valueOf(((Number) v).intValue());
                     }
@@ -748,6 +760,68 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             }
             return ua;
+        }
+    }
+
+    //
+    // Resolve aliases defined in SELECT that are referred inside the WHERE clause:
+    // SELECT int AS i FROM t WHERE i > 10
+    //
+    // As such, identify all project and aggregates that have a Filter child
+    // and look at any resoled aliases that match and replace them.
+    private class ResolveFilterRefs extends AnalyzeRule<LogicalPlan> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            if (plan instanceof Project) {
+                Project p = (Project) plan;
+                if (p.child() instanceof Filter) {
+                    Filter f = (Filter) p.child();
+                    Expression condition = f.condition();
+                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                        Expression newCondition = replaceAliases(condition, p.projections());
+                        if (newCondition != condition) {
+                            return new Project(p.source(), new Filter(f.source(), f.child(), newCondition), p.projections());
+                        }
+                    }
+                }
+            }
+
+            if (plan instanceof Aggregate) {
+                Aggregate a = (Aggregate) plan;
+                if (a.child() instanceof Filter) {
+                    Filter f = (Filter) a.child();
+                    Expression condition = f.condition();
+                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                        Expression newCondition = replaceAliases(condition, a.aggregates());
+                        if (newCondition != condition) {
+                            return new Aggregate(a.source(), new Filter(f.source(), f.child(), newCondition), a.groupings(),
+                                    a.aggregates());
+                        }
+                    }
+                }
+            }
+
+            return plan;
+        }
+
+        private Expression replaceAliases(Expression condition, List<? extends NamedExpression> named) {
+            List<Alias> aliases = new ArrayList<>();
+            named.forEach(n -> {
+                if (n instanceof Alias) {
+                    aliases.add((Alias) n);
+                }
+            });
+
+            return condition.transformDown(u -> {
+                boolean qualified = u.qualifier() != null;
+                for (Alias alias : aliases) {
+                    if (qualified ? Objects.equals(alias.qualifiedName(), u.qualifiedName()) : Objects.equals(alias.name(), u.name())) {
+                        return alias;
+                    }
+                }
+                return u;
+             }, UnresolvedAttribute.class);
         }
     }
 

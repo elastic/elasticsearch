@@ -14,19 +14,19 @@ import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraAccount;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.mockito.ArgumentCaptor;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -77,7 +77,7 @@ public class ExecutableJiraActionTests extends ESTestCase {
         JiraService service = mock(JiraService.class);
         when(service.getAccount(eq("account1"))).thenReturn(account);
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
         Wid wid = new Wid(randomAlphaOfLength(5), now);
         WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
@@ -288,7 +288,7 @@ public class ExecutableJiraActionTests extends ESTestCase {
     }
 
     private WatchExecutionContext createWatchExecutionContext() {
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid(randomAlphaOfLength(5), now);
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
         return mockExecutionContextBuilder("watch1")

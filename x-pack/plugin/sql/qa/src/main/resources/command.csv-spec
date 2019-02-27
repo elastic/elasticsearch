@@ -31,6 +31,8 @@ ISNULL           |CONDITIONAL
 LEAST            |CONDITIONAL
 NULLIF           |CONDITIONAL
 NVL              |CONDITIONAL
+CURDATE          |SCALAR
+CURRENT_DATE     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
 DAY              |SCALAR
 DAYNAME          |SCALAR
@@ -65,7 +67,8 @@ MONTH_OF_YEAR    |SCALAR
 NOW              |SCALAR
 QUARTER          |SCALAR         
 SECOND           |SCALAR         
-SECOND_OF_MINUTE |SCALAR         
+SECOND_OF_MINUTE |SCALAR
+TODAY            |SCALAR
 WEEK             |SCALAR         
 WEEK_OF_YEAR     |SCALAR         
 YEAR             |SCALAR         
@@ -175,6 +178,7 @@ HOUR_OF_DAY    |SCALAR
 ISODAYOFWEEK   |SCALAR
 ISO_DAY_OF_WEEK|SCALAR
 MINUTE_OF_DAY  |SCALAR         
+TODAY          |SCALAR
 ;
 
 showTables

@@ -222,7 +222,7 @@ public abstract class TransportReplicationAction<
      * Index level block to check before request execution. Returning null means that no blocks need to be checked.
      */
     @Nullable
-    protected ClusterBlockLevel indexBlockLevel() {
+    public ClusterBlockLevel indexBlockLevel() {
         return null;
     }
 
@@ -525,7 +525,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected static class ReplicaResult {
+    public static class ReplicaResult {
         final Exception finalFailure;
 
         public ReplicaResult(Exception finalFailure) {

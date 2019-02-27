@@ -431,6 +431,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          * the tracker is in primary mode and received from the primary if in replica mode.
          */
         long globalCheckpoint;
+
+        /**
+         * The last local-checkpoint-of-safe-commit that we have for this shard
+         */
+        long localCheckpointOfSafeCommit;
+
         /**
          * whether this shard is treated as in-sync and thus contributes to the global checkpoint calculation
          */
@@ -441,9 +447,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          */
         boolean tracked;
 
-        public CheckpointState(long localCheckpoint, long globalCheckpoint, boolean inSync, boolean tracked) {
+        public CheckpointState(long localCheckpoint, long globalCheckpoint, long localCheckpointOfSafeCommit,
+                               boolean inSync, boolean tracked) {
             this.localCheckpoint = localCheckpoint;
             this.globalCheckpoint = globalCheckpoint;
+            this.localCheckpointOfSafeCommit = localCheckpointOfSafeCommit;
             this.inSync = inSync;
             this.tracked = tracked;
         }
@@ -451,6 +459,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         public CheckpointState(StreamInput in) throws IOException {
             this.localCheckpoint = in.readZLong();
             this.globalCheckpoint = in.readZLong();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                this.localCheckpointOfSafeCommit = in.readZLong();
+            } else {
+                this.localCheckpointOfSafeCommit = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            }
             this.inSync = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
                 this.tracked = in.readBoolean();
@@ -468,6 +481,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         public void writeTo(StreamOutput out) throws IOException {
             out.writeZLong(localCheckpoint);
             out.writeZLong(globalCheckpoint);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeZLong(this.localCheckpointOfSafeCommit);
+            }
             out.writeBoolean(inSync);
             if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
                 out.writeBoolean(tracked);
@@ -478,7 +494,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          * Returns a full copy of this object
          */
         public CheckpointState copy() {
-            return new CheckpointState(localCheckpoint, globalCheckpoint, inSync, tracked);
+            return new CheckpointState(localCheckpoint, globalCheckpoint, localCheckpointOfSafeCommit, inSync, tracked);
         }
 
         public long getLocalCheckpoint() {
@@ -489,11 +505,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             return globalCheckpoint;
         }
 
+        public long getLocalCheckpointOfSafeCommit() {
+            return localCheckpointOfSafeCommit;
+        }
+
         @Override
         public String toString() {
             return "LocalCheckpointState{" +
                 "localCheckpoint=" + localCheckpoint +
                 ", globalCheckpoint=" + globalCheckpoint +
+                ", localCheckpointOfSafeCommit=" + localCheckpointOfSafeCommit +
                 ", inSync=" + inSync +
                 ", tracked=" + tracked +
                 '}';
@@ -508,6 +529,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
             if (localCheckpoint != that.localCheckpoint) return false;
             if (globalCheckpoint != that.globalCheckpoint) return false;
+            if (localCheckpointOfSafeCommit != that.localCheckpointOfSafeCommit) return false;
             if (inSync != that.inSync) return false;
             return tracked == that.tracked;
         }
@@ -516,6 +538,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         public int hashCode() {
             int result = Long.hashCode(localCheckpoint);
             result = 31 * result + Long.hashCode(globalCheckpoint);
+            result = 31 * result + Long.hashCode(localCheckpointOfSafeCommit);
             result = 31 * result + Boolean.hashCode(inSync);
             result = 31 * result + Boolean.hashCode(tracked);
             return result;
@@ -719,7 +742,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.handoffInProgress = false;
         this.appliedClusterStateVersion = -1L;
         this.checkpoints = new HashMap<>(1 + indexSettings.getNumberOfReplicas());
-        checkpoints.put(allocationId, new CheckpointState(SequenceNumbers.UNASSIGNED_SEQ_NO, globalCheckpoint, false, false));
+        checkpoints.put(allocationId,
+            new CheckpointState(SequenceNumbers.UNASSIGNED_SEQ_NO, globalCheckpoint, SequenceNumbers.UNASSIGNED_SEQ_NO, false, false));
         this.onGlobalCheckpointUpdated = Objects.requireNonNull(onGlobalCheckpointUpdated);
         this.currentTimeMillisSupplier = Objects.requireNonNull(currentTimeMillisSupplier);
         this.onSyncRetentionLeases = Objects.requireNonNull(onSyncRetentionLeases);
@@ -816,6 +840,25 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
     }
 
+    public synchronized void updateLocalCheckpointOfSafeCommitForShard(String allocationId, long localCheckpointOfSafeCommit) {
+        assert primaryMode;
+        assert handoffInProgress == false;
+        assert invariant();
+
+        final CheckpointState cps = checkpoints.get(allocationId);
+        assert !this.shardAllocationId.equals(allocationId) || cps != null;
+        if (cps != null && localCheckpointOfSafeCommit > cps.localCheckpointOfSafeCommit) {
+            long previousValue = cps.localCheckpointOfSafeCommit;
+            cps.localCheckpointOfSafeCommit = localCheckpointOfSafeCommit;
+            logger.trace(
+                "updated local knowledge for [{}] on the primary of the local checkpoint of the safe commit from [{}] to [{}]",
+                allocationId,
+                previousValue,
+                localCheckpointOfSafeCommit);
+        }
+        assert invariant();
+    }
+
     /**
      * Initializes the global checkpoint tracker in primary mode (see {@link #primaryMode}. Called on primary activation or promotion.
      */
@@ -880,7 +923,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                         final long localCheckpoint = pre60AllocationIds.contains(initializingId) ?
                             SequenceNumbers.PRE_60_NODE_CHECKPOINT : SequenceNumbers.UNASSIGNED_SEQ_NO;
                         final long globalCheckpoint = localCheckpoint;
-                        checkpoints.put(initializingId, new CheckpointState(localCheckpoint, globalCheckpoint, inSync, inSync));
+                        checkpoints.put(initializingId,
+                            new CheckpointState(localCheckpoint, globalCheckpoint, SequenceNumbers.UNASSIGNED_SEQ_NO, inSync, inSync));
                     }
                 }
                 if (removedEntries) {
@@ -892,7 +936,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                         final long localCheckpoint = pre60AllocationIds.contains(initializingId) ?
                             SequenceNumbers.PRE_60_NODE_CHECKPOINT : SequenceNumbers.UNASSIGNED_SEQ_NO;
                         final long globalCheckpoint = localCheckpoint;
-                        checkpoints.put(initializingId, new CheckpointState(localCheckpoint, globalCheckpoint, false, false));
+                        checkpoints.put(initializingId,
+                            new CheckpointState(localCheckpoint, globalCheckpoint, SequenceNumbers.UNASSIGNED_SEQ_NO, false, false));
                     }
                 }
                 for (String inSyncId : inSyncAllocationIds) {
@@ -905,7 +950,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                         final long localCheckpoint = pre60AllocationIds.contains(inSyncId) ?
                             SequenceNumbers.PRE_60_NODE_CHECKPOINT : SequenceNumbers.UNASSIGNED_SEQ_NO;
                         final long globalCheckpoint = localCheckpoint;
-                        checkpoints.put(inSyncId, new CheckpointState(localCheckpoint, globalCheckpoint, true, true));
+                        checkpoints.put(inSyncId,
+                            new CheckpointState(localCheckpoint, globalCheckpoint, SequenceNumbers.UNASSIGNED_SEQ_NO, true, true));
                     }
                 }
             }

@@ -1898,7 +1898,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void updateLocalCheckpointOfSafeCommitForShard(final String allocationId, final long localCheckpointOfSafeCommit) {
         assert assertPrimaryMode();
         verifyNotClosed();
-        replicationTracker.updateGlobalCheckpointForShard(allocationId, localCheckpointOfSafeCommit);
+        replicationTracker.updateLocalCheckpointOfSafeCommitForShard(allocationId, localCheckpointOfSafeCommit);
     }
 
     /**

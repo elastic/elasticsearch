@@ -206,7 +206,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39355")
     public void testCannotFollowLeaderInUpgradedCluster() throws Exception {
         assumeTrue("Tests only runs with upgrade_state [all]", upgradeState == UpgradeState.ALL);
 
@@ -223,7 +222,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
             assertThat(e.getMessage(), containsString("] which is higher than the version of this node ["));
         } else if (clusterName == ClusterName.LEADER) {
             // At this point all nodes in both clusters have been updated and
-            // the leader cluster can now follow leader_index4 in the follower cluster:
+            // the leader cluster can now follow not_supported index in the follower cluster:
+            ensureGreen(followerClient(), "not_supported");
             followIndex(leaderClient(), "follower", "not_supported", "not_supported");
             assertTotalHitCount("not_supported", 64, leaderClient());
         } else {

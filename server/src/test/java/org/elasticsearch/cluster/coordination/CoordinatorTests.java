@@ -1060,6 +1060,7 @@ public class CoordinatorTests extends ESTestCase {
         cluster1.stabilise();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39437")
     public void testDiscoveryUsesNodesFromLastClusterState() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();

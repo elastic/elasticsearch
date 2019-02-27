@@ -507,7 +507,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     @Override
                     public void onFailure(final Exception e) {
                         onComplete.accept(exceptionToResult.apply(e));
-                        mappingUpdatedListener.onResponse(null);
                     }
                 })
         );
@@ -543,7 +542,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     @Override
                     public void onFailure(final Exception e) {
                         onComplete.accept(exceptionToResult.apply(e));
-                        mappingUpdatedListener.onResponse(null);
                     }
                 })
         );

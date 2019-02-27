@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.Realm.Factory;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -152,9 +153,14 @@ public class AuthenticationServiceTests extends ESTestCase {
     private InetSocketAddress remoteAddress;
     private Settings settings;
 
+    private String concreteSecurityIndexName;
+
     @Before
     @SuppressForbidden(reason = "Allow accessing localhost")
     public void init() throws Exception {
+        concreteSecurityIndexName = randomFrom(
+            RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
+
         token = mock(AuthenticationToken.class);
         when(token.principal()).thenReturn(randomAlphaOfLength(5));
         message = new InternalMessage();
@@ -1425,6 +1431,6 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
-        return new SecurityIndexManager.State(true, true, true, true, null, indexStatus);
+        return new SecurityIndexManager.State(true, true, true, true, null, concreteSecurityIndexName, indexStatus);
     }
 }

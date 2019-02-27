@@ -305,7 +305,7 @@ public final class IndicesPermission {
             return check(action) && (indexNameMatcher.test(index)
                     && (allowRestrictedIndices
                             // all good if it is not restricted
-                            || (false == RestrictedIndicesNames.NAMES_SET.contains(index))
+                            || (false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(index))
                             // allow monitor as a special case, even for restricted
                             || IndexPrivilege.MONITOR.predicate().test(action)));
         }
@@ -342,13 +342,13 @@ public final class IndicesPermission {
             final Predicate<String> predicate;
             if (restrictedIndices.isEmpty()) {
                 predicate = indexMatcher(ordinaryIndices)
-                    .and(index -> false == RestrictedIndicesNames.NAMES_SET.contains(index));
+                    .and(index -> false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(index));
             } else if (ordinaryIndices.isEmpty()) {
                 predicate = indexMatcher(restrictedIndices);
             } else {
                 predicate = indexMatcher(restrictedIndices)
                     .or(indexMatcher(ordinaryIndices)
-                         .and(index -> false == RestrictedIndicesNames.NAMES_SET.contains(index)));
+                         .and(index -> false == RestrictedIndicesNames.RESTRICTED_NAMES.contains(index)));
             }
             return predicate;
         }

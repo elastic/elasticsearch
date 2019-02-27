@@ -25,18 +25,16 @@ import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
 import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
-import java.nio.charset.CodingErrorAction;
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.MalformedInputException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 
-import java.io.InputStreamReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.BufferedReader;
-import java.io.FileInputStream;
+import java.io.UncheckedIOException;
+import java.util.stream.Stream;
 
 import java.nio.file.StandardOpenOption;
 import java.util.List;
@@ -164,18 +162,15 @@ public class NoticeTask extends DefaultTask {
         return licensesSeen;
     }
     private static String readFileToString(File file, Charset charset) throws IOException{
-        CharsetDecoder decoder = charset.newDecoder();
-        decoder.onMalformedInput(CodingErrorAction.REPLACE);
         final StringBuilder builder = new StringBuilder();
 
-        try(BufferedReader reader = new
-            BufferedReader(new InputStreamReader(new FileInputStream(file),decoder))){
-            char[] buffer = new char[8192];
-            int read;
+        try(Stream<String> stream = Files.lines(file.toPath(),charset)){
+            stream.forEach(builder::append);
 
-            while ((read = reader.read(buffer))!= -1){
-                builder.append(buffer,0,read);
-            }
+        }catch (MalformedInputException | UncheckedIOException e){
+            // Files.lines() wraps MalformedInputException inside of an UncheckedIOException
+            throw new RuntimeException("Unable to process file " + file.toString(),e);
+
         }
         return builder.toString();
     }

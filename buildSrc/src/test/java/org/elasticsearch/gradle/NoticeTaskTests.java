@@ -19,7 +19,7 @@ import java.util.Arrays;
 import java.util.stream.Collectors;
 
 
-public class NoticeTaskTest extends GradleUnitTestCase {
+public class NoticeTaskTests extends GradleUnitTestCase {
 
     @Rule
     public final ExpectedException expectedException = ExpectedException.none();

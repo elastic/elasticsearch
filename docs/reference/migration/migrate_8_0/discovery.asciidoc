@@ -10,6 +10,9 @@ will no longer be supported. In particular, this includes:
 
 - `discovery.zen.no_master_block`
 - `discovery.zen.hosts_provider`
+- `discovery.zen.publish_timeout`
+- `discovery.zen.commit_timeout`
+- `discovery.zen.publish_diff.enable`
 - `discovery.zen.ping.unicast.concurrent_connects`
 - `discovery.zen.ping.unicast.hosts.resolve_timeout`
 - `discovery.zen.ping.unicast.hosts`

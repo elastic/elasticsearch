@@ -578,7 +578,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         followerGroup.getPrimary().routingEntry().index(),
                         "remote",
                         leaderGroup.getPrimary().routingEntry().index());
-                final PlainActionFuture<ReplicationResponse> response = new PlainActionFuture<>();
+                final PlainActionFuture<Void> response = new PlainActionFuture<>();
                 leaderGroup.addRetentionLease(
                         retentionLeaseId,
                         followerGlobalCheckpoint.getAsLong(),

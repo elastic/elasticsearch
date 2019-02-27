@@ -220,6 +220,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     case NOOP:
                         context.markOperationAsNoOp(updateResult.action());
                         context.markAsCompleted(context.getExecutionResult());
+                        itemDoneListener.onResponse(null);
                         return;
                     default:
                         throw new IllegalStateException("Illegal update operation " + updateResult.getResponseResult());

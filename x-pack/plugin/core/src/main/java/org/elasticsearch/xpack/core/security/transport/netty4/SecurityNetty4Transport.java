@@ -25,9 +25,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -39,9 +39,7 @@ import javax.net.ssl.SSLParameters;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -70,36 +68,12 @@ public class SecurityNetty4Transport extends Netty4Transport {
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         if (sslEnabled) {
             this.sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
-            Map<String, SSLConfiguration> profileConfiguration = getTransportProfileConfigurations(settings, sslService, sslConfiguration);
+            Map<String, SSLConfiguration> profileConfiguration = ProfileConfigurations.get(settings, sslService, sslConfiguration);
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
         } else {
             this.profileConfiguration = Collections.emptyMap();
             this.sslConfiguration = null;
         }
-    }
-
-    public static Map<String, SSLConfiguration> getTransportProfileConfigurations(Settings settings, SSLService sslService,
-                                                                                  SSLConfiguration defaultConfiguration) {
-        Set<String> profileNames = settings.getGroups("transport.profiles.", true).keySet();
-        Map<String, SSLConfiguration> profileConfiguration = new HashMap<>(profileNames.size() + 1);
-        for (String profileName : profileNames) {
-            if (profileName.equals(TransportSettings.DEFAULT_PROFILE)) {
-                // don't attempt to parse ssl settings from the profile;
-                // profiles need to be killed with fire
-                if (settings.getByPrefix("transport.profiles.default.xpack.security.ssl.").isEmpty()) {
-                    continue;
-                } else {
-                    throw new IllegalArgumentException("SSL settings should not be configured for the default profile. " +
-                        "Use the [xpack.security.transport.ssl] settings instead.");
-                }
-            }
-            SSLConfiguration configuration = sslService.getSSLConfiguration("transport.profiles." + profileName + "." + setting("ssl"));
-            profileConfiguration.put(profileName, configuration);
-        }
-
-        assert profileConfiguration.containsKey(TransportSettings.DEFAULT_PROFILE) == false;
-        profileConfiguration.put(TransportSettings.DEFAULT_PROFILE, defaultConfiguration);
-        return profileConfiguration;
     }
 
     @Override

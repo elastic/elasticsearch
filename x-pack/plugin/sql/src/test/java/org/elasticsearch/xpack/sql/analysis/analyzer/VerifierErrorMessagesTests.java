@@ -293,7 +293,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOnInexact() {
-        assertEquals("1:36: Grouping field of data type [text] for grouping; " +
+        assertEquals("1:36: Field of data type [text] cannot be used for grouping; " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT COUNT(*) FROM test GROUP BY text"));
     }
@@ -351,7 +351,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInexactFieldInOrder() {
-        assertEquals("1:29: ORDER BY cannot be applied to field of data type[text]: " +
+        assertEquals("1:29: ORDER BY cannot be applied to field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test ORDER BY text"));
     }
@@ -452,6 +452,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testInvalidTypeForStringFunction_WithOneArgNumeric() {
         assertEquals("1:8: argument of [CHAR('foo')] must be [integer], found value ['foo'] type [keyword]",
             error("SELECT CHAR('foo')"));
+    }
+
+    public void testInvalidTypeForNestedStringFunctions_WithOneArg() {
+        assertEquals("1:14: argument of [CHAR('foo')] must be [integer], found value ['foo'] type [keyword]",
+            error("SELECT ASCII(CHAR('foo'))"));
     }
 
     public void testInvalidTypeForNumericFunction_WithOneArg() {

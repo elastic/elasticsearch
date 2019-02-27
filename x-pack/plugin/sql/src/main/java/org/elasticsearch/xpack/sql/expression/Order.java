@@ -48,7 +48,7 @@ public class Order extends Expression {
 
     @Override
     protected TypeResolution resolveType() {
-        return isExact(child, "ORDER BY cannot be applied to field of data type[{}]: {}");
+        return isExact(child, "ORDER BY cannot be applied to field of data type [{}]: {}");
     }
 
     @Override

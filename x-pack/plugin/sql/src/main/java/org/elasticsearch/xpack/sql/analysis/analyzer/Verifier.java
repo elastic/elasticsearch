@@ -473,7 +473,7 @@ public final class Verifier {
             a.groupings().forEach(e -> e.forEachUp(c -> {
                 EsField.Exact exact = c.getExactInfo();
                 if (exact.hasExact() == false) {
-                    localFailures.add(fail(c, "Grouping field of data type [" + c.dataType().typeName + "] for grouping; " +
+                    localFailures.add(fail(c, "Field of data type [" + c.dataType().typeName + "] cannot be used for grouping; " +
                         exact.errorMsg()));
                 }
             }, FieldAttribute.class));

@@ -112,11 +112,9 @@ public class Shell {
 
         if (env != null && env.isEmpty() == false) {
             for (Map.Entry<String, String> entry : env.entrySet()) {
-                System.err.println("ENV: " + entry.getKey() + "=" + entry.getValue());
                 builder.environment().put(entry.getKey(), entry.getValue());
             }
         }
-        System.err.println(String.join(" ", command));
 
         try {
 

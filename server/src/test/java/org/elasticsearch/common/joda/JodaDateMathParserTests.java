@@ -20,7 +20,6 @@
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.test.ESTestCase;
@@ -278,7 +277,7 @@ public class JodaDateMathParserTests extends ESTestCase {
             parser.parse(date, () -> 0);
             fail("Date: " + date + "\n" + msg);
         } catch (ElasticsearchParseException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e).contains(exc), equalTo(true));
+            assertThat(e.getMessage().contains(exc), equalTo(true));
         }
     }
 

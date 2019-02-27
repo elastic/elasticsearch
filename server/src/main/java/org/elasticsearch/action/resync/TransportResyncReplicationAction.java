@@ -99,7 +99,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
             super.sendReplicaRequest(replicaRequest, node, listener);
         } else {
             final long pre60NodeCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
-            listener.onResponse(new ReplicaResponse(pre60NodeCheckpoint, pre60NodeCheckpoint));
+            listener.onResponse(new ReplicaResponse(pre60NodeCheckpoint, pre60NodeCheckpoint, SequenceNumbers.UNASSIGNED_SEQ_NO));
         }
     }
 

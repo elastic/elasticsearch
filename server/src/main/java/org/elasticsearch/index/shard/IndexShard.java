@@ -1890,6 +1890,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Update the local knowledge of the local checkpoint of the safe commit for the specified allocation ID.
+     *
+     * @param allocationId                the allocation ID to update the local checkpoint of the safe commit for
+     * @param localCheckpointOfSafeCommit the local checkpoint of the safe commit
+     */
+    public void updateLocalCheckpointOfSafeCommitForShard(final String allocationId, final long localCheckpointOfSafeCommit) {
+        assert assertPrimaryMode();
+        verifyNotClosed();
+        replicationTracker.updateGlobalCheckpointForShard(allocationId, localCheckpointOfSafeCommit);
+    }
+
+    /**
      * Add a global checkpoint listener. If the global checkpoint is equal to or above the global checkpoint the listener is waiting for,
      * then the listener will be notified immediately via an executor (so possibly not on the current thread). If the specified timeout
      * elapses before the listener is notified, the listener will be notified with an {@link TimeoutException}. A caller may pass null to

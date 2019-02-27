@@ -665,6 +665,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
 
             @Override
+            public void updateLocalCheckpointOfSafeCommitForShard(String allocationId, long localCheckpointOfSafeCommit) {
+                getPrimaryShard().updateLocalCheckpointOfSafeCommitForShard(allocationId, localCheckpointOfSafeCommit);
+            }
+
+            @Override
             public long localCheckpoint() {
                 return getPrimaryShard().getLocalCheckpoint();
             }
@@ -706,7 +711,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                                 try {
                                     performOnReplica(request, replica);
                                     releasable.close();
-                                    listener.onResponse(new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint()));
+                                    listener.onResponse(new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint(),
+                                                                            replica.getLocalCheckpointOfSafeCommit()));
                                 } catch (final Exception e) {
                                     Releasables.closeWhileHandlingException(releasable);
                                     listener.onFailure(e);

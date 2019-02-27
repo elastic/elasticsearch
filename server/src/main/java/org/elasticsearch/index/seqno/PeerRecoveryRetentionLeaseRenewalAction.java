@@ -78,57 +78,12 @@ public class PeerRecoveryRetentionLeaseRenewalAction extends TransportReplicatio
     }
 
     @Override
-    protected ReplicaResponse readReplicaResponse(StreamInput in) throws IOException {
-        return new ShardCopyResponse(in);
-    }
-
-    @Override
     protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard replica) {
-        return new ReplicaResult() {
-            @Override
-            public ReplicaResponse getReplicaResponse(IndexShard replica) {
-                return new ShardCopyResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint(),
-                    replica.getLocalCheckpointOfSafeCommit());
-            }
-        };
-    }
-
-    @Override
-    protected void handleReplicaResponse(ShardRouting shard, ReplicationOperation.ReplicaResponse response) {
-        assert response instanceof ShardCopyResponse : response.getClass();
-        final ShardCopyResponse shardCopyResponse = (ShardCopyResponse) response; // TODO introduce type parameter rather than cast here
-        indicesService.indexServiceSafe(shard.index()).getShard(shard.id())
-            .renewPeerRecoveryRetentionLeaseForReplica(shard, shardCopyResponse.localCheckpointOfSafeCommit);
+        return new ReplicaResult();
     }
 
     public void renewPeerRecoveryRetentionLease(ShardId shardId, ActionListener<Void> listener) {
         execute(new Request(shardId), ActionListener.wrap(v -> listener.onResponse(null), listener::onFailure));
-    }
-
-    static final class ShardCopyResponse extends ReplicaResponse {
-        private long localCheckpointOfSafeCommit;
-
-        ShardCopyResponse(long localCheckpoint, long globalCheckpoint, long localCheckpointOfSafeCommit) {
-            super(localCheckpoint, globalCheckpoint);
-            this.localCheckpointOfSafeCommit = localCheckpointOfSafeCommit;
-        }
-
-        ShardCopyResponse(StreamInput in) throws IOException {
-            super();
-            super.readFrom(in);
-            localCheckpointOfSafeCommit = in.readLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeLong(localCheckpointOfSafeCommit);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("use Writable not Streamable");
-        }
     }
 
     static final class Request extends ReplicationRequest<Request> {
@@ -141,7 +96,7 @@ public class PeerRecoveryRetentionLeaseRenewalAction extends TransportReplicatio
 
         @Override
         public String toString() {
-            return "request for minimum seqno needed for peer recovery for " + shardId;
+            return "request for update of local checkpoint of safe commit for " + shardId;
         }
     }
 }

@@ -32,7 +32,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.action.support.replication.ReplicationOperation.ReplicaResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -476,17 +475,9 @@ public abstract class TransportReplicationAction<
         protected ReplicationOperation<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> createReplicatedOperation(
             Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener,
             PrimaryShardReference primaryShardReference) {
-            return new ReplicationOperation<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>>
-                (request, primaryShardReference, listener, newReplicasProxy(primaryTerm), logger, actionName) {
-                @Override
-                protected void handleReplicaResponse(ShardRouting shard, ReplicaResponse response) {
-                    TransportReplicationAction.this.handleReplicaResponse(shard, response);
-                }
-            };
+            return new ReplicationOperation<>(request, primaryShardReference, listener,
+                    newReplicasProxy(primaryTerm), logger, actionName);
         }
-    }
-
-    protected void handleReplicaResponse(ShardRouting shard, ReplicationOperation.ReplicaResponse response) {
     }
 
     protected static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
@@ -551,10 +542,6 @@ public abstract class TransportReplicationAction<
             } else {
                 listener.onFailure(finalFailure);
             }
-        }
-
-        public ReplicaResponse getReplicaResponse(IndexShard replica) {
-            return new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint());
         }
     }
 
@@ -632,7 +619,10 @@ public abstract class TransportReplicationAction<
             try {
                 final ReplicaResult replicaResult = shardOperationOnReplica(request, replica);
                 releasable.close(); // release shard operation lock before responding to caller
-                replicaResult.respond(new ResponseListener(replicaResult.getReplicaResponse(replica)));
+                final TransportReplicationAction.ReplicaResponse response =
+                        new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint(),
+                                            replica.getLocalCheckpointOfSafeCommit());
+                replicaResult.respond(new ResponseListener(response));
             } catch (final Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                 AsyncReplicaAction.this.onFailure(e);
@@ -1059,6 +1049,11 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
+        public void updateLocalCheckpointOfSafeCommitForShard(final String allocationId, final long localCheckpointOfSafeCommit) {
+            indexShard.updateLocalCheckpointOfSafeCommitForShard(allocationId, localCheckpointOfSafeCommit);
+        }
+
+        @Override
         public long localCheckpoint() {
             return indexShard.getLocalCheckpoint();
         }
@@ -1083,12 +1078,13 @@ public abstract class TransportReplicationAction<
     public static class ReplicaResponse extends ActionResponse implements ReplicationOperation.ReplicaResponse {
         private long localCheckpoint;
         private long globalCheckpoint;
+        private long localCheckpointOfSafeCommit;
 
-        public ReplicaResponse() {
+        ReplicaResponse() {
 
         }
 
-        public ReplicaResponse(long localCheckpoint, long globalCheckpoint) {
+        public ReplicaResponse(long localCheckpoint, long globalCheckpoint, long localCheckpointOfSafeCommit) {
             /*
              * A replica should always know its own local checkpoints so this should always be a valid sequence number or the pre-6.0
              * checkpoint value when simulating responses to replication actions that pre-6.0 nodes are not aware of (e.g., the global
@@ -1097,6 +1093,7 @@ public abstract class TransportReplicationAction<
             assert localCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO;
             this.localCheckpoint = localCheckpoint;
             this.globalCheckpoint = globalCheckpoint;
+            this.localCheckpointOfSafeCommit = localCheckpointOfSafeCommit;
         }
 
         @Override
@@ -1113,6 +1110,11 @@ public abstract class TransportReplicationAction<
             } else {
                 globalCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
             }
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                localCheckpointOfSafeCommit = in.readZLong();
+            } else {
+                localCheckpointOfSafeCommit = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            }
         }
 
         @Override
@@ -1123,6 +1125,9 @@ public abstract class TransportReplicationAction<
             }
             if (out.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
                 out.writeZLong(globalCheckpoint);
+            }
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeZLong(localCheckpointOfSafeCommit);
             }
         }
 
@@ -1137,17 +1142,23 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
+        public long localCheckpointOfSafeCommit() {
+            return localCheckpointOfSafeCommit;
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ReplicaResponse that = (ReplicaResponse) o;
             return localCheckpoint == that.localCheckpoint &&
-                globalCheckpoint == that.globalCheckpoint;
+                globalCheckpoint == that.globalCheckpoint &&
+                localCheckpointOfSafeCommit == that.localCheckpointOfSafeCommit;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(localCheckpoint, globalCheckpoint);
+            return Objects.hash(localCheckpoint, globalCheckpoint, localCheckpointOfSafeCommit);
         }
     }
 
@@ -1228,12 +1239,6 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected ReplicaResponse readReplicaResponse(StreamInput in) throws IOException {
-        ReplicaResponse replicaResponse = new ReplicaResponse();
-        replicaResponse.readFrom(in);
-        return replicaResponse;
-    }
-
     /**
      * Sends the specified replica request to the specified node.
      *
@@ -1245,8 +1250,12 @@ public abstract class TransportReplicationAction<
             final ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
             final DiscoveryNode node,
             final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-        transportService.sendRequest(node, transportReplicaAction, replicaRequest, transportOptions,
-            new ActionListenerResponseHandler<>(listener, this::readReplicaResponse));
+        final ActionListenerResponseHandler<ReplicaResponse> handler = new ActionListenerResponseHandler<>(listener, in -> {
+            ReplicaResponse replicaResponse = new ReplicaResponse();
+            replicaResponse.readFrom(in);
+            return replicaResponse;
+        });
+        transportService.sendRequest(node, transportReplicaAction, replicaRequest, transportOptions, handler);
     }
 
     /** a wrapper class to encapsulate a request when being sent to a specific allocation id **/

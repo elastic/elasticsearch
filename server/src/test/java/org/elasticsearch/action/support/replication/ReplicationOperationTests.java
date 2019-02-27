@@ -447,6 +447,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final Supplier<ReplicationGroup> replicationGroupSupplier;
         final Map<String, Long> knownLocalCheckpoints = new HashMap<>();
         final Map<String, Long> knownGlobalCheckpoints = new HashMap<>();
+        final Map<String, Long> knownLocalCheckpointsOfSafeCommits = new HashMap<>(); // TODO assert things about this
 
         TestPrimary(ShardRouting routing, Supplier<ReplicationGroup> replicationGroupSupplier) {
             this.routing = routing;
@@ -508,6 +509,11 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         @Override
+        public void updateLocalCheckpointOfSafeCommitForShard(String allocationId, long localCheckpointOfSafeCommit) {
+            knownLocalCheckpointsOfSafeCommits.put(allocationId, localCheckpointOfSafeCommit);
+        }
+
+        @Override
         public long localCheckpoint() {
             return localCheckpoint;
         }
@@ -532,10 +538,12 @@ public class ReplicationOperationTests extends ESTestCase {
     static class ReplicaResponse implements ReplicationOperation.ReplicaResponse {
         final long localCheckpoint;
         final long globalCheckpoint;
+        final long localCheckpointOfSafeCommit;
 
-        ReplicaResponse(long localCheckpoint, long globalCheckpoint) {
+        ReplicaResponse(long localCheckpoint, long globalCheckpoint, long localCheckpointOfSafeCommit) {
             this.localCheckpoint = localCheckpoint;
             this.globalCheckpoint = globalCheckpoint;
+            this.localCheckpointOfSafeCommit = localCheckpointOfSafeCommit;
         }
 
         @Override
@@ -546,6 +554,11 @@ public class ReplicationOperationTests extends ESTestCase {
         @Override
         public long globalCheckpoint() {
             return globalCheckpoint;
+        }
+
+        @Override
+        public long localCheckpointOfSafeCommit() {
+            return localCheckpointOfSafeCommit;
         }
 
     }
@@ -559,6 +572,8 @@ public class ReplicationOperationTests extends ESTestCase {
         final Map<String, Long> generatedLocalCheckpoints = ConcurrentCollections.newConcurrentMap();
 
         final Map<String, Long> generatedGlobalCheckpoints = ConcurrentCollections.newConcurrentMap();
+
+        final Map<String, Long> generatedLocalCheckpointsOfSafeCommits = ConcurrentCollections.newConcurrentMap();
 
         final Set<String> markedAsStaleCopies = ConcurrentCollections.newConcurrentSet();
 
@@ -586,10 +601,13 @@ public class ReplicationOperationTests extends ESTestCase {
             } else {
                 final long generatedLocalCheckpoint = random().nextLong();
                 final long generatedGlobalCheckpoint = random().nextLong();
+                final long generatedLocalCheckpointOfSafeCommit = random().nextLong();
                 final String allocationId = replica.allocationId().getId();
                 assertNull(generatedLocalCheckpoints.put(allocationId, generatedLocalCheckpoint));
                 assertNull(generatedGlobalCheckpoints.put(allocationId, generatedGlobalCheckpoint));
-                listener.onResponse(new ReplicaResponse(generatedLocalCheckpoint, generatedGlobalCheckpoint));
+                assertNull(generatedLocalCheckpointsOfSafeCommits.put(allocationId, generatedLocalCheckpointOfSafeCommit));
+                listener.onResponse(
+                    new ReplicaResponse(generatedLocalCheckpoint, generatedGlobalCheckpoint, generatedLocalCheckpointOfSafeCommit));
             }
         }
 

@@ -155,9 +155,6 @@ public class ReplicationOperation<
         }
     }
 
-    protected void handleReplicaResponse(final ShardRouting shard, final ReplicaResponse response) {
-    }
-
     private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest,
                                   final long globalCheckpoint, final long maxSeqNoOfUpdatesOrDeletes) {
         if (logger.isTraceEnabled()) {
@@ -173,6 +170,7 @@ public class ReplicationOperation<
                 try {
                     primary.updateLocalCheckpointForShard(shard.allocationId().getId(), response.localCheckpoint());
                     primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), response.globalCheckpoint());
+                    primary.updateLocalCheckpointOfSafeCommitForShard(shard.allocationId().getId(), response.localCheckpointOfSafeCommit());
                 } catch (final AlreadyClosedException e) {
                     // okay, the index was deleted or this shard was never activated after a relocation; fall through and finish normally
                 } catch (final Exception e) {
@@ -180,7 +178,6 @@ public class ReplicationOperation<
                     final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);
                     primary.failShard(message, e);
                 }
-                handleReplicaResponse(shard, response);
                 decPendingAndFinishIfNeeded();
             }
 
@@ -324,6 +321,14 @@ public class ReplicationOperation<
         void updateGlobalCheckpointForShard(String allocationId, long globalCheckpoint);
 
         /**
+         * Update the local knowledge of the local checkpoint of the safe commit for the specified allocation ID.
+         *
+         * @param allocationId     the allocation ID to update the local checkpoint of the safe commit for
+         * @param localCheckpointOfSafeCommit the local checkpoint of the safe commit
+         */
+        void updateLocalCheckpointOfSafeCommitForShard(String allocationId, long localCheckpointOfSafeCommit);
+
+        /**
          * Returns the local checkpoint on the primary shard.
          *
          * @return the local checkpoint
@@ -420,6 +425,12 @@ public class ReplicationOperation<
          **/
         long globalCheckpoint();
 
+        /**
+         * The local checkpoint of the safe commit for the shard copy.
+         *
+         * @return the local checkpoint of the safe commit
+         **/
+        long localCheckpointOfSafeCommit();
     }
 
     public static class RetryOnPrimaryException extends ElasticsearchException {

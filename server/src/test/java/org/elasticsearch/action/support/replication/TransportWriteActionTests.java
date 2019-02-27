@@ -296,7 +296,7 @@ public class TransportWriteActionTests extends ESTestCase {
         assertThat(captures, arrayWithSize(1));
         if (randomBoolean()) {
             final TransportReplicationAction.ReplicaResponse response =
-                    new TransportReplicationAction.ReplicaResponse(randomLong(), randomLong());
+                    new TransportReplicationAction.ReplicaResponse(randomLong(), randomLong(), randomLong());
             transport.handleResponse(captures[0].requestId, response);
             assertTrue(listener.isDone());
             assertThat(listener.get(), equalTo(response));

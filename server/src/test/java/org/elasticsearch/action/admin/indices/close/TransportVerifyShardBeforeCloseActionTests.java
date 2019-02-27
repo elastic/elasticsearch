@@ -238,7 +238,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
                 String allocationId = ((ConcreteShardRequest) capturedRequest.request).getTargetAllocationID();
                 assertFalse(unavailableShards.stream().anyMatch(shardRouting -> shardRouting.allocationId().getId().equals(allocationId)));
                 assertTrue(inSyncAllocationIds.stream().anyMatch(inSyncAllocationId -> inSyncAllocationId.equals(allocationId)));
-                transport.handleResponse(capturedRequest.requestId, new TransportReplicationAction.ReplicaResponse(0L, 0L));
+                transport.handleResponse(capturedRequest.requestId, new TransportReplicationAction.ReplicaResponse(0L, 0L, 0L));
 
             } else {
                 fail("Test does not support action " + capturedRequest.action);
@@ -286,6 +286,10 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
                         @Override
                         public void updateGlobalCheckpointForShard(String allocationId, long globalCheckpoint) {
+                        }
+
+                        @Override
+                        public void updateLocalCheckpointOfSafeCommitForShard(String allocationId, long localCheckpointOfSafeCommit) {
                         }
 
                         @Override

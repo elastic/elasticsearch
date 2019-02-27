@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
+import org.elasticsearch.xpack.sql.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
@@ -183,6 +184,19 @@ public class QueryTranslatorTests extends ESTestCase {
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
         assertEquals(DateUtils.asDateTime("1969-05-13T12:34:56Z"), rq.lower());
+    }
+
+    public void testLikeOnInexact() {
+        LogicalPlan p = plan("SELECT * FROM test WHERE some.string LIKE '%a%'");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation qt = QueryTranslator.toQuery(condition, false);
+        assertEquals(QueryStringQuery.class, qt.query.getClass());
+        QueryStringQuery qsq = ((QueryStringQuery) qt.query);
+        assertEquals(1, qsq.fields().size());
+        assertEquals("some.string.typical", qsq.fields().keySet().iterator().next());
     }
     
     public void testLikeConstructsNotSupported() {

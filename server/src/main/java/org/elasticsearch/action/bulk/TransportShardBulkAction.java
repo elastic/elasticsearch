@@ -71,6 +71,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -117,6 +118,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
+        final Executor exec = threadPool.executor(ThreadPool.Names.WRITE);
         performOnPrimary(request, primary, updateHelper, threadPool::relativeTimeInMillis,
             (update, shardId, type, mappingListener) -> {
                 assert update != null;
@@ -141,9 +143,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     mappingUpdateListener.onFailure(
                         new MapperException("timed out while waiting for a dynamic mapping update"));
                 }
-            }),
-            listener,
-            r -> threadPool.executor(ThreadPool.Names.WRITE).execute(r)
+            }), listener, exec::execute
         );
     }
 
@@ -158,31 +158,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Consumer<Runnable> executor) {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
         executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
-            new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void aVoid) {
-                    try {
-                        assert context.isInitial(); // either completed and moved to next or reset
-                        if (context.hasMoreOperationsToExecute()) {
-                            executor.accept(
-                                () -> executeBulkItemRequest(
-                                    context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, this)
-                            );
-                        } else {
-                            listener.onResponse(
-                                new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(),
-                                    context.getLocationToSync(), null, context.getPrimary(), logger));
-                        }
-                    } catch (Exception e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            new ItemCompletionListener(
+                context, executor, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, listener));
     }
 
     /** Executes bulk item requests and handles request execution exceptions */
@@ -566,6 +543,52 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             }
         } catch (Exception e) {
             onComplete.accept(exceptionToResult.apply(e));
+        }
+    }
+
+    private static final class ItemCompletionListener implements ActionListener<Void> {
+        private final BulkPrimaryExecutionContext context;
+        private final Consumer<Runnable> executor;
+        private final UpdateHelper updateHelper;
+        private final LongSupplier nowInMillisSupplier;
+        private final MappingUpdatePerformer mappingUpdater;
+        private final Consumer<ActionListener<Void>> waitForMappingUpdate;
+        private final ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener;
+
+        ItemCompletionListener(BulkPrimaryExecutionContext context, Consumer<Runnable> executor, UpdateHelper updateHelper,
+            LongSupplier nowInMillisSupplier, MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate,
+            ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
+            this.context = context;
+            this.executor = executor;
+            this.updateHelper = updateHelper;
+            this.nowInMillisSupplier = nowInMillisSupplier;
+            this.mappingUpdater = mappingUpdater;
+            this.waitForMappingUpdate = waitForMappingUpdate;
+            this.listener = listener;
+        }
+
+        @Override
+        public void onResponse(Void aVoid) {
+            try {
+                assert context.isInitial(); // either completed and moved to next or reset
+                if (context.hasMoreOperationsToExecute()) {
+                    executor.accept(
+                        () -> executeBulkItemRequest(
+                            context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, this)
+                    );
+                } else {
+                    listener.onResponse(
+                        new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(),
+                            context.getLocationToSync(), null, context.getPrimary(), logger));
+                }
+            } catch (Exception e) {
+                onFailure(e);
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
         }
     }
 }

@@ -1061,6 +1061,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
+    public Collection<BiConsumer<DiscoveryNode, ClusterState>> getOnJoinValidators() {
+        return onJoinValidators;
+    }
+
     public enum Mode {
         CANDIDATE, LEADER, FOLLOWER
     }

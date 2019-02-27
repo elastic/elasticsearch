@@ -1160,7 +1160,6 @@ public final class TokenService {
      */
     public void findActiveTokensForUser(String username, ActionListener<Collection<Tuple<UserToken, String>>> listener) {
         ensureEnabled();
-
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (Strings.isNullOrEmpty(username)) {
             listener.onFailure(new IllegalArgumentException("username is required"));
@@ -1234,7 +1233,6 @@ public final class TokenService {
      */
     private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
         throws IOException {
-
         final String refreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
         final Map<String, Object> userTokenSource = (Map<String, Object>)
             ((Map<String, Object>) source.get("access_token")).get("user_token");
@@ -1364,7 +1362,7 @@ public final class TokenService {
      * either an encrypted representation of the token id for versions earlier to 7.0.0 or the token ie
      * itself for versions after 7.0.0
      */
-    public String getUserTokenString(UserToken userToken) throws IOException, GeneralSecurityException {
+    public String getAccessTokenAsString(UserToken userToken) throws IOException, GeneralSecurityException {
         if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_8_0_0)) {
             try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
                  OutputStream base64 = Base64.getEncoder().wrap(os);
@@ -1394,6 +1392,29 @@ public final class TokenService {
                     encryptedStreamOutput.close();
                     return new String(os.toByteArray(), StandardCharsets.UTF_8);
                 }
+            }
+        }
+    }
+
+    // Used only for testing
+    protected String getDeprecatedAccessTokenString(UserToken userToken) throws IOException, GeneralSecurityException {
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
+             OutputStream base64 = Base64.getEncoder().wrap(os);
+             StreamOutput out = new OutputStreamStreamOutput(base64)) {
+            out.setVersion(Version.V_7_0_0);
+            KeyAndCache keyAndCache = keyCache.activeKeyCache;
+            Version.writeVersion(Version.V_7_0_0, out);
+            out.writeByteArray(keyAndCache.getSalt().bytes);
+            out.writeByteArray(keyAndCache.getKeyHash().bytes);
+            final byte[] initializationVector = getNewInitializationVector();
+            out.writeByteArray(initializationVector);
+            try (CipherOutputStream encryptedOutput =
+                     new CipherOutputStream(out, getEncryptionCipher(initializationVector, keyAndCache, Version.V_7_0_0));
+                 StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)) {
+                encryptedStreamOutput.setVersion(Version.V_7_0_0);
+                encryptedStreamOutput.writeString(userToken.getId());
+                encryptedStreamOutput.close();
+                return new String(os.toByteArray(), StandardCharsets.UTF_8);
             }
         }
     }

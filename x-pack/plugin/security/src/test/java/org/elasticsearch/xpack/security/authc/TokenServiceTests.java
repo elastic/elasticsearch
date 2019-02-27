@@ -151,7 +151,7 @@ public class TokenServiceTests extends ESTestCase {
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", randomFrom("Bearer ", "BEARER ", "bearer ") + tokenService.getUserTokenString(token));
+        requestContext.putHeader("Authorization", randomFrom("Bearer ", "BEARER ", "bearer ") + tokenService.getAccessTokenAsString(token));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -198,7 +198,7 @@ public class TokenServiceTests extends ESTestCase {
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
+        requestContext.putHeader("Authorization", "Bearer " + tokenService.getDeprecatedAccessTokenString(token));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -219,10 +219,10 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, newTokenFuture, Collections.emptyMap(), true);
         final UserToken newToken = newTokenFuture.get().v1();
         assertNotNull(newToken);
-        assertNotEquals(tokenService.getUserTokenString(newToken), tokenService.getUserTokenString(token));
+        assertNotEquals(tokenService.getDeprecatedAccessTokenString(newToken), tokenService.getDeprecatedAccessTokenString(token));
 
         requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(newToken));
+        requestContext.putHeader("Authorization", "Bearer " + tokenService.getDeprecatedAccessTokenString(newToken));
         mockGetTokenFromId(newToken, false);
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
@@ -258,7 +258,7 @@ public class TokenServiceTests extends ESTestCase {
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
+        requestContext.putHeader("Authorization", "Bearer " + tokenService.getDeprecatedAccessTokenString(token));
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             otherTokenService.getAndValidateToken(requestContext, future);
@@ -289,7 +289,7 @@ public class TokenServiceTests extends ESTestCase {
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
+        requestContext.putHeader("Authorization", "Bearer " + tokenService.getDeprecatedAccessTokenString(token));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -316,7 +316,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, newTokenFuture, Collections.emptyMap(), true);
         final UserToken newToken = newTokenFuture.get().v1();
         assertNotNull(newToken);
-        assertNotEquals(tokenService.getUserTokenString(newToken), tokenService.getUserTokenString(token));
+        assertNotEquals(tokenService.getDeprecatedAccessTokenString(newToken), tokenService.getDeprecatedAccessTokenString(token));
 
         metaData = tokenService.pruneKeys(1);
         tokenService.refreshMetaData(metaData);
@@ -329,7 +329,7 @@ public class TokenServiceTests extends ESTestCase {
         }
 
         requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(newToken));
+        requestContext.putHeader("Authorization", "Bearer " + tokenService.getDeprecatedAccessTokenString(newToken));
         mockGetTokenFromId(newToken, false);
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -351,7 +351,7 @@ public class TokenServiceTests extends ESTestCase {
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
+        requestContext.putHeader("Authorization", "Bearer " + tokenService.getDeprecatedAccessTokenString(token));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -362,14 +362,13 @@ public class TokenServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             // verify a second separate token service with its own passphrase cannot verify
-            TokenService anotherService = new TokenService(Settings.EMPTY, systemUTC(), client, securityIndex,
+            TokenService anotherService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, securityIndex,
                 clusterService);
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             anotherService.getAndValidateToken(requestContext, future);
             assertNull(future.get());
         }
     }
-
 
     public void testGetTokenWhenKeyCacheHasExpired() throws Exception {
         TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, securityIndex, clusterService);
@@ -378,10 +377,10 @@ public class TokenServiceTests extends ESTestCase {
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         UserToken token = tokenFuture.get().v1();
-        assertThat(tokenService.getUserTokenString(token), notNullValue());
+        assertThat(tokenService.getDeprecatedAccessTokenString(token), notNullValue());
 
         tokenService.clearActiveKeyCache();
-        assertThat(tokenService.getUserTokenString(token), notNullValue());
+        assertThat(tokenService.getDeprecatedAccessTokenString(token), notNullValue());
     }
 
     public void testInvalidatedToken() throws Exception {
@@ -396,7 +395,7 @@ public class TokenServiceTests extends ESTestCase {
         mockGetTokenFromId(token, true);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
+        requestContext.putHeader("Authorization", "Bearer " + tokenService.getAccessTokenAsString(token));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -450,7 +449,7 @@ public class TokenServiceTests extends ESTestCase {
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
+        requestContext.putHeader("Authorization", "Bearer " + tokenService.getAccessTokenAsString(token));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             // the clock is still frozen, so the cookie should be valid
@@ -560,7 +559,7 @@ public class TokenServiceTests extends ESTestCase {
         //mockGetTokenFromId(token, false);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
+        requestContext.putHeader("Authorization", "Bearer " + tokenService.getAccessTokenAsString(token));
 
         doAnswer(invocationOnMock -> {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
@@ -599,7 +598,7 @@ public class TokenServiceTests extends ESTestCase {
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         UserToken expired = new UserToken(authentication, Instant.now().minus(3L, ChronoUnit.DAYS));
         mockGetTokenFromId(expired, false);
-        String userTokenString = tokenService.getUserTokenString(expired);
+        String userTokenString = tokenService.getAccessTokenAsString(expired);
         PlainActionFuture<Tuple<Authentication, Map<String, Object>>> authFuture = new PlainActionFuture<>();
         tokenService.getAuthenticationAndMetaData(userTokenString, authFuture);
         Authentication retrievedAuth = authFuture.actionGet().v1();

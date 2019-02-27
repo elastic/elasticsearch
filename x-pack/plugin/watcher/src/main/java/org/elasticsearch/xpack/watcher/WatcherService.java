@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
@@ -35,6 +34,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.upgrade.UpgradeField;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
@@ -119,14 +119,13 @@ public class WatcherService {
         IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metaData());
         IndexMetaData triggeredWatchesIndexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStoreField.INDEX_NAME,
             state.metaData());
-
-        boolean isWatcherIndexMetaDataTooOld = watcherIndexMetaData != null &&
-            watcherIndexMetaData.getCreationVersion().before(Version.V_6_0_0);
-        boolean isTriggeredWatchesIndexMetaDataTooOld = triggeredWatchesIndexMetaData != null &&
-            triggeredWatchesIndexMetaData.getCreationVersion().before(Version.V_6_0_0);
-        if (isWatcherIndexMetaDataTooOld || isTriggeredWatchesIndexMetaDataTooOld) {
+        boolean isIndexInternalFormatWatchIndex = watcherIndexMetaData == null ||
+            UpgradeField.checkInternalIndexFormat(watcherIndexMetaData);
+        boolean isIndexInternalFormatTriggeredWatchIndex = triggeredWatchesIndexMetaData == null ||
+            UpgradeField.checkInternalIndexFormat(triggeredWatchesIndexMetaData);
+        if (isIndexInternalFormatTriggeredWatchIndex == false || isIndexInternalFormatWatchIndex == false) {
             logger.warn("not starting watcher, upgrade API run required: .watches[{}], .triggered_watches[{}]",
-                isWatcherIndexMetaDataTooOld, isTriggeredWatchesIndexMetaDataTooOld);
+                isIndexInternalFormatWatchIndex, isIndexInternalFormatTriggeredWatchIndex);
             return false;
         }
 

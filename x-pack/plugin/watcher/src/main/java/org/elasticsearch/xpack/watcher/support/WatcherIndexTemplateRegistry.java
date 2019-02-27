@@ -147,20 +147,20 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addIndexLifecyclePolicyIfMissing(ClusterState state) {
-        if (historyPolicyCreationInProgress.compareAndSet(false, true)) {
-            final LifecyclePolicy policyOnDisk = loadWatcherHistoryPolicy();
-
-            Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE));
-            final boolean needsUpdating = maybeMeta
-                .flatMap(ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policyOnDisk.getName())))
-                .isPresent() == false; // If there is no policy then one needs to be put;
-
-            if (needsUpdating) {
-                putPolicy(policyOnDisk, historyPolicyCreationInProgress);
-            } else {
-                historyPolicyCreationInProgress.set(false);
-            }
-        }
+//        if (historyPolicyCreationInProgress.compareAndSet(false, true)) {
+//            final LifecyclePolicy policyOnDisk = loadWatcherHistoryPolicy();
+//
+//            Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE));
+//            final boolean needsUpdating = maybeMeta
+//                .flatMap(ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policyOnDisk.getName())))
+//                .isPresent() == false; // If there is no policy then one needs to be put;
+//
+//            if (needsUpdating) {
+//                putPolicy(policyOnDisk, historyPolicyCreationInProgress);
+//            } else {
+//                historyPolicyCreationInProgress.set(false);
+//            }
+//        }
     }
 
     private void putPolicy(final LifecyclePolicy policy, final AtomicBoolean creationCheck) {

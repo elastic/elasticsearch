@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35361")
+//@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35361")
 public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";

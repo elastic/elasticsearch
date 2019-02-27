@@ -156,8 +156,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
         Consumer<Runnable> executor) {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
-        new ItemCompletionListener(context, executor, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, listener)
-            .onResponse(false);
+        new AsyncBulkItemLoop(
+            context, executor, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, listener).onResponse(false);
     }
 
     /** Executes bulk item requests and handles request execution exceptions */
@@ -209,23 +209,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
 
-            final ActionListener<AcknowledgedResponse> mappingUpdatedListener = ActionListener.wrap(r -> {
-                    if (context.requiresWaitingForMappingUpdate()) {
+            final ActionListener<Boolean> mappingUpdatedListener = ActionListener.wrap(mappingUpdateInvoked -> {
+                    if (mappingUpdateInvoked) {
+                        assert context.requiresWaitingForMappingUpdate();
                         waitForMappingUpdate.accept(
                             new ActionListener<Void>() {
                                 @Override
-                                public void onResponse(final Void aVoid) {
+                                public void onResponse(Void aVoid) {
                                     context.resetForExecutionForRetry();
                                     itemDoneListener.onResponse(true);
                                 }
 
                                 @Override
-                                public void onFailure(final Exception e) {
+                                public void onFailure(Exception e) {
                                     context.failOnMappingUpdate(e);
                                     itemDoneListener.onResponse(true);
                                 }
                             }
-
                         );
                     } else {
                         itemDoneListener.onResponse(true);
@@ -444,7 +444,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     /** Executes index operation on primary shard after updates mapping if dynamic mappings are found */
     private static boolean executeIndexRequestOnPrimary(BulkPrimaryExecutionContext context,
         MappingUpdatePerformer mappingUpdater,
-        ActionListener<AcknowledgedResponse> mappingUpdatedListener, UpdateHelper.Result updateResult) {
+        ActionListener<Boolean> mappingUpdatedListener, UpdateHelper.Result updateResult) {
         final IndexRequest request = context.getRequestToExecute();
         final IndexShard primary = context.getPrimary();
         final SourceToParse sourceToParse =
@@ -460,7 +460,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static boolean executeDeleteRequestOnPrimary(BulkPrimaryExecutionContext context,
         MappingUpdatePerformer mappingUpdater,
-        ActionListener<AcknowledgedResponse> mappingUpdatedListener, UpdateHelper.Result updateResult) {
+        ActionListener<Boolean> mappingUpdatedListener, UpdateHelper.Result updateResult) {
         final DeleteRequest request = context.getRequestToExecute();
         final IndexShard primary = context.getPrimary();
         return executeOnPrimaryWhileHandlingMappingUpdates(
@@ -474,22 +474,22 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private static <T extends DocWriteRequest<?>, U extends Engine.Result> boolean executeOnPrimaryWhileHandlingMappingUpdates(
             CheckedSupplier<U, IOException> toExecute, Function<Exception, U> exceptionToResult, Consumer<U> onComplete,
             MappingUpdatePerformer mappingUpdater, ShardId shardId, T request, BulkPrimaryExecutionContext context,
-            ActionListener<AcknowledgedResponse> mappingUpdatedListener) {
+            ActionListener<Boolean> mappingUpdatedListener) {
         try {
             U result = toExecute.get();
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), shardId, request.type(),
                     new ActionListener<AcknowledgedResponse>() {
                         @Override
-                        public void onResponse(final AcknowledgedResponse acknowledgedResponse) {
+                        public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                             context.markAsRequiringMappingUpdate();
-                            mappingUpdatedListener.onResponse(acknowledgedResponse);
+                            mappingUpdatedListener.onResponse(true);
                         }
 
                         @Override
-                        public void onFailure(final Exception e) {
+                        public void onFailure(Exception e) {
                             onComplete.accept(exceptionToResult.apply(e));
-                            mappingUpdatedListener.onResponse(null);
+                            mappingUpdatedListener.onResponse(false);
                         }
                     });
                 return false;
@@ -517,50 +517,43 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         finalizePrimaryOperationOnCompletion(context, opType, updateResult);
     }
 
-    private static final class ItemCompletionListener implements ActionListener<Boolean> {
-        private final BulkPrimaryExecutionContext context;
+    private static final class AsyncBulkItemLoop implements ActionListener<Boolean> {
         private final Consumer<Runnable> executor;
-        private final UpdateHelper updateHelper;
-        private final LongSupplier nowInMillisSupplier;
-        private final MappingUpdatePerformer mappingUpdater;
-        private final Consumer<ActionListener<Void>> waitForMappingUpdate;
         private final ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener;
+        private final Runnable action;
 
-        ItemCompletionListener(BulkPrimaryExecutionContext context, Consumer<Runnable> executor, UpdateHelper updateHelper,
+        AsyncBulkItemLoop(BulkPrimaryExecutionContext context, Consumer<Runnable> executor, UpdateHelper updateHelper,
             LongSupplier nowInMillisSupplier, MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate,
             ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
-            this.context = context;
             this.executor = executor;
-            this.updateHelper = updateHelper;
-            this.nowInMillisSupplier = nowInMillisSupplier;
-            this.mappingUpdater = mappingUpdater;
-            this.waitForMappingUpdate = waitForMappingUpdate;
             this.listener = listener;
-        }
-
-        @Override
-        public void onResponse(Boolean async) {
-            final Runnable runnable = () -> {
+            action = () -> {
                 try {
                     while (context.hasMoreOperationsToExecute()) {
                         if (executeBulkItemRequest(
                             context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, this) == false) {
+                            // We are waiting for a mapping update on another thread, that will invoke this action again once its done
+                            // so we just break out here.
                             return;
                         }
                         assert context.isInitial(); // either completed and moved to next or reset
                     }
                     listener.onResponse(
-                        new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(),
-                            context.getLocationToSync(), null, context.getPrimary(), logger));
+                        new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(), context.getLocationToSync(),
+                            null, context.getPrimary(), logger));
                 } catch (Exception e) {
                     onFailure(e);
                 }
             };
+        }
+
+        @Override
+        public void onResponse(Boolean async) {
             try {
                 if (async) {
-                    executor.accept(runnable);
+                    executor.accept(action);
                 } else {
-                    runnable.run();
+                    action.run();
                 }
             } catch (Exception e) {
                 onFailure(e);

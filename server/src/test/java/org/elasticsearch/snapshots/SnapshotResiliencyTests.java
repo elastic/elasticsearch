@@ -603,7 +603,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0).build();
     }
 
-    private static <T> ActionListener<T> assertNoFailureListener(Consumer<T> consumer) {
+    public static <T> ActionListener<T> assertNoFailureListener(Consumer<T> consumer) {
         return new ActionListener<T>() {
             @Override
             public void onResponse(final T t) {

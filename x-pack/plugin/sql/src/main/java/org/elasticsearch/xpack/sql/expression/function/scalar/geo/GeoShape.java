@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
+import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -21,6 +22,10 @@ import java.io.IOException;
 public class GeoShape implements ToXContentFragment {
 
     private final ShapeBuilder<?, ?, ?> shapeBuilder;
+
+    public GeoShape(double lon, double lat) {
+        shapeBuilder = new PointBuilder(lon, lat);
+    }
 
     public GeoShape(Object value) throws IOException {
         shapeBuilder = ShapeParser.parse(value);

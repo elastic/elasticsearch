@@ -34,11 +34,7 @@ public class StAswkt extends UnaryGeoFunction {
 
     @Override
     protected GeoOperation operation() {
-        if (field().dataType() == DataType.GEO_POINT) {
-            return GeoOperation.ASWKT_POINT;
-        } else {
-            return GeoOperation.ASWKT_SHAPE;
-        }
+        return GeoOperation.ASWKT;
     }
 
     @Override

@@ -5,13 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor.GeoOperation;
-
-import java.io.IOException;
 
 public class GeoProcessorTests extends AbstractWireSerializingTestCase<GeoProcessor> {
     public static GeoProcessor randomGeoProcessor() {
@@ -28,28 +25,25 @@ public class GeoProcessorTests extends AbstractWireSerializingTestCase<GeoProces
         return GeoProcessor::new;
     }
 
-    @Override
-    protected GeoProcessor mutateInstance(GeoProcessor instance) throws IOException {
-        return new GeoProcessor(randomValueOtherThan(instance.processor(), () -> randomFrom(GeoOperation.values())));
-    }
+    //TODO: Restore mutateInstance when we have more GeoOperations
 
     public void testApply() throws Exception {
-        GeoProcessor proc = new GeoProcessor(GeoOperation.ASWKT_POINT);
+        GeoProcessor proc = new GeoProcessor(GeoOperation.ASWKT);
         assertNull(proc.process(null));
-        assertEquals("point (10.0 20.0)", proc.process(new GeoPoint(20, 10)));
+        assertEquals("point (10.0 20.0)", proc.process(new GeoShape(10, 20)));
 
-        proc = new GeoProcessor(GeoOperation.ASWKT_SHAPE);
+        proc = new GeoProcessor(GeoOperation.ASWKT);
         assertNull(proc.process(null));
         assertEquals("point (10.0 20.0)", proc.process(new GeoShape("POINT (10 20)")));
     }
 
     public void testTypeCheck() {
-        GeoProcessor procPoint = new GeoProcessor(GeoOperation.ASWKT_POINT);
+        GeoProcessor procPoint = new GeoProcessor(GeoOperation.ASWKT);
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class, () -> procPoint.process("string"));
-        assertEquals("A geo_point is required; received [string]", siae.getMessage());
+        assertEquals("A geo_point or geo_shape is required; received [string]", siae.getMessage());
 
-        GeoProcessor procShape = new GeoProcessor(GeoOperation.ASWKT_SHAPE);
+        GeoProcessor procShape = new GeoProcessor(GeoOperation.ASWKT);
         siae = expectThrows(SqlIllegalArgumentException.class, () -> procShape.process("string"));
-        assertEquals("A geo_shape is required; received [string]", siae.getMessage());
+        assertEquals("A geo_point or geo_shape is required; received [string]", siae.getMessage());
     }
 }

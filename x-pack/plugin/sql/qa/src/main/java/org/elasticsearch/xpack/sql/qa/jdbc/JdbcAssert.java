@@ -10,6 +10,7 @@ import com.carrotsearch.hppc.IntObjectHashMap;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -36,6 +37,8 @@ import static java.sql.Types.INTEGER;
 import static java.sql.Types.REAL;
 import static java.sql.Types.SMALLINT;
 import static java.sql.Types.TINYINT;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -277,8 +280,15 @@ public class JdbcAssert {
                                 fail(ex.getMessage());
                             }
                         }
-                        // TODO: For now we will just do toString()-based comparision
-                        assertEquals(msg, expectedObject, actualObject);
+                        if (actualObject instanceof Point) {
+                            // geo points are loaded form doc values where they are stored as long-encoded values leading
+                            // to lose in precision
+                            assertThat(expectedObject, instanceOf(Point.class));
+                            assertEquals(((Point) expectedObject).getLat(), ((Point) actualObject).getLat(), 0.000001d);
+                            assertEquals(((Point) expectedObject).getLon(), ((Point) actualObject).getLon(), 0.000001d);
+                        } else {
+                            assertEquals(msg, expectedObject, actualObject);
+                        }
                     }
                     // intervals
                     else if (type == Types.VARCHAR && actualObject instanceof TemporalAmount) {

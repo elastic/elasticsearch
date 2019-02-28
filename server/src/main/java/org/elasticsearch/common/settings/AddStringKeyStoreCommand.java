@@ -96,7 +96,7 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
                 }
                 value = writer.toCharArray();
             } catch (IOException e) {
-                throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
+                throw new UserException(ExitCodes.DATA_ERROR, "Error reading the value from stdin", e);
             }
         } else {
             value = terminal.readSecret("Enter value for " + setting + ": ");

@@ -222,7 +222,7 @@ public abstract class TransportReplicationAction<
      * Index level block to check before request execution. Returning null means that no blocks need to be checked.
      */
     @Nullable
-    protected ClusterBlockLevel indexBlockLevel() {
+    public ClusterBlockLevel indexBlockLevel() {
         return null;
     }
 
@@ -525,7 +525,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected static class ReplicaResult {
+    public static class ReplicaResult {
         final Exception finalFailure;
 
         public ReplicaResult(Exception finalFailure) {
@@ -1192,12 +1192,12 @@ public abstract class TransportReplicationAction<
             onSuccess.run();
         }
 
-        protected final ShardStateAction.Listener createShardActionListener(final Runnable onSuccess,
+        protected final ActionListener<Void> createShardActionListener(final Runnable onSuccess,
                                                                             final Consumer<Exception> onPrimaryDemoted,
                                                                             final Consumer<Exception> onIgnoredFailure) {
-            return new ShardStateAction.Listener() {
+            return new ActionListener<Void>() {
                 @Override
-                public void onSuccess() {
+                public void onResponse(Void aVoid) {
                     onSuccess.run();
                 }
 

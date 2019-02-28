@@ -22,8 +22,10 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.ESBlobStoreTestCase;
@@ -114,15 +116,14 @@ public class S3BlobStoreTests extends ESBlobStoreTestCase {
             storageClass = randomValueOtherThan(StorageClass.Glacier, () -> randomFrom(StorageClass.values())).toString();
         }
 
-        final String theClientName = randomAlphaOfLength(4);
         final AmazonS3 client = new MockAmazonS3(new ConcurrentHashMap<>(), bucket, serverSideEncryption, cannedACL, storageClass);
         final S3Service service = new S3Service() {
             @Override
-            public synchronized AmazonS3Reference client(String clientName) {
-                assert theClientName.equals(clientName);
+            public synchronized AmazonS3Reference client(RepositoryMetaData repositoryMetaData) {
                 return new AmazonS3Reference(client);
             }
         };
-        return new S3BlobStore(service, theClientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
+        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass,
+            new RepositoryMetaData(bucket, "s3", Settings.EMPTY));
     }
 }

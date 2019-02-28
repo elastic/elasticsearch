@@ -10,7 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.rounding.DateTimeUnit;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -22,9 +22,9 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
@@ -128,7 +128,7 @@ public final class ExtractorUtils {
      * an {@link ElasticsearchException} with the validation error
      */
     private static long validateAndGetDateHistogramInterval(DateHistogramAggregationBuilder dateHistogram) {
-        if (dateHistogram.timeZone() != null && dateHistogram.timeZone().equals(DateTimeZone.UTC) == false) {
+        if (dateHistogram.timeZone() != null && dateHistogram.timeZone().normalized().equals(ZoneOffset.UTC) == false) {
             throw ExceptionsHelper.badRequestException("ML requires date_histogram.time_zone to be UTC");
         }
 
@@ -141,7 +141,7 @@ public final class ExtractorUtils {
 
     public static long validateAndGetCalendarInterval(String calendarInterval) {
         TimeValue interval;
-        DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(calendarInterval);
+        Rounding.DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(calendarInterval);
         if (dateTimeUnit != null) {
             switch (dateTimeUnit) {
                 case WEEK_OF_WEEKYEAR:
@@ -161,7 +161,7 @@ public final class ExtractorUtils {
                     break;
                 case MONTH_OF_YEAR:
                 case YEAR_OF_CENTURY:
-                case QUARTER:
+                case QUARTER_OF_YEAR:
                     throw ExceptionsHelper.badRequestException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
                 default:
                     throw ExceptionsHelper.badRequestException("Unexpected dateTimeUnit [" + dateTimeUnit + "]");

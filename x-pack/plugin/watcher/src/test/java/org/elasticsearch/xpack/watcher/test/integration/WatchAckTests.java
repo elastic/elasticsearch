@@ -110,7 +110,8 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         GetWatchResponse getWatchResponse = watcherClient().prepareGetWatch("_id").get();
         assertThat(getWatchResponse.isFound(), is(true));
 
-        Watch parsedWatch = watchParser().parse(getWatchResponse.getId(), true, getWatchResponse.getSource().getBytes(), XContentType.JSON);
+        Watch parsedWatch = watchParser().parse(getWatchResponse.getId(), true, getWatchResponse.getSource().getBytes(),
+            XContentType.JSON, getWatchResponse.getSeqNo(), getWatchResponse.getPrimaryTerm());
         assertThat(parsedWatch.status().actionStatus("_a1").ackStatus().state(),
                 is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
         assertThat(parsedWatch.status().actionStatus("_a2").ackStatus().state(),
@@ -178,7 +179,8 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         GetWatchResponse getWatchResponse = watcherClient().prepareGetWatch("_id").get();
         assertThat(getWatchResponse.isFound(), is(true));
 
-        Watch parsedWatch = watchParser().parse(getWatchResponse.getId(), true, getWatchResponse.getSource().getBytes(), XContentType.JSON);
+        Watch parsedWatch = watchParser().parse(getWatchResponse.getId(), true,
+            getWatchResponse.getSource().getBytes(), XContentType.JSON, getWatchResponse.getSeqNo(), getWatchResponse.getPrimaryTerm());
         assertThat(parsedWatch.status().actionStatus("_a1").ackStatus().state(),
                 is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
         assertThat(parsedWatch.status().actionStatus("_a2").ackStatus().state(),
@@ -220,7 +222,8 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
         refresh();
         GetResponse getResponse = client().get(new GetRequest(Watch.INDEX, Watch.DOC_TYPE, "_name")).actionGet();
-        Watch indexedWatch = watchParser().parse("_name", true, getResponse.getSourceAsBytesRef(), XContentType.JSON);
+        Watch indexedWatch = watchParser().parse("_name", true, getResponse.getSourceAsBytesRef(), XContentType.JSON,
+            getResponse.getSeqNo(), getResponse.getPrimaryTerm());
         assertThat(watchResponse.getStatus().actionStatus("_id").ackStatus().state(),
                 equalTo(indexedWatch.status().actionStatus("_id").ackStatus().state()));
 

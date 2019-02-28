@@ -114,9 +114,12 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
      * Retrieve a list of roles, if rolesToGet is null or empty, fetch all roles
      */
     public void getRoleDescriptors(Set<String> names, final ActionListener<RoleRetrievalResult> listener) {
-        if (securityIndex.indexExists() == false) {
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason()));
         } else if (names == null || names.isEmpty()) {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 QueryBuilder query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
@@ -253,6 +256,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     client.prepareMultiSearch()
                         .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                             .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                            .setTrackTotalHits(true)
                             .setSize(0))
                         .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                             .setQuery(QueryBuilders.boolQuery()
@@ -262,12 +266,14 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                     .should(existsQuery("indices.field_security.except"))
                                     // for backwardscompat with 2.x
                                     .should(existsQuery("indices.fields"))))
+                            .setTrackTotalHits(true)
                             .setSize(0)
                             .setTerminateAfter(1))
                         .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                             .setQuery(QueryBuilders.boolQuery()
                                 .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
                                 .filter(existsQuery("indices.query")))
+                            .setTrackTotalHits(true)
                             .setSize(0)
                             .setTerminateAfter(1))
                         .request(),
@@ -308,17 +314,20 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void getRoleDescriptor(final String roleId, ActionListener<RoleRetrievalResult> resultListener) {
-        if (securityIndex.indexExists() == false) {
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             resultListener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            resultListener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason()));
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(e -> resultListener.onResponse(RoleRetrievalResult.failure(e)), () ->
-                    executeGetRoleRequest(roleId, new ActionListener<GetResponse>() {
+            securityIndex.checkIndexVersionThenExecute(e -> resultListener.onResponse(RoleRetrievalResult.failure(e)),
+                    () -> executeGetRoleRequest(roleId, new ActionListener<GetResponse>() {
                         @Override
                         public void onResponse(GetResponse response) {
                             final RoleDescriptor descriptor = transformRole(response);
-                            resultListener.onResponse(RoleRetrievalResult.success(
-                                descriptor == null ? Collections.emptySet() : Collections.singleton(descriptor)));
+                            resultListener.onResponse(RoleRetrievalResult
+                                    .success(descriptor == null ? Collections.emptySet() : Collections.singleton(descriptor)));
                         }
 
                         @Override

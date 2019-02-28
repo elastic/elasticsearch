@@ -53,7 +53,7 @@ public abstract class AbstractUnfollowIndexStepTestCase<T extends AbstractUnfoll
 
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
-        step.performAction(indexMetadata, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;

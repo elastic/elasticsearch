@@ -30,10 +30,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.VectorDVIndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -107,7 +108,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, DateTimeZone timeZone) {
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             throw new UnsupportedOperationException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
         }
@@ -119,8 +120,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            throw new UnsupportedOperationException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support sorting, scripting or aggregating");
+            return new VectorDVIndexFieldData.Builder(true);
         }
 
         @Override

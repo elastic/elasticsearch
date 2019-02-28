@@ -175,7 +175,8 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
     private static class MockCancellable implements Cancellable {
 
         @Override
-        public void cancel() {
+        public boolean cancel() {
+            return true;
         }
 
         @Override

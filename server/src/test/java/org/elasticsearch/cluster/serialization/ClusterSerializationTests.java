@@ -67,7 +67,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .add(newNode("node3")).localNodeId("node1").masterNodeId("node2").build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("clusterName1"))
-            .nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+            .nodes(nodes).metaData(metaData).routingTable(routingTable)
+            .minimumMasterNodesOnPublishingMaster(randomIntBetween(-1, 10)).build();
 
         AllocationService strategy = createAllocationService();
         clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState, "reroute").routingTable()).build();
@@ -78,6 +79,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         assertThat(serializedClusterState.getClusterName().value(), equalTo(clusterState.getClusterName().value()));
 
         assertThat(serializedClusterState.routingTable().toString(), equalTo(clusterState.routingTable().toString()));
+
+        assertThat(serializedClusterState.getMinimumMasterNodesOnPublishingMaster(),
+            equalTo(clusterState.getMinimumMasterNodesOnPublishingMaster()));
     }
 
     public void testRoutingTableSerialization() throws Exception {

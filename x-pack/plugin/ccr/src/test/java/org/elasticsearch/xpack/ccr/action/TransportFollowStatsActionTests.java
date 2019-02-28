@@ -44,17 +44,17 @@ public class TransportFollowStatsActionTests extends ESTestCase {
         assertThat(result.size(), equalTo(0));
     }
 
-    private static ShardFollowTask createShardFollowTask(String followerIndex) {
+    static ShardFollowTask createShardFollowTask(String followerIndex) {
         return new ShardFollowTask(
             null,
             new ShardId(followerIndex, "", 0),
             new ShardId("leader_index", "", 0),
             1024,
-            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
-            1,
             1024,
-            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             1,
+            1,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             10240,
             new ByteSizeValue(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),

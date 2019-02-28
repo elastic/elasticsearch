@@ -33,11 +33,11 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -194,7 +194,7 @@ public class ScriptConditionTests extends ESTestCase {
             mockScript("ctx.trigger.scheduled_time.toInstant().toEpochMill() < new Date().time"), scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
-        WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(DateTimeZone.UTC),
+        WatchExecutionContext ctx = mockExecutionContext("_name", ZonedDateTime.now(ZoneOffset.UTC),
             new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         Thread.sleep(10);
         assertThat(condition.execute(ctx).met(), is(true));

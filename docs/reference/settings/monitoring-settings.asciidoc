@@ -105,11 +105,6 @@ being monitored, and it cannot be disabled.
 
 IMPORTANT: This setting currently only impacts `local`-type exporters. Indices created using
 the `http` exporter will not be deleted automatically.
-
-If both {monitoring} and {watcher} are enabled, you can use this setting to
-affect the {watcher} cleaner service too. For more information, see the
-`xpack.watcher.history.cleaner_service.enabled` setting in the
-<<notification-settings>>.
 --
 
 `xpack.monitoring.exporters`::

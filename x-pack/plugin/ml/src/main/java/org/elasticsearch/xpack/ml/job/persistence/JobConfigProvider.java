@@ -21,6 +21,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -52,7 +53,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -228,7 +228,8 @@ public class JobConfigProvider {
      *                            are not changed.
      * @param updatedJobListener Updated job listener
      */
-    public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit, ActionListener<Job> updatedJobListener) {
+    public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit,
+                          ActionListener<Job> updatedJobListener) {
         GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
 
@@ -240,7 +241,9 @@ public class JobConfigProvider {
                     return;
                 }
 
-                long version = getResponse.getVersion();
+                final long version = getResponse.getVersion();
+                final long seqNo = getResponse.getSeqNo();
+                final long primaryTerm = getResponse.getPrimaryTerm();
                 BytesReference source = getResponse.getSourceAsBytesRef();
                 Job.Builder jobBuilder;
                 try {
@@ -260,7 +263,7 @@ public class JobConfigProvider {
                     return;
                 }
 
-                indexUpdatedJob(updatedJob, version, updatedJobListener);
+                indexUpdatedJob(updatedJob, seqNo, primaryTerm, updatedJobListener);
             }
 
             @Override
@@ -303,7 +306,9 @@ public class JobConfigProvider {
                     return;
                 }
 
-                long version = getResponse.getVersion();
+                final long version = getResponse.getVersion();
+                final long seqNo = getResponse.getSeqNo();
+                final long primaryTerm = getResponse.getPrimaryTerm();
                 BytesReference source = getResponse.getSourceAsBytesRef();
                 Job originalJob;
                 try {
@@ -325,7 +330,7 @@ public class JobConfigProvider {
                                 return;
                             }
 
-                            indexUpdatedJob(updatedJob, version, updatedJobListener);
+                            indexUpdatedJob(updatedJob, seqNo, primaryTerm, updatedJobListener);
                         },
                         updatedJobListener::onFailure
                 ));
@@ -338,17 +343,18 @@ public class JobConfigProvider {
         });
     }
 
-    private void indexUpdatedJob(Job updatedJob, long version, ActionListener<Job> updatedJobListener) {
+    private void indexUpdatedJob(Job updatedJob, long seqNo, long primaryTerm,
+                                 ActionListener<Job> updatedJobListener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedJob.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            IndexRequest indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
+            IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
                     ElasticsearchMappings.DOC_TYPE, Job.documentId(updatedJob.getId()))
                     .setSource(updatedSource)
-                    .setVersion(version)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .request();
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            indexRequest.setIfSeqNo(seqNo);
+            indexRequest.setIfPrimaryTerm(primaryTerm);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest.request(), ActionListener.wrap(
                     indexResponse -> {
                         assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
                         updatedJobListener.onResponse(updatedJob);
@@ -424,7 +430,7 @@ public class JobConfigProvider {
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(boolQueryBuilder);
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -509,8 +515,8 @@ public class JobConfigProvider {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
-        sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
+        sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), null);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -554,8 +560,8 @@ public class JobConfigProvider {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
-        sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
+        sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), null);
 
         return client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -638,7 +644,7 @@ public class JobConfigProvider {
                 .query(new TermsQueryBuilder(Job.GROUPS.getPreferredName(), groupIds));
         sourceBuilder.sort(Job.ID.getPreferredName(), SortOrder.DESC);
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())

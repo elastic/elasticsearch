@@ -16,8 +16,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CombinedRateLimiter;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -40,8 +42,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 public class CcrRestoreSourceService extends AbstractLifecycleComponent implements IndexEventListener {
 
@@ -49,9 +50,9 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     private final Map<String, RestoreSession> onGoingRestores = ConcurrentCollections.newConcurrentMap();
     private final Map<IndexShard, HashSet<String>> sessionsForShard = new HashMap<>();
-    private final CopyOnWriteArrayList<Consumer<String>> closeSessionListeners = new CopyOnWriteArrayList<>();
     private final ThreadPool threadPool;
     private final CcrSettings ccrSettings;
+    private final CounterMetric throttleTime = new CounterMetric();
 
     public CcrRestoreSourceService(ThreadPool threadPool, CcrSettings ccrSettings) {
         this.threadPool = threadPool;
@@ -87,12 +88,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         sessionsForShard.clear();
         onGoingRestores.values().forEach(AbstractRefCounted::decRef);
         onGoingRestores.clear();
-    }
-
-    // TODO: The listeners are for testing. Once end-to-end file restore is implemented and can be tested,
-    //  these should be removed.
-    public void addCloseSessionListener(Consumer<String> listener) {
-        closeSessionListeners.add(listener);
     }
 
     public synchronized Store.MetadataSnapshot openSession(String sessionUUID, IndexShard indexShard) throws IOException {
@@ -136,7 +131,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
         }
         restore.idle = false;
-        return new SessionReader(restore);
+        return new SessionReader(restore, ccrSettings, throttleTime::inc);
     }
 
     private void internalCloseSession(String sessionUUID, boolean throwIfSessionMissing) {
@@ -161,9 +156,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 }
             }
         }
-        closeSessionListeners.forEach(c -> c.accept(sessionUUID));
         restore.decRef();
-
     }
 
     private Scheduler.Cancellable scheduleTimeout(String sessionUUID) {
@@ -180,6 +173,10 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 restoreSession.idle = true;
             }
         }
+    }
+
+    public long getThrottleTime() {
+        return this.throttleTime.count();
     }
 
     private static class RestoreSession extends AbstractRefCounted {
@@ -211,11 +208,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         }
 
         private long readFileBytes(String fileName, BytesReference reference) throws IOException {
-            Releasable lock = keyedLock.tryAcquire(fileName);
-            if (lock == null) {
-                throw new IllegalStateException("can't read from the same file on the same session concurrently");
-            }
-            try (Releasable releasable = lock) {
+            try (Releasable ignored = keyedLock.acquire(fileName)) {
                 final IndexInput indexInput = cachedInputs.computeIfAbsent(fileName, f -> {
                     try {
                         return commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE);
@@ -227,8 +220,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 BytesRefIterator refIterator = reference.iterator();
                 BytesRef ref;
                 while ((ref = refIterator.next()) != null) {
-                    byte[] refBytes = ref.bytes;
-                    indexInput.readBytes(refBytes, 0, refBytes.length);
+                    indexInput.readBytes(ref.bytes, ref.offset, ref.length);
                 }
 
                 long offsetAfterRead = indexInput.getFilePointer();
@@ -248,15 +240,20 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             assert keyedLock.hasLockedKeys() == false : "Should not hold any file locks when closing";
             timeoutTask.cancel();
             IOUtils.closeWhileHandlingException(cachedInputs.values());
+            IOUtils.closeWhileHandlingException(commitRef);
         }
     }
 
     public static class SessionReader implements Closeable {
 
         private final RestoreSession restoreSession;
+        private final CcrSettings ccrSettings;
+        private final LongConsumer throttleListener;
 
-        private SessionReader(RestoreSession restoreSession) {
+        private SessionReader(RestoreSession restoreSession, CcrSettings ccrSettings, LongConsumer throttleListener) {
             this.restoreSession = restoreSession;
+            this.ccrSettings = ccrSettings;
+            this.throttleListener = throttleListener;
             restoreSession.incRef();
         }
 
@@ -270,6 +267,9 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
          * @throws IOException if the read fails
          */
         public long readFileBytes(String fileName, BytesReference reference) throws IOException {
+            CombinedRateLimiter rateLimiter = ccrSettings.getRateLimiter();
+            long throttleTime = rateLimiter.maybePause(reference.length());
+            throttleListener.accept(throttleTime);
             return restoreSession.readFileBytes(fileName, reference);
         }
 

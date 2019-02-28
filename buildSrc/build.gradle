@@ -183,8 +183,12 @@ if (project != rootProject) {
   }
 
   dependencies {
-    distribution project(':distribution:archives:zip')
-    distribution project(':distribution:archives:oss-zip')
+    distribution project(':distribution:archives:windows-zip')
+    distribution project(':distribution:archives:oss-windows-zip')
+    distribution project(':distribution:archives:darwin-tar')
+    distribution project(':distribution:archives:oss-darwin-tar')
+    distribution project(':distribution:archives:linux-tar')
+    distribution project(':distribution:archives:oss-linux-tar')
   }
 
   String localDownloads = "${rootProject.buildDir}/local-downloads"
@@ -233,11 +237,6 @@ if (project != rootProject) {
     exclude '**/*.wav'
     // the file that actually defines nocommit
     exclude '**/ForbiddenPatternsTask.java'
-  }
-
-  namingConventions {
-    testClass = 'org.elasticsearch.gradle.test.GradleUnitTestCase'
-    integTestClass = 'org.elasticsearch.gradle.test.GradleIntegrationTestCase'
   }
 
   testingConventions {

@@ -48,8 +48,8 @@ import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOO
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -125,11 +125,11 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testDoesNothingByDefaultIfHostsProviderConfigured() {
-        testDoesNothingWithSettings(builder().putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()));
+        testDoesNothingWithSettings(builder().putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey()));
     }
 
-    public void testDoesNothingByDefaultIfUnicastHostsConfigured() {
-        testDoesNothingWithSettings(builder().putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()));
+    public void testDoesNothingByDefaultIfSeedHostsConfigured() {
+        testDoesNothingWithSettings(builder().putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()));
     }
 
     public void testDoesNothingByDefaultIfMasterNodesConfigured() {
@@ -319,6 +319,18 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             Version.CURRENT);
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
             INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
+            transportService, () ->
+            Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()), () -> false, vc -> {
+            throw new AssertionError("should not be called");
+        });
+        transportService.start();
+        clusterBootstrapService.onFoundPeersUpdated();
+        deterministicTaskQueue.runAllTasks();
+    }
+
+    public void testDoesNotBootstrapsIfLocalNodeNotInInitialMasterNodes() {
+        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
+            INITIAL_MASTER_NODES_SETTING.getKey(), otherNode1.getName(), otherNode2.getName()).build(),
             transportService, () ->
             Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()), () -> false, vc -> {
             throw new AssertionError("should not be called");

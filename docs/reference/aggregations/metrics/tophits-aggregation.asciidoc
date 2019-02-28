@@ -25,6 +25,7 @@ The top_hits aggregation returns regular search hits, because of this many per h
 * <<search-request-script-fields,Script fields>>
 * <<search-request-docvalue-fields,Doc value fields>>
 * <<search-request-version,Include versions>>
+* <<search-request-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
 
 ==== Example
 

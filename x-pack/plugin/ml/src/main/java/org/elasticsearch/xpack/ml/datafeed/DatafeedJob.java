@@ -128,7 +128,6 @@ class DatafeedJob {
         auditor.info(jobId, msg);
         LOGGER.info("[{}] {}", jobId, msg);
 
-
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);
         run(lookbackStartTimeMs, lookbackEnd, request);

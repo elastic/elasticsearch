@@ -20,6 +20,7 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
@@ -116,6 +117,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -767,7 +769,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
     }
 
-    public void testSnapshotFileFailureDuringSnapshot() throws Exception {
+    public void testSnapshotFileFailureDuringSnapshot() {
         Client client = client();
 
         logger.info("-->  creating repository");
@@ -816,7 +818,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         } catch (Exception ex) {
             logger.info("--> caught a top level exception, asserting what's expected", ex);
             assertThat(getFailureCount("test-repo"), greaterThan(0L));
-            assertThat(ExceptionsHelper.detailedMessage(ex), containsString("IOException"));
+
+            final Throwable cause = ex.getCause();
+            assertThat(cause, notNullValue());
+            final Throwable rootCause = new ElasticsearchException(cause).getRootCause();
+            assertThat(rootCause, notNullValue());
+            assertThat(rootCause.getMessage(), containsString("Random IOException"));
         }
     }
 
@@ -2209,10 +2216,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         {
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo")
                 .setSnapshots("test-2").get().getSnapshots().get(0);
+            Settings settings = client.admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test");
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
                 // we flush before the snapshot such that we have to process the segments_N files plus the .del file
-                if (INDEX_SOFT_DELETES_SETTING.get(indexSettings)) {
+                if (INDEX_SOFT_DELETES_SETTING.get(settings)) {
                     // soft-delete generates DV files.
                     assertThat(status.getStats().getProcessedFileCount(), greaterThan(2));
                 } else {
@@ -3228,7 +3236,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         unblockNode(repo, blockedNode);
 
         logger.info("--> ensuring snapshot is aborted and the aborted shard was marked as failed");
-        SnapshotInfo snapshotInfo = waitForCompletion(repo, snapshot, TimeValue.timeValueSeconds(10));
+        SnapshotInfo snapshotInfo = waitForCompletion(repo, snapshot, TimeValue.timeValueSeconds(60));
         assertEquals(1, snapshotInfo.shardFailures().size());
         assertEquals(0, snapshotInfo.shardFailures().get(0).shardId());
         assertEquals("IndexShardSnapshotFailedException[Aborted]", snapshotInfo.shardFailures().get(0).reason());
@@ -3682,7 +3690,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
             // The deletion must set the snapshot in the ABORTED state
             assertBusy(() -> {
-                SnapshotsStatusResponse status = client.admin().cluster().prepareSnapshotStatus("repository").setSnapshots("snap").get();
+                SnapshotsStatusResponse status =
+                    client.admin().cluster().prepareSnapshotStatus("repository").setSnapshots("snap").get();
                 assertThat(status.getSnapshots().iterator().next().getState(), equalTo(State.ABORTED));
             });
 
@@ -3701,6 +3710,48 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             if (blocked) {
                 unblockNode("repository", internalCluster().getMasterName());
             }
+        }
+    }
+
+    public void testRestoreIncreasesPrimaryTerms() {
+        final String indexName = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, Settings.builder()
+            .put(SETTING_NUMBER_OF_SHARDS, 2)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0)
+            .build());
+        ensureGreen(indexName);
+
+        if (randomBoolean()) {
+            // open and close the index to increase the primary terms
+            for (int i = 0; i < randomInt(3); i++) {
+                assertAcked(client().admin().indices().prepareClose(indexName));
+                assertAcked(client().admin().indices().prepareOpen(indexName));
+            }
+        }
+
+        final IndexMetaData indexMetaData = client().admin().cluster().prepareState().clear().setIndices(indexName)
+            .setMetaData(true).get().getState().metaData().index(indexName);
+        final int numPrimaries = getNumShards(indexName).numPrimaries;
+        final Map<Integer, Long> primaryTerms = IntStream.range(0, numPrimaries)
+            .boxed().collect(Collectors.toMap(shardId -> shardId, indexMetaData::primaryTerm));
+
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(randomRepoSettings()));
+        final CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true).setIndices(indexName).get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(numPrimaries));
+        assertThat(createSnapshotResponse.getSnapshotInfo().failedShards(), equalTo(0));
+
+        assertAcked(client().admin().indices().prepareClose(indexName));
+
+        final RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(numPrimaries));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+
+        final IndexMetaData restoredIndexMetaData = client().admin().cluster().prepareState().clear().setIndices(indexName)
+            .setMetaData(true).get().getState().metaData().index(indexName);
+        for (int shardId = 0; shardId < numPrimaries; shardId++) {
+            assertThat(restoredIndexMetaData.primaryTerm(shardId), equalTo(primaryTerms.get(shardId) + 1));
         }
     }
 

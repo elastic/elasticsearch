@@ -31,12 +31,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Predicate;
 
-public class PipelineConfigurationTests extends ESTestCase {
+public class PipelineConfigurationTests extends AbstractXContentTestCase<PipelineConfiguration> {
 
     public void testSerialization() throws IOException {
         PipelineConfiguration configuration = new PipelineConfiguration("1",
@@ -67,5 +68,31 @@ public class PipelineConfigurationTests extends ESTestCase {
         assertEquals(xContentType, parsed.getXContentType());
         assertEquals("{}", XContentHelper.convertToJson(parsed.getConfig(), false, parsed.getXContentType()));
         assertEquals("1", parsed.getId());
+    }
+
+    @Override
+    protected PipelineConfiguration createTestInstance() {
+        BytesArray config;
+        if (randomBoolean()) {
+            config = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
+        } else {
+            config = new BytesArray("{\"foo\": \"bar\"}".getBytes(StandardCharsets.UTF_8));
+        }
+        return new PipelineConfiguration(randomAlphaOfLength(4), config, XContentType.JSON);
+    }
+
+    @Override
+    protected PipelineConfiguration doParseInstance(XContentParser parser) throws IOException {
+        return PipelineConfiguration.getParser().parse(parser, null);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.equals("config");
     }
 }

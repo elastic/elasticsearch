@@ -20,8 +20,6 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
@@ -66,16 +64,15 @@ public class MappingUpdatedAction {
     }
 
     private void updateMappingRequest(Index index, String type, Mapping mappingUpdate, TimeValue timeout,
-                                                          ActionListener<AcknowledgedResponse> listener) {
+                                      ActionListener<AcknowledgedResponse> listener) {
         if (type.equals(MapperService.DEFAULT_MAPPING)) {
             throw new IllegalArgumentException("_default_ mapping should not be updated");
         }
-        // TODO: Why change the index setting here?
         client.putMapping(
-            new PutMappingRequestBuilder(client, PutMappingAction.INSTANCE).setIndices(index.getName())
-                .setType(type)
-                .setSource(mappingUpdate.toString(), XContentType.JSON)
-            .setMasterNodeTimeout(timeout).setTimeout(TimeValue.ZERO).request(), listener);
+            client.preparePutMapping().setConcreteIndex(index).setType(type).setSource(mappingUpdate.toString(), XContentType.JSON)
+                .setMasterNodeTimeout(timeout).setTimeout(TimeValue.ZERO).request(),
+            listener
+        );
     }
 
     /**

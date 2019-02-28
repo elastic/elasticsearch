@@ -4,7 +4,9 @@
 Remote recovery is the process used to build a new copy of a shard on a follower
 node by copying data from the primary shard in the leader cluster. {es} uses this
 remote recovery process to bootstrap a follower index using the data from the
-leader index.
+leader index. This allows the follower to receive a copy of the current state of
+the leader index, even if a complete history of changes is not available on the
+leader due to Lucene segment merging.
 
 Remote recovery is a network intensive process that transfers all of the Lucene
 segment files from the leader cluster to the follower cluster. The follower
@@ -15,12 +17,12 @@ recovery is designed to support leader and follower clusters with high network
 latency between them.
 
 Information about an in-progress remote recovery can be obtained using the
-<<cat-recovery,recovery>> api. Remote recoveries are implemented using the
-<<modules-snapshots,snapshot and restore>> infrastructure. This means that on-going
-remote recoveries will be labelled as type `snapshot` in the recovery api.
+<<cat-recovery,recovery>> api on the follower cluster. Remote recoveries are implemented
+using the <<modules-snapshots,snapshot and restore>> infrastructure. This means that
+on-going remote recoveries will be labelled as type `snapshot` in the recovery api.
 
-The following _expert_ setting can be set to manage the resources consumed by
-remote recoveries:
+The following setting can be used to rate-limit the data transmitted during remote
+recoveries:
 
 `ccr.indices.recovery.max_bytes_per_sec`::
     Limits the total inbound and outbound remote recovery traffic on each node.
@@ -28,9 +30,15 @@ remote recoveries:
     performing remote recoveries concurrently, the total amount of remote recovery bytes
     may be much higher than this limit. If you set this limit too high then there
     is a risk that ongoing remote recoveries will consume an excess of bandwidth
-    (or other resources) which could destabilize the cluster. Defaults to `40mb`.
+    (or other resources) which could destabilize the cluster. This setting is used by both
+    the leader and follower clusters. For example if it is set to `20mb` on a leader, the
+    leader will only send `20mb/s` to the follower even if the follower is requesting and can
+    accept `60mb/s`. Defaults to `40mb`.
 
-`ccr.indices.recovery.max_concurrent_file_chunk`::
+The following _expert_ settings can be set to manage the resources consumed by
+remote recoveries:
+
+`ccr.indices.recovery.max_concurrent_file_chunks`::
     Controls the number of file chunk requests that can be sent in parallel per recovery.
     As multiple remote recoveries might already running in parallel, increasing this
     expert-level setting might only help in situations where remote recovery of a single shard

@@ -47,10 +47,10 @@ import static java.util.Collections.emptyList;
  */
 public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesSource.Numeric, IncludeExclude.LongFilter> {
 
-    //TODO review question: is LongLong map ok?
     protected LongLongHashMap map;
     protected LongHash bucketOrds;
 
+    // Size of a key:value pair in the active map, used for CB accounting
     private static final long MAP_SLOT_SIZE = Long.BYTES * 2;
 
     LongRareTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,

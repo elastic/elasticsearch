@@ -126,5 +126,13 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
         return null;
     }
 
+    /**
+     * Remove entries from the ordinal map which are no longer tracked in the active key's map.
+     * Will internally call the merge function of {@link MergingBucketsDeferringCollector}, so this
+     * should be called sparingly for performance reasons
+     *
+     * @param numDeleted the number of keys that are expected to be pruned during GC.
+     *                   Used to help verify correct functioning of GC
+     */
     abstract void gcDeletedEntries(long numDeleted);
 }

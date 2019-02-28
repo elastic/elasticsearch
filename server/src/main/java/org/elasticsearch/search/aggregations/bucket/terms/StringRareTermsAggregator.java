@@ -51,6 +51,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
     protected ObjectLongHashMap<BytesRef> map;
     protected BytesRefHash bucketOrds;
 
+    // Size of values in active map, used for CB accounting
     private static final long MAP_VALUE_SIZE = Long.BYTES;
 
     StringRareTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes valuesSource,

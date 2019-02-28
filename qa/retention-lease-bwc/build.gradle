@@ -29,35 +29,76 @@ esplugin {
 
 integTest.enabled = false
 
-task oldClusterTest(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
+task bwcTest {
+  description = 'runs retention lease backwards compatability tests'
+  group = 'verification'
 }
 
-oldClusterTestCluster {
-  numNodes = 2
-  numBwcNodes = 2
-  bwcVersion = Version.fromString("6.6.2-SNAPSHOT")
-  setting "cluster.name", "retention-lease-bwc"
+for (Version version : bwcVersions.wireCompatible) {
+  if (version.before("6.5.0")) {
+    // versions before 6.5.0 do not support soft deletes
+    continue
+  }
+
+  final String baseName = "v${version}"
+
+  final Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
+    mustRunAfter(precommit)
+    includePackaged = false
+  }
+
+  final Object oldClusterTestCluster = extensions.findByName("${baseName}#oldClusterTestCluster")
+
+  configure(oldClusterTestCluster) {
+    numNodes = 2
+    numBwcNodes = 2
+    bwcVersion = version
+    setting "cluster.name", "retention-lease-bwc"
+  }
+
+  final Task newClusterTest = tasks.create(name: "${baseName}#newClusterTest", type: RestIntegTestTask) {
+
+  }
+
+  final Object newClusterTestCluster = extensions.findByName("${baseName}#newClusterTestCluster")
+
+  configure(newClusterTestCluster) {
+    dependsOn "${baseName}#oldClusterTestCluster#wait"
+    numNodes = 1
+    plugin ":qa:retention-lease-bwc"
+    setting "discovery.zen.ping.unicast.hosts", "\"${-> oldClusterTest.nodes.get(0).transportUri()}\""
+    setting "cluster.name", "retention-lease-bwc"
+    setting "node.name", "new-node"
+  }
+
+  final Object newClusterTestRunner = tasks.findByName("${baseName}#newClusterTestRunner")
+
+  configure(newClusterTestRunner) {
+    finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
+    finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
+    finalizedBy "${baseName}#newClusterTestCluster#stop"
+  }
+
+  final Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
+    dependsOn newClusterTest
+  }
+
+  if (project.bwc_tests_enabled) {
+    bwcTest.dependsOn(versionBwcTest)
+  }
 }
 
-task newClusterTest(type: RestIntegTestTask) {
-
+task bwcTestSnapshots {
+  if (project.bwc_tests_enabled) {
+    for (final def version : bwcVersions.unreleasedWireCompatible) {
+      // versions before 6.5.0 do not support soft deletes
+      if (version.before("6.5.0")) {
+        continue
+      }
+      dependsOn "v${version}#bwcTest"
+    }
+  }
 }
 
-newClusterTestCluster {
-  dependsOn "oldClusterTestCluster#wait"
-  numNodes = 1
-  plugin ":qa:retention-lease-bwc"
-  setting "discovery.zen.ping.unicast.hosts", "\"${-> oldClusterTest.nodes.get(0).transportUri()}\""
-  setting "cluster.name", "retention-lease-bwc"
-  setting "node.name", "new-node"
-}
-
-newClusterTestRunner {
-  finalizedBy "oldClusterTestCluster#node0.stop"
-  finalizedBy "oldClusterTestCluster#node1.stop"
-  finalizedBy "newClusterTestCluster#stop"
-}
-
-check.dependsOn newClusterTest
+check.dependsOn bwcTestSnapshots
 unitTest.enabled = false

@@ -36,29 +36,33 @@ import java.util.List;
 public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     
     public static final String NAME = "annotated";
-
-    AnnotatedHighlighterAnalyzer annotatedHighlighterAnalyzer = null;    
     
     @Override
-    protected Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type) {
-        annotatedHighlighterAnalyzer = new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper, type));
-        return annotatedHighlighterAnalyzer;
+    protected Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type, HitContext hitContext) {
+        // Stash the special Analyzer used for annotations in the hitContext
+        hitContext.analyzer(new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper, type, hitContext)));
+        return hitContext.analyzer();
     }
 
     // Convert the marked-up values held on-disk to plain-text versions for highlighting
     @Override
     protected List<Object> loadFieldValues(MappedFieldType fieldType, Field field, SearchContext context, HitContext hitContext)
             throws IOException {
+        // Retrieve the special Analyzer used for annotations in the hitContext
+        assert hitContext.analyzer() != null;
         List<Object> fieldValues = super.loadFieldValues(fieldType, field, context, hitContext);
         String[] fieldValuesAsString = fieldValues.toArray(new String[fieldValues.size()]);
+        AnnotatedHighlighterAnalyzer annotatedHighlighterAnalyzer = (AnnotatedHighlighterAnalyzer) hitContext.analyzer();
         annotatedHighlighterAnalyzer.init(fieldValuesAsString);
         return Arrays.asList((Object[]) annotatedHighlighterAnalyzer.getPlainTextValuesForHighlighter());
     }
 
     @Override
-    protected PassageFormatter getPassageFormatter(SearchContextHighlight.Field field, Encoder encoder) {
+    protected PassageFormatter getPassageFormatter(HitContext hitContext,SearchContextHighlight.Field field, Encoder encoder) {
+        // Retrieve the special Analyzer used for annotations in the hitContext
+        assert hitContext.analyzer() != null;
+        AnnotatedHighlighterAnalyzer annotatedHighlighterAnalyzer = (AnnotatedHighlighterAnalyzer) hitContext.analyzer();
         return new AnnotatedPassageFormatter(annotatedHighlighterAnalyzer, encoder);
-
     }
 
 }

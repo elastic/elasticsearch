@@ -22,7 +22,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -117,28 +117,19 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
         action.shardOperationOnPrimary(request, indexShard,
-                new ActionListener<
-                    TransportReplicationAction.PrimaryResult<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response>>() {
-            @Override
-            public void onResponse(
-                    TransportReplicationAction.PrimaryResult<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response> result) {
-                // the retention leases on the shard should be persisted
-                try {
-                    verify(indexShard).persistRetentionLeases();
-                } catch (WriteStateException e) {
-                    throw new AssertionError(e);
+            ActionTestUtils.assertNoFailureListener(result -> {
+                    // the retention leases on the shard should be persisted
+                    try {
+                        verify(indexShard).persistRetentionLeases();
+                    } catch (WriteStateException e) {
+                        throw new AssertionError(e);
+                    }
+                    // we should forward the request containing the current retention leases to the replica
+                    assertThat(result.replicaRequest(), sameInstance(request));
+                    // we should start with an empty replication response
+                    assertNull(result.finalResponseIfSuccessful.getShardInfo());
                 }
-                // we should forward the request containing the current retention leases to the replica
-                assertThat(result.replicaRequest(), sameInstance(request));
-                // we should start with an empty replication response
-                assertNull(result.finalResponseIfSuccessful.getShardInfo());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
+            ));
     }
 
     public void testRetentionLeaseSyncActionOnReplica() throws WriteStateException {

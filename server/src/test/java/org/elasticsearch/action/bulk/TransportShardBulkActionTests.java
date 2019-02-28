@@ -31,6 +31,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction.WritePrimaryResult;
@@ -53,7 +54,6 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.snapshots.SnapshotResiliencyTests;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Assert;
 
@@ -82,7 +82,7 @@ import static org.mockito.Mockito.when;
 public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     private static final ActionListener<Boolean> ASSERTING_DONE_LISTENER =
-        SnapshotResiliencyTests.assertNoFailureListener(Assert::assertTrue);
+        ActionTestUtils.assertNoFailureListener(Assert::assertTrue);
 
     private final ShardId shardId = new ShardId("index", "_na_", 0);
     private final Settings idxSettings = Settings.builder()
@@ -238,7 +238,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             bulkShardRequest, shard, null, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
             listener -> {
             }, ActionListener.runAfter(
-                SnapshotResiliencyTests.assertNoFailureListener(result -> {
+                ActionTestUtils.assertNoFailureListener(result -> {
                     // since at least 1 item passed, the tran log location should exist,
                     assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, notNullValue());
                     // and the response should exist and match the item count
@@ -505,18 +505,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), listener -> {
-            }, new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(final Boolean aVoid) {
-
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+            new NoopMappingUpdatePerformer(), listener -> {}, ASSERTING_DONE_LISTENER);
 
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -562,18 +551,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), listener -> {
-            }, new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(final Boolean aVoid) {
-
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+            new NoopMappingUpdatePerformer(), listener -> {}, ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Since this was not a conflict failure, the primary response
@@ -623,18 +601,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), listener -> listener.onResponse(null),
-            new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(final Boolean aVoid) {
-
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+            new NoopMappingUpdatePerformer(), listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(context.getLocationToSync());
@@ -681,18 +648,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), listener -> {
-            }, new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(final Boolean aVoid) {
-
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+            new NoopMappingUpdatePerformer(), listener -> {}, ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Check that the translog is successfully advanced
@@ -738,18 +694,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), listener -> listener.onResponse(null),
-            new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(final Boolean aVoid) {
-
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+            new NoopMappingUpdatePerformer(), listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         // Check that the translog is successfully advanced
@@ -783,18 +728,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(), listener -> {
-            }, new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(final Boolean aVoid) {
-
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+            new NoopMappingUpdatePerformer(), listener -> {}, ASSERTING_DONE_LISTENER);
         assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(context.getLocationToSync());
@@ -915,7 +849,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
             listener -> listener.onResponse(null),
             new LatchedActionListener<>(
-                SnapshotResiliencyTests.assertNoFailureListener(result -> {
+                ActionTestUtils.assertNoFailureListener(result -> {
                     assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, equalTo(resultLocation));
                     BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();
                     assertThat(primaryResponse.getItemId(), equalTo(0));

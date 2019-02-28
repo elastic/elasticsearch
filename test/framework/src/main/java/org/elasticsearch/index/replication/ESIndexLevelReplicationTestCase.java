@@ -36,13 +36,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
@@ -793,21 +793,13 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
         primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, request);
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
-            MappingUpdatePerformer noopMappingUpdater = (update, shardId, type, listener1) -> { };
+            MappingUpdatePerformer noopMappingUpdater = (update, shardId, type, listener1) -> {};
             TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater,
-                null, new ActionListener<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>>() {
-                    @Override
-                    public void onResponse(TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse> result) {
-                        TransportWriteActionTestHelper.performPostWriteActions(primary, request,
-                            ((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, logger);
-                        listener.onResponse((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result);
-                    }
-
-                    @Override
-                    public void onFailure(final Exception e) {
-                        throw new AssertionError(e);
-                    }
-                },
+                null, ActionTestUtils.assertNoFailureListener(result -> {
+                    TransportWriteActionTestHelper.performPostWriteActions(primary, request,
+                        ((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, logger);
+                    listener.onResponse((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result);
+                }),
                 r -> threadPool.executor(ThreadPool.Names.WRITE).execute(r));
         } catch (Exception e) {
             listener.onFailure(e);

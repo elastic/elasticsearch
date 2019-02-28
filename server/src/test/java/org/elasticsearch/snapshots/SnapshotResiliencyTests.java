@@ -63,6 +63,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -177,7 +178,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -254,14 +254,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                             new DeleteIndexRequest(index),
                                             assertNoFailureListener(() -> masterNode.client.admin().cluster().restoreSnapshot(
                                                 new RestoreSnapshotRequest(repoName, snapshotName).waitForCompletion(true),
-                                                assertNoFailureListener(restoreSnapshotResponse -> {
+                                                ActionTestUtils.assertNoFailureListener(restoreSnapshotResponse -> {
                                                     snapshotRestored.set(true);
                                                     assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
                                                     masterNode.client.search(
                                                         new SearchRequest(index).source(
                                                             new SearchSourceBuilder().size(0).trackTotalHits(true)
                                                         ),
-                                                        assertNoFailureListener(r -> {
+                                                        ActionTestUtils.assertNoFailureListener(r -> {
                                                             assertEquals(
                                                                 (long) documents,
                                                                 Objects.requireNonNull(r.getHits().getTotalHits()).value
@@ -276,7 +276,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                     masterNode.client.bulk(
                                         new BulkRequest().add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)))
                                             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
-                                        assertNoFailureListener(
+                                        ActionTestUtils.assertNoFailureListener(
                                             bulkResponse -> {
                                                 assertFalse(
                                                     "Failures in bulkresponse: " + bulkResponse.buildFailureMessage(),
@@ -449,7 +449,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL)
                             .settings(defaultIndexSettings(shards)),
                         assertNoFailureListener(
-                            () -> masterAdminClient.cluster().state(new ClusterStateRequest(), assertNoFailureListener(
+                            () -> masterAdminClient.cluster().state(new ClusterStateRequest(), ActionTestUtils.assertNoFailureListener(
                                 clusterStateResponse -> {
                                     final ShardRouting shardToRelocate =
                                         clusterStateResponse.getState().routingTable().allShards(index).get(0);
@@ -460,34 +460,38 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                     final Runnable maybeForceAllocate = new Runnable() {
                                         @Override
                                         public void run() {
-                                            masterAdminClient.cluster().state(new ClusterStateRequest(), assertNoFailureListener(
-                                                resp -> {
-                                                    final ShardRouting shardRouting = resp.getState().routingTable()
-                                                        .shardRoutingTable(shardToRelocate.shardId()).primaryShard();
-                                                    if (shardRouting.unassigned()
-                                                        && shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT) {
-                                                        if (masterNodeCount > 1) {
-                                                            scheduleNow(() -> testClusterNodes.stopNode(masterNode));
+                                            masterAdminClient.cluster().state(new ClusterStateRequest(),
+                                                ActionTestUtils.assertNoFailureListener(
+                                                    resp -> {
+                                                        final ShardRouting shardRouting = resp.getState().routingTable()
+                                                            .shardRoutingTable(shardToRelocate.shardId()).primaryShard();
+                                                        if (shardRouting.unassigned() &&
+                                                            shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT) {
+                                                            if (masterNodeCount > 1) {
+                                                                scheduleNow(() -> testClusterNodes.stopNode(masterNode));
+                                                            }
+                                                            testClusterNodes.randomDataNodeSafe().client.admin().cluster()
+                                                                .prepareCreateSnapshot(repoName, snapshotName)
+                                                                .execute(ActionListener.wrap(() -> {
+                                                                    testClusterNodes.randomDataNodeSafe().client.admin().cluster()
+                                                                        .deleteSnapshot(
+                                                                            new DeleteSnapshotRequest(
+                                                                                repoName, snapshotName), noopListener());
+                                                                    createdSnapshot.set(true);
+                                                                }));
+                                                            scheduleNow(
+                                                                () -> testClusterNodes.randomMasterNodeSafe().client.admin().cluster()
+                                                                    .reroute(
+                                                                        new ClusterRerouteRequest().add(
+                                                                            new AllocateEmptyPrimaryAllocationCommand(
+                                                                                index, shardRouting.shardId().id(),
+                                                                                otherNode.node.getName(), true)),
+                                                                        noopListener()));
+                                                        } else {
+                                                            scheduleSoon(this);
                                                         }
-                                                        testClusterNodes.randomDataNodeSafe().client.admin().cluster()
-                                                            .prepareCreateSnapshot(repoName, snapshotName)
-                                                            .execute(ActionListener.wrap(() -> {
-                                                                testClusterNodes.randomDataNodeSafe().client.admin().cluster()
-                                                                    .deleteSnapshot(
-                                                                        new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
-                                                                createdSnapshot.set(true);
-                                                            }));
-                                                        scheduleNow(
-                                                            () -> testClusterNodes.randomMasterNodeSafe().client.admin().cluster().reroute(
-                                                                new ClusterRerouteRequest().add(
-                                                                    new AllocateEmptyPrimaryAllocationCommand(
-                                                                        index, shardRouting.shardId().id(), otherNode.node.getName(), true)
-                                                                ), noopListener()));
-                                                    } else {
-                                                        scheduleSoon(this);
                                                     }
-                                                }
-                                            ));
+                                                ));
                                         }
                                     };
                                     scheduleNow(() -> testClusterNodes.stopNode(currentPrimaryNode));
@@ -601,20 +605,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
         return Settings.builder()
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0).build();
-    }
-
-    public static <T> ActionListener<T> assertNoFailureListener(Consumer<T> consumer) {
-        return new ActionListener<T>() {
-            @Override
-            public void onResponse(final T t) {
-                consumer.accept(t);
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                throw new AssertionError(e);
-            }
-        };
     }
 
     private static <T> ActionListener<T> assertNoFailureListener(Runnable r) {

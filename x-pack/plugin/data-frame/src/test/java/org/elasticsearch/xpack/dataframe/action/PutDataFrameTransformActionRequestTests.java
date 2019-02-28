@@ -68,7 +68,7 @@ public class PutDataFrameTransformActionRequestTests extends AbstractStreamableX
 
     @Override
     protected Request createTestInstance() {
-        DataFrameTransformConfig config = DataFrameTransformConfigTests.randomDataFrameTransformConfigWithoutHeaders();
+        DataFrameTransformConfig config = DataFrameTransformConfigTests.randomDataFrameTransformConfigWithoutHeaders(transformId);
         return new Request(config);
     }
 }

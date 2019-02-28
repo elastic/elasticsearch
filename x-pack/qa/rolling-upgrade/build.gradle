@@ -219,6 +219,7 @@ subprojects {
         }
         setting 'node.attr.upgraded', 'true'
         setting 'xpack.security.authc.token.enabled', 'true'
+        setting 'xpack.security.authc.token.compat.enabled', 'true'
         setting 'xpack.security.audit.enabled', 'true'
         setting 'xpack.security.audit.outputs', 'index'
         setting 'node.name', "upgraded-node-${stopNode}"

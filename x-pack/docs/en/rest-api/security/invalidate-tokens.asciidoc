@@ -103,18 +103,36 @@ POST /_security/oauth2/token
   "password" : "x-pack-test-password"
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
+// TEST
 
-The following example invalidates the specified refresh token immediately:
+The API returns the following information:
+
+[source,js]
+--------------------------------------------------
+{
+  "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
+  "type" : "Bearer",
+  "expires_in" : 1200,
+  "refresh_token": "vLBPvmAB6KvwvJZr27cS"
+}
+--------------------------------------------------
+// TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
+// TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
+
+You can invalidate the specified refresh token as follows:
 
 [source,js]
 --------------------------------------------------
 DELETE /_security/oauth2/token
 {
-  "refresh_token" : "movUJjPGRRC0PQ7+NW0eag"
+  "refresh_token" : "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
+// TEST[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
+// TEST[continued]
+
 
 The following example invalidates all access tokens and refresh tokens for the
 `saml1` realm immediately:

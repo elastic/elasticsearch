@@ -358,6 +358,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
     }
 
+    public boolean assertRetentionLeasesPersisted(final Path path) throws IOException {
+        assert RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path) != null;
+        return true;
+    }
+
     public static class CheckpointState implements Writeable {
 
         /**
@@ -638,7 +643,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final LongSupplier currentTimeMillisSupplier,
             final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases) {
         super(shardId, indexSettings);
-        logger.info("--> creating new ReplicationTracker");
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;
         this.primaryMode = false;

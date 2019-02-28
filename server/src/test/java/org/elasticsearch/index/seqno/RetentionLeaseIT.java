@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -56,6 +57,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -361,12 +363,24 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         }
 
         // Cause some recoveries to fail to ensure that retention leases are handled properly when retrying a recovery
-        final Semaphore recoveriesToDisrupt = new Semaphore(randomIntBetween(0, 4));
-        final MockTransportService transportService
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+            .put(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")));
+        final Semaphore recoveriesToDisrupt = new Semaphore(scaledRandomIntBetween(0, 4));
+        final MockTransportService primaryTransportService
             = (MockTransportService) internalCluster().getInstance(TransportService.class, primaryShardNodeName);
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+        primaryTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE) && recoveriesToDisrupt.tryAcquire()) {
-                throw new ElasticsearchException("failing recovery for test");
+                if (randomBoolean()) {
+                    // return a ConnectTransportException to the START_RECOVERY action
+                    final TransportService replicaTransportService
+                        = internalCluster().getInstance(TransportService.class, connection.getNode().getName());
+                    final DiscoveryNode primaryNode = primaryTransportService.getLocalNode();
+                    replicaTransportService.disconnectFromNode(primaryNode);
+                    replicaTransportService.connectToNode(primaryNode);
+                } else {
+                    // return an exception to the FINALIZE action
+                    throw new ElasticsearchException("failing recovery for test purposes");
+                }
             }
             connection.sendRequest(requestId, action, request, options);
         });

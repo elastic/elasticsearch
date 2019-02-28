@@ -415,9 +415,13 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 indexShard.getPendingPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);
 
-            assert indexShard.getRetentionLeases().leases().isEmpty() : indexShard.getRetentionLeases(); // not loaded yet
-            indexShard.persistRetentionLeases();
-            assert indexShard.loadRetentionLeases().leases().isEmpty();
+            if (indexShard.getRetentionLeases().leases().isEmpty()) {
+                // if empty, may be a fresh IndexShard, so write an empty leases file to disk
+                indexShard.persistRetentionLeases();
+                assert indexShard.loadRetentionLeases().leases().isEmpty();
+            } else {
+                assert indexShard.assertRetentionLeasesPersisted();
+            }
 
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.

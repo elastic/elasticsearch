@@ -2021,6 +2021,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.persistRetentionLeases(path.getShardStatePath());
     }
 
+    public boolean assertRetentionLeasesPersisted() throws IOException {
+        return replicationTracker.assertRetentionLeasesPersisted(path.getShardStatePath());
+    }
+
     /**
      * Syncs the current retention leases to all replicas.
      */

@@ -95,9 +95,15 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 (name, port) -> postProcessFixture.getExtensions()
                     .getByType(ExtraPropertiesExtension.class).set(name, port)
             );
+
+            // Make it possible to have the both fixture and what's using it in a single place
+            extension.fixtures.add(project);
         }
 
-        extension.fixtures.all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
+        extension.fixtures
+            .matching(fixtureProject -> fixtureProject.equals(project) == false)
+            .all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
+
         if (dockerComposeSupported(project) == false) {
             project.getLogger().warn(
                 "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +

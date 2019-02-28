@@ -2,8 +2,9 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.VersionProperties
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 
-apply plugin: 'base'
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 configurations {
@@ -96,15 +97,41 @@ preProcessFixture {
   dependsOn taskName("copy", true, "Dockerfile")
   dependsOn taskName("copy", false, "DockerContext")
   dependsOn taskName("copy", false, "Dockerfile")
+  doLast {
+    file("${buildDir}/repo").mkdirs();
+    file("${buildDir}/repo").setWritable(true, false)
+    file("${buildDir}/oss-repo").mkdirs();
+    file("${buildDir}/oss-repo").setWritable(true, false)
+  }
 }
 
 postProcessFixture.doLast {
-  println "docker default distro is on port: ${ext."test.fixtures.elasticsearch-default.tcp.9200"}, " +
-          "oss is on: ${ext."test.fixtures.elasticsearch-oss.tcp.9200"}"
+  ["oss", "default"].each { flavor ->
+    println "Waiting for cluster status for $flavor"
+    println new URL("http://localhost:${ext."test.fixtures.elasticsearch-${flavor}-1.tcp.9200"}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow").getText()
+  }
 }
 
-// TODO: Add some actual tests, this will just check that the TPC port in the container is up
-check.dependsOn postProcessFixture
+configurations {
+  restSpec
+}
+dependencies {
+  restSpec "org.elasticsearch:rest-api-spec:${version}"
+}
+
+task copyRestTests(type: Sync) {
+  from { zipTree(configurations.restSpec.singleFile) }
+  into sourceSets.test.output.resourcesDir
+}
+processTestResources.dependsOn copyRestTests
+
+task integTest(type: RandomizedTestingTask) {
+  parallelism = '1'
+  include '**/*IT.class'
+  dependsOn postProcessFixture
+}
+
+check.dependsOn integTest
 
 void addBuildDockerImage(final boolean oss) {
   final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: LoggedExec) {

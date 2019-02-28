@@ -1,21 +1,103 @@
 # Only used for testing the docker images
 version: '3'
 services:
-  elasticsearch-default:
+  elasticsearch-default-1:
     build:
       context: ./build/docker
-      dockerfile: Dockerfile
     environment:  
+       - node.name=elasticsearch-default-1 
+       - cluster.initial_master_nodes=elasticsearch-default-1,elasticsearch-default-2
+       - discovery.seed_hosts=elasticsearch-default-2:9300 
        - cluster.name=elasticsearch-default
-       - discovery.type=single-node
+       - bootstrap.memory_lock=true
+       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+       - path.repo=/tmp/es-repo
+       - node.attr.testattr=test
+       - cluster.routing.allocation.disk.watermark.low=1b
+       - cluster.routing.allocation.disk.watermark.high=1b
+       - cluster.routing.allocation.disk.watermark.flood_stage=1b
+       - script.max_compilations_rate=2048/1m
+       - node.store.allow_mmap=false  
+    volumes: 
+       - ./build/repo:/tmp/es-repo
     ports:
       - "9200"
-  elasticsearch-oss:
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+  elasticsearch-default-2:
+    build:
+      context: ./build/docker
+    environment:  
+       - node.name=elasticsearch-default-2
+       - cluster.initial_master_nodes=elasticsearch-default-1,elasticsearch-default-2
+       - discovery.seed_hosts=elasticsearch-default-1:9300 
+       - cluster.name=elasticsearch-default
+       - bootstrap.memory_lock=true
+       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+       - path.repo=/tmp/es-repo
+       - node.attr.testattr=test
+       - cluster.routing.allocation.disk.watermark.low=1b
+       - cluster.routing.allocation.disk.watermark.high=1b
+       - cluster.routing.allocation.disk.watermark.flood_stage=1b
+       - script.max_compilations_rate=2048/1m
+       - node.store.allow_mmap=false  
+    volumes: 
+       - ./build/repo:/tmp/es-repo
+    ports:
+      - "9200"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+  elasticsearch-oss-1:
     build:
       context: ./build/oss-docker
-      dockerfile: Dockerfile
     environment:  
+       - node.name=elasticsearch-oss-1 
+       - cluster.initial_master_nodes=elasticsearch-oss-1,elasticsearch-oss-2
+       - discovery.seed_hosts=elasticsearch-oss-2:9300 
        - cluster.name=elasticsearch-oss
-       - discovery.type=single-node
+       - bootstrap.memory_lock=true
+       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+       - path.repo=/tmp/es-repo
+       - node.attr.testattr=test
+       - cluster.routing.allocation.disk.watermark.low=1b
+       - cluster.routing.allocation.disk.watermark.high=1b
+       - cluster.routing.allocation.disk.watermark.flood_stage=1b
+       - script.max_compilations_rate=2048/1m
+       - node.store.allow_mmap=false  
+    volumes: 
+       - ./build/oss-repo:/tmp/es-repo
     ports:
       - "9200"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+  elasticsearch-oss-2:
+    build:
+      context: ./build/oss-docker
+    environment:  
+       - node.name=elasticsearch-oss-2
+       - cluster.initial_master_nodes=elasticsearch-oss-1,elasticsearch-oss-2
+       - discovery.seed_hosts=elasticsearch-oss-1:9300 
+       - cluster.name=elasticsearch-oss
+       - bootstrap.memory_lock=true
+       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+       - path.repo=/tmp/es-repo
+       - node.attr.testattr=test
+       - cluster.routing.allocation.disk.watermark.low=1b
+       - cluster.routing.allocation.disk.watermark.high=1b
+       - cluster.routing.allocation.disk.watermark.flood_stage=1b
+       - script.max_compilations_rate=2048/1m
+       - node.store.allow_mmap=false  
+    volumes: 
+       - ./build/oss-repo:/tmp/es-repo
+    ports:
+      - "9200"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1

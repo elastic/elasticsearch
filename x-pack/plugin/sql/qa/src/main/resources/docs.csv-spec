@@ -2353,6 +2353,7 @@ SELECT * FROM (SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%
   first_name   |   last_name
 ---------------+---------------
 Anneke         |Preusig
+Alejandro      |McAlpine
 Anoosh         |Peyn
 Arumugam       |Ossenbruggen
 // end::limitationSubSelect
@@ -2365,6 +2366,7 @@ SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%' AND first_n
   first_name   |   last_name
 ---------------+---------------
 Anneke         |Preusig
+Alejandro      |McAlpine
 Anoosh         |Peyn
 Arumugam       |Ossenbruggen
 ;

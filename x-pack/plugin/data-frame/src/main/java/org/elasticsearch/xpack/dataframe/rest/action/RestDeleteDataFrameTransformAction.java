@@ -27,6 +27,10 @@ public class RestDeleteDataFrameTransformAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        if (restRequest.hasContent()) {
+            throw new IllegalArgumentException("delete data frame transforms requests can not have a request body");
+        }
+
         String id = restRequest.param(DataFrameField.ID.getPreferredName());
         DeleteDataFrameTransformAction.Request request = new DeleteDataFrameTransformAction.Request(id);
 

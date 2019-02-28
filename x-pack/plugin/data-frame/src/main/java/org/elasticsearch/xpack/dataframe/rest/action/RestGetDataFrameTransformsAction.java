@@ -19,6 +19,7 @@ public class RestGetDataFrameTransformsAction extends BaseRestHandler {
 
     public RestGetDataFrameTransformsAction(Settings settings, RestController controller) {
         super(settings);
+        controller.registerHandler(RestRequest.Method.GET, DataFrameField.REST_BASE_PATH_TRANSFORMS, this);
         controller.registerHandler(RestRequest.Method.GET, DataFrameField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
     }
 

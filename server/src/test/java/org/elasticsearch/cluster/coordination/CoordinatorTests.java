@@ -1442,7 +1442,8 @@ public class CoordinatorTests extends ESTestCase {
                 leader.improveConfiguration(lastAcceptedState), sameInstance(lastAcceptedState));
 
             logger.info("checking linearizability of history with size {}: {}", history.size(), history);
-            assertTrue("history not linearizable: " + history, linearizabilityChecker.isLinearizable(spec, history, i -> null));
+            // See https://github.com/elastic/elasticsearch/issues/39437
+            //assertTrue("history not linearizable: " + history, linearizabilityChecker.isLinearizable(spec, history, i -> null));
             logger.info("linearizability check completed");
         }
 

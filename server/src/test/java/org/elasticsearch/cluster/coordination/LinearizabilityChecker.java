@@ -24,8 +24,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.collect.Tuple;
 
-// we only use serializable to be able to debug test failures, circumventing the checkstyle check using spaces.
-import java . io . Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -129,7 +127,7 @@ public class LinearizabilityChecker {
     /**
      * Sequence of invocations and responses, recording the run of a concurrent system.
      */
-    public static class History implements Serializable {
+    public static class History {
         private final Queue<Event> events;
         private AtomicInteger nextId = new AtomicInteger();
 
@@ -137,7 +135,7 @@ public class LinearizabilityChecker {
             events = new ConcurrentLinkedQueue<>();
         }
 
-        private History(Collection<Event> events) {
+        public History(Collection<Event> events) {
             this();
             this.events.addAll(events);
             this.nextId.set(events.stream().mapToInt(e -> e.id).max().orElse(-1) + 1);
@@ -186,6 +184,13 @@ public class LinearizabilityChecker {
         }
 
         /**
+         * Copy the list of events for external use.
+         * @return list of events in the order recorded.
+         */
+        public List<Event> copyEvents() {
+            return new ArrayList<>(events);
+        }
+        /**
          * Completes the history with response events for invocations that are missing corresponding responses
          *
          * @param missingResponseGenerator a function from invocation input to response output, used to generate the corresponding
@@ -215,10 +220,7 @@ public class LinearizabilityChecker {
 
         @Override
         public History clone() {
-            final History history = new History();
-            history.events.addAll(events);
-            history.nextId = new AtomicInteger(nextId.get());
-            return history;
+            return new History(events);
         }
 
         /**
@@ -249,12 +251,12 @@ public class LinearizabilityChecker {
     public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
         history = history.clone(); // clone history before completing it
         history.complete(missingResponseGenerator); // complete history
-        final Collection<List<Event>> partitions = spec.partition(new ArrayList<>(history.events));
+        final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
         return partitions.stream().allMatch(h -> isLinearizable(spec, h));
     }
 
     private boolean isLinearizable(SequentialSpec spec, List<Event> history) {
-        logger.info("Checking history of size: {}: {}", history.size(), history);
+        logger.debug("Checking history of size: {}: {}", history.size(), history);
         Object state = spec.initialState(); // the current state of the datatype
         final FixedBitSet linearized = new FixedBitSet(history.size() / 2); // the linearized prefix of the history
 
@@ -314,7 +316,7 @@ public class LinearizabilityChecker {
      */
     public boolean isLinearizableWithTimeoutOptimization(SequentialSpec spec, History history,
                                                          Function<Object, Object> missingResponseGenerator) {
-        final Collection<List<Event>> partitions = spec.partition(new ArrayList<>(history.events));
+        final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
         return partitions.stream().allMatch(h -> isLinearizableWithTimeoutOptimization(spec, h, missingResponseGenerator));
     }
 
@@ -323,13 +325,13 @@ public class LinearizabilityChecker {
         History history = new History(events);
         History historyWithNoTimedOutOperations = history.clone();
         historyWithNoTimedOutOperations.complete(i -> REMOVE);
-        if (isLinearizable(spec, new ArrayList<>(historyWithNoTimedOutOperations.events))) {
+        if (isLinearizable(spec, historyWithNoTimedOutOperations.copyEvents())) {
             return true;
         }
 
         history.complete(missingResponseGenerator);
 
-        return isLinearizable(spec, new ArrayList<>(history.events));
+        return isLinearizable(spec, history.copyEvents());
     }
 
     /**
@@ -379,12 +381,12 @@ public class LinearizabilityChecker {
         return first;
     }
 
-    enum EventType {
+    public enum EventType {
         INVOCATION,
         RESPONSE
     }
 
-    public static class Event implements Serializable {
+    public static class Event {
         public final EventType type;
         public final Object value;
         public final int id;

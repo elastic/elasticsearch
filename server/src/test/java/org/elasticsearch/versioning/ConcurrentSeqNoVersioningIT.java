@@ -24,19 +24,24 @@ import org.elasticsearch.cluster.coordination.LinearizabilityChecker;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 
-import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-// we only use serializable to be able to debug test failures, circumventing the checkstyle check using spaces.
-import java . io . Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
@@ -169,14 +174,24 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                     for (int i = 0; i < numberOfUpdates; ++i) {
                         final int keyIndex = random.nextInt(partitions.size());
                         final Partition partition = partitions.get(keyIndex);
-                        final int pct = random.nextInt(100);
-                        final boolean futureSeqNo = pct < 10;
+
+                        final int seqNoChangePct = random.nextInt(100);
+                        final boolean futureSeqNo = seqNoChangePct < 10;
                         Version version = partition.latestKnownVersion();
                         if (futureSeqNo) {
                             version = version.nextSeqNo(random.nextInt(4)+1);
-                        } else if (pct < 15) {
+                        } else if (seqNoChangePct < 15) {
                             version = version.previousSeqNo(random.nextInt(4)+1);
                         }
+
+                        final int termChangePct = random.nextInt(100);
+                        final boolean futureTerm = termChangePct < 5;
+                        if (futureTerm) {
+                            version = version.nextTerm();
+                        } else if (termChangePct < 10) {
+                            version = version.previousTerm();
+                        }
+
                         Consumer<HistoryOutput> historyResponse = partition.invoke(version);
                         try {
                             // we should be able to remove timeout or fail hard on timeouts if we fix network disruptions to be
@@ -192,13 +207,19 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                         } catch (RuntimeException e) {
                             // if we used a future seqNo, we cannot know if it will overwrite a future update when failing with
                             // unknown error
-                            if (futureSeqNo == false)
+                            if (futureSeqNo == false && futureTerm == false)
                                 historyResponse.accept(new FailureHistoryOutput());
                         }
                     }
 
-                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                    // check to stop
+                } catch (InterruptedException e) {
+                    assert stop : "should only be interrupted when stopped";
+                } catch (BrokenBarrierException e) {
+                    // a thread can go here either because it completed before disruption ended, timeout on main thread causes broken
+                    // barrier
+                } catch (TimeoutException e) {
+                    // this is timeout on the barrier, unexpected.
+                    throw new AssertionError("Unexpected timeout in thread: " + Thread.currentThread(), e);
                 }
             }
         }
@@ -223,6 +244,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         private AtomicVersion(Version initialVersion) {
             this.current = new AtomicReference<>(initialVersion);
         }
+
         public Version get() {
             return current.get();
         }
@@ -230,12 +252,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         public void consume(Version version) {
             if (version == null)
                 return;
-            for (;;) {
-                Version current = this.current.get();
-                if (version.lteq(current) || this.current.compareAndSet(current, version)) {
-                    break;
-                }
-            }
+            this.current.updateAndGet(current -> version.compareTo(current) <= 0 ? current : version);
         }
     }
 
@@ -277,7 +294,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                     missingResponseGenerator());
             if (linearizable == false) {
                 // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
-                logger.info("Linearizability check failed. Initial version: {}, serialized history: {}", initialVersion,
+                logger.error("Linearizability check failed. Initial version: {}, serialized history: {}", initialVersion,
                     base64Serialize(history));
             }
             return linearizable;
@@ -311,13 +328,18 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     /**
      * Our version, which is primaryTerm,seqNo.
      */
-    private static final class Version implements Serializable {
+    private static final class Version implements NamedWriteable, Comparable<Version> {
         public final long primaryTerm;
         public final long seqNo;
 
         Version(long primaryTerm, long seqNo) {
             this.primaryTerm = primaryTerm;
             this.seqNo = seqNo;
+        }
+
+        Version(StreamInput input) throws IOException {
+            this.primaryTerm = input.readLong();
+            this.seqNo = input.readLong();
         }
 
         @Override
@@ -334,14 +356,22 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             return Objects.hash(primaryTerm, seqNo);
         }
 
-        public boolean lteq(Version other) {
-            return primaryTerm < other.primaryTerm
-                || (primaryTerm == other.primaryTerm && seqNo <= other.seqNo);
+        /**
+         * Return true iff this is strictly greater than other.
+         */
+        public boolean gt(Version other) {
+            return compareTo(other) > 0;
         }
 
-        public boolean gt(Version other) {
-            return lteq(other) == false;
+        @Override
+        public int compareTo(Version other) {
+            int termCompare = Long.compare(primaryTerm, other.primaryTerm);
+            if (termCompare != 0)
+                return termCompare;
+            return Long.compare(seqNo, other.seqNo);
+
         }
+
         @Override
         public String toString() {
             return "{" + "primaryTerm=" + primaryTerm + ", seqNo=" + seqNo + '}';
@@ -354,12 +384,30 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         public Version previousSeqNo(int decrement) {
             return new Version(primaryTerm, seqNo - decrement);
         }
+
+        @Override
+        public String getWriteableName() {
+            return "version";
+        }
+
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(primaryTerm);
+            out.writeLong(seqNo);
+        }
+
+        public Version previousTerm() {
+            return new Version(primaryTerm-1, seqNo);
+        }
+
+        public Version nextTerm() {
+            return new Version(primaryTerm+1, seqNo);
+        }
     }
 
     /**
      * State and its subclasses model the state of the partition (key) for the linearizability checker.
      *
-     * We go a step deeper than just modelling successes, since we can then then do more validations.
+     * We go a step deeper than just modelling successes, since we can then do more validations.
      */
     private abstract static class State {
         /**
@@ -393,8 +441,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         // We can get CAS failures in following situations:
         // 1. Real: a concurrent or previous write updated this.
-        // 2. Fail on our own write: the write to a replica was already done, but not responded to primary (or multiple replicas). And
-        // replica is promoted to primary, causing the write to fail on its own update.
+        // 2. Fail on our own write: the write to a replica was already done, but not responded to primary (or multiple replicas). The
+        // replica is promoted to primary. The write on the original primary is bubbled up to Reroute phase and retried. The retry will
+        // fail on its own update on the new primary.
         // 3. Fail after other fail: another write CAS failed, but did do the write anyway (not dirty). We then CAS fail only due to
         // that write.
         // 4. Fail on dirty write: the primary we talk to is no longer the real primary. CAS failures would thus occur against dirty
@@ -404,7 +453,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         Optional<State> fail() {
             return Optional.of(new FailState(safeVersion));
-
         }
     }
 
@@ -558,7 +606,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     /**
      * HistoryOutput serves both as the output of calls and delegating the sequential spec to the right State methods.
      */
-    private interface HistoryOutput extends Serializable {
+    private interface HistoryOutput extends NamedWriteable {
         Optional<State> nextState(State currentState, Version input);
 
         Version getVersion();
@@ -569,6 +617,10 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         private IndexResponseHistoryOutput(IndexResponse response) {
             this.outputVersion = new Version(response.getPrimaryTerm(), response.getSeqNo());
+        }
+
+        private IndexResponseHistoryOutput(StreamInput input) throws IOException {
+            this.outputVersion = new Version(input);
         }
 
         @Override
@@ -585,6 +637,16 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         public String toString() {
             return "Index{" + outputVersion + "}";
         }
+
+        @Override
+        public String getWriteableName() {
+            return "index";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            outputVersion.writeTo(out);
+        }
     }
 
     private static class CASFailureHistoryOutput implements HistoryOutput {
@@ -593,8 +655,14 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             this.outputVersion = parseException(exception.getMessage());
         }
 
+        private CASFailureHistoryOutput(StreamInput input) throws IOException {
+            this.outputVersion = new Version(input);
+        }
+
         private Version parseException(String message) {
-            // ugly, but having these observed versions available improves the linearizability checking and ensures progress.
+            // ugly, but having these observed versions available improves the linearizability checking. Additionally, this ensures
+            // progress since if we did not parse this out, no writes would succeed after a fail on own write failure (unless we were
+            // lucky enough to guess the seqNo/primaryTerm with the random futureTerm/futureSeqNo handling in CASUpdateThread).
             try {
                 Matcher matcher = EXTRACT_VERSION.matcher(message);
                 matcher.find();
@@ -618,9 +686,26 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         public String toString() {
             return "CASFail{" + outputVersion + "}";
         }
+
+        @Override
+        public String getWriteableName() {
+            return "casfail";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            outputVersion.writeTo(out);
+        }
     }
 
     private static class FailureHistoryOutput implements HistoryOutput {
+
+        private FailureHistoryOutput() {
+
+        }
+        private FailureHistoryOutput(@SuppressWarnings("unused") StreamInput streamInput) {
+
+        }
 
         @Override
         public Optional<State> nextState(State currentState, Version input) {
@@ -636,6 +721,16 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         public String toString() {
             return "Fail";
         }
+
+        @Override
+        public String getWriteableName() {
+            return "fail";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            // nothing to write.
+        }
     }
 
     private static Function<Object, Object> missingResponseGenerator() {
@@ -644,15 +739,40 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     @SuppressForbidden(reason = "we only serialize data in the test case to be able to deserialize it for debugging")
     private String base64Serialize(LinearizabilityChecker.History history) {
-        ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+        BytesStreamOutput output = new BytesStreamOutput();
         try {
-            ObjectOutputStream oos = new ObjectOutputStream(outStream);
-            oos.writeObject(history);
-            oos.close();
-            return Base64.getEncoder().encodeToString(outStream.toByteArray());
+            List<LinearizabilityChecker.Event> events = history.copyEvents();
+            output.writeInt(events.size());
+            for (LinearizabilityChecker.Event event : events) {
+                writeEvent(event, output);
+            }
+            output.close();
+            return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
         } catch (IOException e) {
             throw new RuntimeException(e);
+        } catch (ClassCastException e) {
+            return "Unable to produce base64 serialized version of history: " + history +"\n  Message: " + e.getMessage();
         }
+    }
+
+    private static LinearizabilityChecker.History readHistory(StreamInput input) throws IOException {
+        int size = input.readInt();
+        List<LinearizabilityChecker.Event> events = new ArrayList<>(size);
+        for (int i = 0; i < size; ++i) {
+            events.add(readEvent(input));
+        }
+        return new LinearizabilityChecker.History(events);
+    }
+
+    private static void writeEvent(LinearizabilityChecker.Event event, BytesStreamOutput output) throws IOException {
+        output.writeEnum(event.type);
+        output.writeNamedWriteable((NamedWriteable) event.value);
+        output.writeInt(event.id);
+    }
+
+    private static LinearizabilityChecker.Event readEvent(StreamInput input) throws IOException {
+        return new LinearizabilityChecker.Event(input.readEnum(LinearizabilityChecker.EventType.class),
+            input.readNamedWriteable(NamedWriteable.class), input.readInt());
     }
 
     @SuppressForbidden(reason = "system err is ok for a command line tool")
@@ -669,11 +789,11 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     }
 
     @SuppressForbidden(reason = "system out is ok for a command line tool and deserialize is also ok in this debugging tool")
-    private static void runLinearizabilityChecker(FileInputStream fileInputStream, long primaryTerm, long seqNo) throws IOException,
-        ClassNotFoundException {
-        ObjectInputStream ois = new ObjectInputStream(Base64.getDecoder().wrap(fileInputStream));
+    private static void runLinearizabilityChecker(FileInputStream fileInputStream, long primaryTerm, long seqNo) throws IOException {
+        StreamInput is = new InputStreamStreamInput(Base64.getDecoder().wrap(fileInputStream));
+        is = new NamedWriteableAwareStreamInput(is, createNamedWriteableRegistry());
 
-        LinearizabilityChecker.History history = (LinearizabilityChecker.History) ois.readObject();
+        LinearizabilityChecker.History history = readHistory(is);
 
         Version initialVersion = new Version(primaryTerm, seqNo);
         boolean result =
@@ -682,5 +802,15 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         System.out.println("Linearizable?: " + result);
     }
+
+    private static NamedWriteableRegistry createNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(Arrays.asList(
+            new NamedWriteableRegistry.Entry(NamedWriteable.class, "version", Version::new),
+            new NamedWriteableRegistry.Entry(NamedWriteable.class, "index", IndexResponseHistoryOutput::new),
+            new NamedWriteableRegistry.Entry(NamedWriteable.class, "casfail", CASFailureHistoryOutput::new),
+            new NamedWriteableRegistry.Entry(NamedWriteable.class, "fail", FailureHistoryOutput::new)
+        ));
+    }
+
 }
 

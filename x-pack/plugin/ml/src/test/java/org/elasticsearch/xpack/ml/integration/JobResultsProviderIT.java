@@ -499,7 +499,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         for (ScheduledEvent event : events) {
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE);
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME);
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
                 indexRequest.source(event.toXContent(builder, params));
@@ -542,7 +542,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         for (MlFilter filter : filters) {
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(filter.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
                 indexRequest.source(filter.toXContent(builder, params));
@@ -572,7 +572,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         for (Calendar calendar: calendars) {
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, calendar.documentId());
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(calendar.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
                 indexRequest.source(calendar.toXContent(builder, params));

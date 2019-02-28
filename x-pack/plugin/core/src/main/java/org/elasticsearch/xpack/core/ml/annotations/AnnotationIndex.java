@@ -111,7 +111,8 @@ public class AnnotationIndex {
 
     public static XContentBuilder annotationsMapping() throws IOException {
         XContentBuilder builder = jsonBuilder()
-            .startObject();
+            .startObject()
+                .startObject(SINGLE_MAPPING_NAME);
         ElasticsearchMappings.addMetaInformation(builder);
         builder.startObject(ElasticsearchMappings.PROPERTIES)
                         .startObject(Annotation.ANNOTATION.getPreferredName())
@@ -142,7 +143,8 @@ public class AnnotationIndex {
                             .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.KEYWORD)
                         .endObject()
                     .endObject()
-                .endObject();
+                .endObject()
+            .endObject();
         return builder;
     }
 }

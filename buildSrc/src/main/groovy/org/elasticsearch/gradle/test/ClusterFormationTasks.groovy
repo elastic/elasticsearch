@@ -39,7 +39,6 @@ import org.gradle.api.logging.Logger
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
-import org.gradle.internal.os.OperatingSystem
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Paths

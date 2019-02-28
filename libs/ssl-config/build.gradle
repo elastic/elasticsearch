@@ -18,9 +18,6 @@
  */
 apply plugin: "nebula.maven-scm"
 
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
-
 dependencies {
     compile "org.elasticsearch:elasticsearch-core:${version}"
 

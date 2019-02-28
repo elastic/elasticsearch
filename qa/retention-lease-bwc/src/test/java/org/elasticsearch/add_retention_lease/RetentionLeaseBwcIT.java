@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class RetentionLeaseBwcIT extends ESRestTestCase {
 
-    @SuppressForbidden(reason = "debug")
     public void testRetentionLeaseBwcIT() throws IOException {
         // we have to dance like this otherwise we can not end up with a primary on the new node with a replica on the old node
         final Response getNodesResponse = client().performRequest(new Request("GET", "/_nodes"));

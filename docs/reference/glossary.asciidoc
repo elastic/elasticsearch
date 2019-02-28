@@ -26,6 +26,12 @@
   same cluster name. Each cluster has a single master node which is
   chosen automatically by the cluster and which can be replaced if the
   current master node fails.
+  
+[[glossary-ccr]] {ccr} (CCR)::
+
+  The {ccr} feature enables you to replicate indices in remote clusters to your
+  local cluster. For more information, see 
+  {stack-ov}/xpack-ccr.html[Cross cluster replication].  
 
 [[glossary-document]] document ::
 

@@ -26,6 +26,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
@@ -41,6 +42,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -59,8 +61,11 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -948,6 +953,97 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         } else {
             int liveDocs = Integer.parseInt(loadInfoDocument(index + "_doc_count"));
             assertTotalHits(liveDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+        }
+    }
+
+    /**
+     * This test creates an index in the old cluster and then closes it. When the cluster is fully restarted in a newer version,
+     * it verifies that the index exists and is replicated if the old version supports replication.
+     */
+    public void testClosedIndices() throws Exception {
+        if (isRunningAgainstOldCluster()) {
+            createIndex(index, Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build());
+            ensureGreen(index);
+
+            int numDocs = 0;
+            if (randomBoolean()) {
+                numDocs = between(1, 100);
+                for (int i = 0; i < numDocs; i++) {
+                    final Request request = new Request("POST", "/" + index + "/_doc/" + i);
+                    request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v1").endObject()));
+                    assertOK(client().performRequest(request));
+                    if (rarely()) {
+                        refresh();
+                    }
+                }
+                refresh();
+            }
+
+            assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+            saveInfoDocument(index + "_doc_count", Integer.toString(numDocs));
+            closeIndex(index);
+        }
+
+        if (getOldClusterVersion().onOrAfter(Version.V_8_0_0)) {
+            ensureGreenLongWait(index);
+            assertClosedIndex(index, true);
+        } else {
+            assertClosedIndex(index, false);
+        }
+
+        if (isRunningAgainstOldCluster() == false) {
+            openIndex(index);
+            ensureGreen(index);
+
+            final int expectedNumDocs = Integer.parseInt(loadInfoDocument(index + "_doc_count"));
+            assertTotalHits(expectedNumDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+        }
+    }
+
+    /**
+     * Asserts that an index is closed in the cluster state. If `checkRoutingTable` is true, it also asserts
+     * that the index has started shards.
+     */
+    @SuppressWarnings("unchecked")
+    private void assertClosedIndex(final String index, final boolean checkRoutingTable) throws IOException {
+        final Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+
+        final Map<String, ?> metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata.indices." + index, state);
+        assertThat(metadata, notNullValue());
+        assertThat(metadata.get("state"), equalTo("close"));
+
+        final Map<String, ?> blocks = (Map<String, Object>) XContentMapValues.extractValue("blocks.indices." + index, state);
+        assertThat(blocks, notNullValue());
+        assertThat(blocks.containsKey(String.valueOf(MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID)), is(true));
+
+        final Map<String, ?> settings = (Map<String, Object>) XContentMapValues.extractValue("settings", metadata);
+        assertThat(settings, notNullValue());
+
+        final Map<String, ?> routingTable = (Map<String, Object>) XContentMapValues.extractValue("routing_table.indices." + index, state);
+        if (checkRoutingTable) {
+            assertThat(routingTable, notNullValue());
+            assertThat(Booleans.parseBoolean((String) XContentMapValues.extractValue("index.verified_before_close", settings)), is(true));
+            final String numberOfShards = (String) XContentMapValues.extractValue("index.number_of_shards", settings);
+            assertThat(numberOfShards, notNullValue());
+            final int nbShards = Integer.parseInt(numberOfShards);
+            assertThat(nbShards, greaterThanOrEqualTo(1));
+
+            for (int i = 0; i < nbShards; i++) {
+                final Collection<Map<String, ?>> shards =
+                    (Collection<Map<String, ?>>) XContentMapValues.extractValue("shards." + i, routingTable);
+                assertThat(shards, notNullValue());
+                assertThat(shards.size(), equalTo(2));
+                for (Map<String, ?> shard : shards) {
+                    assertThat(XContentMapValues.extractValue("shard", shard), equalTo(i));
+                    assertThat(XContentMapValues.extractValue("state", shard), equalTo("STARTED"));
+                    assertThat(XContentMapValues.extractValue("index", shard), equalTo(index));
+                }
+            }
+        } else {
+            assertThat(routingTable, nullValue());
+            assertThat(XContentMapValues.extractValue("index.verified_before_close", settings), nullValue());
         }
     }
 

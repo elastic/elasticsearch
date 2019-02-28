@@ -36,14 +36,23 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
 
     public static DataFrameTransformConfig randomDataFrameTransformConfigWithoutHeaders() {
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10), null, QueryConfigTests.randomQueryConfig(),
-                PivotConfigTests.randomPivotConfig());
+                randomAlphaOfLengthBetween(1, 10), null, QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
     }
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig() {
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
                 randomAlphaOfLengthBetween(1, 10), randomHeaders(), QueryConfigTests.randomQueryConfig(),
                 PivotConfigTests.randomPivotConfig());
+    }
+
+    public static DataFrameTransformConfig randomDataFrameTransformConfigWithoutHeaders(String id) {
+        return new DataFrameTransformConfig(id, randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10), null,
+                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+    }
+
+    public static DataFrameTransformConfig randomDataFrameTransformConfig(String id) {
+        return new DataFrameTransformConfig(id, randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10), randomHeaders(),
+                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
     }
 
     public static DataFrameTransformConfig randomInvalidDataFrameTransformConfig() {
@@ -74,7 +83,7 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
 
     @Override
     protected DataFrameTransformConfig createTestInstance() {
-        return runWithHeaders ? randomDataFrameTransformConfig() : randomDataFrameTransformConfigWithoutHeaders();
+        return runWithHeaders ? randomDataFrameTransformConfig(transformId) : randomDataFrameTransformConfigWithoutHeaders(transformId);
     }
 
     @Override
@@ -141,6 +150,33 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
 
         expectThrows(IllegalArgumentException.class,
                 () -> createDataFrameTransformConfigFromString(pivotTransform, "test_header_injection"));
+    }
+
+    public void testSetIdInBody() throws IOException {
+        String pivotTransform = "{"
+                + " \"id\" : \"body_id\","
+                + " \"source\" : \"src\","
+                + " \"dest\" : \"dest\","
+                + " \"pivot\" : {"
+                + " \"group_by\": {"
+                + "   \"id\": {"
+                + "     \"terms\": {"
+                + "       \"field\": \"id\""
+                + "} } },"
+                + " \"aggs\": {"
+                + "   \"avg\": {"
+                + "     \"avg\": {"
+                + "       \"field\": \"points\""
+                + "} } } } }";
+
+        DataFrameTransformConfig dataFrameTransformConfig = createDataFrameTransformConfigFromString(pivotTransform, "body_id");
+        assertEquals("body_id", dataFrameTransformConfig.getId());
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> createDataFrameTransformConfigFromString(pivotTransform, "other_id"));
+
+        assertEquals("Inconsistent id; 'body_id' specified in the body differs from 'other_id' specified as a URL argument",
+                ex.getCause().getMessage());
     }
 
     private DataFrameTransformConfig createDataFrameTransformConfigFromString(String json, String id) throws IOException {

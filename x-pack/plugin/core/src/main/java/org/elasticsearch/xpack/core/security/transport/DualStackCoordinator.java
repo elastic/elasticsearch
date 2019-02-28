@@ -22,10 +22,13 @@ public class DualStackCoordinator {
     }
 
     public void registerPlaintextChannel(CloseableChannel channel) {
-        Set<CloseableChannel> localPlaintextChannels = plaintextChannels;
-        if (localPlaintextChannels != null) {
-            localPlaintextChannels.add(channel);
-            if (plaintextChannels == null) {
+        Set<CloseableChannel> preAddPlaintextChannels = plaintextChannels;
+        if (preAddPlaintextChannels != null) {
+            preAddPlaintextChannels.add(channel);
+            Set<CloseableChannel> postAddPlaintextChannels = plaintextChannels;
+            // If the plaintext channels Set identity has changed, it has been disabled since we added the
+            // channel. We must close the channel now to ensure that a plaintext channel does not leak.
+            if (postAddPlaintextChannels != preAddPlaintextChannels) {
                 CloseableChannel.closeChannel(channel);
             }
         } else {

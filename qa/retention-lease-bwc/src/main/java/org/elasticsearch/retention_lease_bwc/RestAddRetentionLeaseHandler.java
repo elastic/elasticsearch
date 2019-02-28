@@ -79,7 +79,9 @@ public class RestAddRetentionLeaseHandler extends BaseRestHandler {
                                         channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
                                     }
 
-                                }, numberOfShards, Collections.emptyList());
+                                },
+                                numberOfShards,
+                                Collections.emptyList());
                         for (int i = 0; i < numberOfShards; i++) {
                             final ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
                             client.execute(

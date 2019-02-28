@@ -127,22 +127,15 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 break;
             }
             final WriteOperation write = currentWrite;
-            final ByteBuf writeBuffer;
             if (write.buf.readableBytes() == 0) {
                 write.promise.trySuccess();
                 currentWrite = null;
                 continue;
             }
             final int bufferSize = Math.min(write.buf.readableBytes(), 1 << 18);
-            writeBuffer = ctx.alloc().directBuffer(bufferSize, bufferSize);
+            final ByteBuf writeBuffer = ctx.alloc().directBuffer(bufferSize, bufferSize);
             writeBuffer.writeBytes(write.buf, bufferSize);
-            writeBuffer.retain();
-            final ChannelFuture writeFuture;
-            try {
-                writeFuture = ctx.write(writeBuffer);
-            } finally {
-                writeBuffer.release();
-            }
+            final ChannelFuture writeFuture = ctx.write(writeBuffer);
             if (write.buf.readableBytes() == 0) {
                 currentWrite = null;
                 writeFuture.addListener((ChannelFutureListener) future -> {

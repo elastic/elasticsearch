@@ -27,6 +27,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationOperation.ReplicaResponse;
@@ -684,24 +685,16 @@ public class TransportReplicationActionTests extends ESTestCase {
         };
         TestAction.PrimaryShardReference primary = action.new PrimaryShardReference(shard, releasable);
         final Request request = new Request();
-        primary.perform(request, new ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>>() {
-            @Override
-            public void onResponse(final TransportReplicationAction.PrimaryResult<Request, TestResponse> requestTestResponsePrimaryResult) {
-                final ElasticsearchException exception = new ElasticsearchException("testing");
-                primary.failShard("test", exception);
+        primary.perform(request, ActionTestUtils.assertNoFailureListener(r -> {
+            final ElasticsearchException exception = new ElasticsearchException("testing");
+            primary.failShard("test", exception);
 
-                verify(shard).failShard("test", exception);
+            verify(shard).failShard("test", exception);
 
-                primary.close();
+            primary.close();
 
-                assertTrue(closed.get());
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                throw new AssertionError(e);
-            }
-        });
+            assertTrue(closed.get());
+        }));
     }
 
     public void testReplicaProxy() throws InterruptedException, ExecutionException {

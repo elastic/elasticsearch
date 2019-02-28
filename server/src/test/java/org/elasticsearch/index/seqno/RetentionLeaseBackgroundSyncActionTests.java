@@ -21,7 +21,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -45,6 +47,7 @@ import org.elasticsearch.transport.TransportService;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
@@ -93,7 +96,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testRetentionLeaseBackgroundSyncActionOnPrimary() {
+    public void testRetentionLeaseBackgroundSyncActionOnPrimary() throws InterruptedException {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -120,12 +123,9 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         final RetentionLeaseBackgroundSyncAction.Request request =
                 new RetentionLeaseBackgroundSyncAction.Request(indexShard.shardId(), retentionLeases);
 
+        final CountDownLatch latch = new CountDownLatch(1);
         action.shardOperationOnPrimary(request, indexShard,
-                new ActionListener<
-                    TransportReplicationAction.PrimaryResult<RetentionLeaseBackgroundSyncAction.Request, ReplicationResponse>>() {
-            @Override
-            public void onResponse(
-                TransportReplicationAction.PrimaryResult<RetentionLeaseBackgroundSyncAction.Request, ReplicationResponse> result) {
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
                 // the retention leases on the shard should be persisted
                 try {
                     verify(indexShard).persistRetentionLeases();
@@ -134,13 +134,8 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
                 }
                 // we should forward the request containing the current retention leases to the replica
                 assertThat(result.replicaRequest(), sameInstance(request));
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-
-            }
-        });
+            }), latch));
+        latch.await();
     }
 
     public void testRetentionLeaseBackgroundSyncActionOnReplica() throws WriteStateException {

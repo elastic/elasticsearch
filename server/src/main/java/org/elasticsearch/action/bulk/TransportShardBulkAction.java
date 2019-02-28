@@ -115,7 +115,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
-        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
+            ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         final Executor exec = threadPool.executor(ThreadPool.Names.WRITE);
         performOnPrimary(request, primary, updateHelper, threadPool::relativeTimeInMillis,

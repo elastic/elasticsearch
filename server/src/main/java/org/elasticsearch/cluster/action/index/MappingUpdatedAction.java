@@ -70,6 +70,7 @@ public class MappingUpdatedAction {
         if (type.equals(MapperService.DEFAULT_MAPPING)) {
             throw new IllegalArgumentException("_default_ mapping should not be updated");
         }
+        // TODO: Why change the index setting here?
         client.putMapping(
             new PutMappingRequestBuilder(client, PutMappingAction.INSTANCE).setIndices(index.getName())
                 .setType(type)

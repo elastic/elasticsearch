@@ -886,8 +886,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         @Override
-        protected void performOnPrimary(
-                final IndexShard primary, final GlobalCheckpointSyncAction.Request request, ActionListener<PrimaryResult> listener) {
+        protected void performOnPrimary(IndexShard primary, GlobalCheckpointSyncAction.Request request,
+                ActionListener<PrimaryResult> listener) {
             try {
                 primary.sync();
                 listener.onResponse(new PrimaryResult(request, new ReplicationResponse()));

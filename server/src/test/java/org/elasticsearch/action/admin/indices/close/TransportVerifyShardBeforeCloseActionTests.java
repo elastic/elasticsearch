@@ -22,7 +22,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -55,7 +54,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.mockito.ArgumentCaptor;
@@ -63,6 +61,8 @@ import org.mockito.ArgumentCaptor;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
@@ -136,14 +136,28 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         threadPool = null;
     }
 
-    private void executeOnPrimaryOrReplica() {
+    private void executeOnPrimaryOrReplica() throws Throwable {
         final TaskId taskId = new TaskId("_node_id", randomNonNegativeLong());
         final TransportVerifyShardBeforeCloseAction.ShardRequest request =
             new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, taskId);
-        action.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(Assert::assertNotNull));
+        final CompletableFuture<Void> res = new CompletableFuture<>();
+        action.shardOperationOnPrimary(request, indexShard, ActionListener.wrap(
+            r -> {
+                assertNotNull(r);
+                res.complete(null);
+            },
+            res::completeExceptionally
+        ));
+        try {
+            res.get();
+        } catch (InterruptedException e) {
+            throw new AssertionError(e);
+        } catch (ExecutionException e) {
+            throw e.getCause();
+        }
     }
 
-    public void testShardIsFlushed() throws Exception {
+    public void testShardIsFlushed() throws Throwable {
         final ArgumentCaptor<FlushRequest> flushRequest = ArgumentCaptor.forClass(FlushRequest.class);
         when(indexShard.flush(flushRequest.capture())).thenReturn(new Engine.CommitId(new byte[0]));
 
@@ -170,7 +184,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 
-    public void testVerifyShardBeforeIndexClosing() throws Exception {
+    public void testVerifyShardBeforeIndexClosing() throws Throwable {
         executeOnPrimaryOrReplica();
         verify(indexShard, times(1)).verifyShardBeforeIndexClosing();
         verify(indexShard, times(1)).flush(any(FlushRequest.class));

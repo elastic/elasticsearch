@@ -199,7 +199,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING,
                     FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,
                     FsRepository.REPOSITORIES_CHUNK_SIZE_SETTING,
-                    FsRepository.REPOSITORIES_COMPRESS_SETTING,
                     FsRepository.REPOSITORIES_LOCATION_SETTING,
                     IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                     IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,

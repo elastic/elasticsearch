@@ -101,7 +101,6 @@ public class ApiKeyService {
 
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-    private static final String TYPE = "doc";
     static final String API_KEY_ID_KEY = "_security_api_key_id";
     static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
     static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
@@ -248,7 +247,7 @@ public class ApiKeyService {
                             .endObject()
                             .endObject();
                         final IndexRequest indexRequest =
-                            client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE)
+                            client.prepareIndex().setIndex(SecurityIndexManager.SECURITY_INDEX_NAME)
                                 .setSource(builder)
                                 .setRefreshPolicy(request.getRefreshPolicy())
                                 .request();
@@ -286,7 +285,9 @@ public class ApiKeyService {
             }
 
             if (credentials != null) {
-                final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, credentials.getId())
+                final GetRequest getRequest = client.prepareGet()
+                    .setIndex(SecurityIndexManager.SECURITY_INDEX_NAME)
+                    .setId(credentials.getId())
                     .setFetchSource(true).request();
                 executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
@@ -766,7 +767,9 @@ public class ApiKeyService {
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String apiKeyId : apiKeyIds) {
-                UpdateRequest request = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, apiKeyId)
+                UpdateRequest request = client.prepareUpdate()
+                    .setIndex(SecurityIndexManager.SECURITY_INDEX_NAME)
+                    .setId(apiKeyId)
                     .setDoc(Collections.singletonMap("api_key_invalidated", true))
                     .request();
                 bulkRequestBuilder.add(request);

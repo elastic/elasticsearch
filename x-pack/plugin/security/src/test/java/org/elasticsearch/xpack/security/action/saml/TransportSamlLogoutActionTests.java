@@ -81,7 +81,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -122,31 +121,10 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
-        doAnswer(invocationOnMock -> {
-            GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
-            builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
-                    .setId((String) invocationOnMock.getArguments()[2]);
-            return builder;
-        }).when(client).prepareGet(anyString(), anyString(), anyString());
-        doAnswer(invocationOnMock -> {
-            IndexRequestBuilder builder = new IndexRequestBuilder(client, IndexAction.INSTANCE);
-            builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
-                    .setId((String) invocationOnMock.getArguments()[2]);
-            return builder;
-        }).when(client).prepareIndex(anyString(), anyString(), anyString());
-        doAnswer(invocationOnMock -> {
-            UpdateRequestBuilder builder = new UpdateRequestBuilder(client, UpdateAction.INSTANCE);
-            builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
-                    .setId((String) invocationOnMock.getArguments()[2]);
-            return builder;
-        }).when(client).prepareUpdate(anyString(), anyString(), anyString());
-        doAnswer(invocationOnMock -> {
-            BulkRequestBuilder builder = new BulkRequestBuilder(client, BulkAction.INSTANCE);
-            return builder;
-        }).when(client).prepareBulk();
+        when(client.prepareGet()).thenReturn(new GetRequestBuilder(client, GetAction.INSTANCE));
+        when(client.prepareIndex()).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
+        when(client.prepareUpdate()).thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client, BulkAction.INSTANCE));
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
         doAnswer(invocationOnMock -> {
             ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];

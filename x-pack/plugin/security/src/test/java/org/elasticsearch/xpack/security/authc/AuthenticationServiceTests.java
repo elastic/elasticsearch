@@ -189,22 +189,14 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext = threadPool.getThreadContext();
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
-        when(client.prepareIndex(any(String.class), any(String.class), any(String.class)))
-                .thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        when(client.prepareUpdate(any(String.class), any(String.class), any(String.class)))
-                .thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
+        when(client.prepareGet()).thenReturn(new GetRequestBuilder(client, GetAction.INSTANCE));
+        when(client.prepareIndex()).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
+        when(client.prepareUpdate()).thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
         doAnswer(invocationOnMock -> {
             ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
             responseActionListener.onResponse(new IndexResponse());
             return null;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
-        doAnswer(invocationOnMock -> {
-            GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
-            builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
-                    .setId((String) invocationOnMock.getArguments()[2]);
-            return builder;
-        }).when(client).prepareGet(anyString(), anyString(), anyString());
         securityIndex = mock(SecurityIndexManager.class);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];

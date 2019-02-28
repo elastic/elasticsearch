@@ -59,7 +59,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
@@ -82,8 +81,6 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     static final String DOC_TYPE_ROLE_MAPPING = "role-mapping";
 
     private static final String ID_PREFIX = DOC_TYPE_ROLE_MAPPING + "_";
-
-    private static final String SECURITY_GENERIC_TYPE = "doc";
 
     private static final ActionListener<Object> NO_OP_ACTION_LISTENER = new ActionListener<Object>() {
         @Override
@@ -130,10 +127,9 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         }
         final QueryBuilder query = QueryBuilders.termQuery(DOC_TYPE_FIELD, DOC_TYPE_ROLE_MAPPING);
         final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
             SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
                     .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                    .setTypes(SECURITY_GENERIC_TYPE)
                     .setQuery(query)
                     .setSize(1000)
                     .setFetchSource(true)
@@ -203,7 +199,9 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                 return;
             }
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SECURITY_INDEX_NAME, SECURITY_GENERIC_TYPE, getIdForName(mapping.getName()))
+                    client.prepareIndex()
+                            .setIndex(SECURITY_INDEX_NAME)
+                            .setId(getIdForName(mapping.getName()))
                             .setSource(xContentBuilder)
                             .setRefreshPolicy(request.getRefreshPolicy())
                             .request(),
@@ -232,7 +230,9 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareDelete(SECURITY_INDEX_NAME, SECURITY_GENERIC_TYPE, getIdForName(request.getName()))
+                    client.prepareDelete()
+                        .setIndex(SECURITY_INDEX_NAME)
+                        .setId(getIdForName(request.getName()))
                         .setRefreshPolicy(request.getRefreshPolicy())
                         .request(),
                     new ActionListener<DeleteResponse>() {

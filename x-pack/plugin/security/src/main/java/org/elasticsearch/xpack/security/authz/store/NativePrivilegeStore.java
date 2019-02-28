@@ -59,7 +59,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 
@@ -118,10 +117,10 @@ public class NativePrivilegeStore {
                     final String[] docIds = applications.stream()
                         .flatMap(a -> names.stream().map(n -> toDocId(a, n)))
                         .toArray(String[]::new);
-                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(QueryBuilders.idsQuery("doc").addIds(docIds));
+                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(QueryBuilders.idsQuery().addIds(docIds));
                 }
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
+                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
                     SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
                         .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                         .setQuery(query)
@@ -151,7 +150,7 @@ public class NativePrivilegeStore {
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure,
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SECURITY_INDEX_NAME, "doc", toDocId(application, name)).request(),
+                    client.prepareGet().setIndex(SECURITY_INDEX_NAME).setId(toDocId(application, name)).request(),
                     new ActionListener<GetResponse>() {
                         @Override
                         public void onResponse(GetResponse response) {
@@ -202,7 +201,7 @@ public class NativePrivilegeStore {
             final String name = privilege.getName();
             final XContentBuilder xContentBuilder = privilege.toXContent(jsonBuilder(), true);
             ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareIndex(SECURITY_INDEX_NAME, "doc", toDocId(privilege.getApplication(), name))
+                client.prepareIndex().setIndex(SECURITY_INDEX_NAME).setId(toDocId(privilege.getApplication(), name))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(refreshPolicy)
                     .request(), listener, client::index);
@@ -233,7 +232,9 @@ public class NativePrivilegeStore {
                     }, listener::onFailure), names.size(), Collections.emptyList());
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                        client.prepareDelete(SECURITY_INDEX_NAME, "doc", toDocId(application, name))
+                        client.prepareDelete()
+                            .setIndex(SECURITY_INDEX_NAME)
+                            .setId(toDocId(application, name))
                             .setRefreshPolicy(refreshPolicy)
                             .request(), groupListener, client::delete);
                 }

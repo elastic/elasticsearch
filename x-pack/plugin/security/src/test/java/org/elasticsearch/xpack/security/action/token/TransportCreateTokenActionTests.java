@@ -53,7 +53,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -79,13 +78,9 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         authenticationService = mock(AuthenticationService.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(SETTINGS);
-        doAnswer(invocationOnMock -> {
-            GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
-            builder.setIndex((String) invocationOnMock.getArguments()[0])
-                .setType((String) invocationOnMock.getArguments()[1])
-                .setId((String) invocationOnMock.getArguments()[2]);
-            return builder;
-        }).when(client).prepareGet(anyString(), anyString(), anyString());
+        when(client.prepareGet()).thenReturn(new GetRequestBuilder(client, GetAction.INSTANCE));
+        when(client.prepareIndex()).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
+        when(client.prepareUpdate()).thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
         doAnswer(invocationOnMock -> {
             ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];
@@ -103,10 +98,6 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).multiGet(any(MultiGetRequest.class), any(ActionListener.class));
-        when(client.prepareIndex(any(String.class), any(String.class), any(String.class)))
-            .thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        when(client.prepareUpdate(any(String.class), any(String.class), any(String.class)))
-            .thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
         doAnswer(invocationOnMock -> {
             idxReqReference.set((IndexRequest) invocationOnMock.getArguments()[1]);
             ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];

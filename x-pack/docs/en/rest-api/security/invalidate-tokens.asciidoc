@@ -54,6 +54,30 @@ be specified.
 
 ==== Examples
 
+For example, if you create the following token:
+
+[source,js]
+--------------------------------------------------
+POST /_security/oauth2/token
+{
+  "grant_type" : "client_credentials"
+}
+--------------------------------------------------
+// CONSOLE
+
+The API returns the following information about the access token:
+
+[source,js]
+--------------------------------------------------
+{
+  "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
+  "type" : "Bearer",
+  "expires_in" : 1200
+}
+--------------------------------------------------
+// TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
+
+
 The following example invalidates the specified token immediately:
 
 [source,js]
@@ -63,9 +87,25 @@ DELETE /_security/oauth2/token
   "token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ=="
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
+// TEST[continued]
+
+If you used the `password` grant type to obtain a token for a user, the response
+contains a refresh token. For example:
+
+[source,js]
+--------------------------------------------------
+POST /_security/oauth2/token
+{
+  "grant_type" : "password",
+  "username" : "test_admin",
+  "password" : "x-pack-test-password"
+}
+--------------------------------------------------
 // NOTCONSOLE
 
-whereas the following example invalidates the specified refresh token immediately:
+The following example invalidates the specified refresh token immediately:
 
 [source,js]
 --------------------------------------------------

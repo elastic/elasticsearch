@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetAction;
@@ -23,6 +24,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -51,7 +54,11 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -61,6 +68,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import javax.crypto.CipherOutputStream;
 import javax.crypto.SecretKey;
 
 import static java.time.Clock.systemUTC;
@@ -198,7 +206,7 @@ public class TokenServiceTests extends ESTestCase {
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getDeprecatedAccessTokenString(token));
+        requestContext.putHeader("Authorization", "Bearer " + getDeprecatedAccessTokenString(tokenService, token));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -219,10 +227,10 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, newTokenFuture, Collections.emptyMap(), true);
         final UserToken newToken = newTokenFuture.get().v1();
         assertNotNull(newToken);
-        assertNotEquals(tokenService.getDeprecatedAccessTokenString(newToken), tokenService.getDeprecatedAccessTokenString(token));
+        assertNotEquals(getDeprecatedAccessTokenString(tokenService, newToken), getDeprecatedAccessTokenString(tokenService, token));
 
         requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getDeprecatedAccessTokenString(newToken));
+        requestContext.putHeader("Authorization", "Bearer " + getDeprecatedAccessTokenString(tokenService, newToken));
         mockGetTokenFromId(newToken, false);
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
@@ -258,7 +266,7 @@ public class TokenServiceTests extends ESTestCase {
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getDeprecatedAccessTokenString(token));
+        requestContext.putHeader("Authorization", "Bearer " + getDeprecatedAccessTokenString(tokenService, token));
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             otherTokenService.getAndValidateToken(requestContext, future);
@@ -289,7 +297,7 @@ public class TokenServiceTests extends ESTestCase {
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getDeprecatedAccessTokenString(token));
+        requestContext.putHeader("Authorization", "Bearer " + getDeprecatedAccessTokenString(tokenService, token));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -316,7 +324,7 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.createUserToken(authentication, authentication, newTokenFuture, Collections.emptyMap(), true);
         final UserToken newToken = newTokenFuture.get().v1();
         assertNotNull(newToken);
-        assertNotEquals(tokenService.getDeprecatedAccessTokenString(newToken), tokenService.getDeprecatedAccessTokenString(token));
+        assertNotEquals(getDeprecatedAccessTokenString(tokenService, newToken), getDeprecatedAccessTokenString(tokenService, token));
 
         metaData = tokenService.pruneKeys(1);
         tokenService.refreshMetaData(metaData);
@@ -329,7 +337,7 @@ public class TokenServiceTests extends ESTestCase {
         }
 
         requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getDeprecatedAccessTokenString(newToken));
+        requestContext.putHeader("Authorization", "Bearer " + getDeprecatedAccessTokenString(tokenService, newToken));
         mockGetTokenFromId(newToken, false);
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -351,7 +359,7 @@ public class TokenServiceTests extends ESTestCase {
         authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getDeprecatedAccessTokenString(token));
+        requestContext.putHeader("Authorization", "Bearer " + getDeprecatedAccessTokenString(tokenService, token));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -377,10 +385,10 @@ public class TokenServiceTests extends ESTestCase {
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
         tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         UserToken token = tokenFuture.get().v1();
-        assertThat(tokenService.getDeprecatedAccessTokenString(token), notNullValue());
+        assertThat(getDeprecatedAccessTokenString(tokenService, token), notNullValue());
 
         tokenService.clearActiveKeyCache();
-        assertThat(tokenService.getDeprecatedAccessTokenString(token), notNullValue());
+        assertThat(getDeprecatedAccessTokenString(tokenService, token), notNullValue());
     }
 
     public void testInvalidatedToken() throws Exception {
@@ -639,4 +647,28 @@ public class TokenServiceTests extends ESTestCase {
         assertEquals(expected.getMetadata(), result.getMetadata());
         assertEquals(AuthenticationType.TOKEN, result.getAuthenticationType());
     }
+
+    protected String getDeprecatedAccessTokenString(TokenService tokenService, UserToken userToken) throws IOException,
+        GeneralSecurityException {
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream(TokenService.MINIMUM_BASE64_BYTES);
+             OutputStream base64 = Base64.getEncoder().wrap(os);
+             StreamOutput out = new OutputStreamStreamOutput(base64)) {
+            out.setVersion(Version.V_7_0_0);
+            TokenService.KeyAndCache keyAndCache = tokenService.getActiveKeyCache();
+            Version.writeVersion(Version.V_7_0_0, out);
+            out.writeByteArray(keyAndCache.getSalt().bytes);
+            out.writeByteArray(keyAndCache.getKeyHash().bytes);
+            final byte[] initializationVector = tokenService.getNewInitializationVector();
+            out.writeByteArray(initializationVector);
+            try (CipherOutputStream encryptedOutput =
+                     new CipherOutputStream(out, tokenService.getEncryptionCipher(initializationVector, keyAndCache, Version.V_7_0_0));
+                 StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)) {
+                encryptedStreamOutput.setVersion(Version.V_7_0_0);
+                encryptedStreamOutput.writeString(userToken.getId());
+                encryptedStreamOutput.close();
+                return new String(os.toByteArray(), StandardCharsets.UTF_8);
+            }
+        }
+    }
+
 }

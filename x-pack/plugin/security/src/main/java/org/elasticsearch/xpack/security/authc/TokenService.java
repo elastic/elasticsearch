@@ -172,7 +172,7 @@ public final class TokenService {
     private static final String TOKEN_DOC_TYPE = "token";
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
     static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
-    private static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
+    static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
     private final SecureRandom secureRandom = new SecureRandom();
@@ -892,14 +892,7 @@ public final class TokenService {
                                     logger.info("failed to update the original token document [{}], the update result was [{}]. Retrying",
                                         tokenDocId, updateResponse.getResult());
                                     client.threadPool().schedule(
-                                        () -> innerRefresh(
-                                            tokenDocId,
-                                            source,
-                                            seqNo,
-                                            primaryTerm,
-                                            clientAuth,
-                                            listener,
-                                            backoff,
+                                        () -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, listener, backoff,
                                             refreshRequested),
                                         backoff.next(), GENERIC);
                                 } else {
@@ -953,14 +946,7 @@ public final class TokenService {
                                     if (backoff.hasNext()) {
                                         logger.debug("failed to update the original token document [{}], retrying", tokenDocId);
                                         client.threadPool().schedule(
-                                            () -> innerRefresh(
-                                                tokenDocId,
-                                                source,
-                                                seqNo,
-                                                primaryTerm,
-                                                clientAuth,
-                                                listener,
-                                                backoff,
+                                            () -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, listener, backoff,
                                                 refreshRequested),
                                             backoff.next(), GENERIC);
                                     } else {
@@ -1396,35 +1382,13 @@ public final class TokenService {
         }
     }
 
-    // Used only for testing
-    protected String getDeprecatedAccessTokenString(UserToken userToken) throws IOException, GeneralSecurityException {
-        try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
-             OutputStream base64 = Base64.getEncoder().wrap(os);
-             StreamOutput out = new OutputStreamStreamOutput(base64)) {
-            out.setVersion(Version.V_7_0_0);
-            KeyAndCache keyAndCache = keyCache.activeKeyCache;
-            Version.writeVersion(Version.V_7_0_0, out);
-            out.writeByteArray(keyAndCache.getSalt().bytes);
-            out.writeByteArray(keyAndCache.getKeyHash().bytes);
-            final byte[] initializationVector = getNewInitializationVector();
-            out.writeByteArray(initializationVector);
-            try (CipherOutputStream encryptedOutput =
-                     new CipherOutputStream(out, getEncryptionCipher(initializationVector, keyAndCache, Version.V_7_0_0));
-                 StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)) {
-                encryptedStreamOutput.setVersion(Version.V_7_0_0);
-                encryptedStreamOutput.writeString(userToken.getId());
-                encryptedStreamOutput.close();
-                return new String(os.toByteArray(), StandardCharsets.UTF_8);
-            }
-        }
-    }
-
     private void ensureEncryptionCiphersSupported() throws NoSuchPaddingException, NoSuchAlgorithmException {
         Cipher.getInstance(ENCRYPTION_CIPHER);
         SecretKeyFactory.getInstance(KDF_ALGORITHM);
     }
 
-    private Cipher getEncryptionCipher(byte[] iv, KeyAndCache keyAndCache, Version version) throws GeneralSecurityException {
+    // Package private for testing
+    Cipher getEncryptionCipher(byte[] iv, KeyAndCache keyAndCache, Version version) throws GeneralSecurityException {
         Cipher cipher = Cipher.getInstance(ENCRYPTION_CIPHER);
         BytesKey salt = keyAndCache.getSalt();
         try {
@@ -1446,7 +1410,8 @@ public final class TokenService {
         return cipher;
     }
 
-    private byte[] getNewInitializationVector() {
+    // Package private for testing
+    byte[] getNewInitializationVector() {
         final byte[] initializationVector = new byte[IV_BYTES];
         secureRandom.nextBytes(initializationVector);
         return initializationVector;
@@ -1831,6 +1796,13 @@ public final class TokenService {
      */
     void clearActiveKeyCache() {
         this.keyCache.activeKeyCache.keyCache.invalidateAll();
+    }
+
+    /**
+     * For testing
+     */
+    KeyAndCache getActiveKeyCache() {
+        return this.keyCache.activeKeyCache;
     }
 
     static final class KeyAndCache implements Closeable {

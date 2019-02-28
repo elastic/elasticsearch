@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,6 +51,9 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         this.invalidatedTokens = in.readStringList();
         this.previouslyInvalidatedTokens = in.readStringList();
         this.errors = in.readList(StreamInput::readException);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readVInt();
+        }
     }
 
     public static TokensInvalidationResult emptyResult() {
@@ -93,5 +97,8 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         out.writeStringCollection(invalidatedTokens);
         out.writeStringCollection(previouslyInvalidatedTokens);
         out.writeCollection(errors, StreamOutput::writeException);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeVInt(5);
+        }
     }
 }

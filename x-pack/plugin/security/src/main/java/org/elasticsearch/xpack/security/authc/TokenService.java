@@ -1792,14 +1792,14 @@ public final class TokenService {
     }
 
     /**
-     * For testing
+     * Package private for testing
      */
     void clearActiveKeyCache() {
         this.keyCache.activeKeyCache.keyCache.invalidateAll();
     }
 
     /**
-     * For testing
+     * Package private for testing
      */
     KeyAndCache getActiveKeyCache() {
         return this.keyCache.activeKeyCache;

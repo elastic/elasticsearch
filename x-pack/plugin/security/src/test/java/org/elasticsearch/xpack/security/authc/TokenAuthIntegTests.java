@@ -420,6 +420,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 try {
                     readyLatch.await();
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     completedLatch.countDown();
                     return;
                 }

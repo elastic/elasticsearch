@@ -551,7 +551,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         final int numDataNodes = internalCluster().numDataNodes();
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", numDataNodes == 1 ? 0 : numDataNodes - 1)
+                .put("index.number_of_replicas", numDataNodes)
                 .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
                 .build();
         assertAcked(prepareCreate("index").setSettings(settings));
@@ -570,7 +570,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         primary.addRetentionLease(idForInitialRetentionLease, initialRetainingSequenceNumber, source, listener);
         latch.await();
 
-        final String waitForActiveValue = randomBoolean() ? "all" : Integer.toString(numDataNodes);
+        final String waitForActiveValue = randomBoolean() ? "all" : Integer.toString(numDataNodes + 1);
 
         client()
                 .admin()

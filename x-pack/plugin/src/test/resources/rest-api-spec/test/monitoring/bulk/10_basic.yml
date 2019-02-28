@@ -1,6 +1,10 @@
 ---
 "Bulk indexing of monitoring data":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/30101"
+
   - do:
       monitoring.bulk:
         system_id:          "kibana"

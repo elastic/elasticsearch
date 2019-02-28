@@ -20,6 +20,7 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
@@ -768,7 +769,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
     }
 
-    public void testSnapshotFileFailureDuringSnapshot() throws Exception {
+    public void testSnapshotFileFailureDuringSnapshot() {
         Client client = client();
 
         logger.info("-->  creating repository");
@@ -817,8 +818,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         } catch (Exception ex) {
             logger.info("--> caught a top level exception, asserting what's expected", ex);
             assertThat(getFailureCount("test-repo"), greaterThan(0L));
-            assertThat(ex.getCause(), notNullValue());
-            assertThat(ex.getCause().getMessage(), containsString("Random IOException"));
+
+            final Throwable cause = ex.getCause();
+            assertThat(cause, notNullValue());
+            final Throwable rootCause = new ElasticsearchException(cause).getRootCause();
+            assertThat(rootCause, notNullValue());
+            assertThat(rootCause.getMessage(), containsString("Random IOException"));
         }
     }
 
@@ -2211,10 +2216,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         {
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo")
                 .setSnapshots("test-2").get().getSnapshots().get(0);
+            Settings settings = client.admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test");
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
                 // we flush before the snapshot such that we have to process the segments_N files plus the .del file
-                if (INDEX_SOFT_DELETES_SETTING.get(indexSettings)) {
+                if (INDEX_SOFT_DELETES_SETTING.get(settings)) {
                     // soft-delete generates DV files.
                     assertThat(status.getStats().getProcessedFileCount(), greaterThan(2));
                 } else {

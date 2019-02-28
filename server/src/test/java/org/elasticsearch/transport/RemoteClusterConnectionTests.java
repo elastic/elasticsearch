@@ -508,8 +508,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 };
 
                 ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport);
-                StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport,
-                    threadPool);
+                StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport);
 
                 connectionManager.addConnectBehavior(seedNode.getAddress(), (cm, discoveryNode) -> {
                     if (discoveryNode == seedNode) {
@@ -1162,8 +1161,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 };
 
                 ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport);
-                StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport,
-                    threadPool);
+                StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport);
 
                 connectionManager.addNodeConnectedBehavior(connectedNode.getAddress(), (cm, discoveryNode)
                     -> discoveryNode.equals(connectedNode));

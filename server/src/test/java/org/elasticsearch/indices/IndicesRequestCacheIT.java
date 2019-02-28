@@ -386,10 +386,10 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         client.prepareIndex("index", "type", "1").setRouting("1").setSource("created_at",
             DateTimeFormatter.ISO_LOCAL_DATE.format(now)).get();
-        refresh();
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
+        refresh();
 
         assertCacheState(client, "index", 0, 0);
 

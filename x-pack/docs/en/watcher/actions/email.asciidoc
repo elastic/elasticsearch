@@ -117,11 +117,11 @@ killed by firewalls or load balancers in-between.
                     specify the `url` attribute to configure the host and path to
                     the service endpoint. See <<webhook-action-attributes>> for
                     the full list of HTTP request attributes. Required.
-|======
+|=====
 
 .`data` attachment type attributes
 [options="header"]
-|=====
+|======
 | Name        | Description
 | `format`    | Attaches the watch data, equivalent to specifying `attach_data`
                 in the watch configuration. Possible values are `json` or `yaml`.
@@ -131,7 +131,7 @@ killed by firewalls or load balancers in-between.
 
 .`reporting` attachment type attributes
 [options="header"]
-|=====
+|======
 | Name            | Description
 | `url`           | The URL to trigger the dashboard creation
 | `inline`        | Configures as an attachment to sent with disposition `inline`. This

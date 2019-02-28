@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
@@ -131,6 +132,16 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         setInput("secret value 2");
         execute("--stdin", "foo");
         assertSecureString("foo", "secret value 2");
+    }
+
+    public void testAddUtf8String() throws Exception {
+        KeyStoreWrapper.create().save(env.configFile(), new char[0]);
+        byte[] bytes = new byte[randomIntBetween(8, 16)];
+        new Random().nextBytes(bytes);
+        String secretValue = new String(bytes, StandardCharsets.UTF_8);
+        setInput(secretValue);
+        execute("-x", "foo");
+        assertSecureString("foo", secretValue);
     }
 
     public void testMissingSettingName() throws Exception {

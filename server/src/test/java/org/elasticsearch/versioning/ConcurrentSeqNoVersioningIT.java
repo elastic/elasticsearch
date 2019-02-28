@@ -382,7 +382,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
 
         public Version previousSeqNo(int decrement) {
-            return new Version(primaryTerm, seqNo - decrement);
+            return new Version(primaryTerm, Math.max(seqNo - decrement, 0));
         }
 
         @Override

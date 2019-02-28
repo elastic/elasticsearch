@@ -258,9 +258,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         private BulkItemResponse executeWriteRequest(
             DocWriteRequest<?> writeRequest, WriteRequest.RefreshPolicy refreshPolicy) throws Exception {
             PlainActionFuture<BulkItemResponse> listener = new PlainActionFuture<>();
-            final ActionListener<BulkShardResponse> wrapBulkListener = ActionListener.wrap(
-                bulkShardResponse -> listener.onResponse(bulkShardResponse.getResponses()[0]),
-                listener::onFailure);
+            final ActionListener<BulkShardResponse> wrapBulkListener =
+                ActionListener.map(listener, bulkShardResponse -> bulkShardResponse.getResponses()[0]);
             BulkItemRequest[] items = new BulkItemRequest[1];
             items[0] = new BulkItemRequest(0, writeRequest);
             BulkShardRequest request = new BulkShardRequest(shardId, refreshPolicy, items);
@@ -313,8 +312,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public synchronized void addReplica(IndexShard replica) throws IOException {
-            assert shardRoutings().stream()
-                .filter(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())).findFirst().isPresent() == false :
+            assert shardRoutings().stream().anyMatch(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())) == false :
                 "replica with aId [" + replica.routingEntry().allocationId() + "] already exists";
             replicas.add(replica);
             if (replicationTargets != null) {
@@ -537,10 +535,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
-            RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(shardId, leases);
-            ActionListener<RetentionLeaseSyncAction.Response> wrappedListener =
-                ActionListener.map(listener, (listen, r) -> listen.onResponse(new ReplicationResponse()));
-            new SyncRetentionLeases(request, this, wrappedListener).execute();
+            new SyncRetentionLeases(new RetentionLeaseSyncAction.Request(shardId, leases), this,
+                ActionListener.map(listener, r -> new ReplicationResponse())).execute();
         }
 
         public synchronized RetentionLease addRetentionLease(String id, long retainingSequenceNumber, String source,
@@ -762,9 +758,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected void performOnPrimary(IndexShard primary, BulkShardRequest request, ActionListener<PrimaryResult> listener) {
-            executeShardBulkOnPrimary(
-                primary, request, ActionListener.map(listener,
-                    (listen, result) -> listen.onResponse(new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful))));
+            executeShardBulkOnPrimary(primary, request,
+                ActionListener.map(listener, result -> new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful)));
         }
 
         @Override

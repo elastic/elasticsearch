@@ -78,7 +78,7 @@ public abstract class TransportSingleItemBulkWriteAction<
         itemRequests[0] = new BulkItemRequest(0, ((DocWriteRequest<?>) request));
         BulkShardRequest bulkShardRequest = new BulkShardRequest(request.shardId(), refreshPolicy, itemRequests);
         shardBulkAction.shardOperationOnPrimary(bulkShardRequest, primary,
-            ActionListener.map(listener, (listen, bulkResult) -> {
+            ActionListener.map(listener, bulkResult -> {
                 assert bulkResult.finalResponseIfSuccessful.getResponses().length == 1 : "expected only one bulk shard response";
                 BulkItemResponse itemResponse = bulkResult.finalResponseIfSuccessful.getResponses()[0];
                 final Response response;
@@ -90,11 +90,9 @@ public abstract class TransportSingleItemBulkWriteAction<
                     response = (Response) itemResponse.getResponse();
                     failure = null;
                 }
-                listen.onResponse(
-                    new WritePrimaryResult<>(
-                        request, response,
-                        ((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) bulkResult).location, failure, primary, logger)
-                );
+                return new WritePrimaryResult<>(
+                    request, response,
+                    ((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) bulkResult).location, failure, primary, logger);
             }));
     }
 

@@ -236,8 +236,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.performOnPrimary(
             bulkShardRequest, shard, null, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
-            listener -> {
-            }, ActionListener.runAfter(
+            listener -> {}, ActionListener.runAfter(
                 ActionTestUtils.assertNoFailureListener(result -> {
                     // since at least 1 item passed, the tran log location should exist,
                     assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, notNullValue());

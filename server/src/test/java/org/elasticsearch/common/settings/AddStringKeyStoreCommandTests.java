@@ -20,11 +20,11 @@
 package org.elasticsearch.common.settings;
 
 import java.io.ByteArrayInputStream;
+import java.io.CharArrayWriter;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Random;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
@@ -136,12 +136,15 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testAddUtf8String() throws Exception {
         KeyStoreWrapper.create().save(env.configFile(), new char[0]);
-        byte[] bytes = new byte[randomIntBetween(8, 16)];
-        new Random().nextBytes(bytes);
-        String secretValue = new String(bytes, StandardCharsets.UTF_8);
-        setInput(secretValue);
-        execute("-x", "foo");
-        assertSecureString("foo", secretValue);
+        final int stringSize = randomIntBetween(8, 16);
+        try (CharArrayWriter secretChars = new CharArrayWriter(stringSize)) {
+            for (int i = 0; i < stringSize; i++) {
+                secretChars.write((char) randomIntBetween(129, 2048));
+            }
+            setInput(secretChars.toString());
+            execute("-x", "foo");
+            assertSecureString("foo", secretChars.toString());
+        }
     }
 
     public void testMissingSettingName() throws Exception {

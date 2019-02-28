@@ -33,14 +33,12 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -49,10 +47,8 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -87,7 +83,6 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
     private static final String LONG_FIELD = "numeric";
     private static final String KEYWORD_FIELD = "keyword";
-    private static final String DOUBLE_FIELD = "double";
 
     private static final List<Long> dataset;
     static {
@@ -109,10 +104,6 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             aggregation -> aggregation.field(LONG_FIELD).maxDocCount(1),
             agg -> assertEquals(0, agg.getBuckets().size()), ValueType.NUMERIC
         );
-        testBothCases(new MatchNoDocsQuery(), dataset,
-            aggregation -> aggregation.field(DOUBLE_FIELD).maxDocCount(1),
-            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.DOUBLE
-        );
     }
 
     public void testMatchAllDocs() throws IOException {
@@ -122,7 +113,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             aggregation -> aggregation.field(LONG_FIELD).maxDocCount(1),
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
-                LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(0);
+                LongRareTerms.Bucket bucket = (LongRareTerms.Bucket) agg.getBuckets().get(0);
                 assertThat(bucket.getKey(), equalTo(1L));
                 assertThat(bucket.getDocCount(), equalTo(1L));
             }, ValueType.NUMERIC
@@ -131,19 +122,42 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1),
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
-                StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(0);
+                StringRareTerms.Bucket bucket = (StringRareTerms.Bucket) agg.getBuckets().get(0);
                 assertThat(bucket.getKeyAsString(), equalTo("1"));
                 assertThat(bucket.getDocCount(), equalTo(1L));
             }, ValueType.STRING
         );
-        testBothCases(query, dataset,
-            aggregation -> aggregation.field(DOUBLE_FIELD).maxDocCount(1),
+    }
+
+    public void testManyDocsOneRare() throws IOException {
+        Query query = new MatchAllDocsQuery();
+
+        List<Long> d = new ArrayList<>(500);
+        for (int i = 1; i < 500; i++) {
+            d.add((long) i);
+            d.add((long) i);
+        }
+
+        // The one rare term
+        d.add(0L);
+
+        testSearchAndReduceCase(query, d,
+            aggregation -> aggregation.field(LONG_FIELD).maxDocCount(1),
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
-                DoubleTerms.Bucket bucket = (DoubleTerms.Bucket) agg.getBuckets().get(0);
-                assertThat(bucket.getKey(), equalTo(1.0));
+                LongRareTerms.Bucket bucket = (LongRareTerms.Bucket) agg.getBuckets().get(0);
+                assertThat(bucket.getKey(), equalTo(0L));
                 assertThat(bucket.getDocCount(), equalTo(1L));
-            }, ValueType.DOUBLE
+            }, ValueType.NUMERIC
+        );
+        testSearchAndReduceCase(query, d,
+            aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1),
+            agg -> {
+                assertEquals(1, agg.getBuckets().size());
+                StringRareTerms.Bucket bucket = (StringRareTerms.Bucket) agg.getBuckets().get(0);
+                assertThat(bucket.getKeyAsString(), equalTo("0"));
+                assertThat(bucket.getDocCount(), equalTo(1L));
+            }, ValueType.STRING
         );
     }
 
@@ -156,7 +170,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 .includeExclude(new IncludeExclude(new long[]{2}, new long[]{})),
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
-                LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(0);
+                LongRareTerms.Bucket bucket = (LongRareTerms.Bucket) agg.getBuckets().get(0);
                 assertThat(bucket.getKey(), equalTo(2L));
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }, ValueType.NUMERIC
@@ -167,21 +181,10 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 .includeExclude(new IncludeExclude(new String[]{"2"}, new String[]{})),
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
-                StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(0);
+                StringRareTerms.Bucket bucket = (StringRareTerms.Bucket) agg.getBuckets().get(0);
                 assertThat(bucket.getKeyAsString(), equalTo("2"));
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }, ValueType.STRING
-        );
-        testBothCases(query, dataset,
-            aggregation -> aggregation.field(DOUBLE_FIELD)
-                .maxDocCount(2) // bump to 2 since we're only including "2"
-                .includeExclude(new IncludeExclude(new double[]{2.0}, new double[]{})),
-            agg -> {
-                assertEquals(1, agg.getBuckets().size());
-                DoubleTerms.Bucket bucket = (DoubleTerms.Bucket) agg.getBuckets().get(0);
-                assertThat(bucket.getKey(), equalTo(2.0));
-                assertThat(bucket.getDocCount(), equalTo(2L));
-            }, ValueType.DOUBLE
         );
     }
 
@@ -194,7 +197,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             },
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
-                LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(0);
+                LongRareTerms.Bucket bucket = (LongRareTerms.Bucket) agg.getBuckets().get(0);
                 assertThat(bucket.getKey(), equalTo(1L));
                 assertThat(bucket.getDocCount(), equalTo(1L));
 
@@ -210,7 +213,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             },
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
-                StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(0);
+                StringRareTerms.Bucket bucket = (StringRareTerms.Bucket) agg.getBuckets().get(0);
                 assertThat(bucket.getKey(), equalTo("1"));
                 assertThat(bucket.getDocCount(), equalTo(1L));
 
@@ -219,22 +222,6 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 assertThat(children.asList().get(0).getName(), equalTo("the_max"));
                 assertThat(((Max)(children.asList().get(0))).getValue(), equalTo(1.0));
             }, ValueType.STRING
-        );
-        testBothCases(query, dataset, aggregation -> {
-                MaxAggregationBuilder max = new MaxAggregationBuilder("the_max").field(LONG_FIELD);
-                aggregation.field(DOUBLE_FIELD).maxDocCount(1).subAggregation(max);
-            },
-            agg -> {
-                assertEquals(1, agg.getBuckets().size());
-                DoubleTerms.Bucket bucket = (DoubleTerms.Bucket) agg.getBuckets().get(0);
-                assertThat(bucket.getKey(), equalTo(1.0));
-                assertThat(bucket.getDocCount(), equalTo(1L));
-
-                Aggregations children = bucket.getAggregations();
-                assertThat(children.asList().size(), equalTo(1));
-                assertThat(children.asList().get(0).getName(), equalTo("the_max"));
-                assertThat(((Max)(children.asList().get(0))).getValue(), equalTo(1.0));
-            }, ValueType.DOUBLE
         );
     }
 
@@ -249,10 +236,6 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1),
             agg -> assertEquals(0, agg.getBuckets().size()), ValueType.STRING
         );
-        testSearchCase(query, Collections.emptyList(),
-            aggregation -> aggregation.field(DOUBLE_FIELD).maxDocCount(1),
-            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.DOUBLE
-        );
 
         // Note: the search and reduce test will generate no segments (due to no docs)
         // and so will return a null agg because the aggs aren't run/reduced
@@ -264,10 +247,6 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1),
             Assert::assertNull, ValueType.STRING
         );
-        testSearchAndReduceCase(query, Collections.emptyList(),
-            aggregation -> aggregation.field(DOUBLE_FIELD).maxDocCount(1),
-            Assert::assertNull, ValueType.DOUBLE
-        );
     }
 
     public void testUnmapped() throws Exception {
@@ -276,7 +255,6 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 Document document = new Document();
                 document.add(new SortedDocValuesField("string", new BytesRef("a")));
                 document.add(new NumericDocValuesField("long", 0L));
-                document.add(new NumericDocValuesField("double", Double.doubleToRawLongBits(0L)));
                 indexWriter.addDocument(document);
                 MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType();
                 fieldType1.setName("another_string");
@@ -286,21 +264,19 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 fieldType2.setName("another_long");
                 fieldType2.setHasDocValues(true);
 
-                MappedFieldType fieldType3 = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-                fieldType3.setName("another_double");
-                fieldType3.setHasDocValues(true);
+
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    ValueType[] valueTypes = new ValueType[]{ValueType.STRING, ValueType.LONG, ValueType.DOUBLE};
-                    String[] fieldNames = new String[]{"string", "long", "double"};
+                    ValueType[] valueTypes = new ValueType[]{ValueType.STRING, ValueType.LONG};
+                    String[] fieldNames = new String[]{"string", "long"};
                     for (int i = 0; i < fieldNames.length; i++) {
                         RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name", valueTypes[i])
                             .field(fieldNames[i]);
-                        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1, fieldType2, fieldType3);
+                        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1, fieldType2);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                         aggregator.postCollection();
-                        Terms result = (Terms) aggregator.buildAggregation(0L);
+                        RareTerms result = (RareTerms) aggregator.buildAggregation(0L);
                         assertEquals("_name", result.getName());
                         assertEquals(0, result.getBuckets().size());
                     }
@@ -318,7 +294,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             },
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
-                LongTerms.Bucket bucket = (LongTerms.Bucket) agg.getBuckets().get(0);
+                LongRareTerms.Bucket bucket = (LongRareTerms.Bucket) agg.getBuckets().get(0);
                 assertThat(bucket.getKey(), equalTo(1L));
                 assertThat(bucket.getDocCount(), equalTo(1L));
 
@@ -336,7 +312,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             },
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
-                StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(0);
+                StringRareTerms.Bucket bucket = (StringRareTerms.Bucket) agg.getBuckets().get(0);
                 assertThat(bucket.getKey(), equalTo("1"));
                 assertThat(bucket.getDocCount(), equalTo(1L));
 
@@ -347,70 +323,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 assertThat(((Terms)(children.asList().get(0))).getBuckets().get(0).getKeyAsString(), equalTo("1"));
             }, ValueType.STRING
         );
-        testBothCases(query, dataset, aggregation -> {
-                TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms", ValueType.STRING).field(KEYWORD_FIELD);
-                aggregation.field(DOUBLE_FIELD).maxDocCount(1).subAggregation(terms);
-            },
-            agg -> {
-                assertEquals(1, agg.getBuckets().size());
-                DoubleTerms.Bucket bucket = (DoubleTerms.Bucket) agg.getBuckets().get(0);
-                assertThat(bucket.getKey(), equalTo(1.0));
-                assertThat(bucket.getDocCount(), equalTo(1L));
-
-                Aggregations children = bucket.getAggregations();
-                assertThat(children.asList().size(), equalTo(1));
-                assertThat(children.asList().get(0).getName(), equalTo("the_terms"));
-                assertThat(((Terms)(children.asList().get(0))).getBuckets().size(), equalTo(1));
-                assertThat(((Terms)(children.asList().get(0))).getBuckets().get(0).getKeyAsString(), equalTo("1"));
-            }, ValueType.DOUBLE
-        );
     }
-
-    public void testMixLongAndDouble() throws Exception {
-        RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name", ValueType.LONG)
-            .field(LONG_FIELD)
-            .maxDocCount(2);
-        List<InternalAggregation> aggs = new ArrayList<>();
-
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                Document document = new Document();
-                document.add(new NumericDocValuesField(LONG_FIELD, 1L));
-                indexWriter.addDocument(document);
-
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
-                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType =
-                        new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                    fieldType.setName(LONG_FIELD);
-                    fieldType.setHasDocValues(true);
-                    aggs.add(buildInternalAggregation(aggregationBuilder, fieldType, indexSearcher));
-
-                }
-            }
-        }
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                Document document = new Document();
-                document.add(new SortedNumericDocValuesField(LONG_FIELD, NumericUtils.doubleToSortableLong(1.0d)));
-                indexWriter.addDocument(document);
-
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
-                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType =
-                        new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-                    fieldType.setName(LONG_FIELD);
-                    fieldType.setHasDocValues(true);
-                    aggs.add(buildInternalAggregation(aggregationBuilder, fieldType, indexSearcher));
-                }
-            }
-        }
-        InternalAggregation.ReduceContext ctx =
-            new InternalAggregation.ReduceContext(new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY),
-                new NoneCircuitBreakerService()), null, true);
-        AggregationExecutionException e = expectThrows(AggregationExecutionException.class, () -> aggs.get(0).doReduce(aggs, ctx));
-    }
-
 
     public void testGlobalAggregationWithScore() throws IOException {
         try (Directory directory = newDirectory()) {
@@ -538,10 +451,14 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                                 new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), nested, fieldType);
                             InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
                             assertThat(terms.getBuckets().size(), equalTo(2));
+                            long counter = 1;
                             for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
                                 InternalTopHits topHits = bucket.getAggregations().get("top_hits");
-                                assertThat(topHits.getHits(), equalTo(1L));
+                                TotalHits hits = topHits.getHits().getTotalHits();
+                                assertNotNull(hits);
+                                assertThat(hits.value, equalTo(counter));
                                 assertThat(topHits.getHits().getMaxScore(), equalTo(Float.NaN));
+                                counter += 1;
                             }
                         }
                     }
@@ -629,7 +546,6 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     document.add(new SortedNumericDocValuesField(LONG_FIELD, value));
                     document.add(new LongPoint(LONG_FIELD, value));
                     document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(Long.toString(value))));
-                    document.add(new SortedNumericDocValuesField(DOUBLE_FIELD, Double.doubleToRawLongBits((double) value)));
                     indexWriter.addDocument(document);
                     document.clear();
                 }
@@ -651,15 +567,11 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 longFieldType.setName(LONG_FIELD);
                 longFieldType.setHasDocValues(true);
 
-                MappedFieldType doubleFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-                doubleFieldType.setName(DOUBLE_FIELD);
-                doubleFieldType.setHasDocValues(true);
-
                 InternalMappedRareTerms rareTerms;
                 if (reduced) {
-                    rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordFieldType, longFieldType, doubleFieldType);
+                    rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordFieldType, longFieldType);
                 } else {
-                    rareTerms = search(indexSearcher, query, aggregationBuilder, keywordFieldType, longFieldType, doubleFieldType);
+                    rareTerms = search(indexSearcher, query, aggregationBuilder, keywordFieldType, longFieldType);
                 }
                 verify.accept(rareTerms);
             }

@@ -48,17 +48,10 @@ import static java.util.Collections.emptyList;
  * An aggregator that finds "rare" string values (e.g. terms agg that orders ascending)
  */
 public class StringRareTermsAggregator extends AbstractRareTermsAggregator<ValuesSource.Bytes, IncludeExclude.StringFilter> {
-    // TODO review question: is there equivalent to LongObjectPagedHashMap like used in LongRareTerms?
     protected ObjectLongHashMap<BytesRef> map;
     protected BytesRefHash bucketOrds;
-    private LeafBucketCollector subCollectors;
 
-    // TODO review question: What to set this at?
-    /**
-     Sets the number of "removed" values to accumulate before we purge ords
-     via the MergingBucketCollector's mergeBuckets() method
-     */
-    private final long GC_THRESHOLD = 10;
+    private static final long MAP_VALUE_SIZE = Long.BYTES;
 
     StringRareTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes valuesSource,
                                      DocValueFormat format,  IncludeExclude.StringFilter stringFilter,
@@ -78,7 +71,6 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
         }
         return new LeafBucketCollectorBase(sub, values) {
             final BytesRefBuilder previous = new BytesRefBuilder();
-            private long numDeleted = 0;
 
             @Override
             public void collect(int docId, long bucket) throws IOException {
@@ -103,7 +95,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                             if (valueCount == 0) {
                                 // Brand new term, save into map
                                 map.put(BytesRef.deepCopyOf(bytes), 1L);
-                                addRequestCircuitBreakerBytes(bytes.length + 8L); // size of term + 8 for counter
+                                addRequestCircuitBreakerBytes(bytes.length + MAP_VALUE_SIZE); // size of term + 8 for counter
 
                                 long bucketOrdinal = bucketOrds.add(bytes);
                                 if (bucketOrdinal < 0) { // already seen
@@ -131,7 +123,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                                     map.remove(bytes);
                                     bloom.put(bytes);
                                     numDeleted += 1;
-                                    addRequestCircuitBreakerBytes(-(bytes.length + 8L)); // size of term + 8 for counter
+                                    addRequestCircuitBreakerBytes(-(bytes.length + MAP_VALUE_SIZE)); // size of term + 8 for counter
 
                                     if (numDeleted > GC_THRESHOLD) {
                                         gcDeletedEntries(numDeleted);
@@ -147,7 +139,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
         };
     }
 
-    protected void gcDeletedEntries(Long numDeleted) {
+    protected void gcDeletedEntries(long numDeleted) {
         long deletionCount = 0;
         BytesRefHash newBucketOrds = new BytesRefHash(1, context.bigArrays());
         try (BytesRefHash oldBucketOrds = bucketOrds) {
@@ -167,7 +159,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                 }
                 mergeMap[i] = newBucketOrd;
             }
-            if (numDeleted != null && deletionCount != numDeleted) {
+            if (numDeleted != -1 && deletionCount != numDeleted) {
                 throw new IllegalStateException("Expected to prune [" + numDeleted + "] terms, but [" + numDeleted
                     + "] were removed instead");
             }
@@ -188,10 +180,10 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
 
-        List<StringTerms.Bucket> buckets = new ArrayList<>(map.size());
+        List<StringRareTerms.Bucket> buckets = new ArrayList<>(map.size());
 
         for (ObjectLongCursor<BytesRef> cursor : map) {
-            StringTerms.Bucket bucket = new StringTerms.Bucket(new BytesRef(), 0, null, false, 0, format);
+            StringRareTerms.Bucket bucket = new StringRareTerms.Bucket(new BytesRef(), 0, null, format);
 
             // The collection managed pruning unwanted terms, so any
             // terms that made it this far are "rare" and we want buckets
@@ -207,14 +199,12 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
         runDeferredCollections(buckets.stream().mapToLong(b -> b.bucketOrd).toArray());
 
         // Finalize the buckets
-        for (StringTerms.Bucket bucket : buckets) {
+        for (StringRareTerms.Bucket bucket : buckets) {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-            bucket.docCountError = 0;
         }
 
-        CollectionUtil.introSort(buckets, LongRareTermsAggregator.ORDER.comparator(this));
-        return new StringRareTerms(name, LongRareTermsAggregator.ORDER, pipelineAggregators(), metaData(),
-            format, buckets, maxDocCount, bloom);
+        CollectionUtil.introSort(buckets, ORDER.comparator(this));
+        return new StringRareTerms(name, ORDER, pipelineAggregators(), metaData(), format, buckets, maxDocCount, bloom);
     }
 
     @Override

@@ -23,6 +23,8 @@ import org.elasticsearch.common.util.ExactBloomFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
@@ -34,25 +36,28 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U extends IncludeExclude.Filter>
     extends DeferableBucketAggregator {
 
-    // TODO review question: What to set this at?
     /**
      Sets the number of "removed" values to accumulate before we purge ords
      via the MergingBucketCollector's mergeBuckets() method
      */
-    final long GC_THRESHOLD = 10;
+    static final long GC_THRESHOLD = 1000;
+    static final BucketOrder ORDER = BucketOrder.compound(BucketOrder.count(true), BucketOrder.key(true)); // sort by count ascending
 
-    MergingBucketsDeferringCollector deferringCollector;
-    protected final ExactBloomFilter bloom;
     protected final long maxDocCount;
     protected final DocValueFormat format;
     protected final T valuesSource;
     protected final U includeExclude;
 
+    // Counter used during collection to track map entries that need GC'ing
+    long numDeleted = 0;
+
+    MergingBucketsDeferringCollector deferringCollector;
+    LeafBucketCollector subCollectors;
+    final ExactBloomFilter bloom;
 
     AbstractRareTermsAggregator(String name, AggregatorFactories factories, SearchContext context,
                                           Aggregator parent, List<PipelineAggregator> pipelineAggregators,
@@ -99,7 +104,7 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
     protected void doPostCollection() {
         // Make sure we do one final GC to clean up any deleted ords
         // that may be lingering (but still below GC threshold)
-        gcDeletedEntries(null);
+        gcDeletedEntries(-1);
     }
 
     private String subAggsNeedScore() {
@@ -121,5 +126,5 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
         return null;
     }
 
-    protected abstract void gcDeletedEntries(Long numDeleted);
+    abstract void gcDeletedEntries(long numDeleted);
 }

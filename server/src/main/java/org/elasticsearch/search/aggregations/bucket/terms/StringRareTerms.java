@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ExactBloomFilter;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -28,14 +31,85 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-
-public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, StringTerms.Bucket> {
+public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, StringRareTerms.Bucket> {
     public static final String NAME = "srareterms";
+
+    public static class Bucket extends InternalRareTerms.Bucket<Bucket> {
+        BytesRef termBytes;
+
+        public Bucket(BytesRef term, long docCount, InternalAggregations aggregations, DocValueFormat format) {
+            super(docCount, aggregations, format);
+            this.termBytes = term;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public Bucket(StreamInput in, DocValueFormat format) throws IOException {
+            super(in, format);
+            termBytes = in.readBytesRef();
+        }
+
+        @Override
+        protected void writeTermTo(StreamOutput out) throws IOException {
+            out.writeBytesRef(termBytes);
+        }
+
+        @Override
+        public Object getKey() {
+            return getKeyAsString();
+        }
+
+        // this method is needed for scripted numeric aggs
+        @Override
+        public Number getKeyAsNumber() {
+            /*
+             * If the term is a long greater than 2^52 then parsing as a double would lose accuracy. Therefore, we first parse as a long and
+             * if this fails then we attempt to parse the term as a double.
+             */
+            try {
+                return Long.parseLong(termBytes.utf8ToString());
+            } catch (final NumberFormatException ignored) {
+                return Double.parseDouble(termBytes.utf8ToString());
+            }
+        }
+
+        @Override
+        public String getKeyAsString() {
+            return format.format(termBytes).toString();
+        }
+
+        @Override
+        public int compareKey(Bucket other) {
+            return termBytes.compareTo(other.termBytes);
+        }
+
+        @Override
+        Bucket newBucket(long docCount, InternalAggregations aggs) {
+            return new Bucket(termBytes, docCount, aggs, format);
+        }
+
+        @Override
+        protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+            return builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return super.equals(obj) && Objects.equals(termBytes, ((Bucket) obj).termBytes);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), termBytes);
+        }
+    }
 
     public StringRareTerms(String name, BucketOrder order, List<PipelineAggregator> pipelineAggregators,
                            Map<String, Object> metaData, DocValueFormat format,
-                           List<StringTerms.Bucket> buckets, long maxDocCount, ExactBloomFilter bloom) {
+                           List<StringRareTerms.Bucket> buckets, long maxDocCount, ExactBloomFilter bloom) {
         super(name, order, pipelineAggregators, metaData, format, buckets, maxDocCount, bloom);
     }
 
@@ -43,7 +117,7 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
      * Read from a stream.
      */
     public StringRareTerms(StreamInput in) throws IOException {
-        super(in, StringTerms.Bucket::new);
+        super(in, StringRareTerms.Bucket::new);
     }
 
     @Override
@@ -52,34 +126,33 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
     }
 
     @Override
-    public StringRareTerms create(List<StringTerms.Bucket> buckets) {
+    public StringRareTerms create(List<StringRareTerms.Bucket> buckets) {
         return new StringRareTerms(name, order, pipelineAggregators(), metaData, format, buckets, maxDocCount, bloom);
     }
 
     @Override
-    public StringTerms.Bucket createBucket(InternalAggregations aggregations, StringTerms.Bucket prototype) {
-        return new StringTerms.Bucket(prototype.termBytes, prototype.getDocCount(), aggregations, false,
-            prototype.docCountError, prototype.format);
+    public StringRareTerms.Bucket createBucket(InternalAggregations aggregations, StringRareTerms.Bucket prototype) {
+        return new StringRareTerms.Bucket(prototype.termBytes, prototype.getDocCount(), aggregations, prototype.format);
     }
 
     @Override
-    protected StringRareTerms create(String name, List<StringTerms.Bucket> buckets, long docCountError, long otherDocCount) {
+    protected StringRareTerms createWithBloom(String name, List<StringRareTerms.Bucket> buckets, ExactBloomFilter bloomFilter) {
         return new StringRareTerms(name, order, pipelineAggregators(), metaData, format,
-            buckets, maxDocCount, bloom);
+            buckets, maxDocCount, bloomFilter);
     }
 
     @Override
-    protected StringTerms.Bucket[] createBucketsArray(int size) {
-        return new StringTerms.Bucket[size];
+    protected StringRareTerms.Bucket[] createBucketsArray(int size) {
+        return new StringRareTerms.Bucket[size];
     }
 
     @Override
-    public boolean containsTerm(ExactBloomFilter bloom, StringTerms.Bucket bucket) {
+    public boolean containsTerm(ExactBloomFilter bloom, StringRareTerms.Bucket bucket) {
         return bloom.mightContain(bucket.termBytes);
     }
 
     @Override
-    public void addToBloom(ExactBloomFilter bloom, StringTerms.Bucket bucket) {
+    public void addToBloom(ExactBloomFilter bloom, StringRareTerms.Bucket bucket) {
         bloom.put(bucket.termBytes);
     }
 }

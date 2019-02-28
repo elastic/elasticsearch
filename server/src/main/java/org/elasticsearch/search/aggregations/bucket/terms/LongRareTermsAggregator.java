@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -48,13 +47,11 @@ import static java.util.Collections.emptyList;
  */
 public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesSource.Numeric, IncludeExclude.LongFilter> {
 
-    static final BucketOrder ORDER = BucketOrder.compound(BucketOrder.count(true), BucketOrder.key(true)); // sort by count ascending
-
     //TODO review question: is LongLong map ok?
     protected LongLongHashMap map;
     protected LongHash bucketOrds;
 
-    private LeafBucketCollector subCollectors;
+    private static final long MAP_SLOT_SIZE = Long.BYTES * 2;
 
     LongRareTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
                                    SearchContext aggregationContext, Aggregator parent, IncludeExclude.LongFilter longFilter,
@@ -77,7 +74,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
             subCollectors = sub;
         }
         return new LeafBucketCollectorBase(sub, values) {
-            private long numDeleted = 0;
+
 
             @Override
             public void collect(int docId, long owningBucketOrdinal) throws IOException {
@@ -94,7 +91,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                                     if (termCount == 0) {
                                         // Brand new term, save into map
                                         map.put(val, 1L);
-                                        addRequestCircuitBreakerBytes(16L);// 8 bytes for key, 8 for value
+                                        addRequestCircuitBreakerBytes(MAP_SLOT_SIZE);// 8 bytes for key, 8 for value
 
                                         long bucketOrdinal = bucketOrds.add(val);
                                         if (bucketOrdinal < 0) { // already seen
@@ -123,8 +120,8 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                                             // the map and add to the bloom filter
                                             map.remove(val);
                                             bloom.put(val);
+                                            addRequestCircuitBreakerBytes(-MAP_SLOT_SIZE); // 8 bytes for key, 8 for value
                                             numDeleted += 1;
-                                            addRequestCircuitBreakerBytes(-16L); // 8 bytes for key, 8 for value
 
                                             if (numDeleted > GC_THRESHOLD) {
                                                 gcDeletedEntries(numDeleted);
@@ -142,7 +139,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
         };
     }
 
-    protected void gcDeletedEntries(Long numDeleted) {
+    protected void gcDeletedEntries(long numDeleted) {
         long deletionCount = 0;
         LongHash newBucketOrds = new LongHash(1, context.bigArrays());
         try (LongHash oldBucketOrds = bucketOrds) {
@@ -162,7 +159,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                 mergeMap[i] = newBucketOrd;
             }
 
-            if (numDeleted != null && deletionCount != numDeleted) {
+            if (numDeleted != -1 && deletionCount != numDeleted) {
                 throw new IllegalStateException("Expected to prune [" + numDeleted + "] terms, but [" + numDeleted
                     + "] were removed instead");
             }
@@ -182,13 +179,13 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        List<LongTerms.Bucket> buckets = new ArrayList<>(map.size());
+        List<LongRareTerms.Bucket> buckets = new ArrayList<>(map.size());
 
         for (LongLongCursor cursor : map) {
             // The collection managed pruning unwanted terms, so any
             // terms that made it this far are "rare" and we want buckets
             long bucketOrdinal = bucketOrds.find(cursor.key);
-            LongTerms.Bucket bucket = new LongTerms.Bucket(0, 0, null, false, 0, format);
+            LongRareTerms.Bucket bucket = new LongRareTerms.Bucket(0, 0, null, format);
             bucket.term = cursor.key;
             bucket.docCount = cursor.value;
             bucket.bucketOrd = bucketOrdinal;
@@ -200,9 +197,8 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
         runDeferredCollections(buckets.stream().mapToLong(b -> b.bucketOrd).toArray());
 
         // Finalize the buckets
-        for (LongTerms.Bucket bucket : buckets) {
+        for (LongRareTerms.Bucket bucket : buckets) {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-            bucket.docCountError = 0;
         }
 
         CollectionUtil.introSort(buckets, ORDER.comparator(this));

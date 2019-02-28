@@ -20,7 +20,9 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ExactBloomFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -35,12 +37,17 @@ import static java.util.Collections.emptyList;
 /**
  * Result of the RareTerms aggregation when the field is unmapped.
  */
-public class UnmappedRareTerms extends InternalTerms<UnmappedRareTerms, UnmappedTerms.Bucket> {
+public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, UnmappedRareTerms.Bucket> {
     public static final String NAME = "umrareterms";
 
-    UnmappedRareTerms(String name, List<PipelineAggregator> pipelineAggregators,
-                             Map<String, Object> metaData) {
-        super(name, LongRareTermsAggregator.ORDER, 0, 0, pipelineAggregators, metaData);
+    protected abstract static class Bucket extends InternalRareTerms.Bucket<Bucket> {
+        private Bucket(long docCount, InternalAggregations aggregations, DocValueFormat formatter) {
+            super(docCount, aggregations, formatter);
+        }
+    }
+
+    UnmappedRareTerms(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, LongRareTermsAggregator.ORDER, 0, pipelineAggregators, metaData);
     }
 
     /**
@@ -66,18 +73,18 @@ public class UnmappedRareTerms extends InternalTerms<UnmappedRareTerms, Unmapped
     }
 
     @Override
-    public UnmappedRareTerms create(List<UnmappedTerms.Bucket> buckets) {
+    public UnmappedRareTerms create(List<UnmappedRareTerms.Bucket> buckets) {
         return new UnmappedRareTerms(name, pipelineAggregators(), metaData);
     }
 
     @Override
-    public UnmappedTerms.Bucket createBucket(InternalAggregations aggregations, UnmappedTerms.Bucket prototype) {
-        throw new UnsupportedOperationException("not supported for UnmappedTerms");
+    public UnmappedRareTerms.Bucket createBucket(InternalAggregations aggregations, UnmappedRareTerms.Bucket prototype) {
+        throw new UnsupportedOperationException("not supported for UnmappedRareTerms");
     }
 
     @Override
-    protected UnmappedRareTerms create(String name, List<UnmappedTerms.Bucket> buckets, long docCountError, long otherDocCount) {
-        throw new UnsupportedOperationException("not supported for UnmappedTerms");
+    protected UnmappedRareTerms createWithBloom(String name, List<UnmappedRareTerms.Bucket> buckets, ExactBloomFilter bloomFilter) {
+        throw new UnsupportedOperationException("not supported for UnmappedRareTerms");
     }
 
     @Override
@@ -92,40 +99,21 @@ public class UnmappedRareTerms extends InternalTerms<UnmappedRareTerms, Unmapped
 
     @Override
     public final XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return doXContentCommon(builder, params, 0, 0, Collections.emptyList());
+        return doXContentCommon(builder, params, Collections.emptyList());
     }
 
     @Override
-    protected void setDocCountError(long docCountError) {
-    }
-
-    @Override
-    protected int getShardSize() {
-        return 0;
-    }
-
-    @Override
-    public long getDocCountError() {
-        return 0;
-    }
-
-    @Override
-    public long getSumOfOtherDocCounts() {
-        return 0;
-    }
-
-    @Override
-    public List<UnmappedTerms.Bucket> getBuckets() {
+    public List<UnmappedRareTerms.Bucket> getBuckets() {
         return emptyList();
     }
 
     @Override
-    public UnmappedTerms.Bucket getBucketByKey(String term) {
+    public UnmappedRareTerms.Bucket getBucketByKey(String term) {
         return null;
     }
 
     @Override
-    protected UnmappedTerms.Bucket[] createBucketsArray(int size) {
-        return new UnmappedTerms.Bucket[size];
+    protected UnmappedRareTerms.Bucket[] createBucketsArray(int size) {
+        return new UnmappedRareTerms.Bucket[size];
     }
 }

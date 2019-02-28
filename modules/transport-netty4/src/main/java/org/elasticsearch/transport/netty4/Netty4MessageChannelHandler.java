@@ -115,19 +115,9 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             return;
         }
         if (context.executor().inEventLoop()) {
-            try {
-                doFlush(context);
-            } catch (Exception e) {
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
+            doFlush(context);
         } else {
-            context.executor().execute(() -> {
-                try {
-                    doFlush(context);
-                } catch (Exception e) {
-                    throw ExceptionsHelper.convertToRuntime(e);
-                }
-            });
+            context.executor().execute(() -> doFlush(context));
         }
     }
 

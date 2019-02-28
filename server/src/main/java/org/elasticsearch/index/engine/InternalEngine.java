@@ -1700,7 +1700,9 @@ public class InternalEngine extends Engine {
             try {
                 // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
                 // newly created commit points to a different translog generation (can free translog)
-                if (indexWriter.hasUncommittedChanges() || force || shouldPeriodicallyFlush()) {
+                boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
+                boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
+                if (hasUncommittedChanges || force || shouldPeriodicallyFlush) {
                     ensureCanFlush();
                     try {
                         translog.rollGeneration();
@@ -1709,7 +1711,8 @@ public class InternalEngine extends Engine {
                         logger.trace("finished commit for flush");
 
                         // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
-                        logger.debug("new commit on flush");
+                        logger.debug("new commit on flush, hasUncommittedChanges:{}, force:{}, shouldPeriodicallyFlush:{}",
+                            hasUncommittedChanges, force, shouldPeriodicallyFlush);
 
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush", SearcherScope.INTERNAL);

@@ -651,7 +651,7 @@ public class InternalEngine extends Engine {
                             trackTranslogLocation.set(true);
                         }
                     }
-                    refresh("realtime_get", SearcherScope.INTERNAL);
+                    refresh("realtime_get", SearcherScope.INTERNAL, true);
                 }
                 scope = SearcherScope.INTERNAL;
             } else {
@@ -744,7 +744,7 @@ public class InternalEngine extends Engine {
                 // but we only need to do this once since the last operation per ID is to add to the version
                 // map so once we pass this point we can safely lookup from the version map.
                 if (versionMap.isUnsafe()) {
-                    refresh("unsafe_version_map", SearcherScope.INTERNAL);
+                    refresh("unsafe_version_map", SearcherScope.INTERNAL, true);
                 }
                 versionMap.enforceSafeAccess();
             }
@@ -1531,16 +1531,21 @@ public class InternalEngine extends Engine {
 
     @Override
     public void refresh(String source) throws EngineException {
-        refresh(source, SearcherScope.EXTERNAL);
+        refresh(source, SearcherScope.EXTERNAL, true);
     }
 
-    final void refresh(String source, SearcherScope scope) throws EngineException {
+    @Override
+    public boolean maybeRefresh(String source) throws EngineException {
+        return refresh(source, SearcherScope.EXTERNAL, false);
+    }
+
+    final boolean refresh(String source, SearcherScope scope, boolean block) throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
         final long localCheckpointBeforeRefresh = getLocalCheckpoint();
-
+        boolean refreshed;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (store.tryIncRef()) {
@@ -1550,11 +1555,20 @@ public class InternalEngine extends Engine {
                     // the second refresh will only do the extra work we have to do for warming caches etc.
                     ReferenceManager<IndexSearcher> referenceManager = getReferenceManager(scope);
                     // it is intentional that we never refresh both internal / external together
-                    referenceManager.maybeRefreshBlocking();
+                    if (block) {
+                        referenceManager.maybeRefreshBlocking();
+                        refreshed = true;
+                    } else {
+                        refreshed = referenceManager.maybeRefresh();
+                    }
                 } finally {
                     store.decRef();
                 }
-                lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
+                if (refreshed) {
+                    lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
+                }
+            } else {
+                refreshed = false;
             }
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
@@ -1567,20 +1581,21 @@ public class InternalEngine extends Engine {
             }
             throw new RefreshFailedEngineException(shardId, e);
         }
-        assert lastRefreshedCheckpoint() >= localCheckpointBeforeRefresh : "refresh checkpoint was not advanced; " +
+        assert refreshed == false || lastRefreshedCheckpoint() >= localCheckpointBeforeRefresh : "refresh checkpoint was not advanced; " +
             "local_checkpoint=" + localCheckpointBeforeRefresh + " refresh_checkpoint=" + lastRefreshedCheckpoint();
         // TODO: maybe we should just put a scheduled job in threadPool?
         // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
         // for a long time:
         maybePruneDeletes();
         mergeScheduler.refreshConfig();
+        return refreshed;
     }
 
     @Override
     public void writeIndexingBuffer() throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are writing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
-        refresh("write indexing buffer", SearcherScope.INTERNAL);
+        refresh("write indexing buffer", SearcherScope.INTERNAL, true);
     }
 
     @Override
@@ -1600,7 +1615,7 @@ public class InternalEngine extends Engine {
             ensureCanFlush();
             // lets do a refresh to make sure we shrink the version map. This refresh will be either a no-op (just shrink the version map)
             // or we also have uncommitted changes and that causes this syncFlush to fail.
-            refresh("sync_flush", SearcherScope.INTERNAL);
+            refresh("sync_flush", SearcherScope.INTERNAL, true);
             if (indexWriter.hasUncommittedChanges()) {
                 logger.trace("can't sync commit [{}]. have pending changes", syncId);
                 return SyncedFlushResult.PENDING_OPERATIONS;
@@ -1641,7 +1656,7 @@ public class InternalEngine extends Engine {
         if (renewed) {
             // refresh outside of the write lock
             // we have to refresh internal searcher here to ensure we release unreferenced segments.
-            refresh("renew sync commit", SearcherScope.INTERNAL);
+            refresh("renew sync commit", SearcherScope.INTERNAL, true);
         }
         return renewed;
     }
@@ -1711,7 +1726,7 @@ public class InternalEngine extends Engine {
                         commitIndexWriter(indexWriter, translog, null);
                         logger.trace("finished commit for flush");
                         // we need to refresh in order to clear older version values
-                        refresh("version_table_flush", SearcherScope.INTERNAL);
+                        refresh("version_table_flush", SearcherScope.INTERNAL, true);
                         translog.trimUnreferencedReaders();
                     } catch (AlreadyClosedException e) {
                         throw e;
@@ -2653,7 +2668,7 @@ public class InternalEngine extends Engine {
         if (lastRefreshedCheckpoint() < requestingSeqNo) {
             synchronized (refreshIfNeededMutex) {
                 if (lastRefreshedCheckpoint() < requestingSeqNo) {
-                    refresh(source, SearcherScope.INTERNAL);
+                    refresh(source, SearcherScope.INTERNAL, true);
                 }
             }
         }

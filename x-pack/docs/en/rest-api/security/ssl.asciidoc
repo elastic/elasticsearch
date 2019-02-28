@@ -81,9 +81,16 @@ node of {es}:
 GET /_ssl/certificates
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
+// TEST
 
 The API returns the following results:
+////
+[source,js]
+----
+[ ]
+----
+// TESTRESPONSE
+////
 [source,js]
 ----
 [

@@ -96,6 +96,7 @@ public class XPackSettings {
     public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = Setting.boolSetting("xpack.security.transport.ssl.enabled", false,
             Property.NodeScope);
 
+    /** Setting for enabling a TLS secured cluster to accept and open plaintext connections. Defaults to false. */
     public static final Setting<Boolean> DUAL_STACK_ENABLED =
         boolSetting("xpack.security.transport.ssl.dual_stack.enabled", false, Property.NodeScope, Property.Dynamic);
 

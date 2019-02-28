@@ -21,10 +21,12 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TestProfiles;
 import org.elasticsearch.transport.Transport;
@@ -33,6 +35,7 @@ import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.MockNioTransport;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
@@ -42,6 +45,7 @@ import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SNIMatcher;
 import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
@@ -57,14 +61,19 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSimpleTransportTestCase {
 
@@ -77,6 +86,8 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
+        // Some tests use a client profile. Put the passphrase in the secure settings for the profile (secure settings cannot be set twice)
+        secureSettings.setString("transport.profiles.client.xpack.security.ssl.secure_key_passphrase", "testnode");
         Settings settings1 = Settings.builder()
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.key", testnodeKey)
@@ -332,5 +343,142 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 clusterSettingsA.applySettings(Settings.builder().put(XPackSettings.DUAL_STACK_ENABLED.getKey(), false).build());
             }
         }
+    }
+
+    public void testSecurityClientAuthenticationConfigs() throws Exception {
+        Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
+
+        Transport.Connection connection1 = serviceA.getConnection(serviceB.getLocalNode());
+        SSLEngine sslEngine = getSSLEngine(connection1);
+        assertThat(sslEngine, notNullValue());
+        // test client authentication is default
+        assertThat(sslEngine.getNeedClientAuth(), is(true));
+        assertThat(sslEngine.getWantClientAuth(), is(false));
+
+        // test required client authentication
+        String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT));
+        Settings settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
+        try (MockTransportService service = buildService("TS_REQUIRED_CLIENT_AUTH", Version.CURRENT, settings)) {
+            TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
+            try (Transport.Connection connection2 = serviceA.openConnection(service.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
+                sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
+                assertThat(sslEngine.getNeedClientAuth(), is(true));
+                assertThat(sslEngine.getWantClientAuth(), is(false));
+            }
+        }
+
+        // test no client authentication
+        value = randomFrom(SSLClientAuth.NONE.name(), SSLClientAuth.NONE.name().toLowerCase(Locale.ROOT));
+        settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
+        try (MockTransportService service = buildService("TS_NO_CLIENT_AUTH", Version.CURRENT, settings)) {
+            TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
+            try (Transport.Connection connection2 = serviceA.openConnection(service.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
+                sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
+                assertThat(sslEngine.getNeedClientAuth(), is(false));
+                assertThat(sslEngine.getWantClientAuth(), is(false));
+            }
+        }
+
+        // test optional client authentication
+        value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
+        settings = Settings.builder().put("xpack.security.transport.ssl.client_authentication", value).build();
+        try (MockTransportService service = buildService("TS_OPTIONAL_CLIENT_AUTH", Version.CURRENT, settings)) {
+            TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
+            try (Transport.Connection connection2 = serviceA.openConnection(service.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
+                sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
+                assertThat(sslEngine.getNeedClientAuth(), is(false));
+                assertThat(sslEngine.getWantClientAuth(), is(true));
+            }
+        }
+
+        // test profile required client authentication
+        value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT));
+        settings = Settings.builder()
+            .put("transport.profiles.client.port", "8000-9000")
+            .put("transport.profiles.client.xpack.security.ssl.enabled", true)
+            .put("transport.profiles.client.xpack.security.ssl.certificate", testnodeCert)
+            .put("transport.profiles.client.xpack.security.ssl.key", testnodeKey)
+            .put("transport.profiles.client.xpack.security.ssl.client_authentication", value)
+            .build();
+        try (MockTransportService service = buildService("TS_PROFILE_REQUIRE_CLIENT_AUTH", Version.CURRENT, settings)) {
+            TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
+            TransportAddress clientAddress = originalTransport.profileBoundAddresses().get("client").publishAddress();
+            DiscoveryNode node = new DiscoveryNode(service.getLocalNode().getId(), clientAddress, service.getLocalNode().getVersion());
+            try (Transport.Connection connection2 = serviceA.openConnection(node, TestProfiles.LIGHT_PROFILE)) {
+                sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
+                assertEquals("client", getAcceptedChannel(originalTransport, connection2).getProfile());
+                assertThat(sslEngine.getNeedClientAuth(), is(true));
+                assertThat(sslEngine.getWantClientAuth(), is(false));
+            }
+        }
+
+        // test profile no client authentication
+        value = randomFrom(SSLClientAuth.NONE.name(), SSLClientAuth.NONE.name().toLowerCase(Locale.ROOT));
+        settings = Settings.builder()
+            .put("transport.profiles.client.port", "8000-9000")
+            .put("transport.profiles.client.xpack.security.ssl.enabled", true)
+            .put("transport.profiles.client.xpack.security.ssl.certificate", testnodeCert)
+            .put("transport.profiles.client.xpack.security.ssl.key", testnodeKey)
+            .put("transport.profiles.client.xpack.security.ssl.client_authentication", value)
+            .build();
+        try (MockTransportService service = buildService("TS_PROFILE_NO_CLIENT_AUTH", Version.CURRENT, settings)) {
+            TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
+            TransportAddress clientAddress = originalTransport.profileBoundAddresses().get("client").publishAddress();
+            DiscoveryNode node = new DiscoveryNode(service.getLocalNode().getId(), clientAddress, service.getLocalNode().getVersion());
+            try (Transport.Connection connection2 = serviceA.openConnection(node, TestProfiles.LIGHT_PROFILE)) {
+                sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
+                assertEquals("client", getAcceptedChannel(originalTransport, connection2).getProfile());
+                assertThat(sslEngine.getNeedClientAuth(), is(false));
+                assertThat(sslEngine.getWantClientAuth(), is(false));
+            }
+        }
+
+        // test profile optional client authentication
+        value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
+        settings = Settings.builder()
+            .put("transport.profiles.client.port", "8000-9000")
+            .put("transport.profiles.client.xpack.security.ssl.enabled", true)
+            .put("transport.profiles.client.xpack.security.ssl.certificate", testnodeCert)
+            .put("transport.profiles.client.xpack.security.ssl.key", testnodeKey)
+            .put("transport.profiles.client.xpack.security.ssl.client_authentication", value)
+            .build();
+        try (MockTransportService service = buildService("TS_PROFILE_OPTIONAL_CLIENT_AUTH", Version.CURRENT, settings)) {
+            TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
+            TransportAddress clientAddress = originalTransport.profileBoundAddresses().get("client").publishAddress();
+            DiscoveryNode node = new DiscoveryNode(service.getLocalNode().getId(), clientAddress, service.getLocalNode().getVersion());
+            try (Transport.Connection connection2 = serviceA.openConnection(node, TestProfiles.LIGHT_PROFILE)) {
+                sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
+                assertEquals("client", getAcceptedChannel(originalTransport, connection2).getProfile());
+                assertThat(sslEngine.getNeedClientAuth(), is(false));
+                assertThat(sslEngine.getWantClientAuth(), is(true));
+            }
+        }
+    }
+
+    private SSLEngine getEngineFromAcceptedChannel(TcpTransport transport, Transport.Connection connection) throws Exception {
+        return SSLEngineUtils.getSSLEngine(getAcceptedChannel(transport, connection));
+    }
+
+    private TcpChannel getAcceptedChannel(TcpTransport transport, Transport.Connection connection) throws Exception {
+        InetSocketAddress localAddress = getSingleChannel(connection).getLocalAddress();
+        AtomicReference<TcpChannel> accepted = new AtomicReference<>();
+        assertBusy(() -> {
+            Optional<TcpChannel> maybeAccepted = getAcceptedChannels(transport)
+                .stream().filter(c -> c.getRemoteAddress().equals(localAddress)).findFirst();
+            assertTrue(maybeAccepted.isPresent());
+            accepted.set(maybeAccepted.get());
+        });
+        return accepted.get();
+    }
+
+    private SSLEngine getSSLEngine(Transport.Connection connection) {
+        return SSLEngineUtils.getSSLEngine(getSingleChannel(connection));
+    }
+
+    private TcpChannel getSingleChannel(Transport.Connection connection) {
+        StubbableTransport.WrappedConnection wrappedConnection = (StubbableTransport.WrappedConnection) connection;
+        TcpTransport.NodeChannels nodeChannels = (TcpTransport.NodeChannels) wrappedConnection.getConnection();
+        return nodeChannels.getChannels().get(0);
     }
 }

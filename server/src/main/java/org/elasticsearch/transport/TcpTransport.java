@@ -1129,6 +1129,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return handshaker.getNumHandshakes();
     }
 
+    final Set<TcpChannel> getAcceptedChannels() {
+        return Collections.unmodifiableSet(acceptedChannels);
+    }
+
     /**
      * Ensures this transport is still started / open
      *

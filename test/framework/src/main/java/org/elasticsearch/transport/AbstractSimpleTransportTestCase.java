@@ -2745,4 +2745,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected InetSocketAddress getLocalEphemeral() throws UnknownHostException {
         return new InetSocketAddress(InetAddress.getLocalHost(), 0);
     }
+
+    protected Set<TcpChannel> getAcceptedChannels(TcpTransport transport) {
+        return transport.getAcceptedChannels();
+    }
 }

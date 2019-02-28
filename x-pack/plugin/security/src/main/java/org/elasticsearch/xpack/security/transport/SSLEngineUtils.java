@@ -42,11 +42,9 @@ public class SSLEngineUtils {
             extract(logger, threadContext, sslEngine, tcpChannel);
         } else {
             if (logger.isTraceEnabled()) {
-                logger.trace(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "Channel does not have TLS/SSL enabled [{}]", tcpChannel));
+                logger.trace("Extract client certificates failed, channel does not have TLS/SSL enabled [{}]", tcpChannel);
             } else if (logger.isDebugEnabled()) {
-                logger.debug("Channel does not have TLS/SSL enabled [{}]", tcpChannel);
+                logger.debug("Extract client certificates failed, channel does not have TLS/SSL enabled [{}]", tcpChannel);
             }
         }
     }

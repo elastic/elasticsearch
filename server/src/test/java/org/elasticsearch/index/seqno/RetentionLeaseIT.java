@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -31,9 +32,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -43,6 +47,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -73,7 +78,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(
                 super.nodePlugins().stream(),
-                Stream.of(RetentionLeaseSyncIntervalSettingPlugin.class))
+                Stream.of(RetentionLeaseSyncIntervalSettingPlugin.class, MockTransportService.TestPlugin.class))
                 .collect(Collectors.toList());
     }
 
@@ -354,6 +359,17 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             latch.await();
             currentRetentionLeases.put(id, primary.renewRetentionLease(id, retainingSequenceNumber, source));
         }
+
+        // Cause some recoveries to fail to ensure that retention leases are handled properly when retrying a recovery
+        final Semaphore recoveriesToDisrupt = new Semaphore(randomIntBetween(0, 4));
+        final MockTransportService transportService
+            = (MockTransportService) internalCluster().getInstance(TransportService.class, primaryShardNodeName);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE) && recoveriesToDisrupt.tryAcquire()) {
+                throw new ElasticsearchException("failing recovery for test");
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
 
         // now allow the replicas to be allocated and wait for recovery to finalize
         allowNodes("index", 1 + numberOfReplicas);

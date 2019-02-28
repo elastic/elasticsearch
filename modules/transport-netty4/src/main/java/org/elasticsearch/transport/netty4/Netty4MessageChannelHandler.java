@@ -44,6 +44,8 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     private final ConcurrentLinkedQueue<WriteOperation> queuedWrites = new ConcurrentLinkedQueue<>();
 
+    private volatile ChannelHandlerContext ctx;
+
     private WriteOperation currentWrite;
 
     Netty4MessageChannelHandler(Netty4Transport transport) {
@@ -107,6 +109,33 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         super.channelInactive(ctx);
     }
 
+    private void resumeFlush() {
+        final ChannelHandlerContext context = this.ctx;
+        if (context == null) {
+            return;
+        }
+        if (context.executor().inEventLoop()) {
+            try {
+                doFlush(context);
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToRuntime(e);
+            }
+        } else {
+            context.executor().execute(() -> {
+                try {
+                    doFlush(context);
+                } catch (Exception e) {
+                    throw ExceptionsHelper.convertToRuntime(e);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void handlerAdded(ChannelHandlerContext ctx) {
+        this.ctx = ctx;
+    }
+
     private void doFlush(ChannelHandlerContext ctx) {
         final Channel channel = ctx.channel();
         if (channel.isActive() == false) {
@@ -141,7 +170,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 writeFuture.addListener((ChannelFutureListener) future -> {
                     if (future.isSuccess()) {
                         write.promise.trySuccess();
-                        doFlush(ctx);
+                        resumeFlush();
                     } else {
                         write.promise.tryFailure(future.cause());
                     }
@@ -151,7 +180,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                     if (f.isSuccess() == false) {
                         write.promise.tryFailure(f.cause());
                     } else {
-                        doFlush(ctx);
+                        resumeFlush();
                     }
                 });
             }

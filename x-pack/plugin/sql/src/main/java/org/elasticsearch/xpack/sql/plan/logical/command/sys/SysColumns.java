@@ -97,7 +97,7 @@ public class SysColumns extends Command {
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         Mode mode = session.configuration().mode();
-        List<Attribute> output = output(isOdbcClient(mode));
+        List<Attribute> output = output(mode == Mode.ODBC);
         String cluster = session.indexResolver().clusterName();
 
         // bail-out early if the catalog is present but differs
@@ -124,7 +124,7 @@ public class SysColumns extends Command {
     static void fillInRows(String clusterName, String indexName, Map<String, EsField> mapping, String prefix, List<List<?>> rows,
             Pattern columnMatcher, Mode mode) {
         int pos = 0;
-        boolean isOdbcClient = isOdbcClient(mode);
+        boolean isOdbcClient = mode == Mode.ODBC;
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             pos++; // JDBC is 1-based so we start with 1 here
 
@@ -184,10 +184,6 @@ public class SysColumns extends Command {
             return Short.valueOf(value.shortValue());
         }
         return value;
-    }
-    
-    private static boolean isOdbcClient(Mode mode) {
-        return mode == Mode.ODBC;
     }
 
     @Override

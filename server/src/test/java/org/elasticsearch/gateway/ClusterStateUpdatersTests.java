@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -241,11 +242,36 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                 .build();
         assertFalse(initialState.routingTable().hasIndex(index));
 
-        final ClusterState newState = updateRoutingTable(initialState);
-
-        assertTrue(newState.routingTable().hasIndex(index));
-        assertThat(newState.routingTable().version(), is(0L));
-        assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
+        {
+            final ClusterState newState = updateRoutingTable(initialState);
+            assertTrue(newState.routingTable().hasIndex(index));
+            assertThat(newState.routingTable().version(), is(0L));
+            assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
+        }
+        {
+            final ClusterState newState = updateRoutingTable(ClusterState.builder(initialState)
+                .metaData(MetaData.builder(initialState.metaData())
+                    .put(IndexMetaData.builder(initialState.metaData().index("test"))
+                        .state(IndexMetaData.State.CLOSE))
+                    .build())
+                .build());
+            assertFalse(newState.routingTable().hasIndex(index));
+        }
+        {
+            final ClusterState newState = updateRoutingTable(ClusterState.builder(initialState)
+                .metaData(MetaData.builder(initialState.metaData())
+                    .put(IndexMetaData.builder(initialState.metaData().index("test"))
+                        .state(IndexMetaData.State.CLOSE)
+                        .settings(Settings.builder()
+                            .put(initialState.metaData().index("test").getSettings())
+                            .put(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)
+                            .build())
+                    ).build())
+                .build());
+            assertTrue(newState.routingTable().hasIndex(index));
+            assertThat(newState.routingTable().version(), is(0L));
+            assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
+        }
     }
 
     public void testMixCurrentAndRecoveredState() {

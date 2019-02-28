@@ -144,7 +144,8 @@ DELETE /_security/oauth2/token
   "realm_name" : "saml1"
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
+// TEST
 
 The following example invalidates all access tokens and refresh tokens for the
 user `myuser` in all realms immediately:
@@ -156,7 +157,7 @@ DELETE /_security/oauth2/token
   "username" : "myuser"
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
 
 Finally, the following example invalidates all access tokens and refresh tokens
 for the user `myuser` in the `saml1` realm immediately:
@@ -169,7 +170,7 @@ DELETE /_security/oauth2/token
   "realm_name" : "saml1"
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
 
 A successful call returns a JSON structure that contains the number of tokens
 that were invalidated, the number of tokens that had already been invalidated,

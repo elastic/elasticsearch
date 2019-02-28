@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.action;
+package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -14,8 +14,8 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfig;
-import org.elasticsearch.xpack.dataframe.transforms.QueryConfigTests;
-import org.elasticsearch.xpack.dataframe.transforms.pivot.PivotConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transform.QueryConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transform.pivot.PivotConfigTests;
 import org.junit.Before;
 
 import java.io.IOException;

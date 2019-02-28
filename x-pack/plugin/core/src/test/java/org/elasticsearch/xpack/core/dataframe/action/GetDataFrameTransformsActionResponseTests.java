@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.action;
+package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.watch.Payload.XContent;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfig;
-import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfigTests;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -10,7 +10,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfig;
-import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfigTests;
 import org.junit.Before;
 
 public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTestCase {

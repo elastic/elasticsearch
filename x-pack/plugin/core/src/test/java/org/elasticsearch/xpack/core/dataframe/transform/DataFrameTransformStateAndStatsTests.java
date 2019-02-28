@@ -4,14 +4,10 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.action;
+package org.elasticsearch.xpack.core.dataframe.transform;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStatsTests;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformStateAndStats;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformStateTests;
-import org.elasticsearch.xpack.dataframe.transforms.AbstractSerializingDataFrameTestCase;
 
 import java.io.IOException;
 

@@ -216,7 +216,7 @@ class ClusterFormationTasks {
         }
         if (unreleasedInfo != null) {
             dependency = project.dependencies.project(
-                    path: unreleasedInfo.gradleProjectName, configuration: snapshotProject
+                    path: unreleasedInfo.gradleProjectPath, configuration: snapshotProject
             )
         } else if (internalBuild && elasticsearchVersion.equals(VersionProperties.elasticsearch)) {
             dependency = project.dependencies.project(path: ":distribution:archives:${snapshotProject}")

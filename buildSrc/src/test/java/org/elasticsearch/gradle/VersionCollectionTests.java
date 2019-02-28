@@ -307,28 +307,28 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         );
     }
 
-    public void testGetGradleProjectName() {
-        assertUnreleasedGradleProjectNames(
+    public void testGetGradleProjectPath() {
+        assertUnreleasedGradleProjectPaths(
             asList(":distribution:bwc:bugfix", ":distribution:bwc:minor"),
             getVersionCollection("7.0.0-alpha1")
         );
-        assertUnreleasedGradleProjectNames(
+        assertUnreleasedGradleProjectPaths(
             asList(":distribution:bwc:maintenance", ":distribution:bwc:bugfix"),
             getVersionCollection("6.5.0")
         );
-        assertUnreleasedGradleProjectNames(
+        assertUnreleasedGradleProjectPaths(
             singletonList(":distribution:bwc:maintenance"),
             getVersionCollection("6.4.2")
         );
-        assertUnreleasedGradleProjectNames(
+        assertUnreleasedGradleProjectPaths(
             asList(":distribution:bwc:maintenance", ":distribution:bwc:bugfix", ":distribution:bwc:minor"),
             getVersionCollection("6.6.0")
         );
-        assertUnreleasedGradleProjectNames(
+        assertUnreleasedGradleProjectPaths(
             asList(":distribution:bwc:bugfix", ":distribution:bwc:staged", ":distribution:bwc:minor"),
             getVersionCollection("8.0.0")
         );
-        assertUnreleasedGradleProjectNames(
+        assertUnreleasedGradleProjectPaths(
             asList(":distribution:bwc:staged", ":distribution:bwc:minor"),
             getVersionCollection("7.1.0")
         );
@@ -382,10 +382,10 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         vc.compareToAuthoritative(authoritativeReleasedVersions);
     }
 
-    private void assertUnreleasedGradleProjectNames(List<String> expectedNAmes, VersionCollection versionCollection) {
+    private void assertUnreleasedGradleProjectPaths(List<String> expectedNAmes, VersionCollection versionCollection) {
         List<String> actualNames = new ArrayList<>();
         versionCollection.forPreviousUnreleased(unreleasedVersion ->
-            actualNames.add(unreleasedVersion.gradleProjectName)
+            actualNames.add(unreleasedVersion.gradleProjectPath)
         );
         assertEquals(expectedNAmes, actualNames);
     }

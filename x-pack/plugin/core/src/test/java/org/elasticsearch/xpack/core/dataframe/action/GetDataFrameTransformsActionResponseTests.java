@@ -14,8 +14,8 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.watch.Payload.XContent;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction.Response;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
 
 import java.io.IOException;
 import java.util.ArrayList;

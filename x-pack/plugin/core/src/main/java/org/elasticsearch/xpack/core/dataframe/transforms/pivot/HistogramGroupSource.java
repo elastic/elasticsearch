@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.dataframe.transform.pivot;
+package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,7 +44,7 @@ public class HistogramGroupSource extends SingleGroupSource<HistogramGroupSource
             double interval = (double) args[1];
             return new HistogramGroupSource(field, interval);
         });
-        SingleGroupSource.declareValuesSourceFields(parser, null);
+        declareValuesSourceFields(parser, null);
         parser.declareDouble(optionalConstructorArg(), INTERVAL);
         return parser;
     }

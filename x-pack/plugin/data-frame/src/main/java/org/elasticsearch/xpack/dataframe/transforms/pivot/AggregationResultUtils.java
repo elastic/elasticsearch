@@ -13,8 +13,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transform.pivot.GroupConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
 
 import java.util.Collection;
 import java.util.HashMap;

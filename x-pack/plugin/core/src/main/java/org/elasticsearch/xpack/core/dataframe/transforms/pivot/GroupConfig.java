@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.dataframe.transform.pivot;
+package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.transform.pivot.SingleGroupSource.Type;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -51,7 +50,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
     public GroupConfig(StreamInput in) throws IOException {
         source = in.readMap();
         groups = in.readMap(StreamInput::readString, (stream) -> {
-            Type groupType = Type.fromId(stream.readByte());
+            SingleGroupSource.Type groupType = SingleGroupSource.Type.fromId(stream.readByte());
             switch (groupType) {
             case TERMS:
                 return new TermsGroupSource(stream);
@@ -157,7 +156,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
             token = parser.nextToken();
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-            Type groupType = SingleGroupSource.Type.valueOf(parser.currentName().toUpperCase(Locale.ROOT));
+            SingleGroupSource.Type groupType = SingleGroupSource.Type.valueOf(parser.currentName().toUpperCase(Locale.ROOT));
 
             token = parser.nextToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);

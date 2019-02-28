@@ -13,9 +13,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction.Request;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transform.QueryConfigTests;
-import org.elasticsearch.xpack.core.dataframe.transform.pivot.PivotConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.QueryConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
 
 import java.io.IOException;

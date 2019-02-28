@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.dataframe.transform.pivot;
+package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.dataframe.transform.pivot.SingleGroupSource.Type;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.SingleGroupSource.Type;
 
 import java.io.IOException;
 import java.util.Collections;

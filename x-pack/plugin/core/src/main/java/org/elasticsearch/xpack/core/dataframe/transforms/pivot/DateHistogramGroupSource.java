@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.dataframe.transform.pivot;
+package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -51,7 +51,7 @@ public class DateHistogramGroupSource extends SingleGroupSource<DateHistogramGro
             return new DateHistogramGroupSource(field);
         });
 
-        SingleGroupSource.declareValuesSourceFields(parser, null);
+        declareValuesSourceFields(parser, null);
 
         parser.declareField((histogram, interval) -> {
             if (interval instanceof Long) {

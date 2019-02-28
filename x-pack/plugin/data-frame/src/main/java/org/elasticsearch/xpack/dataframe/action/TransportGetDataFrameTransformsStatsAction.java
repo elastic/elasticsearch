@@ -24,7 +24,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Request;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.dataframe.persistence.DataFramePersistentTaskUtils;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 

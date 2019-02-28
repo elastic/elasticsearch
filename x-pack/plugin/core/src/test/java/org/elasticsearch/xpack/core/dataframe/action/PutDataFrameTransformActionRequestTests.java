@@ -13,8 +13,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction.Request;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
 import org.junit.Before;
 
 import java.io.IOException;

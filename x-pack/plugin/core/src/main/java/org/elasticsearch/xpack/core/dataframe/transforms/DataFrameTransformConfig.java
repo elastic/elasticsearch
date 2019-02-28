@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.dataframe.transform;
+package org.elasticsearch.xpack.core.dataframe.transforms;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
@@ -20,7 +20,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.transform.pivot.PivotConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;

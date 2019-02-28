@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.dataframe.transform.pivot;
+package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -19,9 +19,8 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.xpack.core.dataframe.transform.pivot.AggregationConfig;
-import org.elasticsearch.xpack.core.dataframe.transform.AbstractSerializingDataFrameTestCase;
-import org.elasticsearch.xpack.core.dataframe.transform.MockDeprecatedAggregationBuilder;
+import org.elasticsearch.xpack.core.dataframe.transforms.AbstractSerializingDataFrameTestCase;
+import org.elasticsearch.xpack.core.dataframe.transforms.MockDeprecatedAggregationBuilder;
 import org.junit.Before;
 
 import java.io.IOException;

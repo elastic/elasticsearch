@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.persistence.DataframeIndex;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransform;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.util.Map;

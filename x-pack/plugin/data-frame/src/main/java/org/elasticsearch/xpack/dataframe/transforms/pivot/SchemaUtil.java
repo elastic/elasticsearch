@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.xpack.core.dataframe.transform.pivot.PivotConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsActio
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction.Response;
 import org.elasticsearch.xpack.dataframe.persistence.DataFramePersistentTaskUtils;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
 import java.util.Collections;

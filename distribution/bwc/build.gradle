@@ -207,6 +207,9 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
             } else if (showStacktraceName.equals("ALWAYS_FULL")) {
                 args "--full-stacktrace"
             }
+            if (gradle.getStartParameter().isParallelProjectExecutionEnabled()) {
+                args "--parallel"
+            }
             standardOutput = new IndentingOutputStream(System.out, bwcVersion)
             errorOutput = new IndentingOutputStream(System.err, bwcVersion)
             configure extraConfig

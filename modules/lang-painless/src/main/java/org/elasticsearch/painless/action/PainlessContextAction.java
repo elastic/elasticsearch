@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
@@ -68,7 +69,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class PainlessContextAction extends Action<PainlessContextAction.Response> {
 
-    static final PainlessContextAction INSTANCE = new PainlessContextAction();
+    public static final PainlessContextAction INSTANCE = new PainlessContextAction();
     private static final String NAME = "cluster:admin/scripts/painless/context";
 
     private static final String SCRIPT_CONTEXT_NAME_PARAM = "context";
@@ -305,9 +306,9 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
         }
     }
 
-    static class RestAction extends BaseRestHandler {
+    public static class RestAction extends BaseRestHandler {
 
-        RestAction(Settings settings, RestController controller) {
+        public RestAction(Settings settings, RestController controller) {
             super(settings);
             controller.registerHandler(GET, "/_scripts/painless/_context", this);
         }

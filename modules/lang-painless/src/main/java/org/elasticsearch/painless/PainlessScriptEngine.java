@@ -107,7 +107,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         this.contextsToLookups = Collections.unmodifiableMap(contextsToLookups);
     }
 
-    Map<ScriptContext<?>, PainlessLookup> getContextsToLookups() {
+    public Map<ScriptContext<?>, PainlessLookup> getContextsToLookups() {
         return contextsToLookups;
     }
 

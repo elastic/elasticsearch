@@ -31,8 +31,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndicesService;
 
 import java.util.Map;
 

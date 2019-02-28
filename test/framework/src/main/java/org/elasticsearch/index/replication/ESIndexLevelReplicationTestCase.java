@@ -194,7 +194,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 sync(shardId, retentionLeases, ActionListener.wrap(
                     r -> { },
                     e -> {
-                        throw new AssertionError("failed to backgroun sync retention lease", e);
+                        throw new AssertionError("failed to background sync retention lease", e);
                     }));
             }
         };
@@ -538,9 +538,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
             RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(shardId, leases);
-            ActionListener<RetentionLeaseSyncAction.Response> wrappedListener = ActionListener.wrap(
-                r -> listener.onResponse(new ReplicationResponse()), listener::onFailure);
-            new SyncRetentionLeases(request, ReplicationGroup.this, wrappedListener).execute();
+            ActionListener<RetentionLeaseSyncAction.Response> wrappedListener =
+                ActionListener.map(listener, (listen, r) -> listen.onResponse(new ReplicationResponse()));
+            new SyncRetentionLeases(request, this, wrappedListener).execute();
         }
 
         public synchronized RetentionLease addRetentionLease(String id, long retainingSequenceNumber, String source,
@@ -615,7 +615,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public void execute() {
             try {
                 new ReplicationOperation<>(request, new PrimaryRef(),
-                    ActionListener.wrap(result -> result.respond(listener), listener::onFailure), new ReplicasRef(), logger, opType
+                    ActionListener.map(listener, (listen, result) -> result.respond(listen)), new ReplicasRef(), logger, opType
                 ).execute();
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -763,17 +763,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         @Override
         protected void performOnPrimary(IndexShard primary, BulkShardRequest request, ActionListener<PrimaryResult> listener) {
             executeShardBulkOnPrimary(
-                primary, request, new ActionListener<TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>>() {
-                    @Override
-                    public void onResponse(TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result) {
-                        listener.onResponse(new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
+                primary, request, ActionListener.map(listener,
+                    (listen, result) -> listen.onResponse(new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful))));
         }
 
         @Override

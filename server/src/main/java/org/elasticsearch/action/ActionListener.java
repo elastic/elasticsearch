@@ -83,6 +83,10 @@ public interface ActionListener<Response> {
         return wrap(r -> runnable.run(), e -> runnable.run());
     }
 
+    static <T, R> ActionListener<R> map(ActionListener<T> listener, BiConsumer<ActionListener<T>, R> mapping) {
+        return wrap(r -> mapping.accept(listener, r), listener::onFailure);
+    }
+
     /**
      * Converts a listener to a {@link BiConsumer} for compatibility with the {@link java.util.concurrent.CompletableFuture}
      * api.

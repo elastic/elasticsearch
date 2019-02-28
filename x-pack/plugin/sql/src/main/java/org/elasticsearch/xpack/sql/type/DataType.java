@@ -214,6 +214,10 @@ public enum DataType {
     public boolean isPrimitive() {
         return this != OBJECT && this != NESTED;
     }
+
+    public boolean isDateBased() {
+        return this == DATE;
+    }
     
     public static DataType fromOdbcType(String odbcType) {
         return odbcToEs.get(odbcType);

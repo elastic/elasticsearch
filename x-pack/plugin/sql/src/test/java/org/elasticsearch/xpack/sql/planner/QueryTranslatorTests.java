@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
-import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
@@ -106,16 +105,6 @@ public class QueryTranslatorTests extends ESTestCase {
         TermQuery tq = (TermQuery) query;
         assertEquals("some.string.typical", tq.term());
         assertEquals("value", tq.value());
-    }
-
-    public void testTermEqualityAnalyzerAmbiguous() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE some.ambiguous = 'value'");
-        assertTrue(p instanceof Project);
-        p = ((Project) p).child();
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        // the message is checked elsewhere (in FieldAttributeTests)
-        expectThrows(MappingException.class, () -> QueryTranslator.toQuery(condition, false));
     }
 
     public void testTermEqualityNotAnalyzed() {

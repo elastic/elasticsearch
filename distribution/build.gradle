@@ -26,6 +26,8 @@ import org.apache.tools.ant.filters.FixCrLfFilter
 
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 /*****************************************************************************
  *                  Third party dependencies report                          *
@@ -214,10 +216,17 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
 /*****************************************************************************
  *                                    JDKs                                   *
  *****************************************************************************/
-List<String> bundledJdkVersion = VersionProperties.bundledJdk
-String jdkVersion = "${bundledJdkVersion[0..2].join('.')}"
-String jdkMajor = bundledJdkVersion[0]
-String jdkBuild = bundledJdkVersion[3]
+// extract the bundled jdk version, broken into elements as: [feature, interim, update, build]
+// Note the "patch" version is not yet handled here, as it has not yet been used by java.
+Pattern JDK_VERSION = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)\\+(\\d+)")
+Matcher jdkVersionMatcher = JDK_VERSION.matcher(VersionProperties.bundledJdk)
+if (jdkVersionMatcher.matches() == false) {
+  throw new IllegalArgumentException("Malformed jdk version [" + VersionProperties.bundledJdk + "]")
+}
+String jdkVersion = jdkVersionMatcher.group(1) + '.' + jdkVersionMatcher.group(2) + '.' + jdkVersionMatcher.group(3)
+String jdkMajor = jdkVersionMatcher.group(1)
+String jdkBuild = jdkVersionMatcher.group(4)
+
 repositories {
   ivy {
     url "https://download.java.net"

@@ -167,6 +167,9 @@ public abstract class SourceGenerator {
             // disable source fetching (only doc values are used)
             disableSource(builder);
         }
+        if (query.shouldTrackHits()) {
+            builder.trackTotalHits(true);
+        }
     }
 
     private static void disableSource(SearchSourceBuilder builder) {

@@ -27,6 +27,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.transport.DualStackCoordinator;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
@@ -51,6 +52,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     private final SSLService sslService;
     private final SSLConfiguration sslConfiguration;
+    private final DualStackCoordinator coordinator;
     private final Map<String, SSLConfiguration> profileConfiguration;
     private final boolean sslEnabled;
 
@@ -62,10 +64,12 @@ public class SecurityNetty4Transport extends Netty4Transport {
             final PageCacheRecycler pageCacheRecycler,
             final NamedWriteableRegistry namedWriteableRegistry,
             final CircuitBreakerService circuitBreakerService,
-            final SSLService sslService) {
+            final SSLService sslService,
+            final DualStackCoordinator coordinator) {
         super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
+        this.coordinator = coordinator;
         if (sslEnabled) {
             this.sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
             Map<String, SSLConfiguration> profileConfiguration = ProfileConfigurations.get(settings, sslService, sslConfiguration);
@@ -147,8 +151,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
         protected void initChannel(Channel ch) throws Exception {
             SSLEngine serverEngine = sslService.createSSLEngine(configuration, null, -1);
             serverEngine.setUseClientMode(false);
-            final SslHandler sslHandler = new SslHandler(serverEngine);
-            ch.pipeline().addFirst("sslhandler", sslHandler);
+            final DualStackHandler sslHandler = new DualStackHandler(serverEngine, coordinator);
+            ch.pipeline().addFirst(DualStackHandler.HANDLER_NAME, sslHandler);
             super.initChannel(ch);
             assert ch.pipeline().first() == sslHandler : "SSL handler must be first handler in pipeline";
         }

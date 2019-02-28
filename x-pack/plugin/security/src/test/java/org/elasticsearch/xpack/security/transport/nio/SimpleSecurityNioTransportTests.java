@@ -19,7 +19,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTransportTestCase;
 
@@ -57,13 +56,11 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleSecurityTrans
 
     @Override
     protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
-        if (TransportSettings.PORT.exists(settings) == false) {
-            settings = Settings.builder().put(settings)
-                .put(TransportSettings.PORT.getKey(), "0")
-                .build();
-        }
-        MockTransportService transportService = nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
-        transportService.start();
-        return transportService;
+        return nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
+    }
+
+    @Override
+    public void testDualTLSStackSupport() throws Exception {
+        // Do not currently support dual stack for security nio transport
     }
 }

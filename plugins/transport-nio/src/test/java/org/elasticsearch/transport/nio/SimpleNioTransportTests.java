@@ -77,12 +77,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
     protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
-        settings = Settings.builder().put(settings)
-            .put(TransportSettings.PORT.getKey(), "0")
-            .build();
-        MockTransportService transportService = nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
-        transportService.start();
-        return transportService;
+        return nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
     }
 
     public void testConnectException() throws UnknownHostException {

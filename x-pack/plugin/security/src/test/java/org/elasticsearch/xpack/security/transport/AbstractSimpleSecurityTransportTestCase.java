@@ -9,13 +9,17 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
@@ -28,6 +32,7 @@ import org.elasticsearch.transport.TestProfiles;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.nio.MockNioTransport;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
@@ -311,6 +316,33 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
                 assertThat(connectException.getMessage(), containsString("invalid DiscoveryNode server_name [invalid_hostname]"));
             }
+        }
+    }
+
+    public void testDualTLSStackSupport() throws Exception {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        Version expectedVersion = serviceA.getLocalNode().getVersion();
+
+        MockNioTransport plaintextTransport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
+            new NetworkService(Collections.emptyList()), new MockPageCacheRecycler(Settings.EMPTY), namedWriteableRegistry,
+            new NoneCircuitBreakerService());
+
+        clusterSettingsA.applySettings(Settings.builder().put(XPackSettings.DUAL_STACK_ENABLED.getKey(), true).build());
+        try (MockTransportService plainTextService = MockTransportService.createNewService(Settings.EMPTY, plaintextTransport,
+            expectedVersion, threadPool, null, Collections.emptySet())) {
+            plainTextService.start();
+            plainTextService.acceptIncomingRequests();
+
+            try (Transport.Connection connection = plainTextService.openConnection(serviceA.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
+                // Would throw if failed
+
+                assertFalse(connection.isClosed());
+                clusterSettingsA.applySettings(Settings.builder().put(XPackSettings.DUAL_STACK_ENABLED.getKey(), false).build());
+                assertBusy(()-> assertTrue(connection.isClosed()));
+
+            }
+        } finally {
+            clusterSettingsA.applySettings(Settings.builder().put(XPackSettings.DUAL_STACK_ENABLED.getKey(), false).build());
         }
     }
 

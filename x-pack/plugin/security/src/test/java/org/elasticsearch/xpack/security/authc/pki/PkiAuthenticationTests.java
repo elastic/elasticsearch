@@ -21,6 +21,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
-
 import java.net.InetSocketAddress;
 import java.security.SecureRandom;
 import java.util.Arrays;
@@ -114,6 +114,21 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
         }
     }
 
+    public void testTransportClientAuthenticationFailureWhenPlaintext() {
+        Settings dualStackEnabled = Settings.builder().put(XPackSettings.DUAL_STACK_ENABLED.getKey(), true).build();
+        Settings dualStackDisabled = Settings.builder().put(XPackSettings.DUAL_STACK_ENABLED.getKey(), (String) null).build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(dualStackEnabled).get();
+        try (TransportClient client = createTransportClient(Settings.EMPTY, false)) {
+            client.addTransportAddress(randomFrom(node().injector().getInstance(Transport.class).boundAddress().boundAddresses()));
+            client.admin().cluster().prepareNodesInfo().all().get();
+            fail("transport client should not have been able to authenticate");
+        } catch (NoNodeAvailableException e) {
+            assertThat(e.getMessage(), containsString("None of the configured nodes are available: [{#transport#"));
+        } finally {
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(dualStackDisabled).get();
+        }
+    }
+
     public void testRestAuthenticationViaPki() throws Exception {
         SSLContext context = getRestSSLContext("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
             "testnode",
@@ -155,16 +170,22 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
     }
 
     private TransportClient createTransportClient(Settings additionalSettings) {
+        return createTransportClient(additionalSettings, true);
+    }
+
+    private TransportClient createTransportClient(Settings additionalSettings, boolean sslEnabled) {
         Settings clientSettings = transportClientSettings();
         if (additionalSettings.getByPrefix("xpack.security.transport.ssl.").isEmpty() == false) {
             clientSettings = clientSettings.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false);
         }
 
         Settings.Builder builder = Settings.builder()
-            .put("xpack.security.transport.ssl.enabled", true)
-            .put(clientSettings, false)
+            .put("xpack.security.transport.ssl.enabled", sslEnabled)
             .put(additionalSettings)
             .put("cluster.name", node().settings().get("cluster.name"));
+        if (sslEnabled) {
+            builder.put(clientSettings, false);
+        }
         builder.remove(SecurityField.USER_SETTING.getKey());
         builder.remove("request.headers.Authorization");
         return new TestXPackTransportClient(builder.build(), LocalStateSecurity.class);

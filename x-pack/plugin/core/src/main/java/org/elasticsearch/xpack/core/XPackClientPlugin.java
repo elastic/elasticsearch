@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -167,6 +168,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.transport.DualStackCoordinator;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -187,6 +189,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -493,8 +496,10 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(XPackSettings.getAllSettings()));
+        DualStackCoordinator coordinator = new DualStackCoordinator(clusterSettings);
         return Collections.singletonMap(SecurityField.NAME4, () -> new SecurityNetty4Transport(settings, Version.CURRENT, threadPool,
-                networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, sslService));
+                networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, sslService, coordinator));
     }
 
 }

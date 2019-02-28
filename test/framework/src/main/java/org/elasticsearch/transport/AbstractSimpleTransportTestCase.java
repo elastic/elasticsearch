@@ -174,14 +174,18 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     private MockTransportService buildService(final String name, final Version version, @Nullable ClusterSettings clusterSettings,
                                               Settings settings, boolean acceptRequests, boolean doHandshake) {
-        Settings updatedSettings = Settings.builder()
+        Settings.Builder settingsBuilder = Settings.builder()
             .put(settings)
-            .put(Node.NODE_NAME_SETTING.getKey(), name)
-            .build();
+            .put(Node.NODE_NAME_SETTING.getKey(), name);
+        if (TransportSettings.PORT.exists(settings) == false) {
+            settingsBuilder.put(TransportSettings.PORT.getKey(), "0");
+        }
+        Settings updatedSettings = settingsBuilder.build();
         if (clusterSettings == null) {
             clusterSettings = new ClusterSettings(updatedSettings, getSupportedSettings());
         }
         MockTransportService service = build(updatedSettings, version, clusterSettings, doHandshake);
+        service.start();
         if (acceptRequests) {
             service.acceptIncomingRequests();
         }

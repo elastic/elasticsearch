@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
 
 /**
@@ -94,6 +95,9 @@ public class XPackSettings {
     /** Setting for enabling or disabling TLS. Defaults to false. */
     public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = Setting.boolSetting("xpack.security.transport.ssl.enabled", false,
             Property.NodeScope);
+
+    public static final Setting<Boolean> DUAL_STACK_ENABLED =
+        boolSetting("xpack.security.transport.ssl.dual_stack.enabled", false, Property.NodeScope, Property.Dynamic);
 
     /** Setting for enabling or disabling http ssl. Defaults to false. */
     public static final Setting<Boolean> HTTP_SSL_ENABLED = Setting.boolSetting("xpack.security.http.ssl.enabled", false,
@@ -204,6 +208,7 @@ public class XPackSettings {
         settings.add(DLS_FLS_ENABLED);
         settings.add(LOGSTASH_ENABLED);
         settings.add(TRANSPORT_SSL_ENABLED);
+        settings.add(DUAL_STACK_ENABLED);
         settings.add(HTTP_SSL_ENABLED);
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);

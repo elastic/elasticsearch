@@ -74,10 +74,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
 
     @Override
     protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
-        settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), "0").build();
-        MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
-        transportService.start();
-        return transportService;
+        return nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
     }
 
     public void testConnectException() throws UnknownHostException {

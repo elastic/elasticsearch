@@ -84,13 +84,7 @@ GET /_ssl/certificates
 // TEST
 
 The API returns the following results:
-////
-[source,js]
-----
-[ ]
-----
-// TESTRESPONSE
-////
+
 [source,js]
 ----
 [

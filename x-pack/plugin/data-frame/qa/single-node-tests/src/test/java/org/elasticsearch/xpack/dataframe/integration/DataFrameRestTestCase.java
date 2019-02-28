@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -143,6 +144,28 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         assertTrue(indexExists(dataFrameIndex));
     }
 
+    protected void startAndWaitForTransform(String transformId, String dataFrameIndex) throws IOException, Exception {
+        // start the transform
+        final Request startTransformRequest = new Request("POST", DATAFRAME_ENDPOINT + transformId + "/_start");
+        Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
+        assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
+
+        // wait until the dataframe has been created and all data is available
+        waitForDataFrameGeneration(transformId);
+        refreshIndex(dataFrameIndex);
+    }
+
+    void waitForDataFrameGeneration(String transformId) throws Exception {
+        assertBusy(() -> {
+            long generation = getDataFrameGeneration(transformId);
+            assertEquals(1, generation);
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    void refreshIndex(String index) throws IOException {
+        assertOK(client().performRequest(new Request("POST", index + "/_refresh")));
+    }
+
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> getDataFrameTransforms() throws IOException {
         Response response = adminClient().performRequest(new Request("GET", DATAFRAME_ENDPOINT + "_all"));
@@ -220,5 +243,12 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                 throw e;
             }
         }
+    }
+
+    static int getDataFrameGeneration(String transformId) throws IOException {
+        Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + transformId + "/_stats"));
+
+        Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
+        return (int) XContentMapValues.extractValue("state.generation", transformStatsAsMap);
     }
 }

@@ -62,7 +62,16 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     private static ConstructingObjectParser<DataFrameTransformConfig, String> createParser(boolean lenient) {
         ConstructingObjectParser<DataFrameTransformConfig, String> parser = new ConstructingObjectParser<>(NAME, lenient,
                 (args, optionalId) -> {
-                    String id = args[0] != null ? (String) args[0] : optionalId;
+                    String id = (String) args[0];
+
+                    // if the id has been specified in the body and the path, they must match
+                    if (id == null) {
+                        id = optionalId;
+                    } else if (optionalId != null && id.equals(optionalId) == false) {
+                        throw new IllegalArgumentException(
+                                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_INCONSISTENT_ID, id, optionalId));
+                    }
+
                     String source = (String) args[1];
                     String dest = (String) args[2];
 

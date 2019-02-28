@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.dataframe.integration;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
 
@@ -17,7 +16,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -253,35 +251,6 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             Set<String> keys = p.keySet();
             assertThat(keys, equalTo(expectedFields));
         });
-    }
-
-    private void startAndWaitForTransform(String transformId, String dataFrameIndex) throws IOException, Exception {
-        // start the transform
-        final Request startTransformRequest = new Request("POST", DATAFRAME_ENDPOINT + transformId + "/_start");
-        Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
-        assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
-
-        // wait until the dataframe has been created and all data is available
-        waitForDataFrameGeneration(transformId);
-        refreshIndex(dataFrameIndex);
-    }
-
-    private void waitForDataFrameGeneration(String transformId) throws Exception {
-        assertBusy(() -> {
-            long generation = getDataFrameGeneration(transformId);
-            assertEquals(1, generation);
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    private static int getDataFrameGeneration(String transformId) throws IOException {
-        Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + transformId + "/_stats"));
-
-        Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
-        return (int) XContentMapValues.extractValue("state.generation", transformStatsAsMap);
-    }
-
-    private void refreshIndex(String index) throws IOException {
-        assertOK(client().performRequest(new Request("POST", index + "/_refresh")));
     }
 
     private void assertOnePivotValue(String query, double expected) throws IOException {

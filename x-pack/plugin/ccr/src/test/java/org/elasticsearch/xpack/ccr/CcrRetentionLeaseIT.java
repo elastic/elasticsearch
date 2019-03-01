@@ -311,6 +311,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         waitForAFewRenewalIntervals(start);
 
         // now ensure that the retention leases are the same
+        getLeaderCluster().syncRetentionLeases(resolveLeaderIndex(leaderIndex));
         {
             final IndicesStatsResponse stats =
                     leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();

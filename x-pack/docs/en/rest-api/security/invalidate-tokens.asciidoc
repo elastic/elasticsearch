@@ -93,7 +93,7 @@ DELETE /_security/oauth2/token
 // TEST[continued]
 
 If you used the `password` grant type to obtain a token for a user, the response
-contains a refresh token. For example:
+might also contain a refresh token. For example:
 
 [source,js]
 --------------------------------------------------

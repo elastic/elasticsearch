@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.watcher;
 
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -57,7 +59,17 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
         assertTrue(createIndexResponse.isAcknowledged());
 
         stopWatcher();
-        client().admin().indices().prepareDelete(Watch.INDEX).get();
+        AtomicReference<String> watchesIndex = new AtomicReference<>(Watch.INDEX);
+        boolean watchesIsAlias = client().admin().indices().prepareAliasesExist(Watch.INDEX).get().isExists();
+        if (watchesIsAlias) {
+            GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases(Watch.INDEX).get();
+            assertEquals(1, aliasesResponse.getAliases().size());
+            aliasesResponse.getAliases().forEach((aliasRecord) -> {
+                assertEquals(1, aliasRecord.value.size());
+                watchesIndex.set(aliasRecord.key);
+            });
+        }
+        client().admin().indices().prepareDelete(watchesIndex.get()).get();
         client().admin().indices().prepareAliases().addAlias(newWatcherIndexName, Watch.INDEX).get();
         startWatcher();
 
@@ -74,6 +86,5 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
             SearchResponse searchResult = client().prepareSearch(watchResultsIndex).setTrackTotalHits(true).get();
             assertThat((int) searchResult.getHits().getTotalHits().value, greaterThan(0));
         });
-
     }
 }

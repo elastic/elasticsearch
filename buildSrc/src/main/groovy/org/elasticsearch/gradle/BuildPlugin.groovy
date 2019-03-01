@@ -144,9 +144,11 @@ class BuildPlugin implements Plugin<Project> {
                 compilerJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, compilerJavaHome))
             }
 
+            boolean isRuntimeJavaHomeSet = false
             String runtimeJavaVersionDetails = gradleJavaVersionDetails
             JavaVersion runtimeJavaVersionEnum = JavaVersion.current()
             if (new File(runtimeJavaHome).canonicalPath != gradleJavaHome.canonicalPath) {
+                isRuntimeJavaHomeSet = true
                 runtimeJavaVersionDetails = findJavaVersionDetails(project, runtimeJavaHome)
                 runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, runtimeJavaHome))
             }
@@ -215,6 +217,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.runtimeJavaVersion = runtimeJavaVersionEnum
             project.rootProject.ext.javaVersions = javaVersions
             project.rootProject.ext.buildChecksDone = true
+            project.rootProject.ext.isRuntimeJavaHomeSet = isRuntimeJavaHomeSet
             project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
             project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
             project.rootProject.ext.inFipsJvm = inFipsJvm

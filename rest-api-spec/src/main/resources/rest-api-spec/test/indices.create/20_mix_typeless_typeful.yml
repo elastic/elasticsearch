@@ -126,6 +126,11 @@
           type: _doc
           body: { bar: 42 }
 
+# This cluster health call guarantees that changes are visible to the get-mappings API
+ - do:
+      cluster.health:
+          wait_for_events: normal
+
  - do:
       indices.get_mapping:
           include_type_name: true

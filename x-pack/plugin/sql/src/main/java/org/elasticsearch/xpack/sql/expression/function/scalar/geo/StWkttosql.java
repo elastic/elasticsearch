@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isString;
+
 /**
  * Constructs geometric objects from their WTK representations
  */
@@ -34,7 +36,7 @@ public class StWkttosql extends UnaryScalarFunction {
         if (field().dataType().isString()) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return Expressions.typeMustBeString(field(), functionName(), Expressions.ParamOrdinal.DEFAULT);
+        return isString(field(), functionName(), Expressions.ParamOrdinal.DEFAULT);
     }
 
     @Override

@@ -22,7 +22,7 @@ import java.util.Date;
 import java.util.Objects;
 
 public class AuditMessage implements ToXContentObject, Writeable {
-    public static final ParseField TYPE = new ParseField("audit_message");
+    private static final ParseField TYPE = new ParseField("audit_message");
 
     public static final ParseField MESSAGE = new ParseField("message");
     public static final ParseField LEVEL = new ParseField("level");

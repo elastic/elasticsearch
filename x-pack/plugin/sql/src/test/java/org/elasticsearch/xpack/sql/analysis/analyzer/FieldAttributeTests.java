@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
-import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
@@ -113,9 +113,9 @@ public class FieldAttributeTests extends ESTestCase {
         assertThat(attr.path(), is("some"));
         assertThat(attr.name(), is("some.string"));
         assertThat(attr.dataType(), is(DataType.TEXT));
-        assertThat(attr.isInexact(), is(true));
+        assertTrue(attr.getExactInfo().hasExact());
         FieldAttribute exact = attr.exactAttribute();
-        assertThat(exact.isInexact(), is(false));
+        assertTrue(exact.getExactInfo().hasExact());
         assertThat(exact.name(), is("some.string.typical"));
         assertThat(exact.dataType(), is(KEYWORD));
     }
@@ -125,9 +125,11 @@ public class FieldAttributeTests extends ESTestCase {
         assertThat(attr.path(), is("some"));
         assertThat(attr.name(), is("some.ambiguous"));
         assertThat(attr.dataType(), is(DataType.TEXT));
-        assertThat(attr.isInexact(), is(true));
-        MappingException me = expectThrows(MappingException.class, () -> attr.exactAttribute());
-        assertThat(me.getMessage(),
+        assertFalse(attr.getExactInfo().hasExact());
+        assertThat(attr.getExactInfo().errorMsg(),
+            is("Multiple exact keyword candidates available for [ambiguous]; specify which one to use"));
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> attr.exactAttribute());
+        assertThat(e.getMessage(),
                 is("Multiple exact keyword candidates available for [ambiguous]; specify which one to use"));
     }
 
@@ -136,7 +138,7 @@ public class FieldAttributeTests extends ESTestCase {
         assertThat(attr.path(), is("some.string"));
         assertThat(attr.name(), is("some.string.normalized"));
         assertThat(attr.dataType(), is(KEYWORD));
-        assertThat(attr.isInexact(), is(true));
+        assertFalse(attr.getExactInfo().hasExact());
     }
 
     public void testDottedFieldPath() {

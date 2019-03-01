@@ -123,12 +123,6 @@ class S3Repository extends BlobStoreRepository {
             new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
 
     /**
-     * When set to true metadata files are stored in compressed format. This setting doesn’t affect index
-     * files that are already compressed by default. Defaults to false.
-     */
-    static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false);
-
-    /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
      * standard_ia. Defaults to standard.
      */
@@ -172,7 +166,7 @@ class S3Repository extends BlobStoreRepository {
                  final Settings settings,
                  final NamedXContentRegistry namedXContentRegistry,
                  final S3Service service) {
-        super(metadata, settings, COMPRESS_SETTING.get(metadata.settings()), namedXContentRegistry);
+        super(metadata, settings, namedXContentRegistry);
         this.service = service;
 
         this.repositoryMetaData = metadata;

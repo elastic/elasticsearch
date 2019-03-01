@@ -19,6 +19,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isGeo;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
@@ -40,8 +41,7 @@ public abstract class UnaryGeoFunction extends UnaryScalarFunction {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
-
-        return Expressions.typeMustBeGeo(field(), operation().toString(), Expressions.ParamOrdinal.DEFAULT);
+        return isGeo(field(), operation().toString(), Expressions.ParamOrdinal.DEFAULT);
     }
 
     @Override
@@ -55,7 +55,7 @@ public abstract class UnaryGeoFunction extends UnaryScalarFunction {
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         //TODO change this to use _source instead of the exact form (aka field.keyword for geo shape fields)
         return new ScriptTemplate(processScript("doc[{}].value"),
-            paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
             dataType());
     }
 

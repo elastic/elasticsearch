@@ -39,8 +39,8 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
         String watchResultsIndex = randomAlphaOfLength(11).toLowerCase(Locale.ROOT);
         createIndex(watchResultsIndex);
 
-        GetIndexResponse index = client().admin().indices().prepareGetIndex().setIndices(".watches").get();
-        MappingMetaData mapping = index.getMappings().get(index.getIndices()[0]).get("doc");
+        GetIndexResponse index = client().admin().indices().prepareGetIndex().setIndices(Watch.INDEX).get();
+        MappingMetaData mapping = index.getMappings().get(index.getIndices()[0]).get(Watch.DOC_TYPE);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
         Settings.Builder newSettings = Settings.builder().put(settings);
@@ -52,7 +52,7 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
         newSettings.remove("index.version.created");
 
         CreateIndexResponse createIndexResponse = client().admin().indices().prepareCreate(newWatcherIndexName)
-            .addMapping("doc", mapping.sourceAsMap())
+            .addMapping(Watch.DOC_TYPE, mapping.sourceAsMap())
             .setSettings(newSettings)
             .setWaitForActiveShards(1)
             .get();
@@ -74,7 +74,7 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
         startWatcher();
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("mywatch").setSource(watchBuilder()
-            .trigger(schedule(interval("1s")))
+            .trigger(schedule(interval("5s")))
             .input(noneInput())
             .condition(InternalAlwaysCondition.INSTANCE)
             .addAction("indexer", indexAction(watchResultsIndex, "_doc")))

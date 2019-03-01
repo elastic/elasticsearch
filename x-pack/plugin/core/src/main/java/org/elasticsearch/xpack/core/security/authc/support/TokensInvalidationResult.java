@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,9 +32,10 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
     private final List<String> invalidatedTokens;
     private final List<String> previouslyInvalidatedTokens;
     private final List<ElasticsearchException> errors;
+    private final int attemptCount;
 
     public TokensInvalidationResult(List<String> invalidatedTokens, List<String> previouslyInvalidatedTokens,
-                                    @Nullable List<ElasticsearchException> errors) {
+                                    @Nullable List<ElasticsearchException> errors, int attemptCount) {
         Objects.requireNonNull(invalidatedTokens, "invalidated_tokens must be provided");
         this.invalidatedTokens = invalidatedTokens;
         Objects.requireNonNull(previouslyInvalidatedTokens, "previously_invalidated_tokens must be provided");
@@ -45,19 +45,18 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         } else {
             this.errors = Collections.emptyList();
         }
+        this.attemptCount = attemptCount;
     }
 
     public TokensInvalidationResult(StreamInput in) throws IOException {
         this.invalidatedTokens = in.readStringList();
         this.previouslyInvalidatedTokens = in.readStringList();
         this.errors = in.readList(StreamInput::readException);
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            in.readVInt();
-        }
+        this.attemptCount = in.readVInt();
     }
 
     public static TokensInvalidationResult emptyResult() {
-        return new TokensInvalidationResult(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        return new TokensInvalidationResult(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0);
     }
 
 
@@ -71,6 +70,10 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
 
     public List<ElasticsearchException> getErrors() {
         return errors;
+    }
+
+    public int getAttemptCount() {
+        return attemptCount;
     }
 
     @Override
@@ -97,8 +100,6 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         out.writeStringCollection(invalidatedTokens);
         out.writeStringCollection(previouslyInvalidatedTokens);
         out.writeCollection(errors, StreamOutput::writeException);
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeVInt(5);
-        }
+        out.writeVInt(attemptCount);
     }
 }

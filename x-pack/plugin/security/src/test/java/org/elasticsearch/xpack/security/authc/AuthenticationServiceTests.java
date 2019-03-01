@@ -1109,7 +1109,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
             tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap(), true);
         }
-        String token = tokenService.getAccessTokenAsString(tokenFuture.get().v1());
+        String token = tokenService.getUserTokenString(tokenFuture.get().v1());
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
         mockGetTokenFromId(tokenFuture.get().v1(), false, client);
         when(securityIndex.isAvailable()).thenReturn(true);
@@ -1192,7 +1192,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
             tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap(), true);
         }
-        String token = tokenService.getAccessTokenAsString(tokenFuture.get().v1());
+        String token = tokenService.getUserTokenString(tokenFuture.get().v1());
         mockGetTokenFromId(tokenFuture.get().v1(), true, client);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();

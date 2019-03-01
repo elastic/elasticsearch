@@ -393,14 +393,16 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 Count c = (Count) f;
                 // COUNT(*) or COUNT(<literal>)
                 if (c.field().foldable()) {
-                    AggRef ref = groupingAgg == null ?
-                            GlobalCountRef.INSTANCE :
-                            new GroupByRef(groupingAgg.id(), Property.COUNT, null);
+                    AggRef ref = null;
 
-                    // if the count points to the total track hits, enable accurate count retrieval
-                    if (ref == GlobalCountRef.INSTANCE) {
+                    if (groupingAgg == null) {
+                        ref = GlobalCountRef.INSTANCE;
+                        // if the count points to the total track hits, enable accurate count retrieval
                         queryC = queryC.withTrackHits();
+                    } else {
+                        ref = new GroupByRef(groupingAgg.id(), Property.COUNT, null);
                     }
+
                     Map<String, GroupByKey> pseudoFunctions = new LinkedHashMap<>(queryC.pseudoFunctions());
                     pseudoFunctions.put(functionId, groupingAgg);
                     return new Tuple<>(queryC.withPseudoFunctions(pseudoFunctions), new AggPathInput(f, ref));

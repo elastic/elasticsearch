@@ -698,21 +698,35 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testGlobalCountInSpecificGroupByDoesNotForcesTrackHits() throws Exception {
+    public void testGlobalCountAllInImplicitGroupByForcesTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(ALL *) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testGlobalCountInSpecificGroupByDoesNotForceTrackHits() throws Exception {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(*) FROM test GROUP BY int");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testDistinctCountDoesNotTrackHits() throws Exception {
+    public void testFieldAllCountDoesNotTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(ALL int) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testFieldCountDoesNotTrackHits() throws Exception {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(int) FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testAggCountDoesNotTrackHits() throws Exception {
+    public void testDistinctCountDoesNotTrackHits() throws Exception {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT int) FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;

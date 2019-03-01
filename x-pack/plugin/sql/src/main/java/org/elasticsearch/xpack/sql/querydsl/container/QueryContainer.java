@@ -90,8 +90,16 @@ public class QueryContainer {
         this(null, null, null, null, null, null, null, -1, false);
     }
 
-    public QueryContainer(Query query, Aggs aggs, List<Tuple<FieldExtraction, ExpressionId>> fields, AttributeMap<Attribute> aliases,
-            Map<String, GroupByKey> pseudoFunctions, AttributeMap<Pipe> scalarFunctions, Set<Sort> sort, int limit, boolean trackHits) {
+    public QueryContainer(Query query, 
+            Aggs aggs, 
+            List<Tuple<FieldExtraction, 
+            ExpressionId>> fields, 
+            AttributeMap<Attribute> aliases,
+            Map<String, GroupByKey> pseudoFunctions, 
+            AttributeMap<Pipe> scalarFunctions, 
+            Set<Sort> sort, 
+            int limit, 
+            boolean trackHits) {
         this.query = query;
         this.aggs = aggs == null ? Aggs.EMPTY : aggs;
         this.fields = fields == null || fields.isEmpty() ? emptyList() : fields;

@@ -15,20 +15,27 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_VERSION;
+import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.indexName;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.oldTemplateName;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.templateName;
 import static org.elasticsearch.xpack.core.template.TemplateUtilsTests.assertTemplate;
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.core.IsNot.not;
 
 public class MonitoringTemplateUtilsTests extends ESTestCase {
 
@@ -58,13 +65,30 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         assertTemplate(source, equalTo("{\n" +
                 "  \"index_patterns\": \".monitoring-data-" + TEMPLATE_VERSION + "\",\n" +
                 "  \"mappings\": {\n" +
-                "    \"doc\": {\n" +
+                "    \"_doc\": {\n" +
                 "      \"_meta\": {\n" +
                 "        \"template.version\": \"" + TEMPLATE_VERSION + "\"\n" +
                 "      }\n" +
                 "    }\n" +
                 "  }\n" +
                 "}\n"));
+    }
+
+    public void testLoadOldTemplate() throws IOException {
+        String source = MonitoringTemplateUtils.loadTemplate("test-old");
+
+        assertThat(source, notNullValue());
+        assertThat(source.length(), greaterThan(0));
+        assertTemplate(source, equalTo("{\n" +
+            "  \"index_patterns\": \".monitoring-data-" + OLD_TEMPLATE_VERSION + "\",\n" +
+            "  \"mappings\": {\n" +
+            "    \"doc\": {\n" +
+            "      \"_meta\": {\n" +
+            "        \"template.version\": \"" + OLD_TEMPLATE_VERSION + "\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}\n"));
     }
 
     public void testCreateEmptyTemplate() throws IOException {
@@ -114,6 +138,11 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
                 equalTo(".monitoring-logstash-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
         assertThat(indexName(formatter, MonitoredSystem.BEATS, timestamp),
                 equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
+    }
+
+    public void testEnsureNoOverlapOfOldTemplates(){
+       Arrays.stream(TEMPLATE_IDS).filter(t -> t.endsWith("-old")).map(t -> t.replace("-old", ""))
+           .forEach(t -> assertThat( Arrays.asList(OLD_TEMPLATE_IDS), not(hasItem(t))));
     }
 
 }

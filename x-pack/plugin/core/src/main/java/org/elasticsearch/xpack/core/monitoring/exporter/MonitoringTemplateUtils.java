@@ -23,6 +23,7 @@ public final class MonitoringTemplateUtils {
 
     private static final String TEMPLATE_FILE = "/monitoring-%s.json";
     private static final String TEMPLATE_VERSION_PROPERTY = Pattern.quote("${monitoring.template.version}");
+    private static final String OLD_TEMPLATE_VERSION_PROPERTY = Pattern.quote("${old.monitoring.template.version}");
 
     /**
      * The last version of X-Pack that updated the templates and pipelines.
@@ -43,8 +44,12 @@ public final class MonitoringTemplateUtils {
 
     /**
      * IDs of templates that can be used with {@linkplain #loadTemplate(String) loadTemplate}.
+     * <p>
+     * Use -old suffix for any old templates needs to be installed. For example, watches that are exported from a prior version of ES
+     * still send alerts to the old index and thus we need the old template installed. -old templates here should _not_ be part of the
+     * OLD_TEMPLATE_IDS.
      */
-    public static final String[] TEMPLATE_IDS = { "alerts", "es", "kibana", "logstash", "beats" };
+    public static final String[] TEMPLATE_IDS = { "alerts-old", "alerts", "es", "kibana", "logstash", "beats" };
 
     /**
      * IDs of templates that can be used with {@linkplain #createEmptyTemplate(String) createEmptyTemplate} that are not managed by a
@@ -54,7 +59,7 @@ public final class MonitoringTemplateUtils {
      * instances will attempt to create a named template based on the templates that they expect (e.g., ".monitoring-es-2") and not the
      * ones that we are creating.
      */
-    public static final String[] OLD_TEMPLATE_IDS = { "data", "es", "kibana", "logstash", "alerts" };
+    public static final String[] OLD_TEMPLATE_IDS = { "data", "es", "kibana", "logstash" };
 
     /**
      * IDs of pipelines that can be used with
@@ -87,7 +92,11 @@ public final class MonitoringTemplateUtils {
 
     public static String loadTemplate(final String id) {
         String resource = String.format(Locale.ROOT, TEMPLATE_FILE, id);
-        return TemplateUtils.loadTemplate(resource, TEMPLATE_VERSION, TEMPLATE_VERSION_PROPERTY);
+        if (id.endsWith("-old")) {
+            return TemplateUtils.loadTemplate(resource, OLD_TEMPLATE_VERSION, OLD_TEMPLATE_VERSION_PROPERTY);
+        } else {
+            return TemplateUtils.loadTemplate(resource, TEMPLATE_VERSION, TEMPLATE_VERSION_PROPERTY);
+        }
     }
 
     /**

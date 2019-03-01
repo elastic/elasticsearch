@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.dataframe;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStatsTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStatsTests;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.util.HashMap;

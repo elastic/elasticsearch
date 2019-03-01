@@ -22,6 +22,7 @@ import com.carrotsearch.hppc.LongObjectHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
@@ -237,6 +238,7 @@ public class LinearizabilityChecker {
                 ", nextId=" + nextId +
                 '}';
         }
+
     }
 
     /**
@@ -334,6 +336,60 @@ public class LinearizabilityChecker {
         return isLinearizable(spec, history.copyEvents());
     }
 
+
+    /**
+     * Return a visual representation of the history
+     */
+    public String visualize(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
+        history = history.clone();
+        history.complete(missingResponseGenerator);
+        final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
+        StringBuilder builder = new StringBuilder();
+        partitions.forEach(new Consumer<List<Event>>() {
+            int index = 0;
+            @Override
+            public void accept(List<Event> events) {
+                builder.append("Partition " ).append(index++).append("\n");
+                builder.append(visualizePartition(events));
+            }
+        });
+
+        return builder.toString();
+    }
+
+    private String visualizePartition(List<Event> events) {
+        StringBuilder builder = new StringBuilder();
+        Entry entry = createLinkedEntries(events).next;
+        Map<Tuple<EventType, Integer>, Integer> eventToPosition = new HashMap<>();
+        for (Event event : events) {
+            eventToPosition.put(Tuple.tuple(event.type, event.id), eventToPosition.size());
+        }
+        while (entry != null) {
+            if (entry.match != null) {
+                builder.append(visualizeEntry(entry, eventToPosition)).append("\n");
+            }
+            entry = entry.next;
+        }
+        return builder.toString();
+    }
+
+    private String visualizeEntry(Entry entry, Map<Tuple<EventType, Integer>, Integer> eventToPosition) {
+        String input = String.valueOf(entry.event.value);
+        String output = String.valueOf(entry.match.event.value);
+        int id = entry.event.id;
+        int beginIndex = eventToPosition.get(Tuple.tuple(EventType.INVOCATION, id));
+        int endIndex = eventToPosition.get(Tuple.tuple(EventType.RESPONSE, id));
+        input = input.substring(0, Math.min(beginIndex + 25, input.length()));
+        return Strings.padStart(input, beginIndex + 25, ' ') +
+            "   "  + Strings.padStart("", endIndex-beginIndex, 'X') + "   "
+            + output + "  (" + entry.event.id + ")";
+    }
+
+    private static class Visualizer {
+        int partitionIndex = 0;
+
+
+    }
     /**
      * Creates the internal linked data structure used by the linearizability checker.
      * Generates contiguous internal ids for the events so that they can be efficiently recorded in bit sets.

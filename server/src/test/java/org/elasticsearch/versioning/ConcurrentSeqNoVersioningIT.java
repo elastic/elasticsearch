@@ -37,6 +37,7 @@ import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -64,6 +65,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 3, maxNumDataNodes = 5,
     transportClientRatio = 0)
+@TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
+    "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE," +
+    "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
+    "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
 public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     private static final Pattern EXTRACT_VERSION = Pattern.compile("current document has seqNo \\[(\\d+)\\] and primary term \\[(\\d+)\\]");
@@ -96,7 +101,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         ensureGreen();
 
-        ServiceDisruptionScheme disruptionScheme = addRandomDisruptionScheme();
 
         int numberOfKeys = randomIntBetween(1,10);
 
@@ -125,6 +129,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             logger.info("--> Running {} rounds", rounds);
 
             for (int i = 0; i < rounds; ++i) {
+                ServiceDisruptionScheme disruptionScheme = addRandomDisruptionScheme();
                 roundBarrier.await(1, TimeUnit.MINUTES);
                 disruptionScheme.startDisrupting();
                 logger.info("--> round {}", i);
@@ -133,7 +138,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                 } catch (TimeoutException e) {
                     roundBarrier.reset();
                 }
-                disruptionScheme.stopDisrupting();
+                internalCluster().clearDisruptionScheme(false);
             }
         } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
             logger.error("Timed out, dumping stack traces of all threads:");
@@ -799,6 +804,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         boolean result =
             new LinearizabilityChecker().isLinearizable(new CASSequentialSpec(initialVersion), history,
                 missingResponseGenerator());
+
+        System.out.println(new LinearizabilityChecker().visualize(new CASSequentialSpec(initialVersion), history,
+            missingResponseGenerator()));
 
         System.out.println("Linearizable?: " + result);
     }

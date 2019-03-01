@@ -832,5 +832,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         expectThrows(RoutingMissingException.class,
                 client().prepareIndex("index", "_doc", "1").setSource()::get);
+
+        expectThrows(RoutingMissingException.class,
+                client().prepareDelete("index", "_doc", "1")::get);
+
+        expectThrows(RoutingMissingException.class,
+                client().prepareUpdate("index", "_doc", "1").setDoc()::get);
     }
 }

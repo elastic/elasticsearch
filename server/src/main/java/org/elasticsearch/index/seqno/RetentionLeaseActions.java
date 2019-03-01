@@ -169,9 +169,7 @@ public class RetentionLeaseActions {
                         request.getId(),
                         request.getRetainingSequenceNumber(),
                         request.getSource(),
-                        ActionListener.wrap(
-                                r -> listener.onResponse(new Response()),
-                                listener::onFailure));
+                        ActionListener.map(listener, r -> new Response()));
             }
 
         }

@@ -64,7 +64,8 @@ POST /_security/oauth2/token
   "grant_type" : "client_credentials"
 }
 --------------------------------------------------
-// CONSOLE
+// KIBANA
+// TEST
 
 The get token API returns the following information about the access token:
 
@@ -76,6 +77,7 @@ The get token API returns the following information about the access token:
   "expires_in" : 1200
 }
 --------------------------------------------------
+// KIBANA
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 
 This access token can now be immediately invalidated, as shown in the following
@@ -104,7 +106,7 @@ POST /_security/oauth2/token
   "password" : "x-pack-test-password"
 }
 --------------------------------------------------
-// CONSOLE
+// KIBANA
 // TEST
 
 The get token API returns the following information:
@@ -118,6 +120,7 @@ The get token API returns the following information:
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
+// KIBANA
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 
@@ -159,6 +162,7 @@ DELETE /_security/oauth2/token
 }
 --------------------------------------------------
 // KIBANA
+// TEST
 
 Finally, the following example invalidates all access tokens and refresh tokens
 for the user `myuser` in the `saml1` realm immediately:
@@ -172,6 +176,7 @@ DELETE /_security/oauth2/token
 }
 --------------------------------------------------
 // KIBANA
+// TEST
 
 A successful call returns a JSON structure that contains the number of tokens
 that were invalidated, the number of tokens that had already been invalidated,

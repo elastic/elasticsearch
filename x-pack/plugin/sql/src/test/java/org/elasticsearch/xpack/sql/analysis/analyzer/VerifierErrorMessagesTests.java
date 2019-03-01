@@ -717,6 +717,18 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT FIRST(int) FROM test GROUP BY text HAVING FIRST(int) > 10"));
     }
 
+    public void testMinOnInexactUnsupported() {
+        assertEquals("1:8: [MIN(text)] cannot operate on field of data type [text]: " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT MIN(text) FROM test"));
+    }
+
+    public void testMaxOnInexactUnsupported() {
+        assertEquals("1:8: [MAX(text)] cannot operate on field of data type [text]: " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT MAX(text) FROM test"));
+    }
+
     public void testMinOnKeywordGroupByHavingUnsupported() {
         assertEquals("1:52: HAVING filter is unsupported for function [MIN(keyword)]",
             error("SELECT MIN(keyword) FROM test GROUP BY text HAVING MIN(keyword) > 10"));

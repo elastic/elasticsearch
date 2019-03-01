@@ -411,6 +411,43 @@ public class MetaDataTests extends ESTestCase {
         }
     }
 
+    public void testXContentClusterUUID() throws IOException {
+        final MetaData originalMeta = MetaData.builder().clusterUUID(UUIDs.randomBase64UUID())
+            .clusterUUIDCommitted(randomBoolean()).build();
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final MetaData fromXContentMeta = MetaData.fromXContent(parser);
+            assertThat(fromXContentMeta.clusterUUID(), equalTo(originalMeta.clusterUUID()));
+            assertThat(fromXContentMeta.clusterUUIDCommitted(), equalTo(originalMeta.clusterUUIDCommitted()));
+        }
+    }
+
+    public void testSerializationClusterUUID() throws IOException {
+        final MetaData originalMeta = MetaData.builder().clusterUUID(UUIDs.randomBase64UUID())
+            .clusterUUIDCommitted(randomBoolean()).build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        originalMeta.writeTo(out);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        final MetaData fromStreamMeta = MetaData.readFrom(
+            new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)
+        );
+        assertThat(fromStreamMeta.clusterUUID(), equalTo(originalMeta.clusterUUID()));
+        assertThat(fromStreamMeta.clusterUUIDCommitted(), equalTo(originalMeta.clusterUUIDCommitted()));
+    }
+
+    public void testMetaDataGlobalStateChangesOnClusterUUIDChanges() {
+        final MetaData metaData1 = MetaData.builder().clusterUUID(UUIDs.randomBase64UUID()).clusterUUIDCommitted(randomBoolean()).build();
+        final MetaData metaData2 = MetaData.builder(metaData1).clusterUUID(UUIDs.randomBase64UUID()).build();
+        final MetaData metaData3 = MetaData.builder(metaData1).clusterUUIDCommitted(!metaData1.clusterUUIDCommitted()).build();
+        assertFalse(MetaData.isGlobalStateEquals(metaData1, metaData2));
+        assertFalse(MetaData.isGlobalStateEquals(metaData1, metaData3));
+        final MetaData metaData4 = MetaData.builder(metaData2).clusterUUID(metaData1.clusterUUID()).build();
+        assertTrue(MetaData.isGlobalStateEquals(metaData1, metaData4));
+    }
+
     private static CoordinationMetaData.VotingConfiguration randomVotingConfig() {
         return new CoordinationMetaData.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(randomInt(10), 20, false)));
     }

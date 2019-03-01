@@ -243,9 +243,11 @@ public final class IndexSettings {
 
     /**
      * Specifies if the index should use soft-delete instead of hard-delete for update/delete operations.
+     * Soft-deletes is enabled by default for 7.0+ indices.
      */
-    public static final Setting<Boolean> INDEX_SOFT_DELETES_SETTING =
-        Setting.boolSetting("index.soft_deletes.enabled", true, Property.IndexScope, Property.Final);
+    public static final Setting<Boolean> INDEX_SOFT_DELETES_SETTING = Setting.boolSetting("index.soft_deletes.enabled",
+        settings -> Boolean.toString(IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_7_0_0)),
+        Property.IndexScope, Property.Final);
 
     /**
      * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted
@@ -337,6 +339,10 @@ public final class IndexSettings {
      */
     public long getRetentionLeaseMillis() {
         return retentionLeaseMillis;
+    }
+
+    private void setRetentionLeaseMillis(final TimeValue retentionLease) {
+        this.retentionLeaseMillis = retentionLease.millis();
     }
 
     private volatile boolean warmerEnabled;
@@ -523,6 +529,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING, this::setRetentionLeaseMillis);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) { this.searchIdleAfter = searchIdleAfter; }

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -46,6 +47,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.MetaData.CLUSTER_READ_ONLY_BLOCK;
+import static org.elasticsearch.gateway.ClusterStateUpdaters.addStateNotRecoveredBlock;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.closeBadIndices;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.mixCurrentStateAndRecoveredState;
@@ -182,6 +184,24 @@ public class ClusterStateUpdatersTests extends ESTestCase {
         assertFalse(newState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
     }
 
+    public void testAddStateNotRecoveredBlock() {
+        final MetaData.Builder metaDataBuilder = MetaData.builder()
+                .persistentSettings(Settings.builder().put("test", "test").build());
+        final IndexMetaData indexMetaData = createIndexMetaData("test", Settings.EMPTY);
+        metaDataBuilder.put(indexMetaData, false);
+
+        final ClusterState initialState = ClusterState
+                .builder(ClusterState.EMPTY_STATE)
+                .metaData(metaDataBuilder)
+                .build();
+        assertFalse(initialState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
+
+        final ClusterState newState = addStateNotRecoveredBlock(initialState);
+
+        assertMetaDataEquals(initialState, newState);
+        assertTrue(newState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
+    }
+
     public void testCloseBadIndices() throws IOException {
         final IndicesService indicesService = mock(IndicesService.class);
         final IndexMetaData good = createIndexMetaData("good", Settings.EMPTY);
@@ -222,11 +242,36 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                 .build();
         assertFalse(initialState.routingTable().hasIndex(index));
 
-        final ClusterState newState = updateRoutingTable(initialState);
-
-        assertTrue(newState.routingTable().hasIndex(index));
-        assertThat(newState.routingTable().version(), is(0L));
-        assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
+        {
+            final ClusterState newState = updateRoutingTable(initialState);
+            assertTrue(newState.routingTable().hasIndex(index));
+            assertThat(newState.routingTable().version(), is(0L));
+            assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
+        }
+        {
+            final ClusterState newState = updateRoutingTable(ClusterState.builder(initialState)
+                .metaData(MetaData.builder(initialState.metaData())
+                    .put(IndexMetaData.builder(initialState.metaData().index("test"))
+                        .state(IndexMetaData.State.CLOSE))
+                    .build())
+                .build());
+            assertFalse(newState.routingTable().hasIndex(index));
+        }
+        {
+            final ClusterState newState = updateRoutingTable(ClusterState.builder(initialState)
+                .metaData(MetaData.builder(initialState.metaData())
+                    .put(IndexMetaData.builder(initialState.metaData().index("test"))
+                        .state(IndexMetaData.State.CLOSE)
+                        .settings(Settings.builder()
+                            .put(initialState.metaData().index("test").getSettings())
+                            .put(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)
+                            .build())
+                    ).build())
+                .build());
+            assertTrue(newState.routingTable().hasIndex(index));
+            assertThat(newState.routingTable().version(), is(0L));
+            assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
+        }
     }
 
     public void testMixCurrentAndRecoveredState() {
@@ -244,12 +289,12 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                 .blocks(ClusterBlocks.builder().addGlobalBlock(CLUSTER_READ_ONLY_BLOCK).build())
                 .metaData(metaData)
                 .build();
-        assertThat(recoveredState.metaData().clusterUUID(), equalTo("_na_"));
+        assertThat(recoveredState.metaData().clusterUUID(), equalTo(MetaData.UNKNOWN_CLUSTER_UUID));
 
         final ClusterState updatedState = mixCurrentStateAndRecoveredState(currentState, recoveredState);
 
-        assertThat(updatedState.metaData().clusterUUID(), not(equalTo("_na_")));
-        assertTrue(MetaData.isGlobalStateEquals(metaData, updatedState.metaData()));
+        assertThat(updatedState.metaData().clusterUUID(), not(equalTo(MetaData.UNKNOWN_CLUSTER_UUID)));
+        assertFalse(MetaData.isGlobalStateEquals(metaData, updatedState.metaData()));
         assertThat(updatedState.metaData().index("test"), equalTo(indexMetaData));
         assertTrue(updatedState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
         assertTrue(updatedState.blocks().hasGlobalBlock(CLUSTER_READ_ONLY_BLOCK));

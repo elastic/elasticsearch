@@ -3,15 +3,14 @@ package com.carrotsearch.gradle.junit4
 import com.carrotsearch.ant.tasks.junit4.JUnit4
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.Task
 import org.gradle.api.tasks.TaskContainer
 
 class RandomizedTestingPlugin implements Plugin<Project> {
 
     void apply(Project project) {
-        setupSeed(project)
+        String seed = setupSeed(project)
         createUnitTestTask(project.tasks)
-        configureAnt(project.ant)
+        configureAnt(project.ant, seed)
     }
 
     /**
@@ -21,12 +20,12 @@ class RandomizedTestingPlugin implements Plugin<Project> {
      * outcome of subsequent runs. Pinning the seed up front like this makes
      * the reproduction line from one run be useful on another run.
      */
-    static void setupSeed(Project project) {
+    static String setupSeed(Project project) {
         if (project.rootProject.ext.has('testSeed')) {
             /* Skip this if we've already pinned the testSeed. It is important
              * that this checks the rootProject so that we know we've only ever
              * initialized one time. */
-            return
+            return project.rootProject.ext.testSeed
         }
         String testSeed = System.getProperty('tests.seed')
         if (testSeed == null) {
@@ -39,6 +38,8 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         project.rootProject.subprojects {
             project.ext.testSeed = testSeed
         }
+
+        return testSeed
     }
 
     static void createUnitTestTask(TaskContainer tasks) {
@@ -52,7 +53,8 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         }
     }
 
-    static void configureAnt(AntBuilder ant) {
+    static void configureAnt(AntBuilder ant, String seed) {
         ant.project.addTaskDefinition('junit4:junit4', JUnit4.class)
+        ant.properties.put('tests.seed', seed)
     }
 }

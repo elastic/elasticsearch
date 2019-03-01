@@ -53,7 +53,8 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     private static final String[] filters = new String[]{
-        "containing", "contained_by", "not_containing", "not_contained_by", "not_overlapping"
+        "containing", "contained_by", "not_containing", "not_contained_by",
+        "overlapping", "not_overlapping", "before", "after"
     };
 
     private IntervalsSourceProvider.IntervalFilter createRandomFilter() {

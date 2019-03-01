@@ -77,8 +77,6 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         assertEquals(1, request.requests().get(0).getScriptParams().size());
         assertEquals(1, request.requests().get(1).getScriptParams().size());
         assertEquals(1, request.requests().get(2).getScriptParams().size());
-
-        assertWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testParseWithCarriageReturn() throws Exception {

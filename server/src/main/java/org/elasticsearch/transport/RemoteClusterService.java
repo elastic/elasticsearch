@@ -24,8 +24,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -49,11 +47,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -71,9 +68,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
+    private static final ActionListener<Void> noopListener = ActionListener.wrap((x) -> {}, (x) -> {});
+
     static {
         // remove search.remote.* settings in 8.0.0
-        assert Version.CURRENT.major < 8;
+        // TODO
+        // assert Version.CURRENT.major < 8;
     }
 
     public static final Setting<Integer> SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER =
@@ -189,6 +189,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     private final TransportService transportService;
     private final int numRemoteConnections;
     private volatile Map<String, RemoteClusterConnection> remoteClusters = Collections.emptyMap();
+    private volatile Map<String, ConnectionProfile> remoteClusterConnectionProfiles = Collections.emptyMap();
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
@@ -216,21 +217,33 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 List<Tuple<String, Supplier<DiscoveryNode>>> seedList = entry.getValue().v2();
                 String proxyAddress = entry.getValue().v1();
 
-                RemoteClusterConnection remote = this.remoteClusters.get(entry.getKey());
+                String clusterAlias = entry.getKey();
+                RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
+                ConnectionProfile connectionProfile = this.remoteClusterConnectionProfiles.get(clusterAlias);
                 if (seedList.isEmpty()) { // with no seed nodes we just remove the connection
                     try {
                         IOUtils.close(remote);
                     } catch (IOException e) {
-                        logger.warn("failed to close remote cluster connections for cluster: " + entry.getKey(), e);
+                        logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
                     }
-                    remoteClusters.remove(entry.getKey());
+                    remoteClusters.remove(clusterAlias);
                     continue;
                 }
 
                 if (remote == null) { // this is a new cluster we have to add a new representation
-                    String clusterAlias = entry.getKey();
                     remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
-                        getNodePredicate(settings), proxyAddress);
+                        getNodePredicate(settings), proxyAddress, connectionProfile);
+                    remoteClusters.put(clusterAlias, remote);
+                } else if (connectionProfileChanged(remote.getConnectionManager().getConnectionProfile(), connectionProfile)) {
+                    // New ConnectionProfile. Must tear down existing connection
+                    try {
+                        IOUtils.close(remote);
+                    } catch (IOException e) {
+                        logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
+                    }
+                    remoteClusters.remove(clusterAlias);
+                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
+                        getNodePredicate(settings), proxyAddress, connectionProfile);
                     remoteClusters.put(clusterAlias, remote);
                 }
 
@@ -247,7 +260,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                                 connectionListener.onFailure(exception);
                             }
                             if (finalRemote.isClosed() == false) {
-                                logger.warn("failed to update seed list for cluster: " + entry.getKey(), exception);
+                                logger.warn("failed to update seed list for cluster: " + clusterAlias, exception);
                             }
                         }));
             }
@@ -287,7 +300,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     String clusterAlias = entry.getKey();
                     List<String> originalIndices = entry.getValue();
                     originalIndicesMap.put(clusterAlias,
-                        new OriginalIndices(originalIndices.toArray(new String[originalIndices.size()]), indicesOptions));
+                        new OriginalIndices(originalIndices.toArray(new String[0]), indicesOptions));
                 }
             }
         } else {
@@ -303,53 +316,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.containsKey(clusterName);
     }
 
-    public void collectSearchShards(IndicesOptions indicesOptions, String preference, String routing,
-                                    Map<String, OriginalIndices> remoteIndicesByCluster,
-                                    ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
-        final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
-        final Map<String, ClusterSearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
-        final AtomicReference<RemoteTransportException> transportException = new AtomicReference<>();
-        for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
-            final String clusterName = entry.getKey();
-            RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterName);
-            if (remoteClusterConnection == null) {
-                throw new IllegalArgumentException("no such remote cluster: " + clusterName);
-            }
-            final String[] indices = entry.getValue().indices();
-            ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
-                    .indicesOptions(indicesOptions).local(true).preference(preference)
-                    .routing(routing);
-            remoteClusterConnection.fetchSearchShards(searchShardsRequest,
-                    new ActionListener<ClusterSearchShardsResponse>() {
-                        @Override
-                        public void onResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
-                            searchShardsResponses.put(clusterName, clusterSearchShardsResponse);
-                            if (responsesCountDown.countDown()) {
-                                RemoteTransportException exception = transportException.get();
-                                if (exception == null) {
-                                    listener.onResponse(searchShardsResponses);
-                                } else {
-                                    listener.onFailure(transportException.get());
-                                }
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            RemoteTransportException exception =
-                                    new RemoteTransportException("error while communicating with remote cluster [" + clusterName + "]", e);
-                            if (transportException.compareAndSet(null, exception) == false) {
-                                exception = transportException.accumulateAndGet(exception, (previous, current) -> {
-                                    current.addSuppressed(previous);
-                                    return current;
-                                });
-                            }
-                            if (responsesCountDown.countDown()) {
-                                listener.onFailure(exception);
-                            }
-                        }
-                    });
-        }
+    /**
+     * Returns the registered remote cluster names.
+     */
+    public Set<String> getRegisteredRemoteClusterNames() {
+        // remoteClusters is unmodifiable so its key set will be unmodifiable too
+        return remoteClusters.keySet();
     }
 
     /**
@@ -368,6 +340,13 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         getRemoteClusterConnection(clusterAlias).ensureConnected(listener);
     }
 
+    /**
+     * Returns whether the cluster identified by the provided alias is configured to be skipped when unavailable
+     */
+    public boolean isSkipUnavailable(String clusterAlias) {
+        return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();
+    }
+
     public Transport.Connection getConnection(String cluster) {
         return getRemoteClusterConnection(cluster).getConnection();
     }
@@ -375,7 +354,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     RemoteClusterConnection getRemoteClusterConnection(String cluster) {
         RemoteClusterConnection connection = remoteClusters.get(cluster);
         if (connection == null) {
-            throw new IllegalArgumentException("no such remote cluster: " + cluster);
+            throw new NoSuchRemoteClusterException(cluster);
         }
         return connection;
     }
@@ -391,7 +370,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         clusterSettings.addAffixUpdateConsumer(SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
     }
 
-    synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
+    private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
         RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
         if (remote != null) {
             remote.updateSkipUnavailable(skipUnavailable);
@@ -399,19 +378,36 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     @Override
-    protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {
-        updateRemoteCluster(clusterAlias, addresses, proxyAddress, ActionListener.wrap((x) -> {}, (x) -> {}));
+    protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress, boolean compressionEnabled,
+                                       TimeValue pingSchedule) {
+        if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
+        }
+        ConnectionProfile oldProfile = remoteClusterConnectionProfiles.get(clusterAlias);
+        ConnectionProfile newProfile;
+        if (oldProfile != null) {
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(oldProfile);
+            builder.setCompressionEnabled(compressionEnabled);
+            builder.setPingInterval(pingSchedule);
+            newProfile = builder.build();
+        } else {
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(buildConnectionProfileFromSettings(clusterAlias));
+            builder.setCompressionEnabled(compressionEnabled);
+            builder.setPingInterval(pingSchedule);
+            newProfile = builder.build();
+        }
+        updateRemoteCluster(clusterAlias, addresses, proxyAddress, newProfile, noopListener);
     }
 
-    void updateRemoteCluster(
-            final String clusterAlias,
-            final List<String> addresses,
-            final String proxyAddress,
-            final ActionListener<Void> connectionListener) {
+    void updateRemoteCluster(final String clusterAlias, final List<String> addresses, final String proxyAddress,
+                             final ConnectionProfile connectionProfile, final ActionListener<Void> connectionListener) {
+        HashMap<String, ConnectionProfile> connectionProfiles = new HashMap<>(remoteClusterConnectionProfiles);
+        connectionProfiles.put(clusterAlias, connectionProfile);
+        this.remoteClusterConnectionProfiles = Collections.unmodifiableMap(connectionProfiles);
         final List<Tuple<String, Supplier<DiscoveryNode>>> nodes =
-                addresses.stream().<Tuple<String, Supplier<DiscoveryNode>>>map(address -> Tuple.tuple(address, () ->
-                        buildSeedNode(clusterAlias, address, Strings.hasLength(proxyAddress)))
-                ).collect(Collectors.toList());
+            addresses.stream().<Tuple<String, Supplier<DiscoveryNode>>>map(address -> Tuple.tuple(address, () ->
+                buildSeedNode(clusterAlias, address, Strings.hasLength(proxyAddress)))
+            ).collect(Collectors.toList());
         updateRemoteClusters(Collections.singletonMap(clusterAlias, new Tuple<>(proxyAddress, nodes)), connectionListener);
     }
 
@@ -424,6 +420,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> seeds =
                 RemoteClusterAware.buildRemoteClustersDynamicConfig(settings);
+        initializeConnectionProfiles(seeds.keySet());
         updateRemoteClusters(seeds, future);
         try {
             future.get(timeValue.millis(), TimeUnit.MILLISECONDS);
@@ -436,6 +433,32 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         }
     }
 
+    private synchronized void initializeConnectionProfiles(Set<String> remoteClusters) {
+        Map<String, ConnectionProfile> connectionProfiles = new HashMap<>(remoteClusters.size());
+        for (String clusterName : remoteClusters) {
+            connectionProfiles.put(clusterName, buildConnectionProfileFromSettings(clusterName));
+        }
+        this.remoteClusterConnectionProfiles = Collections.unmodifiableMap(connectionProfiles);
+    }
+
+    private ConnectionProfile buildConnectionProfileFromSettings(String clusterName) {
+        return buildConnectionProfileFromSettings(settings, clusterName);
+    }
+
+    static ConnectionProfile buildConnectionProfileFromSettings(Settings settings, String clusterName) {
+        return new ConnectionProfile.Builder()
+            .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
+            .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
+            .addConnections(6, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING) // TODO make this configurable?
+            // we don't want this to be used for anything else but search
+            .addConnections(0, TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.STATE,
+                TransportRequestOptions.Type.RECOVERY)
+            .setCompressionEnabled(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterName).get(settings))
+            .setPingInterval(REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterName).get(settings))
+            .build();
+    }
+
     @Override
     public void close() throws IOException {
         IOUtils.close(remoteClusters.values());
@@ -443,6 +466,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     public Stream<RemoteConnectionInfo> getRemoteConnectionInfos() {
         return remoteClusters.values().stream().map(RemoteClusterConnection::getConnectionInfo);
+    }
+
+    private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
+        return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
+            || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
     }
 
     /**
@@ -453,7 +481,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
         for (String cluster : clusters) {
             if (remoteClusters.containsKey(cluster) == false) {
-                listener.onFailure(new IllegalArgumentException("no such remote cluster: [" + cluster + "]"));
+                listener.onFailure(new NoSuchRemoteClusterException(cluster));
                 return;
             }
         }
@@ -494,7 +522,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
-            throw new IllegalArgumentException("unknown cluster alias [" + clusterAlias + "]");
+            throw new NoSuchRemoteClusterException(clusterAlias);
         }
         return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);
     }
@@ -502,5 +530,4 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     Collection<RemoteClusterConnection> getConnections() {
         return remoteClusters.values();
     }
-
 }

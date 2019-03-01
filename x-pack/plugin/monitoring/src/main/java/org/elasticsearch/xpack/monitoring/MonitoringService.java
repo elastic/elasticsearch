@@ -91,7 +91,6 @@ public class MonitoringService extends AbstractLifecycleComponent {
 
     MonitoringService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
                       Set<Collector> collectors, Exporters exporters) {
-        super(settings);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.collectors = Objects.requireNonNull(collectors);

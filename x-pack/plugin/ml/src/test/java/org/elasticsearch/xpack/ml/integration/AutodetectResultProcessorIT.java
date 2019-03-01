@@ -289,11 +289,16 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return bucket;
     }
 
+    private Date randomDate() {
+        // between 1970 and 2065
+        return new Date(randomLongBetween(0, 3000000000000L));
+    }
+
     private List<AnomalyRecord> createRecords(boolean isInterim) {
         List<AnomalyRecord> records = new ArrayList<>();
 
         int count = randomIntBetween(0, 100);
-        Date now = new Date(randomNonNegativeLong());
+        Date now = randomDate();
         for (int i=0; i<count; i++) {
             AnomalyRecord r = new AnomalyRecord(JOB_ID, now, 3600L);
             r.setByFieldName("by_instance");
@@ -327,8 +332,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
 
     private ModelSizeStats createModelSizeStats() {
         ModelSizeStats.Builder builder = new ModelSizeStats.Builder(JOB_ID);
-        builder.setTimestamp(new Date(randomNonNegativeLong()));
-        builder.setLogTime(new Date(randomNonNegativeLong()));
+        builder.setTimestamp(randomDate());
+        builder.setLogTime(randomDate());
         builder.setBucketAllocationFailuresCount(randomNonNegativeLong());
         builder.setModelBytes(randomNonNegativeLong());
         builder.setTotalByFieldCount(randomNonNegativeLong());
@@ -343,11 +348,11 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     private Quantiles createQuantiles() {
-        return new Quantiles(JOB_ID, new Date(randomNonNegativeLong()), randomAlphaOfLength(100));
+        return new Quantiles(JOB_ID, randomDate(), randomAlphaOfLength(100));
     }
 
     private FlushAcknowledgement createFlushAcknowledgement() {
-        return new FlushAcknowledgement(randomAlphaOfLength(5), new Date(randomNonNegativeLong()));
+        return new FlushAcknowledgement(randomAlphaOfLength(5), randomDate());
     }
 
     private class ResultsBuilder {

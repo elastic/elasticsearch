@@ -31,13 +31,14 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
-import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
+import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,6 +46,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +57,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
+
 /**
  * Provides access to {@link SSLEngine} and {@link SSLSocketFactory} objects based on a provided configuration. All
  * configurations loaded by this service must be configured on construction.
@@ -62,6 +66,26 @@ import java.util.stream.Collectors;
 public class SSLService {
 
     private static final Logger logger = LogManager.getLogger(SSLService.class);
+    /**
+     * An ordered map of protocol algorithms to SSLContext algorithms. The map is ordered from most
+     * secure to least secure. The names in this map are taken from the
+     * <a href="https://docs.oracle.com/en/java/javase/11/docs/specs/security/standard-names.html#sslcontext-algorithms">
+     * Java Security Standard Algorithm Names Documentation for Java 11</a>.
+     */
+    private static final Map<String, String> ORDERED_PROTOCOL_ALGORITHM_MAP;
+    static {
+        LinkedHashMap<String, String> protocolAlgorithmMap = new LinkedHashMap<>();
+        if (DEFAULT_SUPPORTED_PROTOCOLS.contains("TLSv1.3")) {
+            protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
+        }
+        protocolAlgorithmMap.put("TLSv1.2", "TLSv1.2");
+        protocolAlgorithmMap.put("TLSv1.1", "TLSv1.1");
+        protocolAlgorithmMap.put("TLSv1", "TLSv1");
+        protocolAlgorithmMap.put("SSLv3", "SSLv3");
+        protocolAlgorithmMap.put("SSLv2", "SSL");
+        protocolAlgorithmMap.put("SSLv2Hello", "SSL");
+        ORDERED_PROTOCOL_ALGORITHM_MAP = Collections.unmodifiableMap(protocolAlgorithmMap);
+    }
 
     private final Settings settings;
 
@@ -81,8 +105,6 @@ public class SSLService {
      * always maps to the same {@link SSLContextHolder}, even if it is being used within a different context-name.
      */
     private final Map<SSLConfiguration, SSLContextHolder> sslContexts;
-
-    private final SSLConfiguration globalSSLConfiguration;
     private final SetOnce<SSLConfiguration> transportSSLConfiguration = new SetOnce<>();
     private final Environment env;
 
@@ -93,16 +115,14 @@ public class SSLService {
     public SSLService(Settings settings, Environment environment) {
         this.settings = settings;
         this.env = environment;
-        this.globalSSLConfiguration = new SSLConfiguration(settings.getByPrefix(XPackSettings.GLOBAL_SSL_PREFIX));
         this.sslConfigurations = new HashMap<>();
         this.sslContexts = loadSSLConfigurations();
     }
 
-    private SSLService(Settings settings, Environment environment, SSLConfiguration globalSSLConfiguration,
-                       Map<String, SSLConfiguration> sslConfigurations, Map<SSLConfiguration, SSLContextHolder> sslContexts) {
+    private SSLService(Settings settings, Environment environment, Map<String, SSLConfiguration> sslConfigurations,
+                       Map<SSLConfiguration, SSLContextHolder> sslContexts) {
         this.settings = settings;
         this.env = environment;
-        this.globalSSLConfiguration = globalSSLConfiguration;
         this.sslConfigurations = sslConfigurations;
         this.sslContexts = sslContexts;
     }
@@ -113,7 +133,7 @@ public class SSLService {
      * have been created during initialization
      */
     public SSLService createDynamicSSLService() {
-        return new SSLService(settings, env, globalSSLConfiguration, sslConfigurations, sslContexts) {
+        return new SSLService(settings, env, sslConfigurations, sslContexts) {
 
             @Override
             Map<SSLConfiguration, SSLContextHolder> loadSSLConfigurations() {
@@ -266,13 +286,6 @@ public class SSLService {
     }
 
     /**
-     * Returns the {@link SSLContext} for the global configuration. Mainly used for testing
-     */
-    public SSLContext sslContext() {
-        return sslContextHolder(globalSSLConfiguration).sslContext();
-    }
-
-    /**
      * Returns the {@link SSLContext} for the configuration. Mainly used for testing
      */
     public SSLContext sslContext(SSLConfiguration configuration) {
@@ -297,13 +310,10 @@ public class SSLService {
      * Returns the existing {@link SSLConfiguration} for the given settings
      *
      * @param settings the settings for the ssl configuration
-     * @return the ssl configuration for the provided settings. If the settings are empty, the global configuration is returned
+     * @return the ssl configuration for the provided settings
      */
-    SSLConfiguration sslConfiguration(Settings settings) {
-        if (settings.isEmpty()) {
-            return globalSSLConfiguration;
-        }
-        return new SSLConfiguration(settings, globalSSLConfiguration);
+    public SSLConfiguration sslConfiguration(Settings settings) {
+        return new SSLConfiguration(settings);
     }
 
     public Set<String> getTransportProfileContextNames() {
@@ -403,8 +413,6 @@ public class SSLService {
      */
     Map<SSLConfiguration, SSLContextHolder> loadSSLConfigurations() {
         Map<SSLConfiguration, SSLContextHolder> sslContextHolders = new HashMap<>();
-        sslContextHolders.put(globalSSLConfiguration, createSslContext(globalSSLConfiguration));
-        this.sslConfigurations.put("xpack.ssl", globalSSLConfiguration);
 
         Map<String, Settings> sslSettingsMap = new HashMap<>();
         sslSettingsMap.put(XPackSettings.HTTP_SSL_PREFIX, getHttpTransportSSLSettings(settings));
@@ -413,23 +421,19 @@ public class SSLService {
         sslSettingsMap.putAll(getMonitoringExporterSettings(settings));
 
         sslSettingsMap.forEach((key, sslSettings) -> {
-            if (sslSettings.isEmpty()) {
-                storeSslConfiguration(key, globalSSLConfiguration);
-            } else {
-                final SSLConfiguration configuration = new SSLConfiguration(sslSettings, globalSSLConfiguration);
-                storeSslConfiguration(key, configuration);
-                sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
-            }
+            final SSLConfiguration configuration = new SSLConfiguration(sslSettings);
+            storeSslConfiguration(key, configuration);
+            sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
         });
 
         final Settings transportSSLSettings = settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX);
-        final SSLConfiguration transportSSLConfiguration = new SSLConfiguration(transportSSLSettings, globalSSLConfiguration);
+        final SSLConfiguration transportSSLConfiguration = new SSLConfiguration(transportSSLSettings);
         this.transportSSLConfiguration.set(transportSSLConfiguration);
         storeSslConfiguration(XPackSettings.TRANSPORT_SSL_PREFIX, transportSSLConfiguration);
         Map<String, Settings> profileSettings = getTransportProfileSSLSettings(settings);
         sslContextHolders.computeIfAbsent(transportSSLConfiguration, this::createSslContext);
         profileSettings.forEach((key, profileSetting) -> {
-            final SSLConfiguration configuration = new SSLConfiguration(profileSetting, transportSSLConfiguration);
+            final SSLConfiguration configuration = new SSLConfiguration(profileSetting);
             storeSslConfiguration(key, configuration);
             sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
         });
@@ -710,47 +714,19 @@ public class SSLService {
     /**
      * Maps the supported protocols to an appropriate ssl context algorithm. We make an attempt to use the "best" algorithm when
      * possible. The names in this method are taken from the
-     * <a href="http://docs.oracle.com/javase/8/docs/technotes/guides/security/StandardNames.html">JCA Standard Algorithm Name
-     * Documentation for Java 8</a>.
+     * <a href="https://docs.oracle.com/en/java/javase/11/docs/specs/security/standard-names.html#sslcontext-algorithms">Java Security
+     * Standard Algorithm Names Documentation for Java 11</a>.
      */
     private static String sslContextAlgorithm(List<String> supportedProtocols) {
         if (supportedProtocols.isEmpty()) {
-            return "TLSv1.2";
+            throw new IllegalArgumentException("no SSL/TLS protocols have been configured");
         }
-
-        String algorithm = "SSL";
-        for (String supportedProtocol : supportedProtocols) {
-            switch (supportedProtocol) {
-                case "TLSv1.2":
-                    return "TLSv1.2";
-                case "TLSv1.1":
-                    if ("TLSv1.2".equals(algorithm) == false) {
-                        algorithm = "TLSv1.1";
-                    }
-                    break;
-                case "TLSv1":
-                    switch (algorithm) {
-                        case "TLSv1.2":
-                        case "TLSv1.1":
-                            break;
-                        default:
-                            algorithm = "TLSv1";
-                    }
-                    break;
-                case "SSLv3":
-                    switch (algorithm) {
-                        case "SSLv2":
-                        case "SSL":
-                            algorithm = "SSLv3";
-                    }
-                    break;
-                case "SSLv2":
-                case "SSLv2Hello":
-                    break;
-                default:
-                    throw new IllegalArgumentException("found unexpected value in supported protocols: " + supportedProtocol);
+        for (Entry<String, String> entry : ORDERED_PROTOCOL_ALGORITHM_MAP.entrySet()) {
+            if (supportedProtocols.contains(entry.getKey())) {
+                return entry.getValue();
             }
         }
-        return algorithm;
+        throw new IllegalArgumentException("no supported SSL/TLS protocol was found in the configured supported protocols: "
+            + supportedProtocols);
     }
 }

@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -49,17 +48,17 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class GatewayIndexStateIT extends ESIntegTestCase {
@@ -115,18 +114,18 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
 
         logger.info("--> closing test index...");
-        client().admin().indices().prepareClose("test").get();
+        assertAcked(client().admin().indices().prepareClose("test"));
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> verifying that the state is green");
         ensureGreen();
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
+            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -138,7 +137,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> opening the first index again...");
-        client().admin().indices().prepareOpen("test").execute().actionGet();
+        assertAcked(client().admin().indices().prepareOpen("test"));
 
         logger.info("--> verifying that the state is green");
         ensureGreen();
@@ -154,10 +153,10 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(getResponse.isExists(), equalTo(true));
 
         logger.info("--> closing test index...");
-        client().admin().indices().prepareClose("test").execute().actionGet();
+        assertAcked(client().admin().indices().prepareClose("test"));
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> restarting nodes...");
         internalCluster().fullRestart();
@@ -166,11 +165,11 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
+            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -231,7 +230,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").execute().actionGet();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").setTimeout("100ms").execute().actionGet();
+        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
     }
 
     public void testTwoNodesSingleDoc() throws Exception {
@@ -254,11 +253,11 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         }
 
         logger.info("--> closing test index...");
-        client().admin().indices().prepareClose("test").execute().actionGet();
+        assertAcked(client().admin().indices().prepareClose("test"));
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> opening the index...");
         client().admin().indices().prepareOpen("test").execute().actionGet();
@@ -273,57 +272,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
         }
-    }
-
-    public void testDanglingIndices() throws Exception {
-        /*TODO This test test does not work with Zen2, because once master node looses its cluster state during restart
-        it will start with term = 1, which is the same as the term data node has. Data node won't accept cluster state from master
-        after the restart, because the term is the same, but version of the cluster state is greater on the data node.
-        Consider adding term to JoinRequest, so that master node can bump its term if its current term is less than JoinRequest#term.
-        */
-        logger.info("--> starting two nodes");
-
-        final String node_1 = internalCluster().startNodes(2,
-                Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build()).get(0);
-
-        logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        logger.info("--> verify 1 doc in the index");
-        for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
-        }
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-
-        logger.info("--> restarting the nodes");
-        internalCluster().fullRestart(new RestartCallback() {
-            @Override
-            public boolean clearData(String nodeName) {
-                return node_1.equals(nodeName);
-            }
-        });
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        // spin a bit waiting for the index to exists
-        long time = System.currentTimeMillis();
-        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(10).millis()) {
-            if (client().admin().indices().prepareExists("test").execute().actionGet().isExists()) {
-                break;
-            }
-        }
-
-        logger.info("--> verify that the dangling index exists");
-        assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        logger.info("--> verify the doc is there");
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     /**

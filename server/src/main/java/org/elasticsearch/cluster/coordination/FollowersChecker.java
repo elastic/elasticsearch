@@ -77,7 +77,7 @@ public class FollowersChecker {
     // the timeout for each check sent to each node
     public static final Setting<TimeValue> FOLLOWER_CHECK_TIMEOUT_SETTING =
         Setting.timeSetting("cluster.fault_detection.follower_check.timeout",
-            TimeValue.timeValueMillis(30000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     // the number of failed checks that must happen before the follower is considered to have failed.
     public static final Setting<Integer> FOLLOWER_CHECK_RETRY_COUNT_SETTING =
@@ -135,7 +135,7 @@ public class FollowersChecker {
             followerCheckers.keySet().removeIf(isUnknownNode);
             faultyNodes.removeIf(isUnknownNode);
 
-            for (final DiscoveryNode discoveryNode : discoveryNodes) {
+            discoveryNodes.mastersFirstStream().forEach(discoveryNode -> {
                 if (discoveryNode.equals(discoveryNodes.getLocalNode()) == false
                     && followerCheckers.containsKey(discoveryNode) == false
                     && faultyNodes.contains(discoveryNode) == false) {
@@ -144,7 +144,7 @@ public class FollowersChecker {
                     followerCheckers.put(discoveryNode, followerChecker);
                     followerChecker.start();
                 }
-            }
+            });
         }
     }
 
@@ -374,9 +374,10 @@ public class FollowersChecker {
                 public void run() {
                     synchronized (mutex) {
                         if (running() == false) {
-                            logger.debug("{} condition no longer applies, not marking faulty", discoveryNode);
+                            logger.trace("{} no longer running, not marking faulty", FollowerChecker.this);
                             return;
                         }
+                        logger.debug("{} marking node as faulty", FollowerChecker.this);
                         faultyNodes.add(discoveryNode);
                         followerCheckers.remove(discoveryNode);
                     }
@@ -391,7 +392,7 @@ public class FollowersChecker {
         }
 
         private void scheduleNextWakeUp() {
-            transportService.getThreadPool().schedule(followerCheckInterval, Names.SAME, new Runnable() {
+            transportService.getThreadPool().schedule(new Runnable() {
                 @Override
                 public void run() {
                     handleWakeUp();
@@ -401,7 +402,7 @@ public class FollowersChecker {
                 public String toString() {
                     return FollowerChecker.this + "::handleWakeUp";
                 }
-            });
+            }, followerCheckInterval, Names.SAME);
         }
 
         @Override

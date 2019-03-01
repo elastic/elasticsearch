@@ -28,25 +28,19 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.core.Is.is;
 
@@ -57,38 +51,12 @@ import static org.hamcrest.core.Is.is;
 public class Zen2RestApiIT extends ESNetty4IntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        final Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
-            .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE);
-
-        return builder.build();
-    }
-
-    @Override
-    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-        final Settings firstNodeSettings = allNodesSettings.get(0);
-        final List<Settings> otherNodesSettings = allNodesSettings.subList(1, allNodesSettings.size());
-        final List<String> masterNodeNames = allNodesSettings.stream()
-                .filter(org.elasticsearch.node.Node.NODE_MASTER_SETTING::get)
-                .map(org.elasticsearch.node.Node.NODE_NAME_SETTING::get)
-                .collect(Collectors.toList());
-        final List<Settings> updatedSettings = new ArrayList<>();
-
-        updatedSettings.add(Settings.builder().put(firstNodeSettings)
-                .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), masterNodeNames)
-                .build());
-        updatedSettings.addAll(otherNodesSettings);
-
-        return updatedSettings;
-    }
-
-    @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
     }
 
     public void testRollingRestartOfTwoNodeCluster() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(1);
         final List<String> nodes = internalCluster().startNodes(2);
         createIndex("test",
             Settings.builder()
@@ -148,7 +116,9 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     }
 
     public void testClearVotingTombstonesNotWaitingForRemoval() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(2);
         List<String> nodes = internalCluster().startNodes(3);
+        ensureStableCluster(3);
         RestClient restClient = getRestClient();
         Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" + nodes.get(2)));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
@@ -160,7 +130,9 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     }
 
     public void testClearVotingTombstonesWaitingForRemoval() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(2);
         List<String> nodes = internalCluster().startNodes(3);
+        ensureStableCluster(3);
         RestClient restClient = getRestClient();
         String nodeToWithdraw = nodes.get(randomIntBetween(0, 2));
         Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" + nodeToWithdraw));
@@ -173,7 +145,9 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     }
 
     public void testFailsOnUnknownNode() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(2);
         internalCluster().startNodes(3);
+        ensureStableCluster(3);
         RestClient restClient = getRestClient();
         try {
             restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/invalid"));
@@ -181,7 +155,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(400));
             assertThat(
-                e.getCause().getMessage(),
+                e.getMessage(),
                 Matchers.containsString("add voting config exclusions request for [invalid] matched no master-eligible nodes")
             );
         }

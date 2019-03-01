@@ -25,9 +25,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -62,14 +59,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE;
 
 /**
  * Represents a connection to a single remote cluster. In contrast to a local cluster a remote cluster is not joined such that the
@@ -111,12 +104,13 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
      * @param maxNumRemoteConnections the maximum number of connections to the remote cluster
      * @param nodePredicate a predicate to filter eligible remote nodes to connect to
      * @param proxyAddress the proxy address
+     * @param connectionProfile the connection profile to use
      */
     RemoteClusterConnection(Settings settings, String clusterAlias, List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
                             TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
-                            String proxyAddress) {
+                            String proxyAddress, ConnectionProfile connectionProfile) {
         this(settings, clusterAlias, seedNodes, transportService, maxNumRemoteConnections, nodePredicate, proxyAddress,
-            createConnectionManager(settings, clusterAlias, transportService));
+            createConnectionManager(connectionProfile, transportService));
     }
 
     // Public for tests to pass a StubbableConnectionManager
@@ -172,6 +166,13 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         this.skipUnavailable = skipUnavailable;
     }
 
+    /**
+     * Returns whether this cluster is configured to be skipped when unavailable
+     */
+    boolean isSkipUnavailable() {
+        return skipUnavailable;
+    }
+
     @Override
     public void onNodeDisconnected(DiscoveryNode node) {
         boolean remove = connectedNodes.remove(node);
@@ -182,64 +183,15 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     /**
-     * Fetches all shards for the search request from this remote connection. This is used to later run the search on the remote end.
-     */
-    public void fetchSearchShards(ClusterSearchShardsRequest searchRequest,
-                                  ActionListener<ClusterSearchShardsResponse> listener) {
-
-        final ActionListener<ClusterSearchShardsResponse> searchShardsListener;
-        final Consumer<Exception> onConnectFailure;
-        if (skipUnavailable) {
-            onConnectFailure = (exception) -> listener.onResponse(ClusterSearchShardsResponse.EMPTY);
-            searchShardsListener = ActionListener.wrap(listener::onResponse, (e) -> listener.onResponse(ClusterSearchShardsResponse.EMPTY));
-        } else {
-            onConnectFailure = listener::onFailure;
-            searchShardsListener = listener;
-        }
-        // in case we have no connected nodes we try to connect and if we fail we either notify the listener or not depending on
-        // the skip_unavailable setting
-        ensureConnected(ActionListener.wrap((x) -> fetchShardsInternal(searchRequest, searchShardsListener), onConnectFailure));
-    }
-
-    /**
      * Ensures that this cluster is connected. If the cluster is connected this operation
      * will invoke the listener immediately.
      */
-    public void ensureConnected(ActionListener<Void> voidActionListener) {
+    void ensureConnected(ActionListener<Void> voidActionListener) {
         if (connectedNodes.size() == 0) {
             connectHandler.connect(voidActionListener);
         } else {
             voidActionListener.onResponse(null);
         }
-    }
-
-    private void fetchShardsInternal(ClusterSearchShardsRequest searchShardsRequest,
-                                     final ActionListener<ClusterSearchShardsResponse> listener) {
-        final DiscoveryNode node = getAnyConnectedNode();
-        Transport.Connection connection = connectionManager.getConnection(node);
-        transportService.sendRequest(connection, ClusterSearchShardsAction.NAME, searchShardsRequest, TransportRequestOptions.EMPTY,
-            new TransportResponseHandler<ClusterSearchShardsResponse>() {
-
-                @Override
-                public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
-                    return new ClusterSearchShardsResponse(in);
-                }
-
-                @Override
-                public void handleResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
-                    listener.onResponse(clusterSearchShardsResponse);
-                }
-
-                @Override
-                public void handleException(TransportException e) {
-                    listener.onFailure(e);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SEARCH;
-                }
-            });
     }
 
     /**
@@ -355,11 +307,21 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(connectHandler, connectionManager);
+        IOUtils.close(connectHandler);
+        // In the ConnectionManager we wait on connections being closed.
+        threadPool.generic().execute(connectionManager::close);
     }
 
     public boolean isClosed() {
         return connectHandler.isClosed();
+    }
+
+    public String getProxyAddress() {
+        return proxyAddress;
+    }
+
+    public List<Tuple<String, Supplier<DiscoveryNode>>> getSeedNodes() {
+        return seedNodes;
     }
 
     /**
@@ -705,7 +667,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
             if (currentIterator.hasNext()) {
                 return currentIterator.next();
             } else {
-                throw new IllegalStateException("No node available for cluster: " + clusterAlias);
+                throw new NoSuchRemoteClusterException(clusterAlias);
             }
         }
 
@@ -743,18 +705,8 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         }
     }
 
-    private static ConnectionManager createConnectionManager(Settings settings, String clusterAlias, TransportService transportService) {
-        ConnectionProfile.Builder builder = new ConnectionProfile.Builder()
-            .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
-            .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
-            .addConnections(6, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING) // TODO make this configurable?
-            // we don't want this to be used for anything else but search
-            .addConnections(0, TransportRequestOptions.Type.BULK,
-                TransportRequestOptions.Type.STATE,
-                TransportRequestOptions.Type.RECOVERY)
-            .setCompressionEnabled(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-            .setPingInterval(REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings));
-        return new ConnectionManager(builder.build(), transportService.transport, transportService.threadPool);
+    private static ConnectionManager createConnectionManager(ConnectionProfile connectionProfile, TransportService transportService) {
+        return new ConnectionManager(connectionProfile, transportService.transport);
     }
 
     ConnectionManager getConnectionManager() {

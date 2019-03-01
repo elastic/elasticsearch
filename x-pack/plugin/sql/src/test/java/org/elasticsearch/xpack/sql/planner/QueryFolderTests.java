@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
@@ -76,7 +77,7 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(EmptyExecutable.class, le.executable().getClass());
         EmptyExecutable ee = (EmptyExecutable) le.executable();
         assertEquals(1, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("E{c}#"));
+        assertThat(ee.output().get(0).toString(), startsWith("E(){c}#"));
     }
 
     public void testLocalExecWithPrunedFilterWithFunctionAndAggregation() {
@@ -86,7 +87,7 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(EmptyExecutable.class, le.executable().getClass());
         EmptyExecutable ee = (EmptyExecutable) le.executable();
         assertEquals(1, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("E{c}#"));
+        assertThat(ee.output().get(0).toString(), startsWith("E(){c}#"));
     }
 
     public void testLocalExecWithoutFromClause() {
@@ -96,9 +97,9 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(SingletonExecutable.class, le.executable().getClass());
         SingletonExecutable ee = (SingletonExecutable) le.executable();
         assertEquals(3, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("E{c}#"));
-        assertThat(ee.output().get(1).toString(), startsWith("foo{c}#"));
-        assertThat(ee.output().get(2).toString(), startsWith("ABS(10){c}#"));
+        assertThat(ee.output().get(0).toString(), startsWith("E(){c}#"));
+        assertThat(ee.output().get(1).toString(), startsWith("'foo'{c}#"));
+        assertThat(ee.output().get(2).toString(), startsWith("abs(10){c}#"));
     }
 
     public void testLocalExecWithoutFromClauseWithPrunedFilter() {
@@ -108,7 +109,7 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(EmptyExecutable.class, le.executable().getClass());
         EmptyExecutable ee = (EmptyExecutable) le.executable();
         assertEquals(1, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("E{c}#"));
+        assertThat(ee.output().get(0).toString(), startsWith("E(){c}#"));
     }
 
     public void testFoldingOfIsNull() {
@@ -137,7 +138,7 @@ public class QueryFolderTests extends ESTestCase {
         EmptyExecutable ee = (EmptyExecutable) le.executable();
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
-        assertThat(ee.output().get(1).toString(), startsWith("MAX(int){a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("max(int){a->"));
     }
 
     public void testFoldingBooleanOrNull_WhereClause() {
@@ -159,7 +160,7 @@ public class QueryFolderTests extends ESTestCase {
             "\"lang\":\"painless\",\"params\":{\"v0\":10}},"));
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
-        assertThat(ee.output().get(1).toString(), startsWith("MAX(int){a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("max(int){a->"));
     }
 
     public void testFoldingOfIsNotNull() {
@@ -208,7 +209,7 @@ public class QueryFolderTests extends ESTestCase {
         EmptyExecutable ee = (EmptyExecutable) le.executable();
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
-        assertThat(ee.output().get(1).toString(), startsWith("MAX(int){a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("max(int){a->"));
     }
 
     public void testFoldingToLocalExecWithProjectWithGroupBy_WithHaving_WithOrderAndLimit() {
@@ -219,7 +220,7 @@ public class QueryFolderTests extends ESTestCase {
         EmptyExecutable ee = (EmptyExecutable) le.executable();
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
-        assertThat(ee.output().get(1).toString(), startsWith("MAX(int){a->"));
+        assertThat(ee.output().get(1).toString(), startsWith("max(int){a->"));
     }
 
     public void testGroupKeyTypes_Boolean() {
@@ -232,7 +233,7 @@ public class QueryFolderTests extends ESTestCase {
                 "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":10}},\"missing_bucket\":true," +
                 "\"value_type\":\"boolean\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
+        assertThat(ee.output().get(0).toString(), startsWith("count(*){a->"));
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
     }
 
@@ -246,7 +247,7 @@ public class QueryFolderTests extends ESTestCase {
                 "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":10}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
+        assertThat(ee.output().get(0).toString(), startsWith("count(*){a->"));
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
     }
 
@@ -260,7 +261,7 @@ public class QueryFolderTests extends ESTestCase {
                 "\"lang\":\"painless\",\"params\":{\"v0\":\"int\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
+        assertThat(ee.output().get(0).toString(), startsWith("count(*){a->"));
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
     }
 
@@ -274,7 +275,7 @@ public class QueryFolderTests extends ESTestCase {
                 "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"string\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
+        assertThat(ee.output().get(0).toString(), startsWith("count(*){a->"));
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
     }
 
@@ -288,11 +289,11 @@ public class QueryFolderTests extends ESTestCase {
                     "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\",\"v1\":\"IP\"}}," +
                     "\"missing_bucket\":true,\"value_type\":\"ip\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
+        assertThat(ee.output().get(0).toString(), startsWith("count(*){a->"));
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
     }
 
-    public void testGroupKeyTypes_Date() {
+    public void testGroupKeyTypes_DateTime() {
         PhysicalPlan p = plan("SELECT count(*), date + INTERVAL '1-2' YEAR TO MONTH AS a FROM test GROUP BY a");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
@@ -303,7 +304,7 @@ public class QueryFolderTests extends ESTestCase {
                 "\"v0\":\"date\",\"v1\":\"P1Y2M\",\"v2\":\"INTERVAL_YEAR_TO_MONTH\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"date\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("COUNT(1){a->"));
+        assertThat(ee.output().get(0).toString(), startsWith("count(*){a->"));
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
     }
 
@@ -315,5 +316,25 @@ public class QueryFolderTests extends ESTestCase {
         EmptyExecutable ee = (EmptyExecutable) le.executable();
         assertEquals(1, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
+    public void testFoldingOfPercentileSecondArgument() {
+        PhysicalPlan p = plan("SELECT PERCENTILE(int, 1 + 2) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(1, ee.output().size());
+        assertEquals(AggregateFunctionAttribute.class, ee.output().get(0).getClass());
+        AggregateFunctionAttribute afa = (AggregateFunctionAttribute) ee.output().get(0);
+        assertThat(afa.propertyPath(), endsWith("[3.0]"));
+    }
+
+    public void testFoldingOfPercentileRankSecondArgument() {
+        PhysicalPlan p = plan("SELECT PERCENTILE_RANK(int, 1 + 2) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(1, ee.output().size());
+        assertEquals(AggregateFunctionAttribute.class, ee.output().get(0).getClass());
+        AggregateFunctionAttribute afa = (AggregateFunctionAttribute) ee.output().get(0);
+        assertThat(afa.propertyPath(), endsWith("[3.0]"));
     }
 }

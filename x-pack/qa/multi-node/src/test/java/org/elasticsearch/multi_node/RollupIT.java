@@ -69,7 +69,7 @@ public class RollupIT extends ESRestTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
-                builder.startObject("mappings").startObject("_doc")
+                builder.startObject("mappings")
                     .startObject("properties")
                     .startObject("timestamp")
                     .field("type", "date")
@@ -77,7 +77,6 @@ public class RollupIT extends ESRestTestCase {
                     .endObject()
                     .startObject("value")
                     .field("type", "integer")
-                    .endObject()
                     .endObject()
                     .endObject().endObject();
             }

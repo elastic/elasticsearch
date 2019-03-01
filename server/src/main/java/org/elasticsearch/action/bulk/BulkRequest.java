@@ -615,16 +615,15 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return globalRouting;
     }
 
-    private int findNextMarker(byte marker, int from, BytesReference data, int length) {
-        for (int i = from; i < length; i++) {
-            if (data.get(i) == marker) {
-                return i;
-            }
+    private static int findNextMarker(byte marker, int from, BytesReference data, int length) {
+        final int res = data.findNextMarker(marker, from, length);
+        if (res > -1) {
+            return res;
         }
         if (from != length) {
             throw new IllegalArgumentException("The bulk request must be terminated by a newline [\n]");
         }
-        return -1;
+        return res;
     }
 
     @Override

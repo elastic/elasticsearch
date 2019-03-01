@@ -276,10 +276,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     }
 
     private static int findNextMarker(byte marker, int from, BytesReference data, int length) {
-        for (int i = from; i < length; i++) {
-            if (data.get(i) == marker) {
-                return i;
-            }
+        final int res = data.findNextMarker(marker, from, length);
+        if (res > -1) {
+            return res;
         }
         if (from != length) {
             throw new IllegalArgumentException("The msearch request must be terminated by a newline [\n]");

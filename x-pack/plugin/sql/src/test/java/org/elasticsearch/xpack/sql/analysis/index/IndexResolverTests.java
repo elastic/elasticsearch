@@ -135,13 +135,25 @@ public class IndexResolverTests extends ESTestCase {
 
     public void testMergeIncompatibleCapabilitiesOfObjectFields() throws Exception {
         Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
+
+        int depth = randomInt(5);
+
+        List<String> level = new ArrayList<>();
+        String fieldName = randomAlphaOfLength(3);
+        level.add(fieldName);
+        for (int i = 0; i <= depth; i++) {
+            String l = randomAlphaOfLength(3);
+            level.add(l);
+            fieldName += "." + l;
+        }
+
         // define a sub-field
-        addFieldCaps(fieldCaps, "a.keyword", "keyword", true, true);
+        addFieldCaps(fieldCaps, fieldName + ".keyword", "keyword", true, true);
 
         Map<String, FieldCapabilities> multi = new HashMap<>();
-        multi.put("long", new FieldCapabilities("a", "long", true, true, new String[] { "one-index" }, null, null));
-        multi.put("text", new FieldCapabilities("a", "text", true, false, new String[] { "another-index" }, null, null));
-        fieldCaps.put("a", multi);
+        multi.put("long", new FieldCapabilities(fieldName, "long", true, true, new String[] { "one-index" }, null, null));
+        multi.put("text", new FieldCapabilities(fieldName, "text", true, false, new String[] { "another-index" }, null, null));
+        fieldCaps.put(fieldName, multi);
 
 
         String wildcard = "*";
@@ -151,7 +163,12 @@ public class IndexResolverTests extends ESTestCase {
 
         EsIndex esIndex = resolution.get();
         assertEquals(wildcard, esIndex.name());
-        EsField esField = esIndex.mapping().get("a");
+        EsField esField = null;
+        Map<String, EsField> props = esIndex.mapping();
+        for (String lvl : level) {
+            esField = props.get(lvl);
+            props = esField.getProperties();
+        }
         assertEquals(InvalidMappedField.class, esField.getClass());
         assertEquals("mapped as [2] incompatible types: [text] in [another-index], [long] in [one-index]",
                 ((InvalidMappedField) esField).errorMessage());

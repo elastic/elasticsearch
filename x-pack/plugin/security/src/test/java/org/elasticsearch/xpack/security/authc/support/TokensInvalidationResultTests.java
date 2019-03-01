@@ -25,7 +25,8 @@ public class TokensInvalidationResultTests extends ESTestCase {
         TokensInvalidationResult result = new TokensInvalidationResult(Arrays.asList("token1", "token2"),
             Arrays.asList("token3", "token4"),
             Arrays.asList(new ElasticsearchException("foo", new IllegalStateException("bar")),
-                new ElasticsearchException("boo", new IllegalStateException("far"))));
+                new ElasticsearchException("boo", new IllegalStateException("far"))),
+            randomIntBetween(0, 5));
 
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -55,8 +56,9 @@ public class TokensInvalidationResultTests extends ESTestCase {
     }
 
     public void testToXcontentWithNoErrors() throws Exception{
-        TokensInvalidationResult result = new TokensInvalidationResult(Arrays.asList("token1", "token2"), Collections.emptyList(),
-            Collections.emptyList());
+        TokensInvalidationResult result = new TokensInvalidationResult(Arrays.asList("token1", "token2"),
+            Collections.emptyList(),
+            Collections.emptyList(), randomIntBetween(0, 5));
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertThat(Strings.toString(builder),

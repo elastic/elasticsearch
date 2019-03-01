@@ -89,7 +89,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                              boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
         try {
             tokenService.createUserToken(authentication, originatingAuth, ActionListener.wrap(tuple -> {
-                final String tokenStr = tokenService.getAccessTokenAsString(tuple.v1());
+                final String tokenStr = tokenService.getUserTokenString(tuple.v1());
                 final String scope = getResponseScopeValue(request.getScope());
 
                 final CreateTokenResponse response =

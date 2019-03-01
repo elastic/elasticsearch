@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -697,7 +698,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 (leases, listener) -> {};
         ReplicationTracker oldPrimary = new ReplicationTracker(
                 shardId, clusterState.routingTable.primaryShard().allocationId().getId(),
-            indexSettings, primaryTerm, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);
+            indexSettings, primaryTerm, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease, Version.CURRENT);
 
         clusterState.apply(oldPrimary);
         oldPrimary.activatePrimaryMode(randomIntBetween(Math.toIntExact(NO_OPS_PERFORMED), 10), NO_OPS_PERFORMED);
@@ -706,7 +707,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
 
         ReplicationTracker newPrimary = new ReplicationTracker(
             shardId, clusterState.routingTable.primaryShard().allocationId().getRelocationId(),
-            indexSettings, primaryTerm, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);
+            indexSettings, primaryTerm, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease, Version.CURRENT);
 
         oldPrimary.addPeerRecoveryRetentionLease(clusterState.routingTable.primaryShard().relocatingNodeId(), 0L, wrap(() -> {}));
         newPrimary.updateRetentionLeasesOnReplica(oldPrimary.getRetentionLeases());

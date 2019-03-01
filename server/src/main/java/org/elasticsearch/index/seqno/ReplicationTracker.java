@@ -184,6 +184,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private RetentionLeases retentionLeases = RetentionLeases.EMPTY;
 
     /**
+     * The version in which this index was created
+     */
+    private final Version indexCreatedVersion;
+
+    /**
      * Get all retention leases tracked on this shard.
      *
      * @return the retention leases
@@ -698,16 +703,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             assert checkpoints.get(aId) != null : "aId [" + aId + "] is pending in sync but isn't tracked";
         }
 
-        if (checkpoints.get(shardAllocationId).inSync
-            && (primaryMode || shardAllocationId.equals(routingTable.primaryShard().allocationId().getId()) == false)) {
-            // a newly-recovered primary creates its own retention lease when entering primaryMode, which is done later, so it doesn't
-            // exist yet
-
-            // TODO also expect to have a lease for tracked shard copies
-            // TODO what about relocating shards?
-            for (ShardRouting shardRouting : routingTable.activeShards()) {
-                assert retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting)) :
-                    "no retention lease for active shard " + shardRouting + " in " + retentionLeases + " on " + shardAllocationId;
+        if (primaryMode && indexCreatedVersion.onOrAfter(Version.V_8_0_0)) { // TODO V_7_0_0 after backporting
+            for (final ShardRouting shardRouting : routingTable.assignedShards()) {
+                assert checkpoints.get(shardRouting.allocationId().getId()).tracked == false
+                    || retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting)) :
+                    "no retention lease for tracked shard " + shardRouting + " in " + retentionLeases;
+                assert shardRouting.relocating() == false
+                    || checkpoints.get(shardRouting.allocationId().getRelocationId()).tracked == false
+                    || retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting.getTargetRelocatingShard())) :
+                    "no retention lease for relocation target " + shardRouting + " in " + retentionLeases;
             }
         }
 
@@ -748,7 +752,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final long globalCheckpoint,
             final LongConsumer onGlobalCheckpointUpdated,
             final LongSupplier currentTimeMillisSupplier,
-            final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases) {
+            final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
+            final Version indexCreatedVersion) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;
@@ -765,6 +770,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;
+        assert Version.V_EMPTY.equals(indexCreatedVersion) == false;
+        this.indexCreatedVersion = indexCreatedVersion;
         assert invariant();
     }
 

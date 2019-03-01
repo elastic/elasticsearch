@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -49,7 +50,8 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase  {
                 UNASSIGNED_SEQ_NO,
                 updatedGlobalCheckpoint,
                 currentTimeMillisSupplier,
-                (leases, listener) -> {});
+                (leases, listener) -> {},
+                Version.CURRENT);
     }
 
     static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final AllocationId primaryId) {

@@ -427,7 +427,7 @@ public final class TokenService {
         byte[] bytes = token.getBytes(StandardCharsets.UTF_8);
         StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length);
         final Version version = Version.readVersion(in);
-        if (version.onOrAfter(Version.V_8_0_0)) {
+        if (version.onOrAfter(Version.V_7_1_0)) {
             // The token was created in a > 7.1.0 cluster so it contains the tokenId as a String
             String usedTokenId = in.readString();
             getUserTokenFromId(usedTokenId, listener);
@@ -1047,7 +1047,7 @@ public final class TokenService {
         Version authVersion = Version.fromId(version);
         final Boolean refreshed = (Boolean) refreshTokenSrc.get("refreshed");
         if (refreshed) {
-            if (authVersion.onOrAfter(Version.V_8_0_0)) {
+            if (authVersion.onOrAfter(Version.V_7_1_0)) {
                 final Long refreshedEpochMilli = (Long) refreshTokenSrc.get("refresh_time");
                 final Instant refreshTime = refreshedEpochMilli == null ? null : Instant.ofEpochMilli(refreshedEpochMilli);
                 final String supersededBy = (String) refreshTokenSrc.get("superseded_by");
@@ -1086,7 +1086,7 @@ public final class TokenService {
         final Long refreshedEpochMilli = (Long) refreshTokenSrc.get("refresh_time");
         final Instant refreshTime = refreshedEpochMilli == null ? null : Instant.ofEpochMilli(refreshedEpochMilli);
         final String supersededBy = (String) refreshTokenSrc.get("superseded_by");
-        return authVersion.onOrAfter(Version.V_8_0_0)
+        return authVersion.onOrAfter(Version.V_7_1_0)
             && supersededBy != null
             && refreshTime != null
             && refreshRequested.isBefore(refreshTime.plus(30L, ChronoUnit.SECONDS))
@@ -1351,7 +1351,7 @@ public final class TokenService {
      * itself for versions after 7.0.0
      */
     public String getAccessTokenAsString(UserToken userToken) throws IOException, GeneralSecurityException {
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_8_0_0)) {
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_1_0)) {
             try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
                  OutputStream base64 = Base64.getEncoder().wrap(os);
                  StreamOutput out = new OutputStreamStreamOutput(base64)) {

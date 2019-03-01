@@ -23,7 +23,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.Attribute;
@@ -32,7 +31,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.transport.Transports;
 
 import java.nio.channels.ClosedChannelException;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.ArrayDeque;
+import java.util.Queue;
 
 /**
  * A handler (must be the last one!) that does size based frame decoding and forwards the actual message
@@ -42,9 +42,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     private final Netty4Transport transport;
 
-    private final ConcurrentLinkedQueue<WriteOperation> queuedWrites = new ConcurrentLinkedQueue<>();
-
-    private volatile ChannelHandlerContext ctx;
+    private final Queue<WriteOperation> queuedWrites = new ArrayDeque<>();
 
     private WriteOperation currentWrite;
 
@@ -54,7 +52,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
-        Transports.assertTransportThread();
+        assert Transports.assertTransportThread();
         assert msg instanceof ByteBuf : "Expected message type ByteBuf, found: " + msg.getClass();
 
         final ByteBuf buffer = (ByteBuf) msg;
@@ -109,33 +107,14 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         super.channelInactive(ctx);
     }
 
-    private void resumeFlush() {
-        final ChannelHandlerContext context = this.ctx;
-        if (context == null) {
-            return;
-        }
-        if (context.executor().inEventLoop()) {
-            doFlush(context);
-        } else {
-            context.executor().execute(() -> doFlush(context));
-        }
-    }
-
-    @Override
-    public void handlerAdded(ChannelHandlerContext ctx) {
-        this.ctx = ctx;
-    }
-
     private void doFlush(ChannelHandlerContext ctx) {
+        assert ctx.executor().inEventLoop();
         final Channel channel = ctx.channel();
         if (channel.isActive() == false) {
             if (currentWrite != null) {
                 currentWrite.promise.tryFailure(new ClosedChannelException());
             }
-            WriteOperation queuedWrite;
-            while ((queuedWrite = queuedWrites.poll()) != null) {
-                queuedWrite.promise.tryFailure(new ClosedChannelException());
-            }
+            failQueuedWrites();
             return;
         }
         while (channel.isWritable()) {
@@ -151,37 +130,48 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 currentWrite = null;
                 continue;
             }
-            final int bufferSize = Math.min(write.buf.readableBytes(), 1 << 18);
-            final ByteBuf writeBuffer = ctx.alloc().directBuffer(bufferSize, bufferSize);
-            writeBuffer.writeBytes(write.buf, bufferSize);
+            final int readableBytes = write.buf.readableBytes();
+            final int bufferSize = Math.min(readableBytes, 1 << 18);
+            final int readerIndex = write.buf.readerIndex();
+            final boolean sliced = readableBytes != bufferSize;
+            final ByteBuf writeBuffer;
+            if (sliced) {
+                writeBuffer = write.buf.retainedSlice(readerIndex, bufferSize);
+                write.buf.readerIndex(readerIndex + bufferSize);
+            } else {
+                writeBuffer = write.buf;
+            }
             final ChannelFuture writeFuture = ctx.write(writeBuffer);
-            if (write.buf.readableBytes() == 0) {
+            if (sliced == false || write.buf.readableBytes() == 0) {
                 currentWrite = null;
-                writeFuture.addListener((ChannelFutureListener) future -> {
+                writeFuture.addListener(future -> {
+                    assert ctx.executor().inEventLoop();
                     if (future.isSuccess()) {
                         write.promise.trySuccess();
-                        resumeFlush();
                     } else {
                         write.promise.tryFailure(future.cause());
                     }
                 });
             } else {
-                writeFuture.addListener(f -> {
-                    if (f.isSuccess() == false) {
-                        write.promise.tryFailure(f.cause());
-                    } else {
-                        resumeFlush();
+                writeFuture.addListener(future -> {
+                    assert ctx.executor().inEventLoop();
+                    if (future.isSuccess() == false) {
+                        write.promise.tryFailure(future.cause());
                     }
                 });
             }
             ctx.flush();
             if (channel.isActive() == false) {
-                WriteOperation queuedWrite;
-                while ((queuedWrite = queuedWrites.poll()) != null) {
-                    queuedWrite.promise.tryFailure(new ClosedChannelException());
-                }
+                failQueuedWrites();
                 return;
             }
+        }
+    }
+
+    private void failQueuedWrites() {
+        WriteOperation queuedWrite;
+        while ((queuedWrite = queuedWrites.poll()) != null) {
+            queuedWrite.promise.tryFailure(new ClosedChannelException());
         }
     }
 

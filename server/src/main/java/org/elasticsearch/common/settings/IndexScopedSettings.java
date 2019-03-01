@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -161,6 +162,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         EngineConfig.INDEX_CODEC_SETTING,
         IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
         IndexSettings.DEFAULT_PIPELINE,
+        MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

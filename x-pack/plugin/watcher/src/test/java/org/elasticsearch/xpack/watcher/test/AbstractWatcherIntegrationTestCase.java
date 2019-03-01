@@ -235,7 +235,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
                 // Now replace it with a randomly named index
                 watchIndexName = randomAlphaOfLengthBetween(5,10).toLowerCase(Locale.ROOT);
-                replaceWatcherIndexWithRandomlyNamedIndex(Watch.INDEX, watchIndexName);
+                replaceWatcherIndexWithRandomlyNamedIndex(Watch.INDEX, watchIndexName, Watch.DOC_TYPE);
 
                 logger.info("set alias for .watches index to [{}]", watchIndexName);
             } else {
@@ -248,13 +248,19 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             }
 
             // alias for .triggered-watches, ensuring the index template is set appropriately
-            if (rarely()) {
-                triggeredWatchIndexName = ".triggered_watches-alias-index";
-                CreateIndexResponse response = client().admin().indices().prepareCreate(triggeredWatchIndexName)
+            if (randomBoolean()) {
+                String tempIndex = ".triggered_watches-alias-index";
+                CreateIndexResponse response = client().admin().indices().prepareCreate(tempIndex)
                         .setCause("Index to test aliases with .triggered-watches index")
                         .addAlias(new Alias(TriggeredWatchStoreField.INDEX_NAME))
                         .get();
                 assertAcked(response);
+
+                // Now replace it with a randomly-named index
+                triggeredWatchIndexName = randomValueOtherThan(watchIndexName,
+                    () -> randomAlphaOfLengthBetween(5,10).toLowerCase(Locale.ROOT));
+                replaceWatcherIndexWithRandomlyNamedIndex(TriggeredWatchStoreField.INDEX_NAME, triggeredWatchIndexName,
+                    TriggeredWatchStoreField.DOC_TYPE);
                 logger.info("set alias for .triggered-watches index to [{}]", triggeredWatchIndexName);
             } else {
                 triggeredWatchIndexName = TriggeredWatchStoreField.INDEX_NAME;
@@ -268,9 +274,9 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
     }
 
-    public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to) {
+    public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to, String docType) {
         GetIndexResponse index = client().admin().indices().prepareGetIndex().setIndices(originalIndexOrAlias).get();
-        MappingMetaData mapping = index.getMappings().get(index.getIndices()[0]).get(Watch.DOC_TYPE);
+        MappingMetaData mapping = index.getMappings().get(index.getIndices()[0]).get(docType);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
         Settings.Builder newSettings = Settings.builder().put(settings);
@@ -280,7 +286,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         newSettings.remove("index.version.created");
 
         CreateIndexResponse createIndexResponse = client().admin().indices().prepareCreate(to)
-            .addMapping(Watch.DOC_TYPE, mapping.sourceAsMap())
+            .addMapping(docType, mapping.sourceAsMap())
             .setSettings(newSettings)
             .get();
         assertTrue(createIndexResponse.isAcknowledged());

@@ -402,7 +402,7 @@ public class MetaDataIndexStateService {
 
         // Remove the index routing table of closed indices if the cluster is in a mixed version
         // that does not support the replication of closed indices
-        final boolean removeRoutingTable = currentState.nodes().getMinNodeVersion().before(Version.V_8_0_0);
+        final boolean removeRoutingTable = currentState.nodes().getMinNodeVersion().before(Version.V_7_1_0);
 
         final MetaData.Builder metadata = MetaData.builder(currentState.metaData());
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());

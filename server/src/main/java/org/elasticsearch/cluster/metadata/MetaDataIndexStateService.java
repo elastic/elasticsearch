@@ -250,10 +250,6 @@ public class MetaDataIndexStateService {
         // Check if index closing conflicts with any running snapshots
         SnapshotsService.checkIndexClosing(currentState, indicesToClose);
 
-        // If the cluster is in a mixed version that does not support the shard close action,
-        // we use the previous way to close indices and directly close them without sanity checks
-        final boolean useDirectClose = currentState.nodes().getMinNodeVersion().before(Version.V_6_7_0);
-
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
 
@@ -271,19 +267,11 @@ public class MetaDataIndexStateService {
                     }
                 }
             }
-            if (useDirectClose) {
-                logger.debug("closing index {} directly", index);
-                metadata.put(IndexMetaData.builder(indexToClose).state(IndexMetaData.State.CLOSE));
-                blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
-                routingTable.remove(index.getName());
-                indexBlock = INDEX_CLOSED_BLOCK;
-            } else {
-                if (indexBlock == null) {
-                    // Create a new index closed block
-                    indexBlock = createIndexClosingBlock();
-                }
-                assert Strings.hasLength(indexBlock.uuid()) : "Closing block should have a UUID";
+            if (indexBlock == null) {
+                // Create a new index closed block
+                indexBlock = createIndexClosingBlock();
             }
+            assert Strings.hasLength(indexBlock.uuid()) : "Closing block should have a UUID";
             blocks.addIndexBlock(index.getName(), indexBlock);
             blockedIndices.put(index, indexBlock);
         }

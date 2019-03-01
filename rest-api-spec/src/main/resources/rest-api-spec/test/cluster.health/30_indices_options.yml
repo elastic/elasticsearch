@@ -31,8 +31,8 @@ setup:
 ---
 "cluster health with expand_wildcards":
   - skip:
-      version: " - 7.99.99"
-      reason:  "indices options has been introduced in cluster health request starting version 8.0"
+      version: " - 7.0.99"
+      reason:  "indices options has been introduced in cluster health request starting version 7.1.0"
 
   - do:
       cluster.health:

@@ -6,13 +6,14 @@
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
+
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumericOrDate;
 
 /**
  * Find the maximum value in matching documents.
@@ -48,7 +49,7 @@ public class Max extends NumericAggregate implements EnclosedAgg {
         if (field().dataType().isString()) {
             return TypeResolution.TYPE_RESOLVED;
         } else {
-            return Expressions.typeMustBeNumericOrDate(field(), sourceText(), ParamOrdinal.DEFAULT);
+            return isNumericOrDate(field(), sourceText(), ParamOrdinal.DEFAULT);
         }
     }
 }

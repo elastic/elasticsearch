@@ -13,6 +13,7 @@ coming[8.0.0]
 
 * <<breaking_80_analysis_changes>>
 * <<breaking_80_mappings_changes>>
+* <<breaking_80_snapshots_changes>>
 
 [float]
 === Indices created before 7.0
@@ -32,3 +33,4 @@ Elasticsearch 7.x in order to be readable by Elasticsearch 8.x.
 
 include::migrate_8_0/analysis.asciidoc[]
 include::migrate_8_0/mappings.asciidoc[]
+include::migrate_8_0/snapshots.asciidoc[]

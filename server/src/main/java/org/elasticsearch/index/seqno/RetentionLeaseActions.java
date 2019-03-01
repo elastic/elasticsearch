@@ -262,9 +262,7 @@ public class RetentionLeaseActions {
             void doRetentionLeaseAction(final IndexShard indexShard, final RemoveRequest request, final ActionListener<Response> listener) {
                 indexShard.removeRetentionLease(
                         request.getId(),
-                        ActionListener.wrap(
-                                r -> listener.onResponse(new Response()),
-                                listener::onFailure));
+                        ActionListener.map(listener, r -> new Response()));
             }
 
         }

@@ -110,6 +110,9 @@ preProcessFixture {
   dependsOn taskName("copy", false, "DockerContext")
   dependsOn taskName("copy", false, "Dockerfile")
   doLast {
+    // tests expect to have an empty repo
+    project.delete("${buildDir}/repo")
+    project.delete("${buildDir}/oss-repo")
     createAndSetWritable("${buildDir}/repo")
     createAndSetWritable("${buildDir}/oss-repo")
     createAndSetWritable("${buildDir}/logs/default-1")
@@ -158,7 +161,6 @@ task integTest(type: RandomizedTestingTask) {
   dependsOn copyKeystore
   // FIXME: see why these tests fail
   systemProperty 'tests.rest.blacklist', [
-          'snapshot.restore/10_basic/Create a snapshot and then restore it',
           'watcher/execute_watch/60_http_input/HTTP input supports extracting of keys',
           'token/10_basic/Test invalidate realm\'s tokens',
           'monitoring/bulk/10_basic/Bulk indexing of monitoring data on closed indices should throw an export exception',

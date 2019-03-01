@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -94,11 +93,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final ImmutableOpenMap<String, List<ShardId>> waitingIndices;
         private final long startTime;
         private final long repositoryStateId;
-        @Nullable private final String failure;
 
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
-                     long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
-                     String failure) {
+                     long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
@@ -113,26 +110,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 this.waitingIndices = findWaitingIndices(shards);
             }
             this.repositoryStateId = repositoryStateId;
-            this.failure = failure;
-        }
-
-        public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
-            long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
-            this(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards, null);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime,
-                entry.repositoryStateId, shards, entry.failure);
-        }
-
-        public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure) {
-            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime,
-                 entry.repositoryStateId, shards, failure);
+                 entry.repositoryStateId, shards);
         }
 
         public Entry(Entry entry, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
-            this(entry, entry.state, shards, entry.failure);
+            this(entry, entry.state, shards);
         }
 
         public Snapshot snapshot() {
@@ -169,10 +155,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public long getRepositoryStateId() {
             return repositoryStateId;
-        }
-
-        public String failure() {
-            return failure;
         }
 
         @Override
@@ -455,12 +437,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (in.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
                 repositoryStateId = in.readLong();
             }
-            final String failure;
-            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-                failure = in.readOptionalString();
-            } else {
-                failure = null;
-            }
             entries[i] = new Entry(snapshot,
                                    includeGlobalState,
                                    partial,
@@ -468,8 +444,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                                    Collections.unmodifiableList(indexBuilder),
                                    startTime,
                                    repositoryStateId,
-                                   builder.build(),
-                                   failure);
+                                   builder.build());
         }
         this.entries = Arrays.asList(entries);
     }
@@ -500,9 +475,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             if (out.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
                 out.writeLong(entry.repositoryStateId);
-            }
-            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-                out.writeOptionalString(entry.failure);
             }
         }
     }

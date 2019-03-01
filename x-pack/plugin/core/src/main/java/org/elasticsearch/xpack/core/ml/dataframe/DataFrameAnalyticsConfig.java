@@ -14,6 +14,8 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -37,11 +39,15 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING;
+import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.VALUE;
 
 public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     private static final Logger logger = LogManager.getLogger(DataFrameAnalyticsConfig.class);
     public static final String TYPE = "data_frame_analytics_config";
+
+    public static final ByteSizeValue DEFAULT_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.GB);
+    public static final ByteSizeValue MIN_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.MB);
 
     private static final XContentObjectTransformer<QueryBuilder> QUERY_TRANSFORMER = XContentObjectTransformer.queryBuilderTransformer();
     static final TriFunction<Map<String, Object>, String, List<String>, QueryBuilder> lazyQueryParser =
@@ -68,6 +74,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public static final ParseField CONFIG_TYPE = new ParseField("config_type");
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField ANALYSES_FIELDS = new ParseField("analyses_fields");
+    public static final ParseField MODEL_MEMORY_LIMIT = new ParseField("model_memory_limit");
     public static final ParseField HEADERS = new ParseField("headers");
 
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
@@ -86,6 +93,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             (p, c) -> FetchSourceContext.fromXContent(p),
             ANALYSES_FIELDS,
             OBJECT_ARRAY_BOOLEAN_OR_STRING);
+        parser.declareField(Builder::setModelMemoryLimit,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MODEL_MEMORY_LIMIT.getPreferredName()), MODEL_MEMORY_LIMIT, VALUE);
         if (ignoreUnknownFields) {
             // Headers are not parsed by the strict (config) parser, so headers supplied in the _body_ of a REST request will be rejected.
             // (For config, headers are explicitly transferred from the auth headers by code in the put data frame actions.)
@@ -101,10 +110,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final Map<String, Object> query;
     private final CachedSupplier<QueryBuilder> querySupplier;
     private final FetchSourceContext analysesFields;
+    private final ByteSizeValue modelMemoryLimit;
     private final Map<String, String> headers;
 
     public DataFrameAnalyticsConfig(String id, String source, String dest, List<DataFrameAnalysisConfig> analyses,
-                                    Map<String, Object> query, Map<String, String> headers, FetchSourceContext analysesFields) {
+                                    Map<String, Object> query, Map<String, String> headers, ByteSizeValue modelMemoryLimit,
+                                    FetchSourceContext analysesFields) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
         this.source = ExceptionsHelper.requireNonNull(source, SOURCE);
         this.dest = ExceptionsHelper.requireNonNull(dest, DEST);
@@ -119,6 +130,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.query = Collections.unmodifiableMap(query);
         this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
         this.analysesFields = analysesFields;
+        this.modelMemoryLimit = modelMemoryLimit;
         this.headers = Collections.unmodifiableMap(headers);
     }
 
@@ -130,6 +142,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.query = in.readMap();
         this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
         this.analysesFields = in.readOptionalWriteable(FetchSourceContext::new);
+        this.modelMemoryLimit = in.readBoolean() ? new ByteSizeValue(in) : null;
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
     }
 
@@ -177,6 +190,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         return deprecations;
     }
 
+    public ByteSizeValue getModelMemoryLimit() {
+        return modelMemoryLimit != null ? modelMemoryLimit : DEFAULT_MODEL_MEMORY_LIMIT;
+    }
+
     public Map<String, String> getHeaders() {
         return headers;
     }
@@ -195,6 +212,9 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         if (analysesFields != null) {
             builder.field(ANALYSES_FIELDS.getPreferredName(), analysesFields);
         }
+        if (modelMemoryLimit != null) {
+            builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), modelMemoryLimit.getStringRep());
+        }
         if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
@@ -210,6 +230,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         out.writeList(analyses);
         out.writeMap(query);
         out.writeOptionalWriteable(analysesFields);
+        if (modelMemoryLimit != null) {
+            out.writeBoolean(true);
+            modelMemoryLimit.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 
@@ -225,12 +251,13 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             && Objects.equals(analyses, other.analyses)
             && Objects.equals(query, other.query)
             && Objects.equals(headers, other.headers)
+            && Objects.equals(modelMemoryLimit, other.modelMemoryLimit)
             && Objects.equals(analysesFields, other.analysesFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, analyses, query, headers, analysesFields);
+        return Objects.hash(id, source, dest, analyses, query, headers, modelMemoryLimit, analysesFields);
     }
 
     public static String documentId(String id) {
@@ -245,6 +272,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private List<DataFrameAnalysisConfig> analyses;
         private Map<String, Object> query = Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap());
         private FetchSourceContext analysesFields;
+        private ByteSizeValue modelMemoryLimit;
         private Map<String, String> headers = Collections.emptyMap();
 
         public Builder() {}
@@ -257,13 +285,14 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             return id;
         }
 
-            public Builder(DataFrameAnalyticsConfig config) {
+        public Builder(DataFrameAnalyticsConfig config) {
             this.id = config.id;
             this.source = config.source;
             this.dest = config.dest;
             this.analyses = new ArrayList<>(config.analyses);
             this.query = new LinkedHashMap<>(config.query);
             this.headers = new HashMap<>(config.headers);
+            this.modelMemoryLimit = config.modelMemoryLimit;
             if (config.analysesFields != null) {
                this.analysesFields = new FetchSourceContext(true, config.analysesFields.includes(), config.analysesFields.excludes());
             }
@@ -318,8 +347,37 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setModelMemoryLimit(ByteSizeValue modelMemoryLimit) {
+            if (modelMemoryLimit != null && modelMemoryLimit.compareTo(MIN_MODEL_MEMORY_LIMIT) < 0) {
+                throw new IllegalArgumentException("[" + MODEL_MEMORY_LIMIT.getPreferredName()
+                    + "] must be at least [" + MIN_MODEL_MEMORY_LIMIT.getStringRep() + "].");
+            }
+            this.modelMemoryLimit = modelMemoryLimit;
+            return this;
+        }
+
+        public DataFrameAnalyticsConfig applyMaxModelMemoryLimitAndBuild(ByteSizeValue maxModelMemoryLimit) {
+
+            boolean maxModelMemoryIsSet = maxModelMemoryLimit != null && maxModelMemoryLimit.getMb() > 0;
+
+            if (modelMemoryLimit == null) {
+                // Default is silently capped if higher than limit
+                if (maxModelMemoryIsSet && DEFAULT_MODEL_MEMORY_LIMIT.compareTo(maxModelMemoryLimit) > 0) {
+                    modelMemoryLimit = maxModelMemoryLimit;
+                } else {
+                    modelMemoryLimit = DEFAULT_MODEL_MEMORY_LIMIT;
+                }
+            } else if (maxModelMemoryIsSet && modelMemoryLimit.compareTo(maxModelMemoryLimit) > 0) {
+                // Explicit setting higher than limit is an error
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX,
+                    modelMemoryLimit, maxModelMemoryLimit));
+            }
+
+            return build();
+        }
+
         public DataFrameAnalyticsConfig build() {
-            return new DataFrameAnalyticsConfig(id, source, dest, analyses, query, headers, analysesFields);
+            return new DataFrameAnalyticsConfig(id, source, dest, analyses, query, headers, modelMemoryLimit, analysesFields);
         }
     }
 }

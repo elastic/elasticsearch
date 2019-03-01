@@ -11,6 +11,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -35,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -92,6 +95,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
             builder.setAnalysesFields(new FetchSourceContext(true,
                 generateRandomStringArray(10, 10, false, false),
                 generateRandomStringArray(10, 10, false, false)));
+        }
+        if (randomBoolean()) {
+            builder.setModelMemoryLimit(new ByteSizeValue(randomIntBetween(1, 16), randomFrom(ByteSizeUnit.MB, ByteSizeUnit.GB)));
         }
         return builder;
     }
@@ -200,5 +206,46 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         DataFrameAnalyticsConfig spiedConfig = spy(dataFrame);
         spiedConfig.getQueryDeprecations();
         verify(spiedConfig).getQueryDeprecations(DataFrameAnalyticsConfig.lazyQueryParser);
+    }
+
+    public void testInvalidModelMemoryLimits() {
+
+        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder();
+
+        // All these are different ways of specifying a limit that is lower than the minimum
+        assertTooSmall(expectThrows(IllegalArgumentException.class,
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(1048575, ByteSizeUnit.BYTES))));
+        assertTooSmall(expectThrows(IllegalArgumentException.class,
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.BYTES))));
+        assertTooSmall(expectThrows(IllegalArgumentException.class,
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(-1, ByteSizeUnit.BYTES))));
+        assertTooSmall(expectThrows(IllegalArgumentException.class,
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(1023, ByteSizeUnit.KB))));
+        assertTooSmall(expectThrows(IllegalArgumentException.class,
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.KB))));
+        assertTooSmall(expectThrows(IllegalArgumentException.class,
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.MB))));
+    }
+
+    public void testMemoryCapping() {
+
+        DataFrameAnalyticsConfig uncapped = createRandom("foo");
+
+        ByteSizeValue unlimited = randomBoolean() ? null : ByteSizeValue.ZERO;
+        assertThat(uncapped.getModelMemoryLimit(),
+            equalTo(new DataFrameAnalyticsConfig.Builder(uncapped).applyMaxModelMemoryLimitAndBuild(unlimited).getModelMemoryLimit()));
+
+        ByteSizeValue limit = new ByteSizeValue(randomIntBetween(500, 1000), ByteSizeUnit.MB);
+        if (limit.compareTo(uncapped.getModelMemoryLimit()) < 0) {
+            assertThat(limit,
+                equalTo(new DataFrameAnalyticsConfig.Builder(uncapped).applyMaxModelMemoryLimitAndBuild(limit).getModelMemoryLimit()));
+        } else {
+            assertThat(uncapped.getModelMemoryLimit(),
+                equalTo(new DataFrameAnalyticsConfig.Builder(uncapped).applyMaxModelMemoryLimitAndBuild(limit).getModelMemoryLimit()));
+        }
+    }
+
+    public void assertTooSmall(IllegalArgumentException e) {
+        assertThat(e.getMessage(), is("[model_memory_limit] must be at least [1mb]."));
     }
 }

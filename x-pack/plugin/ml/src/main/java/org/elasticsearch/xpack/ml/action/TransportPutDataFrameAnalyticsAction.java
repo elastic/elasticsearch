@@ -9,9 +9,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.LicenseUtils;
@@ -21,6 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -48,10 +51,12 @@ public class TransportPutDataFrameAnalyticsAction
     private final SecurityContext securityContext;
     private final Client client;
 
+    private volatile ByteSizeValue maxModelMemoryLimit;
+
     @Inject
     public TransportPutDataFrameAnalyticsAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
                                                 XPackLicenseState licenseState, Client client, ThreadPool threadPool,
-                                                DataFrameAnalyticsConfigProvider configProvider) {
+                                                ClusterService clusterService, DataFrameAnalyticsConfigProvider configProvider) {
         super(PutDataFrameAnalyticsAction.NAME, transportService, actionFilters,
             (Supplier<PutDataFrameAnalyticsAction.Request>) PutDataFrameAnalyticsAction.Request::new);
         this.licenseState = licenseState;
@@ -60,6 +65,14 @@ public class TransportPutDataFrameAnalyticsAction
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.client = client;
+
+        maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MachineLearningField.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
+    }
+
+    private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
+        this.maxModelMemoryLimit = maxModelMemoryLimit;
     }
 
     @Override
@@ -70,14 +83,16 @@ public class TransportPutDataFrameAnalyticsAction
             return;
         }
         validateConfig(request.getConfig());
+        DataFrameAnalyticsConfig memoryCappedConfig =
+            new DataFrameAnalyticsConfig.Builder(request.getConfig()).applyMaxModelMemoryLimitAndBuild(maxModelMemoryLimit);
         if (licenseState.isAuthAllowed()) {
             final String username = securityContext.getUser().principal();
             RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(request.getConfig().getSource())
+                .indices(memoryCappedConfig.getSource())
                 .privileges("read")
                 .build();
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(request.getConfig().getDest())
+                .indices(memoryCappedConfig.getDest())
                 .privileges("read", "index", "create_index")
                 .build();
 
@@ -88,24 +103,24 @@ public class TransportPutDataFrameAnalyticsAction
             privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
 
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, request, r, listener),
+                r -> handlePrivsResponse(username, memoryCappedConfig, r, listener),
                 listener::onFailure);
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else {
-            configProvider.put(request.getConfig(), threadPool.getThreadContext().getHeaders(), ActionListener.wrap(
-                indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(request.getConfig())),
+            configProvider.put(memoryCappedConfig, threadPool.getThreadContext().getHeaders(), ActionListener.wrap(
+                indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
                 listener::onFailure
             ));
         }
     }
 
-    private void handlePrivsResponse(String username, PutDataFrameAnalyticsAction.Request request,
+    private void handlePrivsResponse(String username, DataFrameAnalyticsConfig memoryCappedConfig,
                                      HasPrivilegesResponse response,
                                      ActionListener<PutDataFrameAnalyticsAction.Response> listener) throws IOException {
         if (response.isCompleteMatch()) {
-            configProvider.put(request.getConfig(), threadPool.getThreadContext().getHeaders(), ActionListener.wrap(
-                indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(request.getConfig())),
+            configProvider.put(memoryCappedConfig, threadPool.getThreadContext().getHeaders(), ActionListener.wrap(
+                indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
                 listener::onFailure
             ));
         } else {
@@ -119,7 +134,7 @@ public class TransportPutDataFrameAnalyticsAction
 
             listener.onFailure(Exceptions.authorizationError("Cannot create data frame analytics [{}]" +
                     " because user {} lacks permissions on the indices: {}",
-                request.getConfig().getId(), username, Strings.toString(builder)));
+                    memoryCappedConfig.getId(), username, Strings.toString(builder)));
         }
     }
 

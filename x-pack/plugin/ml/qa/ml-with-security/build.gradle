@@ -47,6 +47,7 @@ integTestRunner {
     'ml/data_frame_analytics_crud/Test put config given two analyses',
     'ml/data_frame_analytics_crud/Test get given missing analytics',
     'ml/data_frame_analytics_crud/Test delete given missing config',
+    'ml/data_frame_analytics_crud/Test max model memory limit',
     'ml/delete_job_force/Test cannot force delete a non-existent job',
     'ml/delete_model_snapshot/Test delete snapshot missing snapshotId',
     'ml/delete_model_snapshot/Test delete snapshot missing job_id',

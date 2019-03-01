@@ -14,20 +14,18 @@ aggregation
 PUT /products
 {
     "mappings": {
-        "product": {
-            "properties": {
-                "genre": {
-                    "type": "keyword"
-                },
-                "product": {
-                    "type": "keyword"
-                }
+        "properties": {
+            "genre": {
+                "type": "keyword"
+            },
+            "product": {
+                "type": "keyword"
             }
         }
     }
 }
 
-POST /products/product/_bulk?refresh
+POST /products/_doc/_bulk?refresh
 {"index":{"_id":0}}
 {"genre": "rock", "product": "Product A"}
 {"index":{"_id":1}}
@@ -109,8 +107,6 @@ Response:
     ...
     "aggregations" : {
         "genres" : {
-            "doc_count_error_upper_bound": 0,
-            "sum_other_doc_count": 0,
             "buckets" : [
                 {
                     "key" : "swing",
@@ -151,8 +147,6 @@ This now shows the "jazz" term which has a `doc_count` of 2":
     ...
     "aggregations" : {
         "genres" : {
-            "doc_count_error_upper_bound": 0,
-            "sum_other_doc_count": 0,
             "buckets" : [
                 {
                     "key" : "swing",

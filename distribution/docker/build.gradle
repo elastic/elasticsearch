@@ -122,6 +122,7 @@ dependencies {
 task copyRestTests(type: Sync) {
   from { zipTree(configurations.restSpec.singleFile) }
   into sourceSets.test.output.resourcesDir
+  dependsOn configurations.restSpec
 }
 processTestResources.dependsOn copyRestTests
 

@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -123,11 +124,11 @@ public class FieldHitExtractor implements HitExtractor {
                 value = values;
             }
             try {
-                return GeoUtils.parseGeoPoint(value, true);
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(value, true);
+                return new GeoShape(geoPoint.lon(), geoPoint.lat());
             } catch (ElasticsearchParseException ex) {
                 throw new SqlIllegalArgumentException("Cannot parse geo_point value (returned by [{}])", fieldName);
             }
-
         }
         if (dataType == DataType.GEO_SHAPE) {
             Object value;

@@ -237,7 +237,6 @@ final class TypeConverter {
             case INTERVAL_MINUTE_TO_SECOND:
                 return Duration.parse(v.toString());
             case GEO_POINT:
-                return v;
             case GEO_SHAPE:
                 try {
                     return WellKnownText.fromWKT(v.toString());

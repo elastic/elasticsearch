@@ -474,12 +474,8 @@ public final class InternalSqlScriptUtils {
         return (String) StringOperation.UCASE.apply(s);
     }
 
-    public static String aswktPoint(Object v) {
-        return GeoProcessor.GeoOperation.ASWKT_POINT.apply(v).toString();
-    }
-
-    public static String aswktShape(Object v) {
-        return GeoProcessor.GeoOperation.ASWKT_SHAPE.apply(v).toString();
+    public static String aswkt(Object v) {
+        return GeoProcessor.GeoOperation.ASWKT.apply(v).toString();
     }
 
     public static GeoShape wktToSql(String wktString) {

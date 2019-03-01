@@ -2,11 +2,17 @@
 // Commands on geo test data
 //
 
-selectAllPointsAsStrings
+selectAllShapesAsGeometries
 SELECT city, shape, region FROM "geo" ORDER BY "city";
 
-selectAllPointsAsWKT
+selectAllShapesAsWKT
 SELECT city, ST_GEOMFROMTEXT(ST_ASWKT(shape)) shape_wkt, region FROM "geo" ORDER BY "city";
+
+selectAllPointsAsGeometries
+SELECT city, location, region FROM "geo" ORDER BY "city";
+
+selectAllPointsAsWKT
+SELECT city, ST_GEOMFROMTEXT(ST_ASWKT(location)) shape_wkt, region FROM "geo" ORDER BY "city";
 
 selectRegionUsingWktToSqlWithoutConvertion
 SELECT region, city, shape, ST_GEOMFROMTEXT(region_point) region_wkt  FROM geo ORDER BY region, city;

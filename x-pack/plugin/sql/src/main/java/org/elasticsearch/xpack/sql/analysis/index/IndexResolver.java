@@ -326,7 +326,7 @@ public class IndexResolver {
                 final FieldCapabilities fieldCapab = fieldCap;
                 
                 EsField esField = flattedMapping.get(name);
-                if (esField == null || ((invalidF != null && (esField instanceof InvalidMappedField) == false))) {
+                if (esField == null || (invalidF != null && (esField instanceof InvalidMappedField) == false)) {
                     createField(name, fieldCaps, hierarchicalMapping, flattedMapping, s -> {
                         return invalidF != null ? invalidF : createField(s, fieldCapab.getType(), emptyMap(), fieldCapab.isAggregatable());
                     });

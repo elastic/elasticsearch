@@ -147,7 +147,8 @@ A successful call returns a JSON structure that contains the information of one 
 <2> Id for the API key
 <3> Name of the API key
 <4> Creation time for the API key in milliseconds
-<5> optional expiration time for the API key in milliseconds
-<6> invalidation status for the API key, `true` if the key has been invalidated else `false`
-<7> principal for which this API key was created
-<8> realm name of the principal for which this API key was created
+<5> Optional expiration time for the API key in milliseconds
+<6> Invalidation status for the API key. If the key has been invalidated, it has
+a value of `true`. Otherwise, it is `false`.
+<7> Principal for which this API key was created
+<8> Realm name of the principal for which this API key was created

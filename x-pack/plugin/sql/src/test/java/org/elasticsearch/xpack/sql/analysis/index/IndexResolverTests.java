@@ -133,6 +133,31 @@ public class IndexResolverTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, esIndex.mapping().get("text").getDataType());
     }
 
+    public void testMergeIncompatibleCapabilitiesOfObjectFields() throws Exception {
+        Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
+        // define a sub-field
+        addFieldCaps(fieldCaps, "a.keyword", "keyword", true, true);
+
+        Map<String, FieldCapabilities> multi = new HashMap<>();
+        multi.put("long", new FieldCapabilities("a", "long", true, true, new String[] { "one-index" }, null, null));
+        multi.put("text", new FieldCapabilities("a", "text", true, false, new String[] { "another-index" }, null, null));
+        fieldCaps.put("a", multi);
+
+
+        String wildcard = "*";
+        IndexResolution resolution = IndexResolver.mergedMapping(wildcard, fieldCaps);
+
+        assertTrue(resolution.isValid());
+
+        EsIndex esIndex = resolution.get();
+        assertEquals(wildcard, esIndex.name());
+        EsField esField = esIndex.mapping().get("a");
+        assertEquals(InvalidMappedField.class, esField.getClass());
+        assertEquals("mapped as [2] incompatible types: [text] in [another-index], [long] in [one-index]",
+                ((InvalidMappedField) esField).errorMessage());
+    }
+
+
     public static IndexResolution merge(EsIndex... indices) {
         return IndexResolver.mergedMapping("*", fromMappings(indices));
     }

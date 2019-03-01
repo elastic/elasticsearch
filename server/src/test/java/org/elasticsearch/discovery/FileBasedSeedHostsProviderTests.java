@@ -25,7 +25,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -114,11 +113,12 @@ public class FileBasedSeedHostsProviderTests extends ESTestCase {
     }
 
     public void testUnicastHostsDoesNotExist() {
-        final FileBasedSeedHostsProvider provider = new FileBasedSeedHostsProvider(createTempDir().toAbsolutePath());
-        final List<TransportAddress> addresses = provider.getSeedAddresses((hosts, limitPortCounts) ->
-            SeedHostsResolver.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
-                TimeValue.timeValueSeconds(10)));
-        assertEquals(0, addresses.size());
+        final FileBasedSeedHostsProvider fileBasedSeedHostsProvider = new FileBasedSeedHostsProvider(createTempDir().toAbsolutePath());
+        SeedHostsResolver seedHostsResolver = new SeedHostsResolver("test", Settings.EMPTY, transportService, fileBasedSeedHostsProvider);
+        seedHostsResolver.start();
+        List<TransportAddress> results = fileBasedSeedHostsProvider.getSeedAddresses(seedHostsResolver);
+        seedHostsResolver.stop();
+        assertEquals(0, results.size());
     }
 
     public void testInvalidHostEntries() throws Exception {
@@ -145,8 +145,11 @@ public class FileBasedSeedHostsProviderTests extends ESTestCase {
             writer.write(String.join("\n", hostEntries));
         }
 
-        return new FileBasedSeedHostsProvider(configPath).getSeedAddresses((hosts, limitPortCounts) ->
-            SeedHostsResolver.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
-                TimeValue.timeValueSeconds(10)));
+        FileBasedSeedHostsProvider fileBasedSeedHostsProvider = new FileBasedSeedHostsProvider(configPath);
+        SeedHostsResolver seedHostsResolver = new SeedHostsResolver("test", Settings.EMPTY, transportService, fileBasedSeedHostsProvider);
+        seedHostsResolver.start();
+        List<TransportAddress> results = fileBasedSeedHostsProvider.getSeedAddresses(seedHostsResolver);
+        seedHostsResolver.stop();
+        return results;
     }
 }

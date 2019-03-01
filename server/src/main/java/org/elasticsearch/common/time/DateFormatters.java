@@ -285,7 +285,8 @@ public class DateFormatters {
      * ('T'HHmmssZ).
      */
     private static final DateFormatter BASIC_T_TIME_NO_MILLIS = new JavaDateFormatter("basic_t_time_no_millis",
-        new DateTimeFormatterBuilder().appendLiteral("T").append(BASIC_TIME_NO_MILLIS_BASE).appendOffset("+HH:MM", "Z").toFormatter(Locale.ROOT),
+        new DateTimeFormatterBuilder().appendLiteral("T").append(BASIC_TIME_NO_MILLIS_BASE)
+                                      .appendOffset("+HH:MM", "Z").toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder().appendLiteral("T").append(BASIC_TIME_NO_MILLIS_BASE).appendZoneOrOffsetId().toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder().appendLiteral("T").append(BASIC_TIME_NO_MILLIS_BASE).append(TIME_ZONE_FORMATTER_NO_COLON)
             .toFormatter(Locale.ROOT)
@@ -791,7 +792,8 @@ public class DateFormatters {
      * separated by a 'T' (xxxx-'W'ww-e'T'HH:mm:ss.SSSZZ).
      */
     private static final DateFormatter STRICT_WEEK_DATE_TIME = new JavaDateFormatter("strict_week_date_time",
-        new DateTimeFormatterBuilder().append(ISO_WEEK_DATE_T).append(STRICT_TIME_PRINTER).appendOffset("+HH:MM", "Z").toFormatter(Locale.ROOT),
+        new DateTimeFormatterBuilder().append(ISO_WEEK_DATE_T)
+                                      .append(STRICT_TIME_PRINTER).appendOffset("+HH:MM", "Z").toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder().append(ISO_WEEK_DATE_T).append(STRICT_TIME_FORMATTER_BASE)
             .appendZoneOrOffsetId().toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder().append(ISO_WEEK_DATE_T).append(STRICT_TIME_FORMATTER_BASE)
@@ -1228,7 +1230,8 @@ public class DateFormatters {
      * separated by a 'T' (xxxx-'W'ww-e'T'HH:mm:ss.SSSZZ).
      */
     private static final DateFormatter WEEK_DATE_TIME = new JavaDateFormatter("week_date_time",
-        new DateTimeFormatterBuilder().append(ISO_WEEK_DATE_T).append(STRICT_TIME_PRINTER).appendOffset("+HH:MM", "Z").toFormatter(Locale.ROOT),
+        new DateTimeFormatterBuilder().append(ISO_WEEK_DATE_T)
+                                      .append(STRICT_TIME_PRINTER).appendOffset("+HH:MM", "Z").toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder().append(WEEK_DATE_FORMATTER).appendLiteral("T").append(TIME_PREFIX)
             .appendZoneOrOffsetId().toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder().append(WEEK_DATE_FORMATTER).appendLiteral("T").append(TIME_PREFIX)

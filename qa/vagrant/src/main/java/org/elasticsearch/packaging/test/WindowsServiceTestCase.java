@@ -39,7 +39,7 @@ import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public abstract class WindowsServiceTestCase extends PackagingTestCase {
 
@@ -64,18 +64,6 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         sh.runIgnoreExitCode(serviceScript + " remove");
     }
 
-    private Result runWithoutJava(String script) {
-        final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
-
-        try {
-            mv(installation.bundledJdk, relocatedJdk);
-            // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
-            return sh.runIgnoreExitCode(script);
-        } finally {
-            mv(relocatedJdk, installation.bundledJdk);
-        }
-    }
-
     private void assertService(String id, String status, String displayName) {
         Result result = sh.run("Get-Service " + id + " | Format-List -Property Name, Status, DisplayName");
         assertThat(result.stdout, containsString("Name        : " + id));
@@ -85,7 +73,10 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
 
     // runs the service command, dumping all log files on failure
     private void assertCommand(String script) {
-        Result result = sh.runIgnoreExitCode(script);
+        assertCleanExit(sh.runIgnoreExitCode(script), script);
+    }
+
+    private void assertCleanExit(Result result, String script) {
         if (result.exitCode != 0) {
             logger.error("---- Failed to run script: " + script);
             logger.error(result);
@@ -126,9 +117,16 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
     }
 
     public void test13InstallMissingJava() throws IOException {
-        Result result = runWithoutJava(serviceScript + " install");
-        assertThat(result.exitCode, equalTo(1));
-        assertThat(result.stderr, containsString("could not find java in JAVA_HOME or bundled"));
+        final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
+
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            Result result = sh.runIgnoreExitCode(serviceScript + " install");
+            assertThat(result.exitCode, equalTo(1));
+            assertThat(result.stderr, containsString("could not find java in JAVA_HOME or bundled"));
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
     }
 
     public void test14RemoveNotInstalled() {
@@ -155,10 +153,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
     }
 
     // NOTE: service description is not attainable through any powershell api, so checking it is not possible...
-
-    public void test30StartStop() throws IOException {
-        sh.run(serviceScript + " install");
-        assertCommand(serviceScript + " start");
+    public void assertStartedAndStop() throws IOException {
         ServerUtils.waitForElasticsearch();
         ServerUtils.runElasticsearchTests();
 
@@ -189,6 +184,12 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
             "}");
     }
 
+    public void test30StartStop() throws IOException {
+        sh.run(serviceScript + " install");
+        assertCommand(serviceScript + " start");
+        assertStartedAndStop();
+    }
+
     public void test31StartNotInstalled() throws IOException {
         Result result = sh.runIgnoreExitCode(serviceScript + " start");
         assertThat(result.stdout, result.exitCode, equalTo(1));
@@ -201,17 +202,20 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         assertThat(result.stdout, containsString("The service '" + DEFAULT_ID + "' has been stopped"));
     }
 
-    /*
-    // TODO: need to make JAVA_HOME resolve at install time for this to work
-    // see https://github.com/elastic/elasticsearch/issues/23097
     public void test33JavaChanged() throws IOException {
-        sh.run(serviceScript + " install");
-        runWithoutJava(serviceScript + "start");
-        ServerUtils.waitForElasticsearch();
-        sh.run(serviceScript + " stop");
-        sh.runIgnoreExitCode("Wait-Process -Name \"elasticsearch-service-x64\" -Timeout 10");
-        sh.run(serviceScript + " remove");
-    }*/
+        final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
+
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            sh.getEnv().put("JAVA_HOME", relocatedJdk.toString());
+            assertCommand(serviceScript + " install");
+            sh.getEnv().remove("JAVA_HOME");
+            assertCommand(serviceScript + " start");
+            assertStartedAndStop();
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
+    }
 
     public void test60Manager() throws IOException {
         Path serviceMgr = installation.bin("elasticsearch-service-mgr.exe");

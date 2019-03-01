@@ -1238,9 +1238,9 @@ public class InternalEngine extends Engine {
             } else {
                 // generate or register sequence number
                 if (delete.origin() == Operation.Origin.PRIMARY) {
-                    delete = new Delete(delete.type(), delete.id(), delete.uid(), generateSeqNoForOperationOnPrimary(delete), delete.primaryTerm(),
-                        delete.version(), delete.versionType(), delete.origin(), delete.startTime(), delete.getIfSeqNo(),
-                        delete.getIfPrimaryTerm());
+                    delete = new Delete(delete.type(), delete.id(), delete.uid(), generateSeqNoForOperationOnPrimary(delete),
+                        delete.primaryTerm(), delete.version(), delete.versionType(), delete.origin(), delete.startTime(),
+                        delete.getIfSeqNo(), delete.getIfPrimaryTerm());
 
                     advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(delete.seqNo());
                 } else {

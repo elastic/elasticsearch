@@ -1,5 +1,7 @@
+[role="xpack"]
+[testenv="platinum"]
 [[remote-recovery]]
-=== Remote Recovery
+== Remote recovery
 
 Remote recovery is the process used to build a new copy of a shard on a follower
 node by copying data from the primary shard in the leader cluster. {es} uses this
@@ -17,8 +19,8 @@ recovery is designed to support leader and follower clusters with high network
 latency between them.
 
 Information about an in-progress remote recovery can be obtained using the
-<<cat-recovery,recovery>> api on the follower cluster. Remote recoveries are implemented
-using the <<modules-snapshots,snapshot and restore>> infrastructure. This means that
+{ref}/cat-recovery.html[recovery API] on the follower cluster. Remote recoveries are implemented
+using the {ref}/modules-snapshots.html[snapshot and restore] infrastructure. This means that
 on-going remote recoveries will be labelled as type `snapshot` in the recovery api.
 
 The following setting can be used to rate-limit the data transmitted during remote
@@ -62,4 +64,4 @@ remote recoveries:
 
 
 These settings can be dynamically updated on a live cluster with the
-<<cluster-update-settings,cluster-update-settings>> API.
+{ref}/cluster-update-settings.html[cluster update settings API].

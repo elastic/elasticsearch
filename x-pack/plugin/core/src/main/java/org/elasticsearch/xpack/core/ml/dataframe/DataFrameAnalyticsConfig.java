@@ -142,7 +142,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.query = in.readMap();
         this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
         this.analysesFields = in.readOptionalWriteable(FetchSourceContext::new);
-        this.modelMemoryLimit = in.readBoolean() ? new ByteSizeValue(in) : null;
+        this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::new);
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
     }
 
@@ -230,12 +230,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         out.writeList(analyses);
         out.writeMap(query);
         out.writeOptionalWriteable(analysesFields);
-        if (modelMemoryLimit != null) {
-            out.writeBoolean(true);
-            modelMemoryLimit.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalWriteable(modelMemoryLimit);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 

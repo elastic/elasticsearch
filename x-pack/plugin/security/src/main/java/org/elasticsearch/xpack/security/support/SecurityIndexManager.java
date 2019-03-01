@@ -45,11 +45,13 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -167,8 +169,10 @@ public class SecurityIndexManager implements ClusterStateListener {
         this.indexState = newState;
 
         if (newState.equals(previousState) == false) {
-            for (BiConsumer<State, State> listener : stateChangeListeners) {
-                listener.accept(previousState, newState);
+            // point in time iterator
+            final Iterator<BiConsumer<State, State>> stateListenerIterator = stateChangeListeners.iterator();
+            while (stateListenerIterator.hasNext()) {
+                stateListenerIterator.next().accept(previousState, newState);
             }
         }
     }
@@ -281,7 +285,10 @@ public class SecurityIndexManager implements ClusterStateListener {
      */
     public void checkIndexVersionThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
         final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
-        if (indexState.indexExists && indexState.isIndexUpToDate == false) {
+        if (indexState.concreteIndexName == null) {
+            // index not recovered from gateway
+            delayUntilStateRecovered(consumer, () -> checkIndexVersionThenExecute(consumer, andThen));
+        } else if (indexState.indexExists && indexState.isIndexUpToDate == false) {
             consumer.accept(new IllegalStateException(
                 "Security index is not on the current version. Security features relying on the index will not be available until " +
                     "the upgrade API is run on the security index"));
@@ -297,14 +304,17 @@ public class SecurityIndexManager implements ClusterStateListener {
     public void prepareIndexIfNeededThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
         final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
         // TODO we should improve this so we don't fire off a bunch of requests to do the same thing (create or update mappings)
-        if (indexState.indexExists && indexState.isIndexUpToDate == false) {
+        if (indexState.concreteIndexName == null) {
+            // index not recovered from gateway
+            delayUntilStateRecovered(consumer, () -> prepareIndexIfNeededThenExecute(consumer, andThen));
+        } else if (indexState.indexExists && indexState.isIndexUpToDate == false) {
             consumer.accept(new IllegalStateException(
                     "Security index is not on the current version. Security features relying on the index will not be available until " +
                             "the upgrade API is run on the security index"));
         } else if (indexState.indexExists == false) {
-            LOGGER.info("security index does not exist. Creating [{}] with alias [{}]", INTERNAL_SECURITY_INDEX, SECURITY_INDEX_NAME);
+            LOGGER.info("security index does not exist. Creating [{}] with alias [{}]", indexState.concreteIndexName, SECURITY_INDEX_NAME);
             Tuple<String, Settings> mappingAndSettings = loadMappingAndSettingsSourceFromTemplate();
-            CreateIndexRequest request = new CreateIndexRequest(INTERNAL_SECURITY_INDEX)
+            CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName)
                     .alias(new Alias(SECURITY_INDEX_NAME))
                     .mapping("doc", mappingAndSettings.v1(), XContentType.JSON)
                     .waitForActiveShards(ActiveShardCount.ALL)
@@ -371,6 +381,41 @@ public class SecurityIndexManager implements ClusterStateListener {
      */
     public static boolean isIndexDeleted(State previousState, State currentState) {
         return previousState.indexStatus != null && currentState.indexStatus == null;
+    }
+
+    /**
+     *  Delay the {@code runnable} invocation until cluster state recovered.
+     */
+    private void delayUntilStateRecovered(final Consumer<Exception> consumer, final Runnable runnable) {
+        // context preserving one shoot runnable
+        final AtomicBoolean done = new AtomicBoolean(false);
+        final Runnable delayedRunnable = client.threadPool().getThreadContext().preserveContext(() -> {
+            if (false == done.get()) {
+                done.set(true);
+                runnable.run();
+            }
+        });
+        final BiConsumer<State, State> gatewayRecoveryListener = new BiConsumer<State, State>() {
+            @Override
+            public void accept(State prevState, State newState) {
+                // any cluster state update is a sign that the state recovered
+                if (newState.concreteIndexName != null) {
+                    stateChangeListeners.remove(this);
+                    client.threadPool().generic().execute(delayedRunnable);
+                } else {
+                    consumer.accept(new IllegalStateException("State has been recovered, but the security index name is unknown."));
+                }
+            }
+        };
+        // enqueue and wait for the first cluster state update
+        stateChangeListeners.add(gatewayRecoveryListener);
+        // maybe state recovered in the meantime since we last checked
+        final State indexState = this.indexState;
+        if (indexState.concreteIndexName != null) {
+            // state indeed recovered and we _might_ have lost the notification
+            stateChangeListeners.remove(gatewayRecoveryListener);
+            delayedRunnable.run();
+        }
     }
 
     /**

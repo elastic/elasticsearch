@@ -121,7 +121,8 @@ The Get Token API returns the following information:
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 
-You can invalidate the specified refresh token as follows:
+The refresh token can now also be immediately invalidated as shown 
+in the following example:"
 
 [source,js]
 --------------------------------------------------

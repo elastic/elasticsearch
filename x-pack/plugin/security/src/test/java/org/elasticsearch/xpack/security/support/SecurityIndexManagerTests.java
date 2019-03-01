@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
@@ -75,6 +76,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final Client mockClient = mock(Client.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(threadPool.generic()).thenReturn(EsExecutors.newDirectExecutorService());
         when(mockClient.threadPool()).thenReturn(threadPool);
         when(mockClient.settings()).thenReturn(Settings.EMPTY);
         final ClusterService clusterService = mock(ClusterService.class);
@@ -200,11 +202,25 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.addIndexStateListener((prev, current) -> {
             listenerCalled.set(true);
         });
+        final AtomicBoolean prepareCalled = new AtomicBoolean(false);
+        manager.prepareIndexIfNeededThenExecute(c -> {}, () -> {
+            prepareCalled.set(true);
+        });
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+        // state not recovered
         manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME).blocks(blocks)));
         assertThat(listenerCalled.get(), is(false));
-        manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
+        assertThat(prepareCalled.get(), is(false));
+        // state still not recovered
+        manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME).blocks(blocks)));
+        assertThat(listenerCalled.get(), is(false));
+        assertThat(prepareCalled.get(), is(false));
+        // state recovered with index
+        ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME, SecurityIndexManager.INTERNAL_INDEX_FORMAT);
+        markShardsAvailable(clusterStateBuilder);
+        manager.clusterChanged(event(clusterStateBuilder));
         assertThat(listenerCalled.get(), is(true));
+        assertThat(prepareCalled.get(), is(true));
     }
 
     public void testIndexOutOfDateListeners() throws Exception {

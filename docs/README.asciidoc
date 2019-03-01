@@ -5,7 +5,10 @@ See: https://github.com/elastic/docs
 
 Snippets marked with `// CONSOLE` are automatically annotated with "VIEW IN
 CONSOLE" and "COPY AS CURL" in the documentation and are automatically tested
-by the command `gradle :docs:check`. To test just the docs from a single page,
+by the command `gradle :docs:check`. Snippets marked with `// KIBANA` are
+annotated with only "COPY AS CURL".
+
+To test just the docs from a single page,
 use e.g. `gradle :docs:check -Dtests.method="\*rollover*"`.
 
 NOTE: If you have an elasticsearch-extra folder alongside your elasticsearch

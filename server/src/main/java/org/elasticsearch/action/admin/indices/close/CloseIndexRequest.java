@@ -40,7 +40,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT; // Changes this to NONE on 7.x to keep previous behavior
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     public CloseIndexRequest() {
     }
@@ -118,7 +118,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
         super.readFrom(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
             waitForActiveShards = ActiveShardCount.readFrom(in);
         } else {
             waitForActiveShards = ActiveShardCount.NONE;
@@ -130,7 +130,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
             waitForActiveShards.writeTo(out);
         }
     }

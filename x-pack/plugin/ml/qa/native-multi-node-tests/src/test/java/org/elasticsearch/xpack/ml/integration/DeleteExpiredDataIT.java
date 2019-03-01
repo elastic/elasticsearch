@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
     private static final String DATA_INDEX = "delete-expired-data-test-data";
-    private static final String DATA_TYPE = "doc";
+    private static final String DATA_TYPE = "_doc";
 
     @Before
     public void setUpData() throws IOException {
@@ -68,7 +68,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             long timestamp = nowMillis - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
             int bucketRate = bucket == anomalousBucket ? anomalousRate : normalRate;
             for (int point = 0; point < bucketRate; point++) {
-                IndexRequest indexRequest = new IndexRequest(DATA_INDEX, DATA_TYPE);
+                IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
                 indexRequest.source("time", timestamp);
                 bulkRequestBuilder.add(indexRequest);
             }
@@ -97,7 +97,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10010; i++) {
             String docId = "non_existing_job_" + randomFrom("model_state_1234567#" + i, "quantiles", "categorizer_state#" + i);
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), "doc", docId);
+            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).id(docId);
             indexRequest.source(Collections.emptyMap());
             bulkRequestBuilder.add(indexRequest);
         }

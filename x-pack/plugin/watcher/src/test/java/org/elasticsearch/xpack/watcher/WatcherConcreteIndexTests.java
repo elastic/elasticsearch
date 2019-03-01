@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
@@ -33,11 +34,11 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
         createIndex(watchResultsIndex);
 
         stopWatcher();
-        replaceWatcherIndexWithRandomlyNamedIndex(newWatcherIndexName);
+        replaceWatcherIndexWithRandomlyNamedIndex(Watch.INDEX, newWatcherIndexName);
         startWatcher();
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("mywatch").setSource(watchBuilder()
-            .trigger(schedule(interval("5s")))
+            .trigger(schedule(interval("3s")))
             .input(noneInput())
             .condition(InternalAlwaysCondition.INSTANCE)
             .addAction("indexer", indexAction(watchResultsIndex, "_doc")))

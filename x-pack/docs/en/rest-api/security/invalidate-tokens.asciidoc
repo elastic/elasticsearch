@@ -107,7 +107,7 @@ POST /_security/oauth2/token
 // CONSOLE
 // TEST
 
-The API returns the following information:
+The Get Token API returns the following information:
 
 [source,js]
 --------------------------------------------------

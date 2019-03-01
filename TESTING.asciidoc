@@ -591,15 +591,16 @@ fetching the latest from the remote.
 === Base classes for test cases
 
 There are multiple base classes for tests:
- - **`ESTestCase`**: The base class of all tests. It is typically extended
-   directly by unit tests.
- - **`ESSingleNodeTestCase`**: This test case sets up a cluster that has a
-   single node.
- - **`ESIntegTestCase`**: An integration test case that creates a cluster that
-   might have multiple nodes.
- - **`ESRestTestCase`**: An integration tests that interacts with an external
-   cluster via the REST API. For instance, YAML tests run via sub classes of
-   `ESRestTestCase`.
+
+* **`ESTestCase`**: The base class of all tests. It is typically extended
+  directly by unit tests.
+* **`ESSingleNodeTestCase`**: This test case sets up a cluster that has a
+  single node.
+* **`ESIntegTestCase`**: An integration test case that creates a cluster that
+  might have multiple nodes.
+* **`ESRestTestCase`**: An integration tests that interacts with an external
+  cluster via the REST API. For instance, YAML tests run via sub classes of
+  `ESRestTestCase`.
 
 === Good practices
 

@@ -710,6 +710,29 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
+     * Resolves a type from a mapping-related request into the type that should be used when
+     * merging and updating mappings.
+     *
+     * If the special `_doc` type is provided, then we replace it with the actual type that is
+     * being used in the mappings. This allows typeless APIs such as 'index' or 'put mappings'
+     * to work against indices with a custom type name.
+     */
+    public String resolveDocumentType(String type) {
+        if (MapperService.SINGLE_MAPPING_NAME.equals(type) &&
+                mappers.containsKey(type) == false &&
+                indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0)) {
+            // If the type is _doc and we have a 6.x index, then _doc is an alias
+            // for the actual type of the index (if any)
+            for (String t : mappers.keySet()) {
+                if (t.equals(DEFAULT_MAPPING) == false) {
+                    return t;
+                }
+            }
+        }
+        return type;
+    }
+
+    /**
      * Returns the document mapper created, including a mapping update if the
      * type has been dynamically created.
      */
@@ -858,9 +881,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /** Return a term that uniquely identifies the document, or {@code null} if the type is not allowed. */
     public Term createUidTerm(String type, String id) {
+        type = resolveDocumentType(type);
+
         if (hasMapping(type) == false) {
             return null;
         }
+
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
             assert indexSettings.isSingleType();
             return new Term(IdFieldMapper.NAME, Uid.encodeId(id));

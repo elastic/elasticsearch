@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
@@ -51,7 +50,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -242,21 +240,6 @@ public class MetaDataMappingService {
             }
         }
 
-        private DocumentMapper getMapperForUpdate(MapperService mapperService, String type) {
-            DocumentMapper mapper = mapperService.documentMapper(type);
-            if (mapper == null && type.equals(MapperService.SINGLE_MAPPING_NAME) &&
-                    mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0)) {
-                Iterator<DocumentMapper> docMappersIt = mapperService.docMappers(false).iterator();
-                if (docMappersIt.hasNext()) {
-                    mapper = docMappersIt.next();
-                }
-                if (docMappersIt.hasNext()) {
-                    throw new AssertionError("Index has multiple types: " + mapperService.types());
-                }
-            }
-            return mapper;
-        }
-
         private ClusterState applyRequest(ClusterState currentState, PutMappingClusterStateUpdateRequest request,
                                           Map<Index, MapperService> indexMapperServices) throws IOException {
             String mappingType = request.type();
@@ -276,7 +259,7 @@ public class MetaDataMappingService {
                 DocumentMapper newMapper;
                 DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
                 if (existingMapper == null && isMappingSourceTyped(request.type(), mappingUpdateSource) == false) {
-                    existingMapper = getMapperForUpdate(mapperService, mappingType);
+                    existingMapper = mapperService.documentMapper(mapperService.resolveDocumentType(mappingType));
                 }
                 String typeForUpdate = existingMapper == null ? mappingType : existingMapper.type();
 
@@ -310,7 +293,8 @@ public class MetaDataMappingService {
                 }
                 if (mappingType == null) {
                     mappingType = newMapper.type();
-                } else if (mappingType.equals(newMapper.type()) == false) {
+                } else if (mappingType.equals(newMapper.type()) == false
+                        && mapperService.resolveDocumentType(mappingType).equals(newMapper.type()) == false) {
                     throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition");
                 }
             }
@@ -337,7 +321,7 @@ public class MetaDataMappingService {
                 CompressedXContent existingSource = null;
                 DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
                 if (existingMapper == null && isMappingSourceTyped(request.type(), mappingUpdateSource) == false) {
-                    existingMapper = getMapperForUpdate(mapperService, mappingType);
+                    existingMapper = mapperService.documentMapper(mapperService.resolveDocumentType(mappingType));
                 }
                 if (existingMapper != null) {
                     typeForUpdate = existingMapper.type();

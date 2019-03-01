@@ -498,6 +498,29 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         return mappings.get(MapperService.DEFAULT_MAPPING);
     }
 
+    /**
+     * Resolves a type from a mapping-related request into the type that should be used when
+     * merging and updating mappings.
+     *
+     * If the special `_doc` type is provided, then we replace it with the actual type that is
+     * being used in the mappings. This allows typeless APIs such as 'index' or 'put mappings'
+     * to work against indices with a custom type name.
+     */
+    public String resolveDocumentType(String type) {
+        if (MapperService.SINGLE_MAPPING_NAME.equals(type) &&
+                mappings.containsKey(type) == false &&
+                getCreationVersion().onOrAfter(Version.V_6_0_0)) {
+            // If the type is _doc and we have a 6.x index, then _doc is an alias
+            // for the actual type of the index (if any)
+            for (ObjectCursor<String> cursor : mappings.keys()) {
+                if (cursor.value.equals(MapperService.DEFAULT_MAPPING) == false) {
+                    return cursor.value;
+                }
+            }
+        }
+        return type;
+    }
+
     ImmutableOpenMap<String, DiffableStringMap> getCustomData() {
         return this.customData;
     }

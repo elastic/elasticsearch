@@ -54,7 +54,8 @@ be specified.
 
 ==== Examples
 
-For example, if you create the following token:
+For example, if you create a token using the 
+`client_credentials` `grant_type` as follows:
 
 [source,js]
 --------------------------------------------------

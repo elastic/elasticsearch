@@ -387,7 +387,19 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert primaryMode;
         final RetentionLeases retentionLeases = getRetentionLeases();
         return routingTable.activeShards().stream().anyMatch(
-            sr -> retentionLeases.get(getPeerRecoveryRetentionLeaseId(sr)).retainingSequenceNumber() < localCheckpointOfSafeCommit + 1);
+            shardRouting -> {
+                final RetentionLease retentionLease = retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting));
+                if (retentionLease == null) {
+                    /*
+                     * We got here via a rolling upgrade from an older version that doesn't create peer recovery retention leases for every
+                     * shard copy. These missing leases are created lazily if they're found to be missing during a
+                     * TransportReplicationAction, such as the peer recovery retention lease sync, so let's trigger a sync.
+                     */
+                    assert indexCreatedVersion.before(Version.V_8_0_0) : indexCreatedVersion; // TODO V_7_0_0 in backport
+                    return true;
+                }
+                return retentionLease.retainingSequenceNumber() < localCheckpointOfSafeCommit + 1;
+            });
     }
 
     /**
@@ -437,6 +449,37 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     PEER_RECOVERY_RETENTION_LEASE_SOURCE);
             }
         }
+    }
+
+    public void addMissingPeerRecoveryRetentionLease(String allocationId, long startingSeqNo) {
+        final RetentionLeases updatedLeases;
+        synchronized (this) {
+            final ShardRouting replicaShardRouting = routingTable.getByAllocationId(allocationId);
+            if (replicaShardRouting == null) {
+                return;
+            }
+
+            if (retentionLeases.get(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replicaShardRouting)) != null) {
+                return;
+            }
+
+            /*
+             * We got here via a rolling upgrade from an older version that doesn't create peer recovery retention leases for every shard
+             * copy. But the replica we're dealing with now has been upgraded and is retaining history while we asynchronously make it a
+             * retention lease.
+             */
+            assert indexCreatedVersion.before(Version.V_8_0_0) : indexCreatedVersion; // TODO V_7_0_0 in backport
+            try {
+                innerAddRetentionLease(getPeerRecoveryRetentionLeaseId(replicaShardRouting.currentNodeId()), startingSeqNo,
+                    PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+                updatedLeases = retentionLeases;
+            } catch (RetentionLeaseAlreadyExistsException e) {
+                assert false : e;
+                logger.debug("BWC peer recovery retention lease created concurrently", e);
+                return;
+            }
+        }
+        onSyncRetentionLeases.accept(updatedLeases, ActionListener.wrap(() -> {}));
     }
 
     public static class CheckpointState implements Writeable {
@@ -899,14 +942,21 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final ShardRouting primaryShard = routingTable.primaryShard();
         final String leaseId = getPeerRecoveryRetentionLeaseId(primaryShard);
         if (retentionLeases.get(leaseId) == null) {
-            // We are starting up the whole replication group from scratch: if we were not (i.e. this is a replica promotion) then
-            // this copy must already be in-sync and active and therefore holds a retention lease for itself.
-            assert routingTable.activeShards().equals(singletonList(primaryShard)) : routingTable.activeShards();
-            assert primaryShard.allocationId().getId().equals(shardAllocationId) : routingTable.activeShards() + " vs " + shardAllocationId;
-            assert replicationGroup.getReplicationTargets().equals(singletonList(primaryShard));
+            /*
+             * We might have got here here via a rolling upgrade from an older version that doesn't create peer recovery retention leases
+             * for every shard copy. The missing leases are created in a more relaxed fashion, and offer weaker guarantees.
+             */
+            if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) { // TODO V_7_0_0 in backport
+                // We are starting up the whole replication group from scratch: if we were not (i.e. this is a replica promotion) then
+                // this copy must already be in-sync and active and therefore holds a retention lease for itself.
+                assert routingTable.activeShards().equals(singletonList(primaryShard)) : routingTable.activeShards();
+                assert primaryShard.allocationId().getId().equals(shardAllocationId)
+                    : routingTable.activeShards() + " vs " + shardAllocationId;
+                assert replicationGroup.getReplicationTargets().equals(singletonList(primaryShard));
 
-            // Safe to call innerAddRetentionLease() without a subsequent sync because there are no other members of this replication gp.
-            innerAddRetentionLease(leaseId, max(0L, localCheckpointOfSafeCommit + 1), PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+                // Safe to call innerAddRetentionLease() without a subsequent sync since there are no other members of this replication gp.
+                innerAddRetentionLease(leaseId, max(0L, localCheckpointOfSafeCommit + 1), PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+            }
         }
 
         assert invariant();

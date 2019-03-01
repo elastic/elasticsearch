@@ -488,6 +488,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the master started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint(), getLocalCheckpointOfSafeCommit());
+                        asyncEnsurePeerRecoveryRetentionLeaseForPrimary();
                     }
                 } else {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
@@ -530,6 +531,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             assert getOperationPrimaryTerm() == newPrimaryTerm;
                             try {
                                 replicationTracker.activatePrimaryMode(getLocalCheckpoint(), getLocalCheckpointOfSafeCommit());
+                                asyncEnsurePeerRecoveryRetentionLeaseForPrimary();
                                 /*
                                  * If this shard was serving as a replica shard when another shard was promoted to primary then
                                  * its Lucene index was reset during the primary term transition. In particular, the Lucene index
@@ -598,6 +600,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         if (newRouting.equals(currentRouting) == false) {
             indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
+        }
+    }
+
+    private void asyncEnsurePeerRecoveryRetentionLeaseForPrimary() {
+        if (replicationTracker.getRetentionLeases()
+            .get(ReplicationTracker.getPeerRecoveryRetentionLeaseId(routingEntry())) == null) {
+            /*
+             * We got here via a rolling upgrade from an older version that doesn't create peer recovery retention leases for every shard
+             * copy, so there isn't yet one for this primary. We offer relaxed guarantees in this case, so create one asynchronously once
+             * the shard is fully started.
+             */
+            assertIndexCreatedBeforePeerRecoveryRetentionLeases();
+            threadPool.generic().execute(() -> {
+                synchronized (mutex) {
+                    // wait for the shard to be started
+                }
+                runUnderPrimaryPermit(
+                    () -> replicationTracker.addPeerRecoveryRetentionLease(shardRouting.currentNodeId(),
+                        getLocalCheckpointOfSafeCommit(), ActionListener.wrap(() -> { })),
+                    e -> logger.debug("failed to lazily create peer recovery retention lease for primary", e),
+                    Names.SAME, "");
+            });
         }
     }
 
@@ -1900,6 +1924,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         replicationTracker.updateLocalCheckpointOfSafeCommitForShard(allocationId, localCheckpointOfSafeCommit);
+
+        if (indexCreatedBeforePeerRecoveryRetentionLeases()) {
+            /*
+             * We might have got here via a rolling upgrade from an older version that doesn't create peer recovery retention leases for
+             * every shard copy. We create them lazily in this case and offer relaxed guarantees about history retention.  If the lease does
+             * not currently exist, create one using the given LCPoSC as a starting point for retention. This might be too low (other shards
+             * are no longer retaining this history) or too high (the replica in question already discarded too much history to satisfy the
+             * other leases) but this will eventually be resolved.
+             */
+            replicationTracker.addMissingPeerRecoveryRetentionLease(allocationId, localCheckpointOfSafeCommit + 1);
+        } else {
+            assert localCheckpointOfSafeCommit != UNASSIGNED_SEQ_NO;
+        }
     }
 
     /**
@@ -2227,6 +2264,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
+            asyncEnsurePeerRecoveryRetentionLeaseForPrimary();
             if (getMaxSeqNoOfUpdatesOrDeletes() == UNASSIGNED_SEQ_NO) {
                 // If the old primary was on an old version that did not replicate the msu,
                 // we need to bootstrap it manually from its local history.
@@ -2492,6 +2530,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new ElasticsearchException("minimum sequence number for peer recovery is unavailable");
         }
         return engine.getLocalCheckpointOfSafeCommit();
+    }
+
+    private boolean assertIndexCreatedBeforePeerRecoveryRetentionLeases() {
+        assert indexCreatedBeforePeerRecoveryRetentionLeases()
+            : IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(indexSettings.getSettings());
+        return true;
+    }
+
+    private boolean indexCreatedBeforePeerRecoveryRetentionLeases() {
+        return IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(indexSettings.getSettings()).before(Version.V_8_0_0);
+        // TODO V_7_0_0 on backport
     }
 
     class ShardEventListener implements Engine.EventListener {

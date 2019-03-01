@@ -1115,7 +1115,7 @@ public abstract class TransportReplicationAction<
             } else {
                 globalCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO V_7_0_0 for backport
                 localCheckpointOfSafeCommit = in.readZLong();
             } else {
                 localCheckpointOfSafeCommit = SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -1131,7 +1131,7 @@ public abstract class TransportReplicationAction<
             if (out.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
                 out.writeZLong(globalCheckpoint);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO V_7_0_0 for backport
                 out.writeZLong(localCheckpointOfSafeCommit);
             }
         }

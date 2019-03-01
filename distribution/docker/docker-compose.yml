@@ -26,9 +26,7 @@ services:
        - xpack.security.authc.realms.file.file1.order=0   
        - xpack.security.authc.realms.native.native1.order=1
        - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
-       - xpack.security.transport.ssl.keystore.password=testnode
        - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
-       - xpack.security.http.ssl.keystore.password=testnode
        - xpack.http.ssl.verification_mode=certificate  
        - xpack.security.transport.ssl.verification_mode=certificate  
        - xpack.license.self_generated.type=trial
@@ -36,13 +34,14 @@ services:
        - ./build/repo:/tmp/es-repo
        - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
        - ./build/logs/default-1:/usr/share/elasticsearch/logs
+       - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
     ports:
       - "9200"
     ulimits:
       memlock:
         soft: -1
         hard: -1
-    entrypoint: /bin/bash -c "/usr/share/elasticsearch/bin/elasticsearch-users useradd x_pack_rest_user -p x-pack-test-password -r superuser ; /usr/local/bin/docker-entrypoint.sh > /usr/share/elasticsearch/logs/console.log"
+    entrypoint: /docker-test-entrypoint.sh
   elasticsearch-default-2:
     build:
       context: ./build/docker
@@ -68,9 +67,7 @@ services:
        - xpack.security.authc.realms.file.file1.order=0   
        - xpack.security.authc.realms.native.native1.order=1  
        - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
-       - xpack.security.transport.ssl.keystore.password=testnode
        - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
-       - xpack.security.http.ssl.keystore.password=testnode
        - xpack.http.ssl.verification_mode=certificate  
        - xpack.security.transport.ssl.verification_mode=certificate  
        - xpack.license.self_generated.type=trial
@@ -78,13 +75,14 @@ services:
        - ./build/repo:/tmp/es-repo
        - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
        - ./build/logs/default-2:/usr/share/elasticsearch/logs
+       - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
     ports:
       - "9200"
     ulimits:
       memlock:
         soft: -1
         hard: -1
-    entrypoint: /bin/bash -c "/usr/share/elasticsearch/bin/elasticsearch-users useradd x_pack_rest_user -p x-pack-test-password -r superuser ; /usr/local/bin/docker-entrypoint.sh > /usr/share/elasticsearch/logs/console.log"
+    entrypoint: /docker-test-entrypoint.sh
   elasticsearch-oss-1:
     build:
       context: ./build/oss-docker

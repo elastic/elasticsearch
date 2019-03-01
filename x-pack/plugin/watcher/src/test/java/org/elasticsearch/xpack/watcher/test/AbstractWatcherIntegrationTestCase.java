@@ -268,7 +268,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
     }
 
-    private void replaceWatcherIndexWithRandomlyNamedIndex(String to) {
+    public void replaceWatcherIndexWithRandomlyNamedIndex(String to) {
         GetIndexResponse index = client().admin().indices().prepareGetIndex().setIndices(Watch.INDEX).get();
         MappingMetaData mapping = index.getMappings().get(index.getIndices()[0]).get(Watch.DOC_TYPE);
 

@@ -43,6 +43,24 @@ will result in an error. Additionally, there are two minor breaking changes here
 - `plugin.mandatory` is no longer compatible with `ingest-geoip` nor
   `ingest-user-agent`
 
+Elasticsearch 6.7.0 checks that there are no leftover geoip database files in
+the plugin configuration directory because the new module does not use them.
+Therefore, remove the `ingest-geoip` plugin prior to upgrading to 6.7.0 with
+the `--purge` option to also delete the old database files:
+
+[source,sh]
+------------------------------------------------------
+./bin/elasticsearch-plugin remove --purge ingest-geoip
+------------------------------------------------------
+
+Otherwise you will see the following error message upon startup (assuming
+`/etc/elasticsearch/ingest-geoip` as the plugin configuration directory):
+
+[source,text]
+---------------------------------------------------------------------------------------
+expected database [GeoLite2-ASN.mmdb] to not exist in [/etc/elasticsearch/ingest-geoip]
+---------------------------------------------------------------------------------------
+
 
 [float]
 [[breaking_67_settings_changes]]

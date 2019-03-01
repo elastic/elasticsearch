@@ -54,8 +54,8 @@ be specified.
 
 ==== Examples
 
-For example, if you create a token using the 
-`client_credentials` `grant_type` as follows:
+For example, if you create a token using the `client_credentials` grant type as
+follows:
 
 [source,js]
 --------------------------------------------------
@@ -66,7 +66,7 @@ POST /_security/oauth2/token
 --------------------------------------------------
 // CONSOLE
 
-The Get Token API returns the following information about the access token:
+The get token API returns the following information about the access token:
 
 [source,js]
 --------------------------------------------------
@@ -78,8 +78,8 @@ The Get Token API returns the following information about the access token:
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 
-
-The following example invalidates the specified token immediately:
+This access token can now be immediately invalidated, as shown in the following
+example:
 
 [source,js]
 --------------------------------------------------
@@ -107,7 +107,7 @@ POST /_security/oauth2/token
 // CONSOLE
 // TEST
 
-The Get Token API returns the following information:
+The get token API returns the following information:
 
 [source,js]
 --------------------------------------------------
@@ -122,7 +122,7 @@ The Get Token API returns the following information:
 // TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 
 The refresh token can now also be immediately invalidated as shown 
-in the following example:"
+in the following example:
 
 [source,js]
 --------------------------------------------------
@@ -134,7 +134,6 @@ DELETE /_security/oauth2/token
 // CONSOLE
 // TEST[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 // TEST[continued]
-
 
 The following example invalidates all access tokens and refresh tokens for the
 `saml1` realm immediately:

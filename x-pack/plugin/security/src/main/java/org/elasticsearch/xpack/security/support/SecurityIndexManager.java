@@ -107,6 +107,11 @@ public class SecurityIndexManager implements ClusterStateListener {
         return this.indexState.indexExists;
     }
 
+    public boolean stateRecovered() {
+        // concrete security index name is a proxy for the cluster state recovery 
+        return this.indexState.concreteIndexName != null;
+    }
+
     /**
      * Returns whether the index is on the current format if it exists. If the index does not exist
      * we treat the index as up to date as we expect it to be created with the current format.

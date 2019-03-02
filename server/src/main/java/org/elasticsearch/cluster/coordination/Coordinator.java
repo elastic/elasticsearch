@@ -226,6 +226,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // where we would possibly have to remove the NO_MASTER_BLOCK from the applierState when turning a candidate back to follower.
             if (getLastAcceptedState().term() < getCurrentTerm()) {
                 becomeFollower("onFollowerCheckRequest", followerCheckRequest.getSender());
+            } else {
+                if (mode != Mode.FOLLOWER) {
+                    logger.trace("onFollowerCheckRequest: received check from faulty master, rejecting {}", followerCheckRequest);
+                    throw new CoordinationStateRejectedException(
+                        "onFollowerCheckRequest: received check from faulty master, rejecting " + followerCheckRequest);
+                }
             }
         }
     }

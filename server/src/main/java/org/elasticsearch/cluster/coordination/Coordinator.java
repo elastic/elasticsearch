@@ -238,7 +238,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-
     private void handleApplyCommit(ApplyCommitRequest applyCommitRequest, ActionListener<Void> applyListener) {
         synchronized (mutex) {
             logger.trace("handleApplyCommit: applying commit {}", applyCommitRequest);

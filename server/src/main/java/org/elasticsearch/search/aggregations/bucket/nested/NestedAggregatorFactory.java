@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class NestedAggregatorFactory extends AggregatorFactory<NestedAggregatorFactory> {
+public class NestedAggregatorFactory extends AggregatorFactory<NestedAggregatorFactory> {
 
     private final ObjectMapper parentObjectMapper;
     private final ObjectMapper childObjectMapper;

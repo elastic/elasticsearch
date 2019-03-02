@@ -53,19 +53,17 @@ field.
 PUT movies
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "name_and_plot": {
-          "type": "text"
-        },
-        "name": {
-          "type": "text",
-          "copy_to": "name_and_plot"
-        },
-        "plot": {
-          "type": "text",
-          "copy_to": "name_and_plot"
-        }
+    "properties": {
+      "name_and_plot": {
+        "type": "text"
+      },
+      "name": {
+        "type": "text",
+        "copy_to": "name_and_plot"
+      },
+      "plot": {
+        "type": "text",
+        "copy_to": "name_and_plot"
       }
     }
   }
@@ -126,11 +124,9 @@ should be mapped as a <<keyword,`keyword`>>:
 PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "price_range": {
-          "type": "keyword"
-        }
+    "properties": {
+      "price_range": {
+        "type": "keyword"
       }
     }
   }
@@ -325,12 +321,10 @@ eagerly at refresh-time by configuring mappings as described below:
 PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "keyword",
-          "eager_global_ordinals": true
-        }
+    "properties": {
+      "foo": {
+        "type": "keyword",
+        "eager_global_ordinals": true
       }
     }
   }

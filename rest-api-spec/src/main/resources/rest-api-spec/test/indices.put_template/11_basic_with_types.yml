@@ -2,6 +2,7 @@
 "Put template":
   - do:
       indices.put_template:
+        include_type_name: true
         name: test
         body:
           index_patterns: test-*
@@ -16,6 +17,7 @@
 
   - do:
       indices.get_template:
+        include_type_name: true
         name: test
         flat_settings: true
 
@@ -27,6 +29,7 @@
 "Put multiple template":
   - do:
       indices.put_template:
+        include_type_name: true
         name: test
         body:
           index_patterns: [test-*, test2-*]
@@ -41,6 +44,7 @@
 
   - do:
       indices.get_template:
+        include_type_name: true
         name: test
         flat_settings: true
 
@@ -52,6 +56,7 @@
 "Put template with empty mappings":
   - do:
       indices.put_template:
+        include_type_name: true
         name: test
         body:
           index_patterns: test-*
@@ -62,6 +67,7 @@
 
   - do:
       indices.get_template:
+        include_type_name: true
         name: test
         flat_settings: true
 

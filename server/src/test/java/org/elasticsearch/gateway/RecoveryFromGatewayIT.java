@@ -20,20 +20,24 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -49,9 +53,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
 import java.nio.file.DirectoryStream;
@@ -66,9 +68,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.gateway.GatewayService.RECOVER_AFTER_NODES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -86,14 +90,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockFSIndexStore.TestPlugin.class, InternalSettingsPlugin.class);
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            // testTwoNodeFirstNodeCleared does unsafe things, and testLatestVersionLoaded / testRecoveryDifferentNodeOrderStartup also fail
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), false)
-            .build();
     }
 
     public void testOneNodeRecoverFromGateway() throws Exception {
@@ -312,10 +308,15 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);
 
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(new String[]{firstNode})).get();
+
         internalCluster().fullRestart(new RestartCallback() {
             @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                return Settings.builder().put("gateway.recover_after_nodes", 2).build();
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder()
+                    .put(RECOVER_AFTER_NODES_SETTING.getKey(), 2)
+                    .putList(INITIAL_MASTER_NODES_SETTING.getKey()) // disable bootstrapping
+                    .build();
             }
 
             @Override
@@ -332,6 +333,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 2);
         }
+
+        client().execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();
     }
 
     public void testLatestVersionLoaded() throws Exception {
@@ -523,37 +526,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
     }
 
-    public void testRecoveryDifferentNodeOrderStartup() throws Exception {
-        // we need different data paths so we make sure we start the second node fresh
-
-        final Path pathNode1 = createTempDir();
-        final String node_1 =
-            internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), pathNode1).build());
-
-        client().prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
-
-        final Path pathNode2 = createTempDir();
-        final String node_2 =
-            internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), pathNode2).build());
-
-        ensureGreen();
-        Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);
-
-        if (randomBoolean()) {
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_1));
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
-        } else {
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_1));
-        }
-        // start the second node again
-        internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), pathNode2).build());
-        ensureYellow();
-        primaryTerms = assertAndCapturePrimaryTerms(primaryTerms);
-        assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
-        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 1);
-    }
-
     public void testStartedShardFoundIfStateNotYetProcessed() throws Exception {
         // nodes may need to report the shards they processed the initial recovered cluster state from the master
         final String nodeName = internalCluster().startNode();
@@ -569,7 +541,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // make sure state is not recovered
-                return Settings.builder().put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), 2).build();
+                return Settings.builder().put(RECOVER_AFTER_NODES_SETTING.getKey(), 2).build();
             }
         });
 
@@ -606,5 +578,17 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         // start another node so cluster consistency checks won't time out due to the lack of state
         internalCluster().startNode();
+    }
+
+    public void testMessyElectionsStillMakeClusterGoGreen() throws Exception {
+        internalCluster().startNodes(3,
+            Settings.builder().put(ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING.getKey(),
+                "2ms").build());
+        createIndex("test", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms").build());
+        ensureGreen("test");
+        internalCluster().fullRestart();
+        ensureGreen("test");
     }
 }

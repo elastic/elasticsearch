@@ -4,6 +4,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.FileContentsTask
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionCollection
 import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionAdapter
@@ -24,8 +25,8 @@ class VagrantTestPlugin implements Plugin<Project> {
             'centos-7',
             'debian-8',
             'debian-9',
-            'fedora-27',
             'fedora-28',
+            'fedora-29',
             'oel-6',
             'oel-7',
             'opensuse-42',
@@ -52,10 +53,10 @@ class VagrantTestPlugin implements Plugin<Project> {
 
     /** All distributions to bring into test VM, whether or not they are used **/
     static final List<String> DISTRIBUTIONS = unmodifiableList([
-            'archives:tar',
-            'archives:oss-tar',
-            'archives:zip',
-            'archives:oss-zip',
+            'archives:linux-tar',
+            'archives:oss-linux-tar',
+            'archives:windows-zip',
+            'archives:oss-windows-zip',
             'packages:rpm',
             'packages:oss-rpm',
             'packages:deb',
@@ -184,20 +185,42 @@ class VagrantTestPlugin implements Plugin<Project> {
             upgradeFromVersion = Version.fromString(upgradeFromVersionRaw)
         }
 
+        List<Object> dependencies = new ArrayList<>()
         DISTRIBUTIONS.each {
             // Adds a dependency for the current version
-            project.dependencies.add(PACKAGING_CONFIGURATION,
-                    project.dependencies.project(path: ":distribution:${it}", configuration: 'default'))
+            dependencies.add(project.dependencies.project(path: ":distribution:${it}", configuration: 'default'))
         }
 
-        UPGRADE_FROM_ARCHIVES.each {
+        if (project.ext.bwc_tests_enabled) {
             // The version of elasticsearch that we upgrade *from*
-            project.dependencies.add(PACKAGING_CONFIGURATION,
-                    "org.elasticsearch.distribution.${it}:elasticsearch:${upgradeFromVersion}@${it}")
-            if (upgradeFromVersion.onOrAfter('6.3.0')) {
-                project.dependencies.add(PACKAGING_CONFIGURATION,
-                        "org.elasticsearch.distribution.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
+            // we only add them as dependencies if the bwc tests are enabled, so we don't trigger builds otherwise
+            VersionCollection.UnreleasedVersionInfo unreleasedInfo = project.bwcVersions.unreleasedInfo(upgradeFromVersion)
+            if (unreleasedInfo != null) {
+                // handle snapshots pointing to bwc build
+                UPGRADE_FROM_ARCHIVES.each {
+                    dependencies.add(project.dependencies.project(
+                            path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: it))
+                    if (upgradeFromVersion.onOrAfter('6.3.0')) {
+                        dependencies.add(project.dependencies.project(
+                                path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: "oss-${it}"))
+                    }
+                }
+            } else {
+                UPGRADE_FROM_ARCHIVES.each {
+                    // The version of elasticsearch that we upgrade *from*
+                    dependencies.add("downloads.${it}:elasticsearch:${upgradeFromVersion}@${it}")
+                    if (upgradeFromVersion.onOrAfter('6.3.0')) {
+                        dependencies.add("downloads.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
+                    }
+                }
             }
+        } else {
+            // Upgrade tests will go from current to current when the BWC tests are disabled to skip real BWC tests.
+            upgradeFromVersion = Version.fromString(project.version)
+        }
+
+        for (Object dependency : dependencies) {
+            project.dependencies.add(PACKAGING_CONFIGURATION, dependency)
         }
 
         project.extensions.esvagrant.upgradeFromVersion = upgradeFromVersion
@@ -613,7 +636,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             void afterExecute(Task task, TaskState state) {
                 final String gradlew = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew" : "./gradlew"
                 if (state.failure != null) {
-                    println "REPRODUCE WITH: ${gradlew} ${reproTaskPath} -Dtests.seed=${project.testSeed} "
+                    println "REPRODUCE WITH: ${gradlew} \"${reproTaskPath}\" -Dtests.seed=${project.testSeed} "
                 }
             }
         }

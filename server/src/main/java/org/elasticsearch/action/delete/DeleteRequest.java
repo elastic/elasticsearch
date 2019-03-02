@@ -110,27 +110,8 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }
-        if (versionType.validateVersionForWrites(version) == false) {
-            validationException = addValidationError("illegal version value [" + version + "] for version type ["
-                + versionType.name() + "]", validationException);
-        }
-        if (versionType == VersionType.FORCE) {
-            validationException = addValidationError("version type [force] may no longer be used", validationException);
-        }
 
-        if (ifSeqNo != UNASSIGNED_SEQ_NO && (
-            versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
-        )) {
-            validationException = addValidationError("compare and write operations can not use versioning", validationException);
-        }
-
-        if (ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM && ifSeqNo != UNASSIGNED_SEQ_NO) {
-            validationException = addValidationError("ifSeqNo is set, but primary term is [0]", validationException);
-        }
-        if (ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM && ifSeqNo == UNASSIGNED_SEQ_NO) {
-            validationException =
-                addValidationError("ifSeqNo is unassigned, but primary term is [" + ifPrimaryTerm + "]", validationException);
-        }
+        validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
         return validationException;
     }

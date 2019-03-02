@@ -6,8 +6,6 @@
 <titleabbrev>Collecting monitoring data with {metricbeat}</titleabbrev>
 ++++
 
-beta[]
-
 In 6.5 and later, you can use {metricbeat} to collect data about {es} 
 and ship it to the monitoring cluster, rather than routing it through exporters 
 as described in <<collecting-monitoring-data>>. 

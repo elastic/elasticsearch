@@ -96,8 +96,8 @@ import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.action.MlUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
@@ -109,8 +109,8 @@ import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
-import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
@@ -151,8 +151,8 @@ import org.elasticsearch.xpack.ml.action.TransportPutCalendarAction;
 import org.elasticsearch.xpack.ml.action.TransportPutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportPutFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportPutJobAction;
-import org.elasticsearch.xpack.ml.action.TransportMlUpgradeAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateCalendarJobAction;
@@ -191,6 +191,7 @@ import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestFindFileStructureAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
+import org.elasticsearch.xpack.ml.rest.RestSetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarEventAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarJobAction;
@@ -231,7 +232,6 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetCategoriesAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
-import org.elasticsearch.xpack.ml.rest.results.RestUpgradeMlAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 
@@ -249,6 +249,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
 public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, PersistentTaskPlugin {
     public static final String NAME = "ml";
@@ -427,17 +428,17 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(env, settings, client, threadPool,
                 jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
-                normalizerFactory, xContentRegistry, auditor);
+                normalizerFactory, xContentRegistry, auditor, clusterService);
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(client, settings, xContentRegistry,
                 auditor, System::currentTimeMillis);
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, auditor, autodetectProcessManager);
         this.datafeedManager.set(datafeedManager);
-        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
-                autodetectProcessManager);
         MlMemoryTracker memoryTracker = new MlMemoryTracker(settings, clusterService, threadPool, jobManager, jobResultsProvider);
         this.memoryTracker.set(memoryTracker);
+        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
+                autodetectProcessManager, memoryTracker);
 
         // This object's constructor attaches to the license state, so there's no need to retain another reference to it
         new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
@@ -545,7 +546,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestGetCalendarEventsAction(settings, restController),
             new RestPostCalendarEventAction(settings, restController),
             new RestFindFileStructureAction(settings, restController),
-            new RestUpgradeMlAction(settings, restController)
+            new RestSetUpgradeModeAction(settings, restController)
         );
     }
 
@@ -604,7 +605,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class),
                 new ActionHandler<>(PersistJobAction.INSTANCE, TransportPersistJobAction.class),
                 new ActionHandler<>(FindFileStructureAction.INSTANCE, TransportFindFileStructureAction.class),
-                new ActionHandler<>(MlUpgradeAction.INSTANCE, TransportMlUpgradeAction.class)
+                new ActionHandler<>(SetUpgradeModeAction.INSTANCE, TransportSetUpgradeModeAction.class)
         );
     }
     @Override
@@ -649,7 +650,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
             try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
                 IndexTemplateMetaData notificationMessageTemplate = IndexTemplateMetaData.builder(AuditorField.NOTIFICATIONS_INDEX)
-                        .putMapping(AuditMessage.TYPE.getPreferredName(), Strings.toString(auditMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(auditMapping))
                         .patterns(Collections.singletonList(AuditorField.NOTIFICATIONS_INDEX))
                         .version(Version.CURRENT.id)
                         .settings(Settings.builder()
@@ -674,7 +675,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
                         .version(Version.CURRENT.id)
-                        .putMapping(MlMetaIndex.TYPE, Strings.toString(docMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
                         .build();
                 templates.put(MlMetaIndex.INDEX_NAME, metaTemplate);
             } catch (IOException e) {
@@ -693,7 +694,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
                                         AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW))
                         .version(Version.CURRENT.id)
-                        .putMapping(ElasticsearchMappings.DOC_TYPE, Strings.toString(configMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(configMapping))
                         .build();
                 templates.put(AnomalyDetectorsIndex.configIndexName(), configTemplate);
             } catch (IOException e) {
@@ -701,21 +702,22 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             }
 
             try (XContentBuilder stateMapping = ElasticsearchMappings.stateMapping()) {
-                IndexTemplateMetaData stateTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobStateIndexName())
+                IndexTemplateMetaData stateTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexPattern()))
                         // TODO review these settings
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
-                        .putMapping(ElasticsearchMappings.DOC_TYPE, Strings.toString(stateMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(stateMapping))
                         .version(Version.CURRENT.id)
                         .build();
-                templates.put(AnomalyDetectorsIndex.jobStateIndexName(), stateTemplate);
+
+                templates.put(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, stateTemplate);
             } catch (IOException e) {
-                logger.error("Error loading the template for the " + AnomalyDetectorsIndex.jobStateIndexName() + " index", e);
+                logger.error("Error loading the template for the " + AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + " index", e);
             }
 
-            try (XContentBuilder docMapping = ElasticsearchMappings.resultsMapping()) {
+            try (XContentBuilder docMapping = ElasticsearchMappings.resultsMapping(SINGLE_MAPPING_NAME)) {
                 IndexTemplateMetaData jobResultsTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobResultsIndexPrefix())
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
                         .settings(Settings.builder()
@@ -727,7 +729,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async")
                                 // set the default all search field
                                 .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), ElasticsearchMappings.ALL_FIELD_VALUES))
-                        .putMapping(ElasticsearchMappings.DOC_TYPE, Strings.toString(docMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
                         .version(Version.CURRENT.id)
                         .build();
                 templates.put(AnomalyDetectorsIndex.jobResultsIndexPrefix(), jobResultsTemplate);
@@ -742,7 +744,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static boolean allTemplatesInstalled(ClusterState clusterState) {
         boolean allPresent = true;
         List<String> templateNames = Arrays.asList(AuditorField.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
-                AnomalyDetectorsIndex.jobStateIndexName(), AnomalyDetectorsIndex.jobResultsIndexPrefix());
+                AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
             allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
         }

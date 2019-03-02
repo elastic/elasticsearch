@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.settings.SecureString;
+
 import java.util.Random;
 
 public class UUIDs {
@@ -50,4 +52,9 @@ public class UUIDs {
         return RANDOM_UUID_GENERATOR.getBase64UUID();
     }
 
+    /** Returns a Base64 encoded {@link SecureString} of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt,
+     *  using a private {@code SecureRandom} instance */
+    public static SecureString randomBase64UUIDSecureString() {
+        return RANDOM_UUID_GENERATOR.getBase64UUIDSecureString();
+    }
 }

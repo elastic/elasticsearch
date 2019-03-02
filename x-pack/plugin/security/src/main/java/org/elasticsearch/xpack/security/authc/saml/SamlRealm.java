@@ -417,8 +417,9 @@ public final class SamlRealm extends Realm implements Releasable {
     private void buildUser(SamlAttributes attributes, ActionListener<AuthenticationResult> baseListener) {
         final String principal = resolveSingleValueAttribute(attributes, principalAttribute, PRINCIPAL_ATTRIBUTE.name(config));
         if (Strings.isNullOrEmpty(principal)) {
-            baseListener.onResponse(AuthenticationResult.unsuccessful(
-                    principalAttribute + " not found in " + attributes.attributes(), null));
+            final String msg =
+                principalAttribute + " not found in saml attributes" + attributes.attributes() + " or NameID [" + attributes.name() + "]";
+            baseListener.onResponse(AuthenticationResult.unsuccessful(msg, null));
             return;
         }
 

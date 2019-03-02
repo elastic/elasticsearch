@@ -23,7 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -109,7 +109,7 @@ public class PeerRecoverySourceService implements IndexEventListener {
     class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {
         @Override
         public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
-            recover(request, new HandledTransportAction.ChannelActionListener<>(channel, Actions.START_RECOVERY, request));
+            recover(request, new ChannelActionListener<>(channel, Actions.START_RECOVERY, request));
         }
     }
 
@@ -176,7 +176,8 @@ public class PeerRecoverySourceService implements IndexEventListener {
                 final RemoteRecoveryTargetHandler recoveryTarget =
                     new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), transportService,
                         request.targetNode(), recoverySettings, throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
-                handler = new RecoverySourceHandler(shard, recoveryTarget, request, recoverySettings.getChunkSize().bytesAsInt());
+                handler = new RecoverySourceHandler(shard, recoveryTarget, request,
+                    Math.toIntExact(recoverySettings.getChunkSize().getBytes()), recoverySettings.getMaxConcurrentFileChunks());
                 return handler;
             }
         }

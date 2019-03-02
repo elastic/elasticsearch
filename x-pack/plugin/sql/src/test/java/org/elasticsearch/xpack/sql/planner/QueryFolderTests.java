@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
@@ -292,7 +293,7 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));
     }
 
-    public void testGroupKeyTypes_Date() {
+    public void testGroupKeyTypes_DateTime() {
         PhysicalPlan p = plan("SELECT count(*), date + INTERVAL '1-2' YEAR TO MONTH AS a FROM test GROUP BY a");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
@@ -315,5 +316,25 @@ public class QueryFolderTests extends ESTestCase {
         EmptyExecutable ee = (EmptyExecutable) le.executable();
         assertEquals(1, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
+    public void testFoldingOfPercentileSecondArgument() {
+        PhysicalPlan p = plan("SELECT PERCENTILE(int, 1 + 2) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(1, ee.output().size());
+        assertEquals(AggregateFunctionAttribute.class, ee.output().get(0).getClass());
+        AggregateFunctionAttribute afa = (AggregateFunctionAttribute) ee.output().get(0);
+        assertThat(afa.propertyPath(), endsWith("[3.0]"));
+    }
+
+    public void testFoldingOfPercentileRankSecondArgument() {
+        PhysicalPlan p = plan("SELECT PERCENTILE_RANK(int, 1 + 2) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(1, ee.output().size());
+        assertEquals(AggregateFunctionAttribute.class, ee.output().get(0).getClass());
+        AggregateFunctionAttribute afa = (AggregateFunctionAttribute) ee.output().get(0);
+        assertThat(afa.propertyPath(), endsWith("[3.0]"));
     }
 }

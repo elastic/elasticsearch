@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Nullability;
+import org.elasticsearch.xpack.sql.expression.TypeResolutions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
@@ -103,6 +104,23 @@ public class In extends ScalarFunction {
     @Override
     protected Pipe makePipe() {
         return new InPipe(source(), this, children().stream().map(Expressions::pipe).collect(Collectors.toList()));
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        TypeResolution resolution = TypeResolutions.isExact(value, functionName(), Expressions.ParamOrdinal.DEFAULT);
+        if (resolution != TypeResolution.TYPE_RESOLVED) {
+            return resolution;
+        }
+
+        for (Expression ex : list) {
+            if (ex.foldable() == false) {
+                return new TypeResolution(format(null, "Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
+                    Expressions.name(ex),
+                    name()));
+            }
+        }
+        return super.resolveType();
     }
 
     @Override

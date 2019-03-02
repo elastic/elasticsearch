@@ -28,6 +28,7 @@ import java.time.Clock;
 import java.util.Arrays;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
@@ -48,7 +49,7 @@ public class WatcherExecutorServiceBenchmark {
             .put("cluster.name", "bench")
             .put("network.host", "localhost")
             .put("script.disable_dynamic", false)
-            .put("discovery.zen.ping.unicast.hosts", "localhost")
+            .put(DISCOVERY_SEED_HOSTS_SETTING.getKey(), "localhost")
             .put("http.cors.enabled", true)
             .put("cluster.routing.allocation.disk.threshold_enabled", false)
 //                .put("recycler.page.limit.heap", "60%")

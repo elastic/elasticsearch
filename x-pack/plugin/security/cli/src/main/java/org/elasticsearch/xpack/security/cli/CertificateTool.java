@@ -134,7 +134,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
 
 
     public static void main(String[] args) throws Exception {
-        new CertificateTool().main(args, Terminal.DEFAULT);
+        exit(new CertificateTool().main(args, Terminal.DEFAULT));
     }
 
     CertificateTool() {

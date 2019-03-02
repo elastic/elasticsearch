@@ -154,7 +154,7 @@ public class IndexResolverTests extends ESTestCase {
             if (entry.getValue().size() > 1) {
                 for (EsIndex index : indices) {
                     EsField field = index.mapping().get(fieldName);
-                    UpdateableFieldCapabilities fieldCaps = (UpdateableFieldCapabilities) caps.get(field.getDataType().esType);
+                    UpdateableFieldCapabilities fieldCaps = (UpdateableFieldCapabilities) caps.get(field.getDataType().typeName);
                     fieldCaps.indices.add(index.name());
                 }
                 //TODO: what about nonAgg/SearchIndices?
@@ -171,7 +171,7 @@ public class IndexResolverTests extends ESTestCase {
             map = new HashMap<>();
             merged.put(fieldName, map);
         }
-        FieldCapabilities caps = map.computeIfAbsent(field.getDataType().esType,
+        FieldCapabilities caps = map.computeIfAbsent(field.getDataType().typeName,
                 esType -> new UpdateableFieldCapabilities(fieldName, esType,
                 isSearchable(field.getDataType()),
                         isAggregatable(field.getDataType())));
@@ -190,7 +190,7 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     private static boolean isAggregatable(DataType type) {
-        return type.isNumeric() || type == DataType.KEYWORD || type == DataType.DATE;
+        return type.isNumeric() || type == DataType.KEYWORD || type == DataType.DATETIME;
     }
 
     private static class UpdateableFieldCapabilities extends FieldCapabilities {

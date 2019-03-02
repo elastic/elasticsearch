@@ -35,6 +35,6 @@ public class DeleteActionTests extends AbstractXContentTestCase<DeleteAction> {
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

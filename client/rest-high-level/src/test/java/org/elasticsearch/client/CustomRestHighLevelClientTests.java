@@ -122,7 +122,8 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "We're forced to uses Class#getDeclaredMethods() here because this test checks protected methods")
     public void testMethodsVisibility() {
-        final String[] methodNames = new String[]{"parseEntity",
+        final String[] methodNames = new String[]{"convertExistsResponse",
+                                                  "parseEntity",
                                                   "parseResponseException",
                                                   "performRequest",
                                                   "performRequestAndParseEntity",

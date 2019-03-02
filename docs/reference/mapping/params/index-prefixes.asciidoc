@@ -22,12 +22,10 @@ This example creates a text field using the default prefix length settings:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "body_text": {
-          "type": "text",
-          "index_prefixes": { }    <1>
-        }
+    "properties": {
+      "body_text": {
+        "type": "text",
+        "index_prefixes": { }    <1>
       }
     }
   }
@@ -45,14 +43,12 @@ This example uses custom prefix length settings:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "full_name": {
-          "type": "text",
-          "index_prefixes": {
-            "min_chars" : 1,
-            "max_chars" : 10
-          }
+    "properties": {
+      "full_name": {
+        "type": "text",
+        "index_prefixes": {
+          "min_chars" : 1,
+          "max_chars" : 10
         }
       }
     }

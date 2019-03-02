@@ -53,3 +53,27 @@ add, modify, or delete fields within a single document.
 *API*
 
 The standard <<painless-api-reference, Painless API>> is available.
+
+*Example*
+
+To run this example, first follow the steps in
+<<painless-context-examples, context examples>>.
+
+The following query updates a document to be sold, and sets the cost
+to the actual price paid after discounts:
+
+[source,js]
+--------------------------------------------------
+POST /seats/_update/3
+{
+    "script": {
+        "source": "ctx._source.sold = true; ctx._source.cost = params.sold_cost",
+        "lang": "painless",
+        "params": {
+            "sold_cost": 26
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:seats]

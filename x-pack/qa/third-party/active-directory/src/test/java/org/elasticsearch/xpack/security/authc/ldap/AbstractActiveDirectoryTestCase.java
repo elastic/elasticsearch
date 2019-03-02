@@ -58,12 +58,10 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
 
     protected SSLService sslService;
     protected Settings globalSettings;
-    protected boolean useGlobalSSL;
     protected List<String> certificatePaths;
 
     @Before
     public void initializeSslSocketFactory() throws Exception {
-        useGlobalSSL = randomBoolean();
         // We use certificates in PEM format and `ssl.certificate_authorities` instead of ssl.trustore
         // so that these tests can also run in a FIPS JVM where JKS keystores can't be used.
         certificatePaths = new ArrayList<>();
@@ -84,19 +82,12 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
          * verification tests since a re-established connection does not perform hostname verification.
          */
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
-        if (useGlobalSSL) {
-            builder.putList("xpack.ssl.certificate_authorities", certificatePaths);
 
-            // fake realm to load config with certificate verification mode
-            builder.putList("xpack.security.authc.realms.bar.ssl.certificate_authorities", certificatePaths);
-            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
-        } else {
-            // fake realms so ssl will get loaded
-            builder.putList("xpack.security.authc.realms.foo.ssl.certificate_authorities", certificatePaths);
-            builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
-            builder.putList("xpack.security.authc.realms.bar.ssl.certificate_authorities", certificatePaths);
-            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
-        }
+        // fake realms so ssl will get loaded
+        builder.putList("xpack.security.authc.realms.foo.ssl.certificate_authorities", certificatePaths);
+        builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
+        builder.putList("xpack.security.authc.realms.bar.ssl.certificate_authorities", certificatePaths);
+        builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         globalSettings = builder.build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
         sslService = new SSLService(globalSettings, environment);
@@ -106,23 +97,21 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
                              LdapSearchScope scope, boolean hostnameVerification) {
         final String realmName = realmId.getName();
         Settings.Builder builder = Settings.builder()
-                .putList(getFullSettingKey(realmId, SessionFactorySettings.URLS_SETTING), ldapUrl)
-                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
-                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING), userSearchDN)
-                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING), scope)
-                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
-                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING), AD_LDAPS_PORT)
-                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING), AD_GC_LDAP_PORT)
-                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING), AD_GC_LDAPS_PORT)
-                .put(getFullSettingKey(realmId, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS);
+            .putList(getFullSettingKey(realmId, SessionFactorySettings.URLS_SETTING), ldapUrl)
+            .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
+            .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING), userSearchDN)
+            .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING), scope)
+            .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
+            .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING), AD_LDAPS_PORT)
+            .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING), AD_GC_LDAP_PORT)
+            .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING), AD_GC_LDAPS_PORT)
+            .put(getFullSettingKey(realmId, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS)
+            .putList(getFullSettingKey(realmId, SSLConfigurationSettings.CAPATH_SETTING_REALM), certificatePaths);
         if (randomBoolean()) {
             builder.put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
                     hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
         } else {
             builder.put(getFullSettingKey(realmId, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), hostnameVerification);
-        }
-        if (useGlobalSSL == false) {
-            builder.putList(getFullSettingKey(realmId, SSLConfigurationSettings.CAPATH_SETTING_REALM), certificatePaths);
         }
         return builder.build();
     }

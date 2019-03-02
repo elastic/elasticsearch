@@ -9,7 +9,6 @@
   - do:
       index:
         index: test_1
-        type:  test
         id:    1
         body:  { "foo": "bar" }
 

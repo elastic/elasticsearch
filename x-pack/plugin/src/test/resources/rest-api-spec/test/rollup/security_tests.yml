@@ -48,18 +48,16 @@ teardown:
         index: foo
         body:
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                value_field:
-                  type: integer
+            properties:
+              timestamp:
+                type: date
+              value_field:
+                type: integer
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: foo
-        type: _doc
         body:
           timestamp: 123
           value_field: 1232
@@ -69,18 +67,16 @@ teardown:
         index: foobar
         body:
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                value_field:
-                  type: integer
+            properties:
+              timestamp:
+                type: date
+              value_field:
+                type: integer
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: foobar
-        type: _doc
         body:
           timestamp: 123
           value_field: 456
@@ -93,7 +89,7 @@ teardown:
   # This index pattern will match both indices, but we only have permission to read one
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -119,7 +115,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.rollup.start_job:
+      rollup.start_job:
         id: foo
   - is_true: started
 
@@ -139,7 +135,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
   - match:
         jobs.0.stats.documents_processed: 1
@@ -220,20 +216,18 @@ teardown:
         index: foo
         body:
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                value_field:
-                  type: integer
-                visibility:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              value_field:
+                type: integer
+              visibility:
+                type: keyword
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: foo
-        type: _doc
         body:
           timestamp: 123
           value_field: 1232
@@ -243,7 +237,6 @@ teardown:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: foobar
-        type: _doc
         body:
           timestamp: 123
           value_field: 456
@@ -257,7 +250,7 @@ teardown:
   # Index contains two docs, but we should only be able to see one of them
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -282,7 +275,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.rollup.start_job:
+      rollup.start_job:
         id: foo
   - is_true: started
 
@@ -302,7 +295,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
   - match:
         jobs.0.stats.documents_processed: 1

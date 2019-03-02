@@ -2,10 +2,9 @@
 setup:
   - skip:
       version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+      reason: include_type_name defaults to true before 7.0
   - do:
         indices.create:
-          include_type_name: false
           index: test_index
           body:
               mappings:
@@ -25,7 +24,6 @@ setup:
 
   - do:
         indices.create:
-          include_type_name: false
           index: test_index_2
           body:
               mappings:
@@ -48,7 +46,6 @@ setup:
 
   - do:
       indices.get_field_mapping:
-        include_type_name: false
         fields: "*"
 
   - match: {test_index.mappings.t1.full_name:     t1     }
@@ -62,7 +59,6 @@ setup:
 
   - do:
       indices.get_field_mapping:
-        include_type_name: false
         index: test_index
         fields: "t*"
 
@@ -75,7 +71,6 @@ setup:
 
   - do:
       indices.get_field_mapping:
-        include_type_name: false
         index: test_index
         fields: "*t1"
   - match:  {test_index.mappings.t1.full_name:        t1       }
@@ -88,7 +83,6 @@ setup:
 
   - do:
       indices.get_field_mapping:
-        include_type_name: false
         index: test_index
         fields: "obj.i_*"
   - match:  {test_index.mappings.obj\.i_t1.full_name: obj.i_t1 }
@@ -100,7 +94,6 @@ setup:
 
   - do:
       indices.get_field_mapping:
-        include_type_name: false
         index: _all
         fields: "t*"
   - match:  {test_index.mappings.t1.full_name: t1 }
@@ -115,7 +108,6 @@ setup:
 
   - do:
       indices.get_field_mapping:
-        include_type_name: false
         index: '*'
         fields: "t*"
   - match:  {test_index.mappings.t1.full_name: t1 }
@@ -130,7 +122,6 @@ setup:
 
   - do:
       indices.get_field_mapping:
-        include_type_name: false
         index: 'test_index,test_index_2'
         fields: "t*"
   - match:  {test_index.mappings.t1.full_name: t1 }

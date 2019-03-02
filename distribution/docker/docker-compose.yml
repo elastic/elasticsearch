@@ -1,0 +1,21 @@
+# Only used for testing the docker images
+version: '3'
+services:
+  elasticsearch-default:
+    build:
+      context: ./build/docker
+      dockerfile: Dockerfile
+    environment:  
+       - cluster.name=elasticsearch-default
+       - discovery.type=single-node
+    ports:
+      - "9200"
+  elasticsearch-oss:
+    build:
+      context: ./build/oss-docker
+      dockerfile: Dockerfile
+    environment:  
+       - cluster.name=elasticsearch-oss
+       - discovery.type=single-node
+    ports:
+      - "9200"

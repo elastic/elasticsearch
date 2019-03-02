@@ -22,6 +22,7 @@ You can use the following APIs to perform {ccr} operations.
 * <<ccr-post-resume-follow,Resume follower>>
 * <<ccr-post-unfollow,Convert follower index to a regular index>>
 * <<ccr-get-follow-stats,Get stats about follower indices>>
+* <<ccr-get-follow-info,Get info about follower indices>>
 
 [float]
 [[ccr-api-auto-follow]]
@@ -40,6 +41,7 @@ include::follow/post-pause-follow.asciidoc[]
 include::follow/post-resume-follow.asciidoc[]
 include::follow/post-unfollow.asciidoc[]
 include::follow/get-follow-stats.asciidoc[]
+include::follow/get-follow-info.asciidoc[]
 
 // auto-follow
 include::auto-follow/put-auto-follow-pattern.asciidoc[]

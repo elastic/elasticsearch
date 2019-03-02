@@ -2,22 +2,14 @@ package org.elasticsearch.gradle;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.NullPointerException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
-import org.gradle.api.file.FileTree;
-import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.testfixtures.ProjectBuilder;
-import org.junit.Assert;
 
 /*
  * Licensed to Elasticsearch under one or more contributor

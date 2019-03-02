@@ -38,15 +38,10 @@ import org.junit.Assert;
  * under the License.
  */
 public class ConcatFilesTaskTests extends GradleUnitTestCase {
-    public void testSomething() {
-        assertEquals(true, true);
-//        assertEquals(true, false);
-    }
 
     public void testHeaderAdded() throws IOException {
 
         Project project = createProject();
-
         ConcatFilesTask concatFilesTask = createTask(project);
 
         concatFilesTask.setHeaderLine("Header");
@@ -55,16 +50,43 @@ public class ConcatFilesTaskTests extends GradleUnitTestCase {
         file.getParentFile().mkdirs();
         file.createNewFile();
         concatFilesTask.setTarget(file);
-        concatFilesTask.setFiles(new FileTree());
-//            assertEquals(1, 0);
-
+        concatFilesTask.setFiles(project.fileTree("tmp/"));
 
         concatFilesTask.concatFiles();
-        assertEquals(true, false);
 
         assertEquals(Arrays.asList("Header"), Files.readAllLines(concatFilesTask.getTarget().toPath(), Charset.forName("UTF-8")));
 
         file.delete();
+    }
+
+    public void testConcatenationWithUnique() throws IOException {
+
+        Project project = createProject();
+        ConcatFilesTask concatFilesTask = createTask(project);
+
+        File file = new File(project.getProjectDir(), "src/main/java/Code.java");
+        file.getParentFile().mkdirs();
+        file.createNewFile();
+        concatFilesTask.setTarget(file);
+
+        File file1 = new File(project.getProjectDir(), "src/main/input/java/file1.java");
+        File file2 = new File(project.getProjectDir(), "src/main/input/text/file2.txt");
+        file1.getParentFile().mkdirs();
+        file2.getParentFile().mkdirs();
+        file1.createNewFile();
+        file2.createNewFile();
+        Files.write(file1.toPath(), "Hello\nHello".getBytes());
+        Files.write(file2.toPath(), "Hello\nनमस्ते".getBytes());
+
+        concatFilesTask.setFiles(project.fileTree(file1.getParentFile().getParentFile()));
+
+        concatFilesTask.concatFiles();
+
+        assertEquals(
+            Arrays.asList("Hello", "नमस्ते"),
+            Files.readAllLines(concatFilesTask.getTarget().toPath(), Charset.forName("UTF-8"))
+        );
+
     }
 
     private Project createProject() {

@@ -32,9 +32,8 @@
  import java.nio.charset.Charset;
  import java.nio.charset.StandardCharsets;
  import java.nio.file.Files;
- import java.util.ArrayList;
+ import java.nio.file.StandardOpenOption;
  import java.util.LinkedHashSet;
- import java.util.List;
 
 /**
  * Concatenates a list of files into one and removes duplicate lines.
@@ -68,29 +67,6 @@ public class ConcatFilesTask extends DefaultTask {
     @Optional
     public String getHeaderLine() { return headerLine; }
 
-    List<String> fileReadAllLines(File f, String encoding) {
-        try{
-            return Files.readAllLines(f.toPath(), Charset.forName(encoding));
-        }
-        catch (IOException e) {
-            return new ArrayList<>();
-        }
-    }
-
-    @TaskAction
-    public void concatFiles() throws IOException {
-        final String encoding = StandardCharsets.UTF_8.name();
-        if (getHeaderLine() != null) {
-            Files.write(target.toPath(), (getHeaderLine() + '\n').getBytes(encoding));
-        }
-        assert getHeaderLine() == "Header";
-
-        // To remove duplicate lines
-        LinkedHashSet<String> uniqueLines = new LinkedHashSet<>();
-        getFiles().getFiles().forEach(f -> uniqueLines.addAll(fileReadAllLines(f, encoding)));
-        Files.write(target.toPath(), uniqueLines, Charset.forName(encoding));
-    }
-
     public void setTarget(File target) {
         this.target = target;
     }
@@ -98,6 +74,23 @@ public class ConcatFilesTask extends DefaultTask {
     @OutputFile
     public File getTarget() {
         return target;
+    }
+
+    @TaskAction
+    public void concatFiles() throws IOException {
+        final String encoding = StandardCharsets.UTF_8.name();
+        if (getHeaderLine() != null) {
+            Files.write(getTarget().toPath(), (getHeaderLine() + '\n').getBytes(encoding));
+        }
+
+        // To remove duplicate lines
+        LinkedHashSet<String> uniqueLines = new LinkedHashSet<>();
+        for (File f : getFiles()) {
+            uniqueLines.addAll(Files.readAllLines(f.toPath(), Charset.forName(encoding)));
+        }
+        Files.write(
+            getTarget().toPath(), uniqueLines, Charset.forName(encoding), StandardOpenOption.APPEND
+        );
     }
 
 }

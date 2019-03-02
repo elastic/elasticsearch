@@ -173,14 +173,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         }
                     }
                     if (indexMetaData != null) {
-                        // writing to an existing index. Find the the default pipeline if one is defined.
+                        // Find the the default pipeline if one is defined from and existing index.
                         String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetaData.getSettings());
                         indexRequest.setPipeline(defaultPipeline);
                         if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
                             hasIndexRequestsWithPipelines = true;
                         }
                     } else if (indexRequest.index() != null) {
-                        // no index exists yet (and is valid request), so matching index templates to look for a default pipeline
+                        // No index exists yet (and is valid request), so matching index templates to look for a default pipeline
                         List<IndexTemplateMetaData> templates = MetaDataIndexTemplateService.findTemplates(metaData, indexRequest.index());
                         assert (templates != null);
                         String defaultPipeline = IngestService.NOOP_PIPELINE_NAME;

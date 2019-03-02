@@ -226,15 +226,18 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // where we would possibly have to remove the NO_MASTER_BLOCK from the applierState when turning a candidate back to follower.
             if (getLastAcceptedState().term() < getCurrentTerm()) {
                 becomeFollower("onFollowerCheckRequest", followerCheckRequest.getSender());
+            } else if (mode == Mode.FOLLOWER) {
+                logger.trace("onFollowerCheckRequest: responding successfully to {}", followerCheckRequest);
+            } else if (joinHelper.isJoinPending()) {
+                logger.trace("onFollowerCheckRequest: rejoining master, responding successfully to {}", followerCheckRequest);
             } else {
-                if (mode != Mode.FOLLOWER) {
-                    logger.trace("onFollowerCheckRequest: received check from faulty master, rejecting {}", followerCheckRequest);
-                    throw new CoordinationStateRejectedException(
-                        "onFollowerCheckRequest: received check from faulty master, rejecting " + followerCheckRequest);
-                }
+                logger.trace("onFollowerCheckRequest: received check from faulty master, rejecting {}", followerCheckRequest);
+                throw new CoordinationStateRejectedException(
+                    "onFollowerCheckRequest: received check from faulty master, rejecting " + followerCheckRequest);
             }
         }
     }
+
 
     private void handleApplyCommit(ApplyCommitRequest applyCommitRequest, ActionListener<Void> applyListener) {
         synchronized (mutex) {
@@ -463,7 +466,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     // package private for tests
     void sendValidateJoinRequest(ClusterState stateForJoinValidation, JoinRequest joinRequest,
-                                        JoinHelper.JoinCallback joinCallback) {
+                                 JoinHelper.JoinCallback joinCallback) {
         // validate the join on the joining node, will throw a failure if it fails the validation
         joinHelper.sendValidateJoinRequest(joinRequest.getSourceNode(), stateForJoinValidation, new ActionListener<Empty>() {
             @Override

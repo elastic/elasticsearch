@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -36,6 +37,7 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -230,5 +232,80 @@ public interface Repository extends LifecycleComponent {
      */
     IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId);
 
+    /**
+     * Retrieve snapshot info for the provided snapshot id
+     *
+     * @param snapshotId snapshot id
+     * @return snapshot info
+     */
+    default SnapshotInfo getSnapshotInfoOrNull(SnapshotId snapshotId) {
+        throw new RuntimeException("Operation not supported for this repository");
+    }
+
+    /**
+     * Initiate snapshot delete
+     *
+     * @param snapshotId        snapshot id
+     * @param snapshotInfo      snapshot info
+     * @param repositoryStateId repository state id
+     * @return repository data
+     */
+    default RepositoryData initiateSnapshotDelete(SnapshotId snapshotId, SnapshotInfo snapshotInfo,
+                                                  long repositoryStateId) {
+        throw new RuntimeException("Operation not supported for this repository");
+    }
+
+    /**
+     * Retrieve shards to delete for the provided snapshot id
+     *
+     * @param snapshotId     snapshot id
+     * @param snapshotInfo   snapshot info
+     * @param repositoryData repository data
+     * @return list of the shard ids with their snapshot index id that are part of this snapshot
+     */
+    default List<Tuple<ShardId, String>> getShardsToDeleteForSnapshot(SnapshotId snapshotId, SnapshotInfo snapshotInfo,
+                                                                      RepositoryData repositoryData) {
+        throw new RuntimeException("Operation not supported for this repository");
+    }
+
+    /**
+     * Delete indices meta data for the given set of index ids
+     *
+     * @param snapshot snapshot info
+     * @param indexIds Set of index ids who index meta data need to be deleted
+     */
+    default void deleteIndicesMetaData(SnapshotInfo snapshot, Set<String> indexIds) {
+        throw new RuntimeException("Operation not supported for this repository");
+    }
+
+    /**
+     * Delete shard snapshot
+     *
+     * @param snapshotId snapshot id
+     * @param version    version of elasticsearch that created this snapshot
+     * @param indexId    the snapshotted index id
+     * @param shardId    shard id
+     */
+    default void deleteShard(SnapshotId snapshotId, int version, String indexId, ShardId shardId) {
+        throw new RuntimeException("Operation not supported for this repository");
+    }
+
+    /**
+     * Clean up repository indices that are no longer part of any snapshots.
+     *
+     * @param indicesToCleanUp list of indices to be cleaned up
+     */
+    default void cleanUpIndices(List<IndexId> indicesToCleanUp) {
+        throw new RuntimeException("Operation not supported for this repository");
+    }
+
+    /**
+     * Indicates if late assignment of node to snapshot a shard is enabled.
+     *
+     * @return true if enabled, false otherwise.
+     */
+    default boolean isDistributedSnapshotDeletionEnabled() {
+        return false;
+    }
 
 }

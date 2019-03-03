@@ -37,6 +37,8 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress.ShardSnapshotDeletionStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
@@ -47,6 +49,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -60,6 +63,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotDeletionStatus;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus.Stage;
@@ -94,6 +98,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     private static final Logger logger = LogManager.getLogger(SnapshotShardsService.class);
 
     private static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
+    private static final String UPDATE_SHARD_SNAPSHOT_DELETION_STATUS_ACTION_NAME =
+                                                        "internal:cluster/snapshot/update_shard_snapshot_deletion_status";
 
     private final ClusterService clusterService;
 
@@ -107,12 +113,22 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
     private final Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> shardSnapshots = new HashMap<>();
 
+    private final Map<Snapshot, Map<Tuple<ShardId, String>, IndexShardSnapshotDeletionStatus>>
+                                                                             shardSnapshotDeletions = new HashMap<>();
+
     // A map of snapshots to the shardIds that we already reported to the master as failed
     private final TransportRequestDeduplicator<UpdateIndexShardSnapshotStatusRequest> remoteFailedRequestDeduplicator =
         new TransportRequestDeduplicator<>();
 
+    private final TransportRequestDeduplicator<UpdateShardSnapshotDeletionStatusRequest>
+        remoteFailedDeletionStatusRequestDeduplicator = new TransportRequestDeduplicator<>();
+
     private final SnapshotStateExecutor snapshotStateExecutor = new SnapshotStateExecutor();
     private final UpdateSnapshotStatusAction updateSnapshotStatusHandler;
+
+    private final UpdateShardSnapshotDeletionStatusExecutor deletionStatusExecutor =
+        new UpdateShardSnapshotDeletionStatusExecutor();
+    private final UpdateShardSnapshotDeletionStatusAction updateShardSnapshotDeletionStatusHandler;
 
     @Inject
     public SnapshotShardsService(Settings settings, ClusterService clusterService, SnapshotsService snapshotsService,
@@ -131,12 +147,17 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         // The constructor of UpdateSnapshotStatusAction will register itself to the TransportService.
         this.updateSnapshotStatusHandler =
             new UpdateSnapshotStatusAction(transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
+        this.updateShardSnapshotDeletionStatusHandler =
+            new UpdateShardSnapshotDeletionStatusAction(transportService, clusterService, threadPool, actionFilters,
+                indexNameExpressionResolver);
     }
 
     @Override
     protected void doStart() {
         assert this.updateSnapshotStatusHandler != null;
         assert transportService.getRequestHandler(UPDATE_SNAPSHOT_STATUS_ACTION_NAME) != null;
+        assert  this.updateShardSnapshotDeletionStatusHandler != null;
+        assert transportService.getRequestHandler(UPDATE_SHARD_SNAPSHOT_DELETION_STATUS_ACTION_NAME) != null;
     }
 
     @Override
@@ -160,10 +181,21 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 }
             }
 
+            SnapshotDeletionsInProgress previousDeletions = event.previousState().custom(SnapshotDeletionsInProgress.TYPE);
+            SnapshotDeletionsInProgress currentDeletions = event.state().custom(SnapshotDeletionsInProgress.TYPE);
+
+            if ((previousDeletions == null && currentDeletions != null)
+                || (previousDeletions != null && previousDeletions.equals(currentDeletions) == false)) {
+                synchronized (shardSnapshotDeletions) {
+                    processIndexShardSnapshotDeletions(currentDeletions);
+                }
+            }
+
             String previousMasterNodeId = event.previousState().nodes().getMasterNodeId();
             String currentMasterNodeId = event.state().nodes().getMasterNodeId();
             if (currentMasterNodeId != null && currentMasterNodeId.equals(previousMasterNodeId) == false) {
                 syncShardStatsOnNewMaster(event);
+                syncShardDeletionStatsOnNewMaster(event);
             }
 
         } catch (Exception e) {
@@ -198,6 +230,22 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     public Map<ShardId, IndexShardSnapshotStatus> currentSnapshotShards(Snapshot snapshot) {
         synchronized (shardSnapshots) {
             final Map<ShardId, IndexShardSnapshotStatus> current = shardSnapshots.get(snapshot);
+            return current == null ? null : new HashMap<>(current);
+        }
+    }
+
+    /**
+     * Returns status of shards snapshot deletions on this node and belong to the given snapshot
+     * <p>
+     * This method is executed on data node
+     * </p>
+     *
+     * @param snapshot  snapshot
+     * @return map of shard id to snapshot deletion status
+     */
+    public Map<Tuple<ShardId, String>, IndexShardSnapshotDeletionStatus> currentShardSnapshotDeletions(Snapshot snapshot) {
+        synchronized (shardSnapshotDeletions) {
+            final Map<Tuple<ShardId, String>, IndexShardSnapshotDeletionStatus> current = shardSnapshotDeletions.get(snapshot);
             return current == null ? null : new HashMap<>(current);
         }
     }
@@ -416,6 +464,148 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Checks if any snapshot shards deletion were performed that the new master doesn't know about
+     */
+    private void syncShardDeletionStatsOnNewMaster(ClusterChangedEvent event) {
+        SnapshotDeletionsInProgress deletionsInProgress = event.state().custom(SnapshotDeletionsInProgress.TYPE);
+        if (deletionsInProgress == null) {
+            return;
+        }
+
+        final String localNodeId = event.state().nodes().getLocalNodeId();
+        for (SnapshotDeletionsInProgress.Entry snapshot : deletionsInProgress.getEntries()) {
+            Map<Tuple<ShardId, String>, IndexShardSnapshotDeletionStatus> localShards =
+                                                                                 currentShardSnapshotDeletions(snapshot.getSnapshot());
+            if (localShards != null) {
+                ImmutableOpenMap<Tuple<ShardId, String>, ShardSnapshotDeletionStatus> masterShards = snapshot.getShards();
+                for(Map.Entry<Tuple<ShardId, String>, IndexShardSnapshotDeletionStatus> localShard : localShards.entrySet()) {
+                    Tuple<ShardId, String> shardId = localShard.getKey();
+                    IndexShardSnapshotDeletionStatus localShardStatus = localShard.getValue();
+                    ShardSnapshotDeletionStatus masterShard = masterShards.get(shardId);
+                    if (masterShard != null && masterShard.state().completed() == false) {
+                        final IndexShardSnapshotDeletionStatus.Copy indexShardSnapshotDeletionStatus = localShardStatus.asCopy();
+                        final IndexShardSnapshotDeletionStatus.Stage stage = indexShardSnapshotDeletionStatus.getStage();
+                        // Master knows about the shard snapshot deletion and thinks it has not completed
+                        if (stage == IndexShardSnapshotDeletionStatus.Stage.DONE) {
+                            // but we think the shard snapshot deletion is done - we need to make new master know that it is done
+                            logger.info("[{}] new master thinks the shard snapshot deletion [{}] is not completed " +
+                                    "but the shard snapshot deletion succeeded locally, updating status on the master",
+                                snapshot.getSnapshot(), shardId);
+                            sendShardSnapshotDeletionSuccessUpdate(snapshot.getSnapshot(), shardId, localNodeId);
+
+                        } else if (stage == IndexShardSnapshotDeletionStatus.Stage.FAILURE) {
+                            // but we think the shard snapshot deletion is failed - we need to make new master know that it is failed
+                            logger.debug("[{}] new master thinks the shard snapshot deletion [{}] is not completed " +
+                                    "but the shard snapshot deletion failed locally, updating status on master",
+                                snapshot.getSnapshot(), shardId);
+                            final String failure = indexShardSnapshotDeletionStatus.getFailure();
+                            sendShardSnapshotDeletionFailureUpdate(snapshot.getSnapshot(), shardId, localNodeId, failure);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void cancelRemovedSnapshotDeletions(SnapshotDeletionsInProgress deletionsInProgress) {
+        Iterator<Map.Entry<Snapshot, Map<Tuple<ShardId, String>, IndexShardSnapshotDeletionStatus>>> it
+                                                                            = shardSnapshotDeletions.entrySet().iterator();
+        while (it.hasNext()) {
+            final Map.Entry<Snapshot, Map<Tuple<ShardId, String>, IndexShardSnapshotDeletionStatus>> entry = it.next();
+            final Snapshot snapshot = entry.getKey();
+            if (deletionsInProgress == null || deletionsInProgress.getEntry(snapshot) == null) {
+                it.remove();
+            }
+        }
+    }
+
+    private void startNewSnapshotDeletions(SnapshotDeletionsInProgress deletionsInProgress) {
+        // Now go through all snapshot deletions and update existing or create missing
+        final String localNodeId = clusterService.localNode().getId();
+        for (SnapshotDeletionsInProgress.Entry entry : deletionsInProgress.getEntries()) {
+            Map<Tuple<ShardId, String>, IndexShardSnapshotDeletionStatus> startedShardDeletions = new HashMap<>();
+            Map<Tuple<ShardId, String>, IndexShardSnapshotDeletionStatus> deletions
+                                                     = shardSnapshotDeletions.getOrDefault(entry.getSnapshot(), emptyMap());
+            for (ObjectObjectCursor<Tuple<ShardId, String>, ShardSnapshotDeletionStatus> shard : entry.getShards()) {
+                final ShardSnapshotDeletionStatus deletionStatus = shard.value;
+                if (localNodeId.equals(shard.value.nodeId()) && deletionStatus.state() == SnapshotDeletionsInProgress.State.INIT
+                       && deletions.containsKey(shard.key) == false) {
+                    // Local node Id is assigned to delete the shard snapshot.
+                    if (startedShardDeletions == null) {
+                        startedShardDeletions = new HashMap<>();
+                    }
+                    startedShardDeletions.put(shard.key, IndexShardSnapshotDeletionStatus.newInitializing(entry.getVersion()));
+                }
+            }
+            if (startedShardDeletions != null && startedShardDeletions.isEmpty() == false) {
+                shardSnapshotDeletions.computeIfAbsent(entry.getSnapshot(), s -> new HashMap<>()).putAll(startedShardDeletions);
+                startNewSnapshotShardDeletions(entry, startedShardDeletions);
+            }
+        }
+    }
+
+    /**
+     * Checks if any new shard snapshots to be deleted on this node
+     */
+    private void processIndexShardSnapshotDeletions(SnapshotDeletionsInProgress deletionsInProgress) {
+        cancelRemovedSnapshotDeletions(deletionsInProgress);
+        if (deletionsInProgress != null) {
+            startNewSnapshotDeletions(deletionsInProgress);
+        }
+    }
+
+    private void startNewSnapshotShardDeletions(SnapshotDeletionsInProgress.Entry snapshotEntry,
+                                                Map<Tuple<ShardId, String>, IndexShardSnapshotDeletionStatus> snapshotDeletions) {
+        final String localNodeId = clusterService.localNode().getId();
+        final Snapshot snapshot = snapshotEntry.getSnapshot();
+        final Repository repository = snapshotsService.getRepositoriesService().repository(snapshot.getRepository());
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        for (final Map.Entry<Tuple<ShardId, String>, IndexShardSnapshotDeletionStatus> entry : snapshotDeletions.entrySet()) {
+            final Tuple<ShardId, String> shardId = entry.getKey();
+            final IndexShardSnapshotDeletionStatus deletionStatus = entry.getValue();
+
+            executor.execute(new AbstractRunnable() {
+
+                final SetOnce<Exception> failure = new SetOnce<>();
+
+                @Override
+                public void doRun() {
+                    deletionStatus.moveToStarted(System.currentTimeMillis());
+                    repository.deleteShard(snapshot.getSnapshotId(), deletionStatus.getVersion(), shardId.v2(), shardId.v1());
+                    deletionStatus.moveToDone(System.currentTimeMillis());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(() ->
+                        new ParameterizedMessage("[{}][{}] failed to delete shard snapshot", shardId, snapshot), e);
+                    failure.set(e);
+                }
+
+                @Override
+                public void onRejection(Exception e) {
+                    failure.set(e);
+                }
+
+                @Override
+                public void onAfter() {
+                    final Exception exception = failure.get();
+                    if (exception != null) {
+                        final String failure = ExceptionsHelper.detailedMessage(exception);
+                        if (!entry.getValue().isFailed()) {
+                            // The status is not yet moved to failed, move it before notifying the master
+                            entry.getValue().moveToFailed(System.currentTimeMillis(), failure);
+                        }
+                        sendShardSnapshotDeletionFailureUpdate(snapshot, shardId, localNodeId, failure);
+                    } else {
+                        sendShardSnapshotDeletionSuccessUpdate(snapshot, shardId, localNodeId);
+                    }
+                }
+            });
         }
     }
 
@@ -643,4 +833,226 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
     }
 
+    private void sendShardSnapshotDeletionSuccessUpdate(final Snapshot snapshot,
+                                                        final Tuple<ShardId, String> shardId,
+                                                        final String localNodeId) {
+        sendShardSnapshotDeletionUpdate(snapshot, shardId, new ShardSnapshotDeletionStatus(localNodeId,
+                                                                            SnapshotDeletionsInProgress.State.SUCCESS));
+    }
+
+    private void sendShardSnapshotDeletionFailureUpdate(final Snapshot snapshot,
+                                                        final Tuple<ShardId, String> shardId,
+                                                        final String localNodeId,
+                                                        final String failure) {
+        sendShardSnapshotDeletionUpdate(snapshot, shardId, new ShardSnapshotDeletionStatus(localNodeId,
+                                                                        SnapshotDeletionsInProgress.State.FAILED, failure));
+    }
+
+    private void sendShardSnapshotDeletionUpdate(final Snapshot snapshot,
+                                                 final Tuple<ShardId, String> shardId,
+                                                 final ShardSnapshotDeletionStatus status) {
+        remoteFailedDeletionStatusRequestDeduplicator.executeOnce(
+            new UpdateShardSnapshotDeletionStatusRequest(snapshot, shardId, status),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void aVoid) {
+                    logger.trace("[{}] [{}] updated snapshot deletion state", snapshot, status);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(
+                        () -> new ParameterizedMessage("[{}] [{}] failed to update snapshot deletion state", snapshot, status), e);
+                }
+            },
+            (req, reqListener) -> transportService.sendRequest(transportService.getLocalNode(),
+                UPDATE_SHARD_SNAPSHOT_DELETION_STATUS_ACTION_NAME, req,
+                new TransportResponseHandler<UpdateShardSnapshotDeletionStatusResponse>() {
+                    @Override
+                    public UpdateShardSnapshotDeletionStatusResponse read(StreamInput in) throws IOException {
+                        final UpdateShardSnapshotDeletionStatusResponse response = new UpdateShardSnapshotDeletionStatusResponse();
+                        response.readFrom(in);
+                        return response;
+                    }
+
+                    @Override
+                    public void handleResponse(UpdateShardSnapshotDeletionStatusResponse response) {
+                        reqListener.onResponse(null);
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        reqListener.onFailure(exp);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+                })
+        );
+    }
+
+    private static class UpdateShardSnapshotDeletionStatusRequest
+            extends MasterNodeRequest<UpdateShardSnapshotDeletionStatusRequest> {
+
+        private Snapshot snapshot;
+        private Tuple<ShardId, String> shardId;
+        private ShardSnapshotDeletionStatus status;
+
+        UpdateShardSnapshotDeletionStatusRequest() {
+        }
+
+        UpdateShardSnapshotDeletionStatusRequest(final Snapshot snapshot,
+                                                 final Tuple<ShardId, String> shardId,
+                                                 final ShardSnapshotDeletionStatus status) {
+            this.snapshot = snapshot;
+            this.shardId = shardId;
+            this.status = status;
+            // By default, we keep trying to post ShardSnapshot status messages to avoid ShardSnapshot processes getting stuck.
+            this.masterNodeTimeout = TimeValue.timeValueNanos(Long.MAX_VALUE);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+
+        @Override
+        public void readFrom(final StreamInput in) throws IOException {
+            super.readFrom(in);
+            snapshot = new Snapshot(in);
+            shardId = new Tuple<>(ShardId.readShardId(in), in.readString());
+            status = new ShardSnapshotDeletionStatus(in);
+        }
+
+        @Override
+        public void writeTo(final StreamOutput out) throws IOException {
+            super.writeTo(out);
+            snapshot.writeTo(out);
+            shardId.v1().writeTo(out);
+            out.writeString(shardId.v2());
+            status.writeTo(out);
+        }
+
+        Snapshot shardSnapshot() {
+            return snapshot;
+        }
+
+        Tuple<ShardId, String> shardId() {
+            return shardId;
+        }
+
+        ShardSnapshotDeletionStatus status() {
+            return status;
+        }
+
+        @Override
+        public String toString() {
+            return snapshot + ", shardId [" + shardId + "], status [" + status.state() + "]";
+        }
+    }
+
+    private static class UpdateShardSnapshotDeletionStatusResponse extends ActionResponse {
+    }
+
+    private class UpdateShardSnapshotDeletionStatusAction
+        extends TransportMasterNodeAction<UpdateShardSnapshotDeletionStatusRequest, UpdateShardSnapshotDeletionStatusResponse> {
+
+        UpdateShardSnapshotDeletionStatusAction(final TransportService transportService,
+                                                final ClusterService clusterService,
+                                                final ThreadPool threadPool,
+                                                final ActionFilters actionFilters,
+                                                final IndexNameExpressionResolver indexNameExpressionResolver) {
+            super(UPDATE_SHARD_SNAPSHOT_DELETION_STATUS_ACTION_NAME, transportService, clusterService, threadPool,
+                actionFilters, indexNameExpressionResolver, UpdateShardSnapshotDeletionStatusRequest::new);
+        }
+
+        @Override
+        protected String executor() {
+            return ThreadPool.Names.SAME;
+        }
+
+        @Override
+        protected UpdateShardSnapshotDeletionStatusResponse newResponse() {
+            return new UpdateShardSnapshotDeletionStatusResponse();
+        }
+
+        @Override
+        protected void masterOperation(final UpdateShardSnapshotDeletionStatusRequest request,
+                                       final ClusterState state,
+                                       final ActionListener<UpdateShardSnapshotDeletionStatusResponse> listener)
+            throws Exception {
+            clusterService.submitStateUpdateTask(
+                "update ShardSnapshot deletion state",
+                request,
+                ClusterStateTaskConfig.build(Priority.NORMAL),
+                deletionStatusExecutor,
+                new ClusterStateTaskListener() {
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        listener.onResponse(new UpdateShardSnapshotDeletionStatusResponse());
+                    }
+                });
+        }
+
+        @Override
+        protected ClusterBlockException checkBlock(final UpdateShardSnapshotDeletionStatusRequest request,
+                                                   final ClusterState state) {
+            return null;
+        }
+    }
+
+    private class UpdateShardSnapshotDeletionStatusExecutor implements
+        ClusterStateTaskExecutor<UpdateShardSnapshotDeletionStatusRequest> {
+
+        @Override
+        public ClusterTasksResult<UpdateShardSnapshotDeletionStatusRequest> execute(
+            ClusterState currentState, List<UpdateShardSnapshotDeletionStatusRequest> tasks) throws Exception {
+            final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+            if (deletionsInProgress != null) {
+                int changedCount = 0;
+                final List<SnapshotDeletionsInProgress.Entry> entries = new ArrayList<>();
+                for (SnapshotDeletionsInProgress.Entry entry : deletionsInProgress.getEntries()) {
+                    ImmutableOpenMap.Builder<Tuple<ShardId, String>, ShardSnapshotDeletionStatus> shards =
+                                                                                             ImmutableOpenMap.builder();
+                    boolean updated = false;
+
+                    for (UpdateShardSnapshotDeletionStatusRequest updateShardSnapshotState : tasks) {
+                        if (entry.getSnapshot().equals(updateShardSnapshotState.shardSnapshot())) {
+                            logger.trace("[{}] Updating shard [{}] with status [{}]", updateShardSnapshotState.shardSnapshot(),
+                                updateShardSnapshotState.shardId(), updateShardSnapshotState.status().state());
+                            if (updated == false) {
+                                shards.putAll(entry.getShards());
+                                updated = true;
+                            }
+                            if (shards.get(updateShardSnapshotState.shardId()) != updateShardSnapshotState.status()) {
+                                shards.put(updateShardSnapshotState.shardId(), updateShardSnapshotState.status());
+                                changedCount++;
+                            }
+                        }
+                    }
+
+                    if (updated) {
+                        entries.add(new SnapshotDeletionsInProgress.Entry(entry, shards.build()));
+                    } else {
+                        entries.add(entry);
+                    }
+                }
+                if (changedCount > 0) {
+                    final SnapshotDeletionsInProgress updatedShardSnapshots = new SnapshotDeletionsInProgress(entries);
+                    return ClusterTasksResult.<UpdateShardSnapshotDeletionStatusRequest>builder().successes(tasks).build(
+                        ClusterState.builder(currentState)
+                                    .putCustom(SnapshotDeletionsInProgress.TYPE, updatedShardSnapshots)
+                                    .build());
+                }
+            }
+            return ClusterTasksResult.<UpdateShardSnapshotDeletionStatusRequest>builder().successes(tasks).build(currentState);
+        }
+    }
 }

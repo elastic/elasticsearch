@@ -450,7 +450,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index), ex);
                     }
 
-                    deleteIndexMetaDataBlobIgnoringErrors(snapshot, indexId);
+                    deleteIndexMetaDataBlobIgnoringErrors(snapshot, indexId.getId());
 
                     if (indexMetaData != null) {
                         for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
@@ -491,6 +491,106 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    @Override
+    public SnapshotInfo getSnapshotInfoOrNull(SnapshotId snapshotId) {
+        SnapshotInfo snapshot = null;
+        try {
+            snapshot = getSnapshotInfo(snapshotId);
+        } catch (SnapshotMissingException ex) {
+            throw ex;
+        } catch (IllegalStateException | SnapshotException | ElasticsearchParseException ex) {
+            logger.warn(() -> new ParameterizedMessage("cannot read snapshot file [{}]", snapshotId), ex);
+        }
+        return snapshot;
+    }
+
+    @Override
+    public RepositoryData initiateSnapshotDelete(SnapshotId snapshotId, SnapshotInfo snapshotInfo, long repositoryStateId) {
+        if (isReadOnly()) {
+            throw new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository");
+        }
+        try {
+            // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
+            final RepositoryData updatedRepositoryData = getRepositoryData().removeSnapshot(snapshotId);
+            writeIndexGen(updatedRepositoryData, repositoryStateId);
+
+            // delete the snapshot file
+            deleteSnapshotBlobIgnoringErrors(snapshotInfo, snapshotId.getUUID());
+            // delete the global metadata file
+            deleteGlobalMetaDataBlobIgnoringErrors(snapshotInfo, snapshotId.getUUID());
+
+            return updatedRepositoryData;
+        } catch (IOException | ResourceNotFoundException ex) {
+            throw new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex);
+        }
+    }
+
+    @Override
+    public List<Tuple<ShardId, String>> getShardsToDeleteForSnapshot(SnapshotId snapshotId, SnapshotInfo snapshot,
+                                                                     RepositoryData repositoryData) {
+        List<Tuple<ShardId, String>> shards = new ArrayList<>();
+        if (snapshot != null) {
+            final List<String> indices = snapshot.indices();
+            for (String index : indices) {
+                final IndexId indexId = repositoryData.resolveIndexId(index);
+
+                IndexMetaData indexMetaData = null;
+                try {
+                    logger.info("Getting index metadata {}", indexId.getId());
+                    indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
+                } catch (ElasticsearchParseException | IOException ex) {
+                    logger.warn(() ->
+                        new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index), ex);
+                }
+                if (indexMetaData != null) {
+                    for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
+                        shards.add(new Tuple<>(new ShardId(indexMetaData.getIndex(), shardId), indexId.getId()));
+                    }
+                }
+            }
+        }
+        return shards;
+    }
+
+    @Override
+    public void deleteIndicesMetaData(SnapshotInfo snapshot, Set<String> indexIds) {
+        if (isReadOnly()) {
+            throw new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository");
+        }
+        if (snapshot != null) {
+            indexIds.stream().forEach(indexId -> {
+                logger.info("Deleting index metadata {}", indexId);
+                deleteIndexMetaDataBlobIgnoringErrors(snapshot, indexId);
+            });
+        }
+    }
+
+    @Override
+    public void cleanUpIndices(List<IndexId> indicesToCleanUp) {
+        final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
+        for (final IndexId indexId : indicesToCleanUp) {
+            try {
+                indicesBlobContainer.deleteBlob(indexId.getId());
+            } catch (DirectoryNotEmptyException dnee) {
+                // if the directory isn't empty for some reason, it will fail to clean up;
+                // we'll ignore that and accept that cleanup didn't fully succeed.
+                // since we are using UUIDs for path names, this won't be an issue for
+                // snapshotting indices of the same name
+                logger.warn(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, but " +
+                    "failed to clean up its index folder due to the directory not being empty.", metadata.name(), indexId), dnee);
+            } catch (IOException ioe) {
+                // a different IOException occurred while trying to delete - will just log the issue for now
+                logger.warn(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, but " +
+                    "failed to clean up its index folder.", metadata.name(), indexId), ioe);
+            }
+        }
+    }
+
+    @Override
+    public boolean isDistributedSnapshotDeletionEnabled() {
+        return true;
+    }
+
     private void deleteSnapshotBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final String blobId) {
         try {
             snapshotFormat.delete(blobContainer(), blobId);
@@ -517,14 +617,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private void deleteIndexMetaDataBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final IndexId indexId) {
+    private void deleteIndexMetaDataBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final String indexId) {
         final SnapshotId snapshotId = snapshotInfo.snapshotId();
-        BlobContainer indexMetaDataBlobContainer = blobStore().blobContainer(basePath().add("indices").add(indexId.getId()));
+        BlobContainer indexMetaDataBlobContainer = blobStore().blobContainer(basePath().add("indices").add(indexId));
         try {
             indexMetaDataFormat.delete(indexMetaDataBlobContainer, snapshotId.getUUID());
         } catch (IOException ex) {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to delete metadata for index [{}]",
-                snapshotId, indexId.getName()), ex);
+                snapshotId, indexId), ex);
         }
     }
 
@@ -916,6 +1016,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    @Override
+    public void deleteShard(final SnapshotId snapshotId,
+                            final int version,
+                            final String indexId,
+                            final ShardId shardId) {
+        if (isReadOnly()) {
+            throw new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository");
+        }
+        Context context = new Context(snapshotId, indexId, shardId, shardId);
+        context.delete();
+    }
+
     /**
      * Delete shard snapshot
      *
@@ -951,9 +1063,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         Context(SnapshotId snapshotId, IndexId indexId, ShardId shardId, ShardId snapshotShardId) {
+            this(snapshotId, indexId.getId(), shardId, snapshotShardId);
+        }
+
+        Context(SnapshotId snapshotId, String indexId, ShardId shardId, ShardId snapshotShardId) {
             this.snapshotId = snapshotId;
             this.shardId = shardId;
-            blobContainer = blobStore().blobContainer(basePath().add("indices").add(indexId.getId())
+            blobContainer = blobStore().blobContainer(basePath().add("indices").add(indexId)
                 .add(Integer.toString(snapshotShardId.getId())));
         }
 

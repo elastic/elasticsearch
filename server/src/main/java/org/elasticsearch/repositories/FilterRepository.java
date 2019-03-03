@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -37,6 +38,7 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 public class FilterRepository implements Repository {
 
@@ -133,6 +135,42 @@ public class FilterRepository implements Repository {
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
         return in.getShardSnapshotStatus(snapshotId, version, indexId, shardId);
+    }
+
+    @Override
+    public SnapshotInfo getSnapshotInfoOrNull(SnapshotId snapshotId) {
+        return in.getSnapshotInfoOrNull(snapshotId);
+    }
+
+    @Override
+    public RepositoryData initiateSnapshotDelete(SnapshotId snapshotId, SnapshotInfo snapshotInfo, long repositoryStateId) {
+        return in.initiateSnapshotDelete(snapshotId, snapshotInfo, repositoryStateId);
+    }
+
+    @Override
+    public List<Tuple<ShardId, String>> getShardsToDeleteForSnapshot(SnapshotId snapshotId, SnapshotInfo snapshotInfo,
+                                                                     RepositoryData repositoryData) {
+        return in.getShardsToDeleteForSnapshot(snapshotId, snapshotInfo, repositoryData);
+    }
+
+    @Override
+    public void deleteIndicesMetaData(SnapshotInfo snapshot, Set<String> indexIds) {
+        in.deleteIndicesMetaData(snapshot, indexIds);
+    }
+
+    @Override
+    public void deleteShard(SnapshotId snapshotId, int version, String indexId, ShardId shardId) {
+        in.deleteShard(snapshotId, version, indexId, shardId);
+    }
+
+    @Override
+    public void cleanUpIndices(List<IndexId> indicesToCleanUp) {
+        in.cleanUpIndices(indicesToCleanUp);
+    }
+
+    @Override
+    public boolean isDistributedSnapshotDeletionEnabled() {
+        return in.isDistributedSnapshotDeletionEnabled();
     }
 
     @Override

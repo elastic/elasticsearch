@@ -484,6 +484,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             // completely stopping. In this case the retried delete snapshot operation on the new master can fail
             // with SnapshotMissingException
         }
+        // Make sure that the delete goes through
+        Thread.sleep(100);
 
         logger.info("--> making sure that snapshot no longer exists");
         assertThrows(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute(),

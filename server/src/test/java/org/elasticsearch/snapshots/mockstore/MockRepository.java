@@ -110,6 +110,9 @@ public class MockRepository extends FsRepository {
     /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
     private volatile boolean blockAndFailOnWriteSnapFile;
 
+    /* Allows blocking on deleting the snapshot file */
+    private volatile boolean blockOnDeleteSnapFile;
+
     private volatile boolean blocked = false;
 
     public MockRepository(RepositoryMetaData metadata, Environment environment,
@@ -123,6 +126,7 @@ public class MockRepository extends FsRepository {
         blockOnDataFiles = metadata.settings().getAsBoolean("block_on_data", false);
         blockOnInitialization = metadata.settings().getAsBoolean("block_on_init", false);
         blockAndFailOnWriteSnapFile = metadata.settings().getAsBoolean("block_on_snap", false);
+        blockOnDeleteSnapFile = metadata.settings().getAsBoolean("block_on_delete_snap", false);
         randomPrefix = metadata.settings().get("random", "default");
         waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
         logger.info("starting mock repository with random prefix {}", randomPrefix);
@@ -172,6 +176,7 @@ public class MockRepository extends FsRepository {
         blockOnInitialization = false;
         blockOnWriteIndexFile = false;
         blockAndFailOnWriteSnapFile = false;
+        blockOnDeleteSnapFile = false;
         this.notifyAll();
     }
 
@@ -187,6 +192,10 @@ public class MockRepository extends FsRepository {
         blockOnWriteIndexFile = blocked;
     }
 
+    public void setBlockOnDeleteSnapFile(boolean blocked) {
+        blockOnDeleteSnapFile = blocked;
+    }
+
     public boolean blocked() {
         return blocked;
     }
@@ -196,7 +205,7 @@ public class MockRepository extends FsRepository {
         boolean wasBlocked = false;
         try {
             while (blockOnDataFiles || blockOnControlFiles || blockOnInitialization || blockOnWriteIndexFile ||
-                blockAndFailOnWriteSnapFile) {
+                blockAndFailOnWriteSnapFile || blockOnDeleteSnapFile) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -320,7 +329,11 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void deleteBlob(String blobName) throws IOException {
-                maybeIOExceptionOrBlock(blobName);
+                if (blobName.startsWith("snap-") && blockOnDeleteSnapFile) {
+                    blockExecutionAndMaybeWait(blobName);
+                } else {
+                    maybeIOExceptionOrBlock(blobName);
+                }
                 super.deleteBlob(blobName);
             }
 

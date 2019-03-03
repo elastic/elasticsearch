@@ -197,7 +197,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertEquals(ClusterHealthStatus.GREEN, currentState.get().indexStatus);
     }
 
-    public void testListeneredNotCalledWhenStateNotRecovered() throws Exception {
+    public void testListeneredNotCalledBeforeStateNotRecovered() throws Exception {
         final AtomicBoolean listenerCalled = new AtomicBoolean(false);
         manager.addIndexStateListener((prev, current) -> {
             listenerCalled.set(true);
@@ -216,7 +216,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(listenerCalled.get(), is(false));
         assertThat(prepareCalled.get(), is(false));
         // state recovered with index
-        ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME, SecurityIndexManager.INTERNAL_INDEX_FORMAT);
+        ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME,
+                SecurityIndexManager.INTERNAL_INDEX_FORMAT);
         markShardsAvailable(clusterStateBuilder);
         manager.clusterChanged(event(clusterStateBuilder));
         assertThat(listenerCalled.get(), is(true));
@@ -267,14 +268,14 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(manager.indexExists(), Matchers.equalTo(false));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
         assertThat(manager.isMappingUpToDate(), Matchers.equalTo(false));
-        assertThat(manager.stateRecovered(), Matchers.equalTo(false));
+        assertThat(manager.isStateRecovered(), Matchers.equalTo(false));
     }
 
     private void assertIndexUpToDateButNotAvailable() {
         assertThat(manager.indexExists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
         assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
-        assertThat(manager.stateRecovered(), Matchers.equalTo(true));
+        assertThat(manager.isStateRecovered(), Matchers.equalTo(true));
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String templateName) throws IOException {

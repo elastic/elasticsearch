@@ -107,8 +107,8 @@ public class SecurityIndexManager implements ClusterStateListener {
         return this.indexState.indexExists;
     }
 
-    public boolean stateRecovered() {
-        // concrete security index name is a proxy for the cluster state recovery 
+    public boolean isStateRecovered() {
+        // as soon as state recovers we know the name of the .security index
         return this.indexState.concreteIndexName != null;
     }
 
@@ -168,6 +168,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         final Version mappingVersion = oldestIndexMappingVersion(event.state());
         final ClusterHealthStatus indexStatus = indexMetaData == null ? null :
             new ClusterIndexHealth(indexMetaData, event.state().getRoutingTable().index(indexMetaData.getIndex())).getStatus();
+        // index name non-null iff state recovered
         final String concreteIndexName = indexMetaData == null ? INTERNAL_SECURITY_INDEX : indexMetaData.getIndex().getName();
         final State newState = new State(indexExists, isIndexUpToDate, indexAvailable, mappingIsUpToDate, mappingVersion, concreteIndexName,
             indexStatus);
@@ -290,8 +291,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      */
     public void checkIndexVersionThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
         final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
-        if (indexState.concreteIndexName == null) {
-            // index not recovered from gateway
+        if (false == isStateRecovered()) {
             delayUntilStateRecovered(consumer, () -> checkIndexVersionThenExecute(consumer, andThen));
         } else if (indexState.indexExists && indexState.isIndexUpToDate == false) {
             consumer.accept(new IllegalStateException(
@@ -309,8 +309,7 @@ public class SecurityIndexManager implements ClusterStateListener {
     public void prepareIndexIfNeededThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
         final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
         // TODO we should improve this so we don't fire off a bunch of requests to do the same thing (create or update mappings)
-        if (indexState.concreteIndexName == null) {
-            // index not recovered from gateway
+        if (false == isStateRecovered()) {
             delayUntilStateRecovered(consumer, () -> prepareIndexIfNeededThenExecute(consumer, andThen));
         } else if (indexState.indexExists && indexState.isIndexUpToDate == false) {
             consumer.accept(new IllegalStateException(
@@ -392,10 +391,10 @@ public class SecurityIndexManager implements ClusterStateListener {
      *  Delay the {@code runnable} invocation until cluster state recovered.
      */
     private void delayUntilStateRecovered(final Consumer<Exception> consumer, final Runnable runnable) {
-        // context preserving one shoot runnable
         final AtomicBoolean done = new AtomicBoolean(false);
+        // context preserving one-shot runnable
         final Runnable delayedRunnable = client.threadPool().getThreadContext().preserveContext(() -> {
-            if (false == done.get()) {
+            if (done.compareAndSet(false, true)) {
                 done.set(true);
                 runnable.run();
             }
@@ -403,11 +402,13 @@ public class SecurityIndexManager implements ClusterStateListener {
         final BiConsumer<State, State> gatewayRecoveryListener = new BiConsumer<State, State>() {
             @Override
             public void accept(State prevState, State newState) {
-                // any cluster state update is a sign that the state recovered
+                assert isStateRecovered() : "State listener is notified for updates only after state recovered.";
+                assert newState.concreteIndexName != null : "The newly applied state following a recovery should name the .security index";
                 if (newState.concreteIndexName != null) {
                     stateChangeListeners.remove(this);
                     client.threadPool().generic().execute(delayedRunnable);
                 } else {
+                    // any cluster state update is an indication that the state recovered
                     consumer.accept(new IllegalStateException("State has been recovered, but the security index name is unknown."));
                 }
             }
@@ -415,8 +416,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         // enqueue and wait for the first cluster state update
         stateChangeListeners.add(gatewayRecoveryListener);
         // maybe state recovered in the meantime since we last checked
-        final State indexState = this.indexState;
-        if (indexState.concreteIndexName != null) {
+        if (isStateRecovered()) {
             // state indeed recovered and we _might_ have lost the notification
             stateChangeListeners.remove(gatewayRecoveryListener);
             delayedRunnable.run();

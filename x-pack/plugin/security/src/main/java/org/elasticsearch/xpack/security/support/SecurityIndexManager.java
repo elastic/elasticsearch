@@ -316,6 +316,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                     "Security index is not on the current version. Security features relying on the index will not be available until " +
                             "the upgrade API is run on the security index"));
         } else if (indexState.indexExists == false) {
+            assert INTERNAL_SECURITY_INDEX.equals(indexState.concreteIndexName);
             LOGGER.info("security index does not exist. Creating [{}] with alias [{}]", indexState.concreteIndexName, SECURITY_INDEX_NAME);
             Tuple<String, Settings> mappingAndSettings = loadMappingAndSettingsSourceFromTemplate();
             CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName)
@@ -395,7 +396,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         // context preserving one-shot runnable
         final Runnable delayedRunnable = client.threadPool().getThreadContext().preserveContext(() -> {
             if (done.compareAndSet(false, true)) {
-                done.set(true);
                 runnable.run();
             }
         });

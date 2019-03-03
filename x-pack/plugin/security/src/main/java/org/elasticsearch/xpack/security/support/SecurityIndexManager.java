@@ -291,7 +291,8 @@ public class SecurityIndexManager implements ClusterStateListener {
      */
     public void checkIndexVersionThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
         final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
-        if (false == isStateRecovered()) {
+        if (indexState.concreteIndexName == null) {
+            // state not yet recovered
             delayUntilStateRecovered(consumer, () -> checkIndexVersionThenExecute(consumer, andThen));
         } else if (indexState.indexExists && indexState.isIndexUpToDate == false) {
             consumer.accept(new IllegalStateException(
@@ -309,7 +310,8 @@ public class SecurityIndexManager implements ClusterStateListener {
     public void prepareIndexIfNeededThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
         final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
         // TODO we should improve this so we don't fire off a bunch of requests to do the same thing (create or update mappings)
-        if (false == isStateRecovered()) {
+        if (indexState.concreteIndexName == null) {
+            // state not yet recovered
             delayUntilStateRecovered(consumer, () -> prepareIndexIfNeededThenExecute(consumer, andThen));
         } else if (indexState.indexExists && indexState.isIndexUpToDate == false) {
             consumer.accept(new IllegalStateException(

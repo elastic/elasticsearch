@@ -137,17 +137,7 @@ public class ClusterServiceUtils {
                 .put("cluster.name", "ClusterServiceTests")
                 .build();
         ClusterService clusterService = new ClusterService(settings, clusterSettings, threadPool);
-        clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
-            @Override
-            public void connectToNodes(DiscoveryNodes discoveryNodes) {
-                // skip
-            }
-
-            @Override
-            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
-                // skip
-            }
-        });
+        clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder()
                 .add(localNode)
@@ -160,6 +150,21 @@ public class ClusterServiceUtils {
         clusterService.getMasterService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
         clusterService.start();
         return clusterService;
+    }
+
+    public static NodeConnectionsService createNoOpNodeConnectionsService() {
+        return new NodeConnectionsService(Settings.EMPTY, null, null) {
+            @Override
+            public void connectToNodes(DiscoveryNodes discoveryNodes, Runnable onCompletion) {
+                // don't do anything
+                onCompletion.run();
+            }
+
+            @Override
+            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
+                // don't do anything
+            }
+        };
     }
 
     public static ClusterStatePublisher createClusterStatePublisher(ClusterApplier clusterApplier) {

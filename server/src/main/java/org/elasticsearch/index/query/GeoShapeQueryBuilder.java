@@ -815,10 +815,10 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                     getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
                 }
                 getRequest.routing(indexedShapeRouting);
-                fetch(client, getRequest, indexedShapePath, ActionListener.map(listener, builder -> {
+                fetch(client, getRequest, indexedShapePath, ActionListener.wrap(builder-> {
                     supplier.set(builder);
-                    return null;
-                }));
+                    listener.onResponse(null);
+                }, listener::onFailure));
             });
             return new GeoShapeQueryBuilder(this.fieldName, supplier::get, this.indexedShapeId, this.indexedShapeType).relation(relation)
                 .strategy(strategy);

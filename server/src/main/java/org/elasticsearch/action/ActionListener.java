@@ -89,13 +89,13 @@ public interface ActionListener<Response> {
      * exceptions to the delegate.
      *
      * @param listener Listener to delegate to
-     * @param mapping Mapping function for the listener response
+     * @param fn Function to apply to listener response
      * @param <Response> Response type of the new listener
      * @param <T> Response type of the wrapped listener
      * @return a listener that maps the received response and then passes it to its delegate listener
      */
-    static <T, Response> ActionListener<Response> map(ActionListener<T> listener, CheckedFunction<Response, T, Exception> mapping) {
-        return wrap(r -> listener.onResponse(mapping.apply(r)), listener::onFailure);
+    static <T, Response> ActionListener<Response> map(ActionListener<T> listener, CheckedFunction<Response, T, Exception> fn) {
+        return wrap(r -> listener.onResponse(fn.apply(r)), listener::onFailure);
     }
 
     /**

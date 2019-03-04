@@ -19,7 +19,9 @@
 
 package org.elasticsearch.cluster.action.index;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
@@ -61,15 +64,22 @@ public class MappingUpdatedAction {
         this.client = client.admin().indices();
     }
 
-    private void updateMappingRequest(Index index, String type, Mapping mappingUpdate, TimeValue timeout,
-                                      ActionListener<Void> listener) {
+    private void updateMappingRequest(Index index, String type, Mapping mappingUpdate, TimeValue timeout, ActionListener<Void> listener) {
         if (type.equals(MapperService.DEFAULT_MAPPING)) {
             throw new IllegalArgumentException("_default_ mapping should not be updated");
         }
-        client.putMapping(
-            client.preparePutMapping().setConcreteIndex(index).setType(type).setSource(mappingUpdate.toString(), XContentType.JSON)
-                .setMasterNodeTimeout(timeout).setTimeout(TimeValue.ZERO).request(), ActionListener.map(listener, resp -> null)
-        );
+        client.preparePutMapping().setConcreteIndex(index).setType(type).setSource(mappingUpdate.toString(), XContentType.JSON)
+            .setMasterNodeTimeout(timeout).setTimeout(TimeValue.ZERO).execute(new ActionListener<AcknowledgedResponse>() {
+            @Override
+            public void onResponse(final AcknowledgedResponse acknowledgedResponse) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
+                listener.onFailure(unwrapExecutionExceptionCause(e));
+            }
+        });
     }
 
     /**
@@ -80,5 +90,23 @@ public class MappingUpdatedAction {
      */
     public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, ActionListener<Void> listener) {
         updateMappingRequest(index, type, mappingUpdate, dynamicMappingUpdateTimeout, listener);
+    }
+
+    private static Exception unwrapExecutionExceptionCause(Exception e) {
+        final Throwable cause = e.getCause();
+        if (cause instanceof ElasticsearchException) {
+            ElasticsearchException esEx = (ElasticsearchException) cause;
+            Throwable root = esEx.unwrapCause();
+            if (root instanceof ElasticsearchException) {
+                return (ElasticsearchException) root;
+            } else if (root instanceof RuntimeException) {
+                return (RuntimeException) root;
+            }
+            return new UncategorizedExecutionException("Failed execution", root);
+        } else if (cause instanceof RuntimeException) {
+            return (RuntimeException) cause;
+        } else {
+            return e;
+        }
     }
 }

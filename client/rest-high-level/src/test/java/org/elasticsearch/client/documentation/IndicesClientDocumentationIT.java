@@ -313,15 +313,13 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             {
                 request = new CreateIndexRequest("twitter2");
                 //tag::create-index-mappings-map
-                Map<String, Object> jsonMap = new HashMap<>();
                 Map<String, Object> message = new HashMap<>();
                 message.put("type", "text");
                 Map<String, Object> properties = new HashMap<>();
                 properties.put("message", message);
                 Map<String, Object> mapping = new HashMap<>();
                 mapping.put("properties", properties);
-                jsonMap.put("_doc", mapping);
-                request.mapping(jsonMap); // <1>
+                request.mapping(mapping); // <1>
                 //end::create-index-mappings-map
                 CreateIndexResponse createIndexResponse = client.indices().create(request, RequestOptions.DEFAULT);
                 assertTrue(createIndexResponse.isAcknowledged());
@@ -332,15 +330,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.startObject();
                 {
-                    builder.startObject("_doc");
+                    builder.startObject("properties");
                     {
-                        builder.startObject("properties");
+                        builder.startObject("message");
                         {
-                            builder.startObject("message");
-                            {
-                                builder.field("type", "text");
-                            }
-                            builder.endObject();
+                            builder.field("type", "text");
                         }
                         builder.endObject();
                     }
@@ -381,10 +375,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "        \"number_of_replicas\" : 0\n" +
                     "    },\n" +
                     "    \"mappings\" : {\n" +
-                    "        \"_doc\" : {\n" +
-                    "            \"properties\" : {\n" +
-                    "                \"message\" : { \"type\" : \"text\" }\n" +
-                    "            }\n" +
+                    "        \"properties\" : {\n" +
+                    "            \"message\" : { \"type\" : \"text\" }\n" +
                     "        }\n" +
                     "    },\n" +
                     "    \"aliases\" : {\n" +

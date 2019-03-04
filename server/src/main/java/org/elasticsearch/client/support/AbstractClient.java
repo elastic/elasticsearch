@@ -152,6 +152,7 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRespo
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -1355,12 +1356,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<AcknowledgedResponse> close(final CloseIndexRequest request) {
+        public ActionFuture<CloseIndexResponse> close(final CloseIndexRequest request) {
             return execute(CloseIndexAction.INSTANCE, request);
         }
 
         @Override
-        public void close(final CloseIndexRequest request, final ActionListener<AcknowledgedResponse> listener) {
+        public void close(final CloseIndexRequest request, final ActionListener<CloseIndexResponse> listener) {
             execute(CloseIndexAction.INSTANCE, request, listener);
         }
 

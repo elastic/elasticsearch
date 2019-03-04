@@ -198,11 +198,6 @@ subprojects {
       if (version.before('5.6.9') || (version.onOrAfter('6.0.0') && version.before('6.2.4'))) {
         jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
       }
-
-      systemProperty 'tests.rest.blacklist', [
-              'old_cluster/30_ml_jobs_crud/*',
-              'old_cluster/40_ml_datafeed_crud/*',
-      ].join(',')
     }
 
     Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
@@ -216,8 +211,6 @@ subprojects {
         setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
         clusterName = 'rolling-upgrade'
         otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
-        minimumMasterNodes = { 2 }
-        autoSetInitialMasterNodes = false
         /* Override the data directory so the new node always gets the node we
         * just stopped's data directory. */
         dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
@@ -237,6 +230,15 @@ subprojects {
         setting 'node.name', "upgraded-node-${stopNode}"
         dependsOn copyTestNodeKeystore
         extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+        if (version.onOrAfter('7.0.0')) {
+          setting 'xpack.security.authc.realms.file.file1.order', '0'
+          setting 'xpack.security.authc.realms.native.native1.order', '1'
+        } else {
+          setting 'xpack.security.authc.realms.file1.type', 'file'
+          setting 'xpack.security.authc.realms.file1.order', '0'
+          setting 'xpack.security.authc.realms.native1.type', 'native'
+          setting 'xpack.security.authc.realms.native1.order', '1'
+        }
         if (withSystemKey) {
           setting 'xpack.watcher.encrypt_sensitive_data', 'true'
           keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
@@ -244,11 +246,6 @@ subprojects {
         if (version.before('6.0.0')) {
           keystoreSetting 'xpack.security.authc.token.passphrase', 'token passphrase'
         }
-
-        systemProperty 'tests.rest.blacklist', [
-                'mixed_cluster/30_ml_jobs_crud/*',
-                'mixed_cluster/40_ml_datafeed_crud/*',
-        ].join(',')
       }
     }
 
@@ -265,8 +262,8 @@ subprojects {
       // We only need to run these tests once so we may as well do it when we're two thirds upgraded
       systemProperty 'tests.rest.blacklist', [
           'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
-          'mixed_cluster/30_ml_jobs_crud/*',
-          'mixed_cluster/40_ml_datafeed_crud/*',
+          'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
+          'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
         ].join(',')
       finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
     }
@@ -282,11 +279,6 @@ subprojects {
       systemProperty 'tests.rest.suite', 'mixed_cluster'
       systemProperty 'tests.first_round', 'false'
       finalizedBy "${baseName}#oldClusterTestCluster#node2.stop"
-
-      systemProperty 'tests.rest.blacklist', [
-              'mixed_cluster/30_ml_jobs_crud/*',
-              'mixed_cluster/40_ml_datafeed_crud/*',
-      ].join(',')
     }
 
     Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
@@ -316,11 +308,6 @@ subprojects {
               systemProperty 'tests.rest.blacklist', '/20_security/Verify default password migration results in upgraded cluster'
           }
       }
-
-      systemProperty 'tests.rest.blacklist', [
-              'upgraded_cluster/30_ml_jobs_crud/*',
-              'upgraded_cluster/40_ml_datafeed_crud/*',
-      ].join(',')
     }
 
     Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
@@ -335,14 +322,14 @@ subprojects {
     unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
   // basic integ tests includes testing bwc against the most recent version
-  task integTest {
+  task bwcTestSnapshots {
     if (project.bwc_tests_enabled) {
       for (final def version : bwcVersions.unreleasedWireCompatible) {
         dependsOn "v${version}#bwcTest"
       }
     }
   }
-  check.dependsOn(integTest)
+  check.dependsOn(bwcTestSnapshots)
 
   dependencies {
     // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here

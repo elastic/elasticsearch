@@ -591,8 +591,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             // TODO: Add PARTIAL_SUCCESS status?
                             SnapshotsInProgress.Entry updatedEntry = new SnapshotsInProgress.Entry(entry, State.SUCCESS, shards.build());
                             entries.add(updatedEntry);
-                            // Finalize snapshot in the repository
-                            snapshotsService.endSnapshot(updatedEntry);
                         }
                     } else {
                         entries.add(entry);

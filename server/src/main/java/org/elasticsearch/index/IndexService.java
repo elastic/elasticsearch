@@ -121,7 +121,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncRefreshTask refreshTask;
     private volatile AsyncTranslogFSync fsyncTask;
     private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
-    private volatile AsyncRetentionLeaseBackgroundSyncTask retentionLeaseBackgroundSyncTask;
+    private volatile AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -198,7 +198,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.refreshTask = new AsyncRefreshTask(this);
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
-        this.retentionLeaseBackgroundSyncTask = new AsyncRetentionLeaseBackgroundSyncTask(this);
+        this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         rescheduleFsyncTask(indexSettings.getTranslogDurability());
     }
 
@@ -289,7 +289,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         fsyncTask,
                         trimTranslogTask,
                         globalCheckpointTask,
-                        retentionLeaseBackgroundSyncTask);
+                        retentionLeaseSyncTask);
             }
         }
     }
@@ -334,7 +334,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexShard indexShard = null;
         ShardLock lock = null;
         try {
-            lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
+            lock = nodeEnv.shardLock(shardId, "shard creation", TimeUnit.SECONDS.toMillis(5));
             eventListener.beforeIndexShardCreated(shardId, indexSettings);
             ShardPath path;
             try {
@@ -388,6 +388,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             DirectoryService directoryService = indexStore.newDirectoryService(path);
             store = new Store(shardId, this.indexSettings, directoryService.newDirectory(), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
+            eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
                     routing,
                     this.indexSettings,
@@ -672,7 +673,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // once we change the refresh interval we schedule yet another refresh
                 // to ensure we are in a clean and predictable state.
                 // it doesn't matter if we move from or to <code>-1</code>  in both cases we want
-                // docs to become visible immediately. This also flushes all pending indexing / search reqeusts
+                // docs to become visible immediately. This also flushes all pending indexing / search requests
                 // that are waiting for a refresh.
                 threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
                     @Override
@@ -788,8 +789,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         sync(is -> is.maybeSyncGlobalCheckpoint("background"), "global checkpoint");
     }
 
-    private void backgroundSyncRetentionLeases() {
-        sync(IndexShard::backgroundSyncRetentionLeases, "retention lease");
+    private void syncRetentionLeases() {
+        sync(IndexShard::syncRetentionLeases, "retention lease");
     }
 
     private void sync(final Consumer<IndexShard> sync, final String source) {
@@ -812,11 +813,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                                 && e instanceof IndexShardClosedException == false) {
                                             logger.warn(
                                                     new ParameterizedMessage(
-                                                            "{} failed to execute background {} sync", shard.shardId(), source), e);
+                                                            "{} failed to execute {} sync", shard.shardId(), source), e);
                                         }
                                     },
                                     ThreadPool.Names.SAME,
-                                    "background " + source + " sync");
+                                    source + " sync");
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue
                         }
@@ -829,17 +830,20 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     abstract static class BaseAsyncTask extends AbstractAsyncTask {
+
         protected final IndexService indexService;
 
-        BaseAsyncTask(IndexService indexService, TimeValue interval) {
+        BaseAsyncTask(final IndexService indexService, final TimeValue interval) {
             super(indexService.logger, indexService.threadPool, interval, true);
             this.indexService = indexService;
             rescheduleIfNecessary();
         }
 
+        @Override
         protected boolean mustReschedule() {
-            // don't re-schedule if its closed or if we don't have a single shard here..., we are done
-            return indexService.closed.get() == false;
+            // don't re-schedule if the IndexService instance is closed or if the index is closed
+            return indexService.closed.get() == false
+                && indexService.indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN;
         }
     }
 
@@ -957,15 +961,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    final class AsyncRetentionLeaseBackgroundSyncTask extends BaseAsyncTask {
+    final class AsyncRetentionLeaseSyncTask extends BaseAsyncTask {
 
-        AsyncRetentionLeaseBackgroundSyncTask(final IndexService indexService) {
+        AsyncRetentionLeaseSyncTask(final IndexService indexService) {
             super(indexService, RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings()));
         }
 
         @Override
         protected void runInternal() {
-            indexService.backgroundSyncRetentionLeases();
+            indexService.syncRetentionLeases();
         }
 
         @Override
@@ -975,7 +979,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         @Override
         public String toString() {
-            return "retention_lease_background_sync";
+            return "retention_lease_sync";
         }
 
     }

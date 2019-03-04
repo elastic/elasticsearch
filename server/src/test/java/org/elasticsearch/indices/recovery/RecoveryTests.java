@@ -68,8 +68,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.addReplica();
             shards.startAll();
             final IndexShard replica = shards.getReplicas().get(0);
-            boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
-            assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? moreDocs : docs + moreDocs));
+            assertThat(getTranslog(replica).totalOperations(), equalTo(docs + moreDocs));
             shards.assertAllEqual(docs + moreDocs);
         }
     }
@@ -282,8 +281,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(newReplica);
             // file based recovery should be made
             assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
-            boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
-            assertThat(getTranslog(newReplica).totalOperations(), equalTo(softDeletesEnabled ? nonFlushedDocs : numDocs));
+            assertThat(getTranslog(newReplica).totalOperations(), equalTo(numDocs));
 
             // history uuid was restored
             assertThat(newReplica.getHistoryUUID(), equalTo(historyUUID));
@@ -387,8 +385,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(replica);
             // Make sure the flushing will eventually be completed (eg. `shouldPeriodicallyFlush` is false)
             assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
-            boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
-            assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? 0 : numDocs));
+            assertThat(getTranslog(replica).totalOperations(), equalTo(numDocs));
             shards.assertAllEqual(numDocs);
         }
     }

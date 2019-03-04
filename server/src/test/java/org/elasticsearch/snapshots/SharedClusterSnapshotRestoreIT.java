@@ -20,6 +20,7 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
@@ -768,7 +769,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
     }
 
-    public void testSnapshotFileFailureDuringSnapshot() throws Exception {
+    public void testSnapshotFileFailureDuringSnapshot() {
         Client client = client();
 
         logger.info("-->  creating repository");
@@ -817,7 +818,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         } catch (Exception ex) {
             logger.info("--> caught a top level exception, asserting what's expected", ex);
             assertThat(getFailureCount("test-repo"), greaterThan(0L));
-            assertThat(ExceptionsHelper.detailedMessage(ex), containsString("IOException"));
+
+            final Throwable cause = ex.getCause();
+            assertThat(cause, notNullValue());
+            final Throwable rootCause = new ElasticsearchException(cause).getRootCause();
+            assertThat(rootCause, notNullValue());
+            assertThat(rootCause.getMessage(), containsString("Random IOException"));
         }
     }
 
@@ -1550,7 +1556,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(client.admin().indices().prepareClose("test-idx-closed"));
         ClusterStateResponse stateResponse = client.admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metaData().index("test-idx-closed").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test-idx-closed"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test-idx-closed"), notNullValue());
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -2210,10 +2216,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         {
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo")
                 .setSnapshots("test-2").get().getSnapshots().get(0);
+            Settings settings = client.admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test");
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
                 // we flush before the snapshot such that we have to process the segments_N files plus the .del file
-                if (INDEX_SOFT_DELETES_SETTING.get(indexSettings)) {
+                if (INDEX_SOFT_DELETES_SETTING.get(settings)) {
                     // soft-delete generates DV files.
                     assertThat(status.getStats().getProcessedFileCount(), greaterThan(2));
                 } else {
@@ -3637,7 +3644,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     @TestLogging("org.elasticsearch.snapshots:TRACE")
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/38226")
     public void testAbortedSnapshotDuringInitDoesNotStart() throws Exception {
         final Client client = client();
 
@@ -3684,14 +3690,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
             // The deletion must set the snapshot in the ABORTED state
             assertBusy(() -> {
-                try {
-                    SnapshotsStatusResponse status =
-                        client.admin().cluster().prepareSnapshotStatus("repository").setSnapshots("snap").get();
-                    assertThat(status.getSnapshots().iterator().next().getState(), equalTo(State.ABORTED));
-                } catch (Exception e) {
-                    // Force assertBusy to retry on every exception
-                    throw new AssertionError(e);
-                }
+                SnapshotsStatusResponse status =
+                    client.admin().cluster().prepareSnapshotStatus("repository").setSnapshots("snap").get();
+                assertThat(status.getSnapshots().iterator().next().getState(), equalTo(State.ABORTED));
             });
 
             // Now unblock the repository
@@ -3750,7 +3751,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final IndexMetaData restoredIndexMetaData = client().admin().cluster().prepareState().clear().setIndices(indexName)
             .setMetaData(true).get().getState().metaData().index(indexName);
         for (int shardId = 0; shardId < numPrimaries; shardId++) {
-            assertThat(restoredIndexMetaData.primaryTerm(shardId), equalTo(primaryTerms.get(shardId) + 1));
+            assertThat(restoredIndexMetaData.primaryTerm(shardId), greaterThan(primaryTerms.get(shardId)));
         }
     }
 

@@ -32,7 +32,6 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
 
     static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
     static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
-    static final ParseField FOLLOWER_INDEX_FIELD = new ParseField("follower_index");
 
     private final String remoteCluster;
     private final String leaderIndex;
@@ -55,7 +54,6 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
         builder.startObject();
         builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
         builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
-        builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
         toXContentFragment(builder, params);
         builder.endObject();
         return builder;

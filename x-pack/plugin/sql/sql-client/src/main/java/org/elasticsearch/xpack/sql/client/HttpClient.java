@@ -66,7 +66,7 @@ public class HttpClient {
         // method called only from CLI
         SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), null, ZoneId.of("Z"),
             fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()),
-            new RequestInfo(Mode.CLI));
+            false, new RequestInfo(Mode.CLI));
         return query(sqlRequest);
     }
 
@@ -106,7 +106,7 @@ public class HttpClient {
     }
 
     private boolean head(String path, long timeoutInMs) throws SQLException {
-        ConnectionConfiguration pingCfg = new ConnectionConfiguration(cfg.baseUri(), cfg.connectionString(),
+        ConnectionConfiguration pingCfg = new ConnectionConfiguration(cfg.baseUri(), cfg.connectionString(), cfg.validateProperties(),
             cfg.connectTimeout(), timeoutInMs, cfg.queryTimeout(), cfg.pageTimeout(), cfg.pageSize(),
             cfg.authUser(), cfg.authPass(), cfg.sslConfig(), cfg.proxyConfig());
         try {

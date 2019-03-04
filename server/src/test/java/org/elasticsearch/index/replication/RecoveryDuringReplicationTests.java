@@ -438,7 +438,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39510")
     public void testDoNotWaitForPendingSeqNo() throws Exception {
         IndexMetaData metaData = buildIndexMetaData(1);
 
@@ -489,20 +488,14 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
 
             CountDownLatch recoveryStart = new CountDownLatch(1);
-            AtomicBoolean opsSent = new AtomicBoolean(false);
+            AtomicBoolean recoveryDone = new AtomicBoolean(false);
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica, (indexShard, node) -> {
                 recoveryStart.countDown();
                 return new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
                     @Override
-                    public void indexTranslogOperations(
-                            final List<Translog.Operation> operations,
-                            final int totalTranslogOps,
-                            final long maxSeenAutoIdTimestamp,
-                            final long msu,
-                            final RetentionLeases retentionLeases,
-                            final ActionListener<Long> listener) {
-                        opsSent.set(true);
-                        super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp, msu, retentionLeases, listener);
+                    public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
+                        recoveryDone.set(true);
+                        super.finalizeRecovery(globalCheckpoint, listener);
                     }
                 };
             });
@@ -513,7 +506,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final int indexedDuringRecovery = shards.indexDocs(randomInt(5));
             docs += indexedDuringRecovery;
 
-            assertBusy(() -> assertFalse("recovery should not wait for on pending docs", opsSent.get()));
+            assertBusy(() -> assertTrue("recovery should not wait for on pending docs", recoveryDone.get()));
 
             primaryEngineFactory.releaseLatchedIndexers();
             pendingDocsDone.await();

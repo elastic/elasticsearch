@@ -101,6 +101,9 @@ Authorization::
 CCR::
 * Add ccr follow info api {pull}37408[#37408] (issue: {issue}37127[#37127])
 
+CRUD::
+* Make `_doc` work as an alias of the actual type of an index. {pull}39505[#39505] (issue: {issue}39469[#39469])
+
 Features/ILM::
 * [ILM] Add unfollow action {pull}36970[#36970] (issue: {issue}34648[#34648])
 
@@ -260,6 +263,7 @@ Infra/Scripting::
 * Add getZone to JodaCompatibleZonedDateTime {pull}37084[#37084]
 
 Infra/Settings::
+* Provide a clearer error message on keystore add {pull}39327[#39327] (issue: {issue}39324[#39324])
 * Separate out validation of groups of settings {pull}34184[#34184]
 
 License::
@@ -298,6 +302,7 @@ Rollup::
 * Replace the TreeMap in the composite aggregation {pull}36675[#36675]
 
 SQL::
+* SQL: Enhance checks for inexact fields {pull}39427[#39427] (issue: {issue}38501[#38501])
 * SQL: change the default precision for CURRENT_TIMESTAMP function {pull}39391[#39391] (issue: {issue}39288[#39288])
 * SQL: add "validate.properties" property to JDBC's allowed list of settings {pull}39050[#39050] (issue: {issue}38068[#38068])
 * SQL: Allow look-ahead resolution of aliases for WHERE clause {pull}38450[#38450] (issue: {issue}29983[#29983])
@@ -456,6 +461,7 @@ Geo::
 * Geo: Do not normalize the longitude with value -180 for Lucene shapes {pull}37299[#37299] (issue: {issue}37297[#37297])
 
 Infra/Core::
+* Correct name of basic_date_time_no_millis {pull}39367[#39367]
 * Fix DateFormatters.parseMillis when no timezone is given {pull}39100[#39100] (issue: {issue}39067[#39067])
 * Prefix java formatter patterns with '8' {pull}38712[#38712] (issue: {issue}38567[#38567])
 * Bubble-up exceptions from scheduler {pull}38317[#38317] (issue: {issue}38014[#38014])
@@ -508,6 +514,10 @@ Recovery::
 * RecoveryMonitor#lastSeenAccessTime should be volatile {pull}36781[#36781]
 
 SQL::
+* SQL: Fix merging of incompatible multi-fields {pull}39560[#39560] (issue: {issue}39547[#39547])
+* SQL: fix COUNT DISTINCT column name {pull}39537[#39537] (issue: {issue}39511[#39511])
+* SQL: ignore UNSUPPORTED fields for JDBC and ODBC modes in 'SYS COLUMNS' {pull}39518[#39518] (issue: {issue}39471[#39471])
+* SQL: Use underlying exact field for LIKE/RLIKE {pull}39443[#39443] (issue: {issue}39442[#39442])
 * SQL: enforce JDBC driver - ES server version parity {pull}38972[#38972] (issue: {issue}38775[#38775])
 * SQL: fall back to using the field name for column label {pull}38842[#38842] (issue: {issue}38831[#38831])
 * SQL: Prevent grouping over grouping functions {pull}38649[#38649] (issue: {issue}38308[#38308])
@@ -531,6 +541,7 @@ SQL::
 * SQL: Fix issue with always false filter involving functions {pull}36830[#36830] (issue: {issue}35980[#35980])
 * SQL: protocol returns ISO 8601 String formatted dates instead of Long for JDBC/ODBC requests {pull}36800[#36800] (issue: {issue}36756[#36756])
 * SQL: Enhance Verifier to prevent aggregate or grouping functions from {pull}36799[#36799] (issue: {issue}36798[#36798])
+* SQL: normalized keywords shouldn't be allowed for groupings and sorting [ISSUE] {pull}35203[#35203]
 
 Search::
 * Fix simple query string serialization conditional {pull}38960[#38960] (issues: {issue}21504[#21504], {issue}38889[#38889])
@@ -546,7 +557,9 @@ Security::
 * Fix potential NPE in UsersTool {pull}37660[#37660]
 
 Snapshot/Restore::
+* Fix Concurrent Snapshot Ending And Stabilize Snapshot Finalization {pull}38368[#38368] (issue: {issue}38226[#38226])
 * Fix Two Races that Lead to Stuck Snapshots {pull}37686[#37686] (issues: {issue}32265[#32265], {issue}32348[#32348])
+* Fix Race in Concurrent Snapshot Delete and Create {pull}37612[#37612] (issue: {issue}37581[#37581])
 * Streamline S3 Repository- and Client-Settings {pull}37393[#37393]
 * SNAPSHOTS: Upgrade GCS Dependencies to 1.55.0 {pull}36634[#36634] (issues: {issue}35229[#35229], {issue}35459[#35459])
 

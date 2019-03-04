@@ -76,7 +76,7 @@ public class AnnotatedTextHighlighterTests  extends ESTestCase {
         for (int i = 0; i < markedUpInputs.length; i++) {
             annotations[i] = AnnotatedText.parse(markedUpInputs[i]);
         }
-        mockHitContext.cache().put("annotations", annotations);
+        mockHitContext.cache().put(AnnotatedText.class.getName(), annotations);
 
         AnnotatedPassageFormatter passageFormatter = new AnnotatedPassageFormatter(annotations,new DefaultEncoder());
         

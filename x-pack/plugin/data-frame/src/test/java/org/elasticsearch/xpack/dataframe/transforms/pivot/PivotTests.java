@@ -26,6 +26,8 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.AggregationConfig;
@@ -37,6 +39,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -46,7 +49,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.dataframe.transforms.DataFrameIndexer.COMPOSITE_AGGREGATION_NAME;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PivotTests extends ESTestCase {
 
@@ -146,10 +152,15 @@ public class PivotTests extends ESTestCase {
                         searchFailures.add(new ShardSearchFailure(new RuntimeException("shard failed")));
                     }
                 }
-
+                List<Aggregation> aggs = new ArrayList<>();
+                CompositeAggregation compAgg = mock(CompositeAggregation.class);
+                when(compAgg.getName()).thenReturn(COMPOSITE_AGGREGATION_NAME);
+                when(compAgg.getBuckets()).thenReturn(Collections.emptyList());
+                aggs.add(compAgg);
                 final SearchResponseSections sections = new SearchResponseSections(
-                        new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0), null, null, false, null, null,
-                        1);
+                    new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0),
+                    new org.elasticsearch.search.aggregations.Aggregations(aggs), null, false, null, null,
+                    1);
                 final SearchResponse response = new SearchResponse(sections, null, 10, searchFailures.size() > 0 ? 0 : 5, 0, 0,
                         searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]), null);
 
@@ -198,7 +209,7 @@ public class PivotTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         pivot.validate(client, ActionListener.wrap(validity -> {
-            assertEquals(expectValid, validity);
+            assertEquals(expectValid, validity != null);
             latch.countDown();
         }, e -> {
             exceptionHolder.set(e);

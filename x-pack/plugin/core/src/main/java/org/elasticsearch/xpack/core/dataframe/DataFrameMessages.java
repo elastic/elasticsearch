@@ -27,9 +27,13 @@ public class DataFrameMessages {
     public static final String REST_PUT_DATA_FRAME_INCONSISTENT_ID =
             "Inconsistent id; ''{0}'' specified in the body differs from ''{1}'' specified as a URL argument";
 
+    public static final String REST_VALIDATE_DATA_FRAME_MISSING_SOURCE_INDEX = "Source index [{0}] not found";
+    public static final String REST_VALIDATE_DATA_FRAME_DEST_INDEX_EXISTS = "Target index [{0}] already exists";
+    public static final String REST_VALIDATE_VALIDATION_ERROR_MSG = "Validation failed errors: [{0}], warnings: [{1}]";
+
     public static final String REST_DATA_FRAME_FAILED_TO_SERIALIZE_TRANSFORM = "Failed to serialise transform [{0}]";
 
-    public static final String FAILED_TO_CREATE_DESTINATION_INDEX = "Could not create destination index [{0}] for transform[{1}]";
+    public static final String FAILED_TO_CREATE_DESTINATION_INDEX = "Could not create destination index [{0}] for transform [{1}]";
     public static final String FAILED_TO_LOAD_TRANSFORM_CONFIGURATION =
             "Failed to load data frame transform configuration for transform [{0}]";
     public static final String FAILED_TO_PARSE_TRANSFORM_CONFIGURATION =

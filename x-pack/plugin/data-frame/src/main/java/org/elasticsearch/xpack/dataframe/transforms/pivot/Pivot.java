@@ -29,10 +29,13 @@ import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.dataframe.transforms.DataFrameIndexer.COMPOSITE_AGGREGATION_NAME;
 
 public class Pivot {
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
@@ -51,11 +54,11 @@ public class Pivot {
         this.cachedSearchRequest = createSearchRequest(source, query, cachedCompositeAggregation);
     }
 
-    public void validate(Client client, final ActionListener<Boolean> listener) {
+    public void validate(Client client, final ActionListener<List<Map<String, Object>>> listener) {
         // step 1: check if used aggregations are supported
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (Aggregations.isSupportedByDataframe(agg.getType()) == false) {
-                listener.onFailure(new RuntimeException("Unsupported aggregation type [" + agg.getType() + "]"));
+                listener.onFailure(new PivotException("Unsupported aggregation type [" + agg.getType() + "]"));
                 return;
             }
         }
@@ -85,22 +88,25 @@ public class Pivot {
         return AggregationResultUtils.extractCompositeAggregationResults(agg, groups, aggregationBuilders, dataFrameIndexerTransformStats);
     }
 
-    private void runTestQuery(Client client, final ActionListener<Boolean> listener) {
+    private void runTestQuery(Client client, final ActionListener<List<Map<String, Object>>> listener) {
         // no after key
         cachedCompositeAggregation.aggregateAfter(null);
-        client.execute(SearchAction.INSTANCE, cachedSearchRequest, ActionListener.wrap(response -> {
-            if (response == null) {
-                listener.onFailure(new RuntimeException("Unexpected null response from test query"));
-                return;
-            }
-            if (response.status() != RestStatus.OK) {
-                listener.onFailure(new RuntimeException("Unexpected status from response of test query: " + response.status()));
-                return;
-            }
-            listener.onResponse(true);
-        }, e->{
-            listener.onFailure(new RuntimeException("Failed to test query",e));
-        }));
+        client.execute(SearchAction.INSTANCE, cachedSearchRequest, ActionListener.wrap(
+            response -> {
+                if (response == null) {
+                    listener.onFailure(new PivotException("Unexpected null response from test query"));
+                    return;
+                }
+                if (response.status() != RestStatus.OK) {
+                    listener.onFailure(new PivotException("Unexpected status from response of test query: " + response.status()));
+                    return;
+                }
+                final CompositeAggregation agg = response.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
+                DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
+                listener.onResponse(extractResults(agg, stats).collect(Collectors.toList()));
+            },
+            e -> listener.onFailure(new PivotException("Failed to test query", e))
+        ));
     }
 
     private static SearchRequest createSearchRequest(String index, QueryBuilder query, CompositeAggregationBuilder compositeAggregation) {
@@ -125,7 +131,7 @@ public class Pivot {
             compositeAggregation.size(1000);
             config.getAggregationConfig().getAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
         } catch (IOException e) {
-            throw new RuntimeException(DataFrameMessages.DATA_FRAME_TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, e);
+            throw new PivotException(DataFrameMessages.DATA_FRAME_TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, e);
         }
         return compositeAggregation;
     }

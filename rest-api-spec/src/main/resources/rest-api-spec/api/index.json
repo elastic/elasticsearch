@@ -7,12 +7,12 @@
       "paths": ["/{index}/_doc/{id}", "/{index}/_doc"],
       "deprecated_paths" : [
         {
-          "version" : "7.0",
+          "version" : "7.0.0",
           "path" : "/{index}/{type}",
           "description" : "Specifying types in urls has been deprecated"
         },
         {
-          "version" : "7.0",
+          "version" : "7.0.0",
           "path" : "/{index}/{type}/{id}",
           "description" : "Specifying types in urls has been deprecated"
         }

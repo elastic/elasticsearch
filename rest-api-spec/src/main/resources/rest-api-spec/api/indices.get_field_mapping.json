@@ -7,12 +7,12 @@
       "paths": ["/_mapping/field/{fields}", "/{index}/_mapping/field/{fields}"],
       "deprecated_paths" : [
         {
-          "version" : "7.0",
+          "version" : "7.0.0",
           "path" : "/_mapping/{type}/field/{fields}",
           "description" : "Specifying types in urls has been deprecated"
         },
         {
-          "version" : "7.0",
+          "version" : "7.0.0",
           "path" : "/{index}/_mapping/{type}/field/{fields}",
           "description" : "Specifying types in urls has been deprecated"
         }

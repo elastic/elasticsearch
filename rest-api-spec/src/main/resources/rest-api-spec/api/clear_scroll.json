@@ -7,7 +7,7 @@
       "paths": [ "/_search/scroll"],
       "deprecated_paths" : [
         {
-          "version" : "7.0",
+          "version" : "7.0.0",
           "path" : "/_search/scroll/{scroll_id}",
           "description" : "A scroll id can be quite large and should be specified as part of the body"
         }

@@ -16,24 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.gradle;
 
- package org.elasticsearch.gradle;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
+import java.util.LinkedHashSet;
 
- import org.gradle.api.DefaultTask;
- import org.gradle.api.file.FileTree;
- import org.gradle.api.tasks.Input;
- import org.gradle.api.tasks.InputFiles;
- import org.gradle.api.tasks.Optional;
- import org.gradle.api.tasks.OutputFile;
- import org.gradle.api.tasks.TaskAction;
-
- import java.io.File;
- import java.io.IOException;
- import java.nio.charset.Charset;
- import java.nio.charset.StandardCharsets;
- import java.nio.file.Files;
- import java.nio.file.StandardOpenOption;
- import java.util.LinkedHashSet;
+import org.gradle.api.DefaultTask;
+import org.gradle.api.file.FileTree;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.TaskAction;
 
 /**
  * Concatenates a list of files into one and removes duplicate lines.
@@ -78,18 +76,20 @@ public class ConcatFilesTask extends DefaultTask {
 
     @TaskAction
     public void concatFiles() throws IOException {
-        final String encoding = StandardCharsets.UTF_8.name();
         if (getHeaderLine() != null) {
-            Files.write(getTarget().toPath(), (getHeaderLine() + '\n').getBytes(encoding));
+            Files.write(
+                getTarget().toPath(),
+                (getHeaderLine() + '\n').getBytes(StandardCharsets.UTF_8)
+            );
         }
 
         // To remove duplicate lines
         LinkedHashSet<String> uniqueLines = new LinkedHashSet<>();
         for (File f : getFiles()) {
-            uniqueLines.addAll(Files.readAllLines(f.toPath(), Charset.forName(encoding)));
+            uniqueLines.addAll(Files.readAllLines(f.toPath(), StandardCharsets.UTF_8));
         }
         Files.write(
-            getTarget().toPath(), uniqueLines, Charset.forName(encoding), StandardOpenOption.APPEND
+            getTarget().toPath(), uniqueLines, StandardCharsets.UTF_8, StandardOpenOption.APPEND
         );
     }
 

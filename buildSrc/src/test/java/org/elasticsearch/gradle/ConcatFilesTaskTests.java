@@ -1,16 +1,3 @@
-package org.elasticsearch.gradle;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.util.Arrays;
-
-import org.elasticsearch.gradle.test.GradleUnitTestCase;
-import org.gradle.api.Project;
-import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.testfixtures.ProjectBuilder;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -29,6 +16,19 @@ import org.gradle.testfixtures.ProjectBuilder;
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.gradle;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.Arrays;
+
+import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.gradle.api.Project;
+import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.testfixtures.ProjectBuilder;
+
 public class ConcatFilesTaskTests extends GradleUnitTestCase {
 
     public void testHeaderAdded() throws IOException {
@@ -46,7 +46,7 @@ public class ConcatFilesTaskTests extends GradleUnitTestCase {
 
         concatFilesTask.concatFiles();
 
-        assertEquals(Arrays.asList("Header"), Files.readAllLines(concatFilesTask.getTarget().toPath(), Charset.forName("UTF-8")));
+        assertEquals(Arrays.asList("Header"), Files.readAllLines(concatFilesTask.getTarget().toPath(), StandardCharsets.UTF_8));
 
         file.delete();
     }
@@ -76,14 +76,13 @@ public class ConcatFilesTaskTests extends GradleUnitTestCase {
 
         assertEquals(
             Arrays.asList("Hello", "नमस्ते"),
-            Files.readAllLines(concatFilesTask.getTarget().toPath(), Charset.forName("UTF-8"))
+            Files.readAllLines(concatFilesTask.getTarget().toPath(), StandardCharsets.UTF_8)
         );
 
     }
 
     private Project createProject() {
         Project project = ProjectBuilder.builder().build();
-        project.getPlugins().apply(JavaPlugin.class);
         return project;
     }
 

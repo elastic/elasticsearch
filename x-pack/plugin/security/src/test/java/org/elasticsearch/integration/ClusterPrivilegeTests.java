@@ -168,6 +168,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         waitForSnapshotToFinish("my-repo", "my-snapshot");
         // user_d can create snapshots, but not concurrently
         assertAccessIsAllowed("user_d", "PUT", "/_snapshot/my-repo/my-snapshot-d", "{ \"indices\": \"someindex\" }");
+        waitForSnapshotToFinish("my-repo", "my-snapshot-d");
 
         assertAccessIsDenied("user_a", "DELETE", "/someindex");
         assertAccessIsDenied("user_b", "DELETE", "/someindex");

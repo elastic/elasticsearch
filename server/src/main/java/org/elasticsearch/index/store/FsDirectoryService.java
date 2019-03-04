@@ -144,6 +144,7 @@ public class FsDirectoryService extends DirectoryService {
                 case "nvd":
                 case "dvd":
                 case "tim":
+                case "cfs":
                     // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
                     ensureOpen();
                     ensureCanRead(name);

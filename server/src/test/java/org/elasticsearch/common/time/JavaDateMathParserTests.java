@@ -20,7 +20,6 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -138,12 +137,12 @@ public class JavaDateMathParserTests extends ESTestCase {
         // If a user only specifies times, then the date needs to always be 1970-01-01 regardless of rounding
         DateFormatter formatter = DateFormatters.forPattern("HH:mm:ss");
         DateMathParser parser = formatter.toDateMathParser();
-        ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(formatter.parse("04:52:20"));
+        ZonedDateTime zonedDateTime = DateFormatters.from(formatter.parse("04:52:20"));
         assertThat(zonedDateTime.getYear(), is(1970));
         Instant millisStart = zonedDateTime.toInstant();
         assertEquals(millisStart, parser.parse("04:52:20", () -> 0, false, (ZoneId) null));
         // due to rounding up, we have to add the number of milliseconds here manually
-        long millisEnd = DateFormatters.toZonedDateTime(formatter.parse("04:52:20")).toInstant().toEpochMilli() + 999;
+        long millisEnd = DateFormatters.from(formatter.parse("04:52:20")).toInstant().toEpochMilli() + 999;
         assertEquals(millisEnd, parser.parse("04:52:20", () -> 0, true, (ZoneId) null).toEpochMilli());
     }
 
@@ -251,7 +250,7 @@ public class JavaDateMathParserTests extends ESTestCase {
 
     void assertParseException(String msg, String date, String exc) {
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parser.parse(date, () -> 0));
-        assertThat(msg, ExceptionsHelper.detailedMessage(e), containsString(exc));
+        assertThat(msg, e.getMessage(), containsString(exc));
     }
 
     public void testIllegalMathFormat() {

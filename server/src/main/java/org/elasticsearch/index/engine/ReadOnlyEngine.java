@@ -34,6 +34,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -140,6 +141,16 @@ public class ReadOnlyEngine extends Engine {
         if (Assertions.ENABLED) {
             assert false : "max seq. no. [" + maxSeqNo + "] does not match [" + globalCheckpoint + "]";
         }
+    }
+
+    @Override
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
+        // the value of the global checkpoint is verified when the read-only engine is opened,
+        // and it is not expected to change during the lifecycle of the engine. We could also
+        // check this value before closing the read-only engine but if something went wrong
+        // and the global checkpoint is not in-sync with the max. sequence number anymore,
+        // checking the value here again would prevent the read-only engine to be closed and
+        // reopened as an internal engine, which would be the path to fix the issue.
     }
 
     protected final DirectoryReader wrapReader(DirectoryReader reader,
@@ -262,7 +273,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Closeable acquireRetentionLockForPeerRecovery() {
+    public Closeable acquireRetentionLock() {
         return () -> {};
     }
 
@@ -277,18 +288,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        return new Translog.Snapshot() {
-            @Override
-            public void close() { }
-            @Override
-            public int totalOperations() {
-                return 0;
-            }
-            @Override
-            public Translog.Operation next() {
-                return null;
-            }
-        };
+        return newEmptySnapshot();
     }
 
     @Override
@@ -299,6 +299,11 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         return false;
+    }
+
+    @Override
+    public long getMinRetainedSeqNo() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -314,10 +319,6 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public long getLocalCheckpoint() {
         return seqNoStats.getLocalCheckpoint();
-    }
-
-    @Override
-    public void waitForOpsToComplete(long seqNo) {
     }
 
     @Override
@@ -344,6 +345,11 @@ public class ReadOnlyEngine extends Engine {
     public void refresh(String source) {
         // we could allow refreshes if we want down the road the searcher manager will then reflect changes to a rw-engine
         // opened side-by-side
+    }
+
+    @Override
+    public boolean maybeRefresh(String source) throws EngineException {
+        return false;
     }
 
     @Override
@@ -414,7 +420,15 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) {
+    public Engine recoverFromTranslog(final TranslogRecoveryRunner translogRecoveryRunner, final long recoverUpToSeqNo) {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            try (Translog.Snapshot snapshot = newEmptySnapshot()) {
+                translogRecoveryRunner.run(this, snapshot);
+            } catch (final Exception e) {
+                throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
+            }
+        }
         return this;
     }
 
@@ -452,5 +466,23 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public boolean refreshNeeded() {
         return false;
+    }
+
+    private Translog.Snapshot newEmptySnapshot() {
+        return new Translog.Snapshot() {
+            @Override
+            public void close() {
+            }
+
+            @Override
+            public int totalOperations() {
+                return 0;
+            }
+
+            @Override
+            public Translog.Operation next() {
+                return null;
+            }
+        };
     }
 }

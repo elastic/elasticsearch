@@ -27,6 +27,7 @@ import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geo.geometry.GeometryCollection;
 import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
@@ -186,6 +187,9 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
 
     @Override
     public org.elasticsearch.geo.geometry.GeometryCollection<org.elasticsearch.geo.geometry.Geometry> buildGeometry() {
+        if (this.shapes.isEmpty()) {
+            return GeometryCollection.EMPTY;
+        }
         List<org.elasticsearch.geo.geometry.Geometry> shapes = new ArrayList<>(this.shapes.size());
 
         for (ShapeBuilder shape : this.shapes) {

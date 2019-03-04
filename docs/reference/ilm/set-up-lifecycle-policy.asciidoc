@@ -107,7 +107,8 @@ PUT test-index
 -----------------------
 // CONSOLE
 
-IMPORTANT: Its recommended not to use the create index API with a policy that
+IMPORTANT: Do not to use the create index API with a policy that
 defines a rollover action. If you do so, the new index as the result of the
-rollover will not carry forward the policy. Always use index templates to
-define policies with rollover actions.
+rollover will not carry forward the policy. Always use
+<<applying-policy-to-template, index templates>> to define policies with rollover
+actions.

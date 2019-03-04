@@ -16,6 +16,15 @@ following:
 ./gradlew assemble
 -----------------------------
 
+To create a platform-specific build including the x-pack modules, use the
+following depending on your operating system:
+
+-----------------------------
+./gradlew :distribution:archives:linux-tar:assemble --parallel
+./gradlew :distribution:archives:darwin-tar:assemble --parallel
+./gradlew :distribution:archives:windows-zip:assemble --parallel
+-----------------------------
+
 === Running Elasticsearch from a checkout
 
 In order to run Elasticsearch from source without building a package, you can
@@ -366,8 +375,8 @@ These are the linux flavors supported, all of which we provide images for
 * debian-9 aka stretch, the current debian stable distribution
 * centos-6
 * centos-7
-* fedora-27
 * fedora-28
+* fedora-29
 * oel-6 aka Oracle Enterprise Linux 6
 * oel-7 aka Oracle Enterprise Linux 7
 * sles-12
@@ -384,12 +393,6 @@ The packaging tests also support Windows Server 2012R2 and Windows Server 2016.
 Unfortunately we're not able to provide boxes for them in open source use
 because of licensing issues. Any Virtualbox image that has WinRM and Powershell
 enabled for remote users should work.
-
-Testing on Windows requires the https://github.com/criteo/vagrant-winrm[vagrant-winrm] plugin.
-
-------------------------------------
-vagrant plugin install vagrant-winrm
-------------------------------------
 
 Specify the image IDs of the Windows boxes to gradle with the following project
 properties. They can be set in `~/.gradle/gradle.properties` like
@@ -582,6 +585,87 @@ For some BWC testing scenarios, you want to use the local clone of the
 repository without fetching latest. For these use cases, you can set the system
 property `tests.bwc.git_fetch_latest` to `false` and the BWC builds will skip
 fetching the latest from the remote.
+
+== How to write good tests?
+
+=== Base classes for test cases
+
+There are multiple base classes for tests:
+
+* **`ESTestCase`**: The base class of all tests. It is typically extended
+  directly by unit tests.
+* **`ESSingleNodeTestCase`**: This test case sets up a cluster that has a
+  single node.
+* **`ESIntegTestCase`**: An integration test case that creates a cluster that
+  might have multiple nodes.
+* **`ESRestTestCase`**: An integration tests that interacts with an external
+  cluster via the REST API. For instance, YAML tests run via sub classes of
+  `ESRestTestCase`.
+
+=== Good practices
+
+==== What kind of tests should I write?
+
+Unit tests are the preferred way to test some functionality: most of the time
+they are simpler to understand, more likely to reproduce, and unlikely to be
+affected by changes that are unrelated to the piece of functionality that is
+being tested.
+
+The reason why `ESSingleNodeTestCase` exists is that all our components used to
+be very hard to set up in isolation, which had led us to having a number of
+integration tests but close to no unit tests. `ESSingleNodeTestCase` is a
+workaround for this issue which provides an easy way to spin up a node and get
+access to components that are hard to instantiate like `IndicesService`.
+Whenever practical, you should prefer unit tests.
+
+Many tests extend `ESIntegTestCase`, mostly because this is how most tests used
+to work in the early days of Elasticsearch. However the complexity of these
+tests tends to make them hard to debug. Whenever the functionality that is
+being tested isn't intimately dependent on how Elasticsearch behaves as a
+cluster, it is recommended to write unit tests or REST tests instead.
+
+In short, most new functionality should come with unit tests, and optionally
+REST tests to test integration.
+
+==== Refactor code to make it easier to test
+
+Unfortunately, a large part of our code base is still hard to unit test.
+Sometimes because some classes have lots of dependencies that make them hard to
+instantiate. Sometimes because API contracts make tests hard to write. Code
+refactors that make functionality easier to unit test are encouraged. If this
+sounds very abstract to you, you can have a look at
+https://github.com/elastic/elasticsearch/pull/16610[this pull request] for
+instance, which is a good example. It refactors `IndicesRequestCache` in such
+a way that:
+ - it no longer depends on objects that are hard to instantiate such as
+   `IndexShard` or `SearchContext`,
+ - time-based eviction is applied on top of the cache rather than internally,
+   which makes it easier to assert on what the cache is expected to contain at
+   a given time.
+
+=== Bad practices
+
+==== Use randomized-testing for coverage
+
+In general, randomization should be used for parameters that are not expected
+to affect the behavior of the functionality that is being tested. For instance
+the number of shards should not impact `date_histogram` aggregations, and the
+choice of the `store` type (`niofs` vs `mmapfs`) does not affect the results of
+a query. Such randomization helps improve confidence that we are not relying on
+implementation details of one component or specifics of some setup.
+
+However it should not be used for coverage. For instance if you are testing a
+piece of functionality that enters different code paths depending on whether
+the index has 1 shards or 2+ shards, then we shouldn't just test against an
+index with a random number of shards: there should be one test for the 1-shard
+case, and another test for the 2+ shards case.
+
+==== Abuse randomization in multi-threaded tests
+
+Multi-threaded tests are often not reproducible due to the fact that there is
+no guarantee on the order in which operations occur across threads. Adding
+randomization to the mix usually makes things worse and should be done with
+care.
 
 == Test coverage analysis
 

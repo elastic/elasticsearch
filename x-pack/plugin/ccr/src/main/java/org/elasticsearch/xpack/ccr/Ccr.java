@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -81,6 +82,7 @@ import org.elasticsearch.xpack.ccr.rest.RestPutFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestResumeFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
@@ -125,7 +127,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final CcrLicenseChecker ccrLicenseChecker;
     private final SetOnce<CcrRestoreSourceService> restoreSourceService = new SetOnce<>();
     private final SetOnce<CcrSettings> ccrSettings = new SetOnce<>();
+    private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private Client client;
+    private final boolean transportClientMode;
 
     /**
      * Construct an instance of the CCR container with the specified settings.
@@ -147,6 +151,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         this.settings = settings;
         this.enabled = CCR_ENABLED_SETTING.get(settings);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
+        this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
     @Override
@@ -167,6 +172,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
         CcrSettings ccrSettings = new CcrSettings(settings, clusterService.getClusterSettings());
         this.ccrSettings.set(ccrSettings);
+        this.threadPool.set(threadPool);
         CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(threadPool, ccrSettings);
         this.restoreSourceService.set(restoreSourceService);
         return Arrays.asList(
@@ -248,7 +254,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         return Arrays.asList(
                 // Persistent action requests
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, ShardFollowTask.NAME,
-                        ShardFollowTask::new),
+                        ShardFollowTask::readFrom),
 
                 // Task statuses
                 new NamedWriteableRegistry.Entry(Task.Status.class, ShardFollowNodeTaskStatus.STATUS_PARSER_NAME,
@@ -303,7 +309,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     @Override
     public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         Repository.Factory repositoryFactory =
-            (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings, ccrSettings.get());
+            (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings, ccrSettings.get(), threadPool.get());
         return Collections.singletonMap(CcrRepository.TYPE, repositoryFactory);
     }
 
@@ -312,6 +318,15 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         if (enabled) {
             indexModule.addIndexEventListener(this.restoreSourceService.get());
         }
+    }
+
+    @Override
+    public Collection<Module> createGuiceModules() {
+        if (transportClientMode) {
+            return Collections.emptyList();
+        }
+
+        return Collections.singleton(b -> XPackPlugin.bindFeatureSet(b, CCRFeatureSet.class));
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }

@@ -3,7 +3,7 @@
 === Logfile audit output
 
 The `logfile` audit output is the default output for auditing. It writes data to
-the `<clustername>_audit.log` file in the logs directory. To maintain
+the `<clustername>_audit.json` file in the logs directory. To maintain
 compatibility with releases prior to 6.5.0, a `<clustername>_access.log` file
 is also generated. They differ in the output format but the contents
 are similar. For systems that are not ingesting the audit file for search or
@@ -43,7 +43,7 @@ by default points to the `elasticsearch.log` file.
 [[audit-log-entry-format]]
 === Log entry format
 
-The log entries in the `<clustername>_audit.log` file have the following format:
+The log entries in the `<clustername>_audit.json` file have the following format:
 
 - Each log entry is a one line JSON document and each one is printed on a separate line.
 - The fields of a log entry are ordered. However, if a field does not have a value it
@@ -100,14 +100,14 @@ audited in plain text when including the request body in audit events.
 [[logging-file]]
 You can also configure how the logfile is written in the `log4j2.properties`
 file located in `ES_PATH_CONF`. By default, audit information is appended to the
-`<clustername>_audit.log` file located in the standard Elasticsearch `logs` directory
+`<clustername>_audit.json` file located in the standard Elasticsearch `logs` directory
 (typically located at `$ES_HOME/logs`). The file rolls over on a daily basis.
 The deprecated logfile audit format (`<clustername>_access.log`) can be disabled
 from the same `log4j2.properties` file (hint: look for the comment
 instructing to set the log level to `off`). The deprecated format is a duplication
 of information that is in place to assure backwards compatibility. If you are
 not strict about the audit format it is strongly recommended to only use the
-`<clustername>_audit.log` log appender.
+`<clustername>_audit.json` log appender.
 
 [float]
 [[audit-log-ignore-policy]]

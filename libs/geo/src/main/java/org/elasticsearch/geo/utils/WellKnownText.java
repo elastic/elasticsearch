@@ -121,6 +121,10 @@ public class WellKnownText {
 
                 @Override
                 public Void visit(MultiPoint multiPoint) {
+                    if (multiPoint.isEmpty()) {
+                        sb.append(EMPTY);
+                        return null;
+                    }
                     // walk through coordinates:
                     sb.append(LPAREN);
                     visitPoint(multiPoint.get(0).getLon(), multiPoint.get(0).getLat());

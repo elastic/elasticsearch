@@ -46,6 +46,13 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
     }
 
     /**
+     * Creates a new empty MultiPoint builder
+     */
+    public MultiPointBuilder() {
+        super();
+    }
+
+    /**
      * Read from a stream.
      */
     public MultiPointBuilder(StreamInput in) throws IOException {
@@ -77,6 +84,9 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
 
     @Override
     public MultiPoint buildGeometry() {
+        if (coordinates.isEmpty()) {
+            return MultiPoint.EMPTY;
+        }
         return new MultiPoint(coordinates.stream().map(coord -> new org.elasticsearch.geo.geometry.Point(coord.y, coord.x))
             .collect(Collectors.toList()));
     }

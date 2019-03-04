@@ -24,6 +24,11 @@
           "type" : "boolean",
           "description" : "Specify whether wildcard and prefix queries should be analyzed (default: false)"
         },
+        "ccs_minimize_roundtrips": {
+          "type" : "boolean",
+          "description" : "Indicates whether network round-trips should be minimized as part of cross-cluster search requests execution",
+          "default" : "true"
+        },
         "default_operator": {
           "type" : "enum",
           "options" : ["AND","OR"],

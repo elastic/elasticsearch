@@ -55,7 +55,7 @@ public class SetPriorityAction implements LifecycleAction, ToXContentObject {
     }
 
     public SetPriorityAction(@Nullable Integer recoveryPriority) {
-        if (recoveryPriority != null && recoveryPriority <= 0) {
+        if (recoveryPriority != null && recoveryPriority < 0) {
             throw new IllegalArgumentException("[" + RECOVERY_PRIORITY_FIELD.getPreferredName() + "] must be 0 or greater");
         }
         this.recoveryPriority = recoveryPriority;

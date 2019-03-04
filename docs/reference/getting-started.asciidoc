@@ -65,9 +65,7 @@ A type used to be a logical category/partition of your index to allow you to sto
 [float]
 === Document
 
-A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is a ubiquitous internet data interchange format.
-
-Within an index/type, you can store as many documents as you want. Note that although a document physically resides in an index, a document actually must be indexed/assigned to a type inside an index.
+A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is a ubiquitous internet data interchange format. Within an index, you can store as many documents as you want.
 
 [[getting-started-shards-and-replicas]]
 [float]
@@ -496,7 +494,7 @@ If we study the above commands carefully, we can actually see a pattern of how w
 
 [source,js]
 --------------------------------------------------
-<HTTP Verb> /<Index>/<Type>/<ID>
+<HTTP Verb> /<Index>/<Endpoint>/<ID>
 --------------------------------------------------
 // NOTCONSOLE
 
@@ -572,7 +570,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/1/_update?pretty
+POST /customer/_update/1?pretty
 {
   "doc": { "name": "Jane Doe" }
 }
@@ -584,7 +582,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/1/_update?pretty
+POST /customer/_update/1?pretty
 {
   "doc": { "name": "Jane Doe", "age": 20 }
 }
@@ -596,7 +594,7 @@ Updates can also be performed by using simple scripts. This example uses a scrip
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/1/_update?pretty
+POST /customer/_update/1?pretty
 {
   "script" : "ctx._source.age += 5"
 }
@@ -719,7 +717,7 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 // TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
 // TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ _cat]
 
-Which means that we just successfully bulk indexed 1000 documents into the bank index (under the `_doc` type).
+Which means that we just successfully bulk indexed 1000 documents into the bank index.
 
 [[getting-started-search-API]]
 === The Search API

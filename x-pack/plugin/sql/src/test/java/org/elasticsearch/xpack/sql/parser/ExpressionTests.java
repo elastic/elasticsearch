@@ -86,7 +86,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testLiteralLongPositive() {
-        Expression lt = parser.createExpression("+" + String.valueOf(Long.MAX_VALUE));
+        Expression lt = parser.createExpression("+" + Long.MAX_VALUE);
         assertEquals(Literal.class, lt.getClass());
         Literal l = (Literal) lt;
         assertEquals(Long.MAX_VALUE, l.value());
@@ -127,7 +127,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("Number [1.9976931348623157e+308] is too large", ex.getErrorMessage());
     }
 
-    public void testExactDayTimeInterval() throws Exception {
+    public void testExactDayTimeInterval() {
         int number = randomIntBetween(-100, 100);
         assertEquals(Duration.ofDays(number), intervalOf("INTERVAL " + number + " DAY"));
         number = randomIntBetween(-100, 100);
@@ -138,19 +138,19 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Duration.ofSeconds(number), intervalOf("INTERVAL " + number + " SECOND"));
     }
 
-    public void testExactYearMonthInterval() throws Exception {
+    public void testExactYearMonthInterval() {
         int number = randomIntBetween(-100, 100);
         assertEquals(Period.ofYears(number), intervalOf("INTERVAL " + number + " YEAR"));
         number = randomIntBetween(-100, 100);
         assertEquals(Period.ofMonths(number), intervalOf("INTERVAL " + number + " MONTH"));
     }
 
-    public void testStringInterval() throws Exception {
+    public void testStringInterval() {
         int randomDay = randomInt(1024);
         int randomHour = randomInt(23);
         int randomMinute = randomInt(59);
         int randomSecond = randomInt(59);
-        int randomMilli = randomInt(999999999);
+        int randomMilli = randomInt(999);
 
         String value = format(Locale.ROOT, "INTERVAL '%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
                 randomMilli);
@@ -158,12 +158,12 @@ public class ExpressionTests extends ESTestCase {
                 .plusMillis(randomMilli), intervalOf(value));
     }
 
-    public void testNegativeStringInterval() throws Exception {
+    public void testNegativeStringInterval() {
         int randomDay = randomInt(1024);
         int randomHour = randomInt(23);
         int randomMinute = randomInt(59);
         int randomSecond = randomInt(59);
-        int randomMilli = randomInt(999999999);
+        int randomMilli = randomInt(999);
 
         String value = format(Locale.ROOT, "INTERVAL -'%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
                 randomMilli);
@@ -218,13 +218,13 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("(a-2)-(-3)", sub1.sourceText());
         assertEquals(2, sub1.children().size());
         assertEquals(Literal.class, sub1.children().get(1).getClass());
-        assertEquals("-3", ((Literal) sub1.children().get(1)).sourceText());
+        assertEquals("-3", sub1.children().get(1).sourceText());
         assertEquals(Sub.class, sub1.children().get(0).getClass());
         Sub sub2 = (Sub) sub1.children().get(0);
         assertEquals(2, sub2.children().size());
         assertEquals("?a", sub2.children().get(0).toString());
         assertEquals(Literal.class, sub2.children().get(1).getClass());
-        assertEquals("2", ((Literal) sub2.children().get(1)).sourceText());
+        assertEquals("2", sub2.children().get(1).sourceText());
     }
 
     public void testEquals() {
@@ -278,8 +278,39 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testCastWithInvalidDataType() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CAST(1 AS INVALID)"));
-        assertEquals("line 1:12: Does not recognize type invalid", ex.getMessage());
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CAST(1 AS InVaLiD)"));
+        assertEquals("line 1:12: Does not recognize type [InVaLiD]", ex.getMessage());
+    }
+
+    public void testCastOperatorWithUnquotedDataType() {
+        Expression expr = parser.createExpression("(10* 2)::long");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(Mul.class, cast.field().getClass());
+        Mul mul = (Mul) cast.field();
+        assertEquals("10* 2", mul.sourceText());
+        assertEquals(DataType.INTEGER, mul.dataType());
+    }
+
+    public void testCastOperatorWithQuotedDataType() {
+        Expression expr = parser.createExpression("(10*2)::\"LonG\"");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(Mul.class, cast.field().getClass());
+        Mul mul = (Mul) cast.field();
+        assertEquals("10*2", mul.sourceText());
+        assertEquals(DataType.INTEGER, mul.dataType());
+    }
+
+    public void testCastOperatorWithInvalidDataType() {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("-1::InVaLiD"));
+        assertEquals("line 1:6: Does not recognize type [InVaLiD]", ex.getMessage());
     }
 
     public void testConvertWithUnquotedDataType() {
@@ -338,6 +369,22 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:13: Invalid data type [INVALID] provided", ex.getMessage());
     }
 
+    public void testCurrentDate() {
+        Expression expr = parser.createExpression("CURRENT_DATE");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_DATE", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
+
+    public void testCurrentDateWithParentheses() {
+        Expression expr = parser.createExpression("CURRENT_DATE(  )");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_DATE(  )", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
+
     public void testCurrentTimestamp() {
         Expression expr = parser.createExpression("CURRENT_TIMESTAMP");
         assertEquals(UnresolvedFunction.class, expr.getClass());
@@ -362,13 +409,13 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:20: Precision needs to be between [0-9], received [100]", ex.getMessage());
     }
 
-    public void testSourceKeyword() throws Exception {
+    public void testSourceKeyword() {
         String s = "CUrrENT_timestamP";
         Expression expr = parser.createExpression(s);
         assertEquals(s, expr.sourceText());
     }
 
-    public void testSourceFunction() throws Exception {
+    public void testSourceFunction() {
         String s = "PerCentile_RaNK(fOO,    12 )";
         Expression expr = parser.createExpression(s);
         assertEquals(s, expr.sourceText());

@@ -159,7 +159,8 @@ task verifyVersions {
  * the enabled state of every bwc task. It should be set back to true
  * after the backport of the backcompat code is complete.
  */
-final boolean bwc_tests_enabled = true
+
+boolean bwc_tests_enabled = true
 final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
@@ -170,6 +171,11 @@ if (bwc_tests_enabled == false) {
   println "See ${bwc_tests_disabled_issue}"
   println "==========================================================="
 }
+if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } != null) {
+  // Disable BWC tests for checkPart* tasks as it's expected that this will run un it's own check
+  bwc_tests_enabled = false
+}
+
 subprojects {
   ext.bwc_tests_enabled = bwc_tests_enabled
 }
@@ -201,7 +207,7 @@ allprojects {
   }
 
   /* Sets up the dependencies that we build as part of this project but
-    register as thought they were external to resolve internally. We register
+    register as though they were external to resolve internally. We register
     them as external dependencies so the build plugin that we use can be used
     to build elasticsearch plugins outside of the elasticsearch source tree. */
   ext.projectSubstitutions = [
@@ -214,6 +220,7 @@ allprojects {
     "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
     "org.elasticsearch:elasticsearch-geo:${version}": ':libs:elasticsearch-geo',
     "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
+    "org.elasticsearch:elasticsearch-ssl-config:${version}": ':libs:elasticsearch-ssl-config',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
     "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
     "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
@@ -232,6 +239,9 @@ allprojects {
     "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
+    // for security example plugins
+    "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core',
+    "org.elasticsearch.client:x-pack-transport:${version}": ':x-pack:transport-client'
   ]
 
   /*
@@ -599,9 +609,10 @@ if (System.properties.get("build.compare") != null) {
 
 allprojects {
   task resolveAllDependencies {
-    doLast {
-      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
-    }
+      dependsOn tasks.matching { it.name == "pullFixture"}
+      doLast {
+        configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
+      }
   }
 }
 

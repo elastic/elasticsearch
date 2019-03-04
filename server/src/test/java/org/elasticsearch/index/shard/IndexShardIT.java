@@ -38,10 +38,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -59,13 +59,17 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -83,7 +87,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -99,14 +102,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
@@ -116,10 +121,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
 
@@ -273,76 +280,65 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testIndexCanChangeCustomDataPath() throws Exception {
-        Environment env = getInstanceFromNode(Environment.class);
-        Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
-        final String INDEX = "idx";
-        Path startDir = idxPath.resolve("start-" + randomAlphaOfLength(10));
-        Path endDir = idxPath.resolve("end-" + randomAlphaOfLength(10));
-        logger.info("--> start dir: [{}]", startDir.toAbsolutePath().toString());
-        logger.info("-->   end dir: [{}]", endDir.toAbsolutePath().toString());
-        // temp dirs are automatically created, but the end dir is what
-        // startDir is going to be renamed as, so it needs to be deleted
-        // otherwise we get all sorts of errors about the directory
-        // already existing
-        IOUtils.rm(endDir);
+        final String index = "test-custom-data-path";
+        final Path sharedDataPath = getInstanceFromNode(Environment.class).sharedDataFile().resolve(randomAsciiLettersOfLength(10));
+        final Path indexDataPath = sharedDataPath.resolve("start-" + randomAsciiLettersOfLength(10));
 
-        Settings sb = Settings.builder()
-            .put(IndexMetaData.SETTING_DATA_PATH, startDir.toAbsolutePath().toString())
-            .build();
-        Settings sb2 = Settings.builder()
-            .put(IndexMetaData.SETTING_DATA_PATH, endDir.toAbsolutePath().toString())
-            .build();
+        logger.info("--> creating index [{}] with data_path [{}]", index, indexDataPath);
+        createIndex(index, Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString()).build());
+        client().prepareIndex(index, "bar", "1").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
+        ensureGreen(index);
 
-        logger.info("--> creating an index with data_path [{}]", startDir.toAbsolutePath().toString());
-        createIndex(INDEX, sb);
-        ensureGreen(INDEX);
-        client().prepareIndex(INDEX, "bar", "1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        assertHitCount(client().prepareSearch(index).setSize(0).get(), 1L);
 
-        SearchResponse resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
-        assertThat("found the hit", resp.getHits().getTotalHits().value, equalTo(1L));
-
-        logger.info("--> closing the index [{}]", INDEX);
-        client().admin().indices().prepareClose(INDEX).get();
+        logger.info("--> closing the index [{}]", index);
+        assertAcked(client().admin().indices().prepareClose(index));
         logger.info("--> index closed, re-opening...");
-        client().admin().indices().prepareOpen(INDEX).get();
+        assertAcked(client().admin().indices().prepareOpen(index));
         logger.info("--> index re-opened");
-        ensureGreen(INDEX);
+        ensureGreen(index);
 
-        resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
-        assertThat("found the hit", resp.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCount(client().prepareSearch(index).setSize(0).get(), 1L);
 
         // Now, try closing and changing the settings
+        logger.info("--> closing the index [{}] before updating data_path", index);
+        assertAcked(client().admin().indices().prepareClose(index));
 
-        logger.info("--> closing the index [{}]", INDEX);
-        client().admin().indices().prepareClose(INDEX).get();
+        final Path newIndexDataPath = sharedDataPath.resolve("end-" + randomAlphaOfLength(10));
+        IOUtils.rm(newIndexDataPath);
 
-        logger.info("--> moving data on disk [{}] to [{}]", startDir.getFileName(), endDir.getFileName());
-        assert Files.exists(endDir) == false : "end directory should not exist!";
-        Files.move(startDir, endDir, StandardCopyOption.REPLACE_EXISTING);
+        logger.info("--> copying data on disk from [{}] to [{}]", indexDataPath, newIndexDataPath);
+        assert Files.exists(newIndexDataPath) == false : "new index data path directory should not exist!";
+        try (Stream<Path> stream = Files.walk(indexDataPath)) {
+            stream.forEach(path -> {
+                try {
+                    if (path.endsWith(".lock") == false) {
+                        Files.copy(path, newIndexDataPath.resolve(indexDataPath.relativize(path)));
+                    }
+                } catch (final Exception e) {
+                    logger.error("Failed to copy data path directory", e);
+                    fail();
+                }
+            });
+        }
 
-        logger.info("--> updating settings...");
-        client().admin().indices().prepareUpdateSettings(INDEX)
-            .setSettings(sb2)
-            .setIndicesOptions(IndicesOptions.fromOptions(true, false, true, true))
-            .get();
-
-        assert Files.exists(startDir) == false : "start dir shouldn't exist";
+        logger.info("--> updating data_path to [{}] for index [{}]", newIndexDataPath, index);
+        assertAcked(client().admin().indices().prepareUpdateSettings(index)
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, newIndexDataPath.toAbsolutePath().toString()).build())
+            .setIndicesOptions(IndicesOptions.fromOptions(true, false, true, true)));
 
         logger.info("--> settings updated and files moved, re-opening index");
-        client().admin().indices().prepareOpen(INDEX).get();
+        assertAcked(client().admin().indices().prepareOpen(index));
         logger.info("--> index re-opened");
-        ensureGreen(INDEX);
+        ensureGreen(index);
 
-        resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
-        assertThat("found the hit", resp.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCount(client().prepareSearch(index).setSize(0).get(), 1L);
 
-        assertAcked(client().admin().indices().prepareDelete(INDEX));
+        assertAcked(client().admin().indices().prepareDelete(index));
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
-        assertPathHasBeenCleared(startDir.toAbsolutePath());
-        assertPathHasBeenCleared(endDir.toAbsolutePath());
+        assertPathHasBeenCleared(newIndexDataPath.toAbsolutePath());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37896")
     public void testMaybeFlush() throws Exception {
         createIndex("test", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
             .build());
@@ -381,8 +377,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]",
             translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
         assertBusy(() -> { // this is async
-            logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]",
-                translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
+            final TranslogStats translogStats = translog.stats();
+            final CommitStats commitStats = shard.commitStats();
+            final FlushStats flushStats = shard.flushStats();
+            logger.info("--> translog stats [{}] gen [{}] commit_stats [{}] flush_stats [{}/{}]",
+                Strings.toString(translogStats), translog.getGeneration().translogFileGeneration,
+                commitStats.getUserData(), flushStats.getPeriodic(), flushStats.getTotal());
             assertFalse(shard.shouldPeriodicallyFlush());
         });
         assertEquals(0, translog.stats().getUncommittedOperations());
@@ -467,18 +467,22 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             final FlushStats initialStats = shard.flushStats();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
             check = () -> {
+                assertFalse(shard.shouldPeriodicallyFlush());
                 final FlushStats currentStats = shard.flushStats();
                 String msg = String.format(Locale.ROOT, "flush stats: total=[%d vs %d], periodic=[%d vs %d]",
                     initialStats.getTotal(), currentStats.getTotal(), initialStats.getPeriodic(), currentStats.getPeriodic());
-                assertThat(msg, currentStats.getPeriodic(), equalTo(initialStats.getPeriodic() + 1));
-                assertThat(msg, currentStats.getTotal(), equalTo(initialStats.getTotal() + 1));
+                assertThat(msg, currentStats.getPeriodic(),
+                    either(equalTo(initialStats.getPeriodic() + 1)).or(equalTo(initialStats.getPeriodic() + 2)));
+                assertThat(msg, currentStats.getTotal(),
+                    either(equalTo(initialStats.getTotal() + 1)).or(equalTo(initialStats.getTotal() + 2)));
             };
         } else {
             final long generation = getTranslog(shard).currentFileGeneration();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
-            check = () -> assertEquals(
-                    generation + 1,
-                    getTranslog(shard).currentFileGeneration());
+            check = () -> {
+                assertFalse(shard.shouldRollTranslogGeneration());
+                assertEquals(generation + 1, getTranslog(shard).currentFileGeneration());
+            };
         }
         assertBusy(check);
         running.set(false);
@@ -613,8 +617,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         Exception e = expectThrows(Exception.class,
                 () -> client().prepareSearch("test")
                     .addAggregation(AggregationBuilders.terms("foo_terms").field("foo.keyword")).get());
-        logger.info("--> got: {}", ExceptionsHelper.detailedMessage(e));
-        assertThat(ExceptionsHelper.detailedMessage(e), containsString("[parent] Data too large, data for [<agg [foo_terms]>]"));
+        logger.info("--> got an expected exception", e);
+        assertThat(e.getCause(), notNullValue());
+        assertThat(e.getCause().getMessage(), containsString("[parent] Data too large, data for [<agg [foo_terms]>]"));
 
         client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
@@ -663,12 +668,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 Collections.emptyList(),
                 Arrays.asList(listeners),
                 () -> {},
-                (leases, listener) -> {},
+                RetentionLeaseSyncer.EMPTY,
                 cbs);
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(existingShardRouting.shardId(),
+        ShardRouting shardRouting = newShardRouting(existingShardRouting.shardId(),
             existingShardRouting.currentNodeId(), null, existingShardRouting.primary(), ShardRoutingState.INITIALIZING,
             existingShardRouting.allocationId());
         shardRouting = shardRouting.updateUnassigned(new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "fake recovery"),
@@ -733,6 +738,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         t.join();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39565")
     public void testPendingRefreshWithIntervalChange() throws InterruptedException {
         Settings.Builder builder = Settings.builder();
         builder.put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO);
@@ -903,6 +909,29 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
             List<Translog.Operation> opsFromTranslog = TestTranslog.drainSnapshot(translogSnapshot, true);
             assertThat(opsFromLucene, equalTo(opsFromTranslog));
+        }
+    }
+
+    /**
+     * Test that the {@link org.elasticsearch.index.engine.NoOpEngine} takes precedence over other
+     * engine factories if the index is closed.
+     */
+    public void testNoOpEngineFactoryTakesPrecedence() {
+        final String indexName = "closed-index";
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        ensureGreen();
+
+        assertAcked(client().admin().indices().prepareClose(indexName));
+
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final ClusterState clusterState = clusterService.state();
+
+        final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(indexMetaData.getIndex());
+
+        for (IndexShard indexShard : indexService) {
+            assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
         }
     }
 }

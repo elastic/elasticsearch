@@ -148,6 +148,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT =
         Setting.intSetting("search.max_open_scroll_context", 500, 0, Property.Dynamic, Property.NodeScope);
 
+    public static final int DEFAULT_SIZE = 10;
+    public static final int DEFAULT_FROM = 0;
 
     private final ThreadPool threadPool;
 
@@ -266,7 +268,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // it's fine to keep the contexts open if the index is still "alive"
         // unfortunately we don't have a clear way to signal today why an index is closed.
         // to release memory and let references to the filesystem go etc.
-        if (reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED) {
+        if (reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED || reason == IndexRemovalReason.REOPENED) {
             freeAllContextForIndex(index);
         }
 
@@ -606,10 +608,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             // if the from and size are still not set, default them
             if (context.from() == -1) {
-                context.from(0);
+                context.from(DEFAULT_FROM);
             }
             if (context.size() == -1) {
-                context.size(10);
+                context.size(DEFAULT_SIZE);
             }
 
             // pre process
@@ -646,7 +648,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Engine.Searcher engineSearcher = indexShard.acquireSearcher(source);
 
         final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
-            engineSearcher, clusterService, indexService, indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), timeout,
+            engineSearcher, clusterService, indexService, indexShard, bigArrays, threadPool::relativeTimeInMillis, timeout,
             fetchPhase, clusterService.state().nodes().getMinNodeVersion());
         boolean success = false;
         try {

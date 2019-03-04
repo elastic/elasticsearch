@@ -30,7 +30,7 @@ public class ReadOnlyActionTests extends AbstractXContentTestCase<ReadOnlyAction
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 
     @Override

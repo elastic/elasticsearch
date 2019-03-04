@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -90,18 +91,23 @@ public class Reconfigurator {
      * @param retiredNodeIds Nodes that are leaving the cluster and which should not appear in the configuration if possible. Nodes that are
      *                       retired and not in the current configuration will never appear in the resulting configuration; this is useful
      *                       for shifting the vote in a 2-node cluster so one of the nodes can be restarted without harming availability.
+     * @param currentMaster  The current master. Unless retired, we prefer to keep the current master in the config.
      * @param currentConfig  The current configuration. As far as possible, we prefer to keep the current config as-is.
      * @return An optimal configuration, or leave the current configuration unchanged if the optimal configuration has no live quorum.
      */
-    public VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds, VotingConfiguration currentConfig) {
+    public VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds, DiscoveryNode currentMaster,
+                                           VotingConfiguration currentConfig) {
         assert liveNodes.stream().noneMatch(Coordinator::isZen1Node) : liveNodes;
-        logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}", this, currentConfig, liveNodes, retiredNodeIds);
+        assert liveNodes.contains(currentMaster) : "liveNodes = " + liveNodes + " master = " + currentMaster;
+        logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentMaster={}",
+            this, currentConfig, liveNodes, retiredNodeIds, currentMaster);
 
         /*
          *  There are three true/false properties of each node in play: live/non-live, retired/non-retired and in-config/not-in-config.
          *  Firstly we divide the nodes into disjoint sets based on these properties:
          *
-         *  - nonRetiredInConfigNotLiveIds
+         *  - nonRetiredMaster
+         *  - nonRetiredNotMasterInConfigNotLiveIds
          *  - nonRetiredInConfigLiveIds
          *  - nonRetiredLiveNotInConfigIds
          *
@@ -124,6 +130,17 @@ public class Reconfigurator {
 
         final Set<String> nonRetiredInConfigLiveIds = new TreeSet<>(liveInConfigIds);
         nonRetiredInConfigLiveIds.removeAll(retiredNodeIds);
+
+        final Set<String> nonRetiredInConfigLiveMasterIds;
+        final Set<String> nonRetiredInConfigLiveNotMasterIds;
+        if (nonRetiredInConfigLiveIds.contains(currentMaster.getId())) {
+            nonRetiredInConfigLiveNotMasterIds = new TreeSet<>(nonRetiredInConfigLiveIds);
+            nonRetiredInConfigLiveNotMasterIds.remove(currentMaster.getId());
+            nonRetiredInConfigLiveMasterIds = Collections.singleton(currentMaster.getId());
+        } else {
+            nonRetiredInConfigLiveNotMasterIds = nonRetiredInConfigLiveIds;
+            nonRetiredInConfigLiveMasterIds = Collections.emptySet();
+        }
 
         final Set<String> nonRetiredLiveNotInConfigIds = Sets.sortedDifference(liveNodeIds, currentConfig.getNodeIds());
         nonRetiredLiveNotInConfigIds.removeAll(retiredNodeIds);
@@ -151,9 +168,9 @@ public class Reconfigurator {
          * The new configuration is formed by taking this many nodes in the following preference order:
          */
         final VotingConfiguration newConfig = new VotingConfiguration(
-            // live nodes first, preferring the current config, and if we need more then use non-live nodes
-            Stream.of(nonRetiredInConfigLiveIds, nonRetiredLiveNotInConfigIds, nonRetiredInConfigNotLiveIds)
-                .flatMap(Collection::stream).limit(targetSize).collect(Collectors.toSet()));
+            // live master first, then other live nodes, preferring the current config, and if we need more then use non-live nodes
+            Stream.of(nonRetiredInConfigLiveMasterIds, nonRetiredInConfigLiveNotMasterIds, nonRetiredLiveNotInConfigIds,
+                nonRetiredInConfigNotLiveIds).flatMap(Collection::stream).limit(targetSize).collect(Collectors.toSet()));
 
         if (newConfig.hasQuorum(liveNodeIds)) {
             return newConfig;

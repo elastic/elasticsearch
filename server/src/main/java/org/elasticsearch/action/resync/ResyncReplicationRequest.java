@@ -66,7 +66,8 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
 
     @Override
     public void readFrom(final StreamInput in) throws IOException {
-        assert Version.CURRENT.major <= 7;
+        //  TODO: https://github.com/elastic/elasticsearch/issues/38556
+        //assert Version.CURRENT.major <= 7;
         if (in.getVersion().equals(Version.V_6_0_0)) {
             /*
              * Resync replication request serialization was broken in 6.0.0 due to the elements of the stream not being prefixed with a

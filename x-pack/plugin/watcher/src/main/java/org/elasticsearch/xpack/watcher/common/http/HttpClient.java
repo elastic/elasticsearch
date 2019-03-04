@@ -47,6 +47,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -162,7 +163,9 @@ public class HttpClient implements Closeable {
     }
 
     public HttpResponse execute(HttpRequest request) throws IOException {
-        URI uri = createURI(request);
+        Tuple<HttpHost, URI> tuple = createURI(request);
+        final URI uri = tuple.v2();
+        final HttpHost httpHost = tuple.v1();
 
         HttpRequestBase internalRequest;
         if (request.method == HttpMethod.HEAD) {
@@ -212,7 +215,7 @@ public class HttpClient implements Closeable {
             // preemptive auth, no need to wait for a 401 first
             AuthCache authCache = new BasicAuthCache();
             BasicScheme basicAuth = new BasicScheme();
-            authCache.put(new HttpHost(request.host, request.port, request.scheme.scheme()), basicAuth);
+            authCache.put(httpHost, basicAuth);
             localContext.setAuthCache(authCache);
         }
 
@@ -233,7 +236,7 @@ public class HttpClient implements Closeable {
 
         internalRequest.setConfig(config.build());
 
-        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(internalRequest, localContext))) {
+        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(httpHost, internalRequest, localContext))) {
             // headers
             Header[] headers = response.getAllHeaders();
             Map<String, String[]> responseHeaders = new HashMap<>(headers.length);
@@ -297,7 +300,7 @@ public class HttpClient implements Closeable {
                 Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings)) : Scheme.HTTP;
         int proxyPort = HttpSettings.PROXY_PORT.get(settings);
         if (proxyPort != 0 && Strings.hasText(proxyHost)) {
-            logger.info("Using default proxy for http input and slack/hipchat/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
+            logger.info("Using default proxy for http input and slack/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
         } else if (proxyPort != 0 ^ Strings.hasText(proxyHost)) {
             throw new IllegalArgumentException("HTTP proxy requires both settings: [" + HttpSettings.PROXY_HOST.getKey() + "] and [" +
                     HttpSettings.PROXY_PORT.getKey() + "]");
@@ -310,7 +313,7 @@ public class HttpClient implements Closeable {
         return HttpProxy.NO_PROXY;
     }
 
-    private URI createURI(HttpRequest request) {
+    private Tuple<HttpHost, URI> createURI(HttpRequest request) {
         // this could be really simple, as the apache http client has a UriBuilder class, however this class is always doing
         // url path escaping, and we have done this already, so this would result in double escaping
         try {
@@ -320,7 +323,23 @@ public class HttpClient implements Closeable {
             URI uri = URIUtils.createURI(request.scheme.scheme(), request.host, request.port, request.path,
                     Strings.isNullOrEmpty(format) ? null : format, null);
 
-            return uri;
+            if (uri.isAbsolute() == false) {
+                throw new IllegalStateException("URI [" + uri.toASCIIString() + "] must be absolute");
+            }
+            final HttpHost httpHost = URIUtils.extractHost(uri);
+            // what a mess that we need to do this to workaround https://issues.apache.org/jira/browse/HTTPCLIENT-1968
+            // in some cases the HttpClient will re-write the URI which drops the escaping for
+            // slashes within a path. This rewriting is done to obtain a relative URI when
+            // a proxy is not being used. To avoid this we can handle making it relative ourselves
+            if (request.path != null && request.path.contains("%2F")) {
+                final boolean isUsingProxy = (request.proxy != null && request.proxy.equals(HttpProxy.NO_PROXY) == false) ||
+                    HttpProxy.NO_PROXY.equals(settingsProxy) == false;
+                if (isUsingProxy == false) {
+                    // we need a relative uri
+                    uri = URIUtils.createURI(null, null, -1, request.path, Strings.isNullOrEmpty(format) ? null : format, null);
+                }
+            }
+            return new Tuple<>(httpHost, uri);
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e);
         }

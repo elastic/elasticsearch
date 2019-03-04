@@ -28,7 +28,6 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -55,8 +54,6 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         if (randomBoolean()) {
             if (randomBoolean()) {
                 fieldPattern = fieldPattern + "*";
-            } else {
-                fieldPattern = MetaData.ALL;
             }
         }
         return new ExistsQueryBuilder(fieldPattern);

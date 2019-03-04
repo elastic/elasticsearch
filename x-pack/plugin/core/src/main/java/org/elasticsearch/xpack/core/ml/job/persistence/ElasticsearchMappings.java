@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -62,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -85,8 +86,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * using whitespace.
  */
 public class ElasticsearchMappings {
-
-    public static final String DOC_TYPE = "doc";
 
     /**
      * String constants used in mappings
@@ -137,7 +136,7 @@ public class ElasticsearchMappings {
     public static XContentBuilder configMapping() throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject(DOC_TYPE);
+        builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
         addDefaultMapping(builder);
         builder.startObject(PROPERTIES);
@@ -420,14 +419,14 @@ public class ElasticsearchMappings {
                .endObject();
     }
 
-    public static XContentBuilder resultsMapping() throws IOException {
-        return resultsMapping(Collections.emptyList());
+    public static XContentBuilder resultsMapping(String mappingType) throws IOException {
+        return resultsMapping(mappingType, Collections.emptyList());
     }
 
-    public static XContentBuilder resultsMapping(Collection<String> extraTermFields) throws IOException {
+    public static XContentBuilder resultsMapping(String mappingType, Collection<String> extraTermFields) throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject(DOC_TYPE);
+        builder.startObject(mappingType);
         addMetaInformation(builder);
         addDefaultMapping(builder);
         builder.startObject(PROPERTIES);
@@ -456,10 +455,11 @@ public class ElasticsearchMappings {
 
         // end properties
         builder.endObject();
+        // end type
+        builder.endObject();
         // end mapping
         builder.endObject();
-        // end doc
-        builder.endObject();
+
 
         return builder;
     }
@@ -575,18 +575,25 @@ public class ElasticsearchMappings {
         addModelSizeStatsFieldsToMapping(builder);
     }
 
-    public static XContentBuilder termFieldsMapping(String type, Collection<String> termFields) {
+    /**
+     * Generate a keyword mapping for {@code termFields} for the default type
+     * {@link org.elasticsearch.index.mapper.MapperService#SINGLE_MAPPING_NAME}
+     *
+     * If the returned mapping is used in index creation and the new index has a matching template
+     * then the mapping type ({@link org.elasticsearch.index.mapper.MapperService#SINGLE_MAPPING_NAME})
+     * must match the mapping type of the template otherwise the mappings will not be merged correctly.
+     *
+     * @param termFields Fields to generate mapping for
+     * @return The mapping
+     */
+    public static XContentBuilder termFieldsMapping(Collection<String> termFields) {
         try {
             XContentBuilder builder = jsonBuilder().startObject();
-            if (type != null) {
-                builder.startObject(type);
-            }
+            builder.startObject(SINGLE_MAPPING_NAME);
             builder.startObject(PROPERTIES);
             addTermFields(builder, termFields);
             builder.endObject();
-            if (type != null) {
-                builder.endObject();
-            }
+            builder.endObject();
             return builder.endObject();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -872,7 +879,7 @@ public class ElasticsearchMappings {
     public static XContentBuilder stateMapping() throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject(DOC_TYPE);
+        builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
         builder.field(ENABLED, false);
         builder.endObject();
@@ -960,33 +967,34 @@ public class ElasticsearchMappings {
     }
 
     public static XContentBuilder auditMessageMapping() throws IOException {
-        XContentBuilder builder = jsonBuilder().startObject()
-            .startObject(AuditMessage.TYPE.getPreferredName());
+        XContentBuilder builder = jsonBuilder().startObject();
+        builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
         builder.startObject(PROPERTIES)
-                            .startObject(Job.ID.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
-                            .startObject(AuditMessage.LEVEL.getPreferredName())
-                               .field(TYPE, KEYWORD)
-                            .endObject()
-                            .startObject(AuditMessage.MESSAGE.getPreferredName())
-                                .field(TYPE, TEXT)
-                                .startObject(FIELDS)
-                                    .startObject(RAW)
-                                        .field(TYPE, KEYWORD)
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                            .startObject(AuditMessage.TIMESTAMP.getPreferredName())
-                                .field(TYPE, DATE)
-                            .endObject()
-                            .startObject(AuditMessage.NODE_NAME.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
+                .startObject(Job.ID.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AuditMessage.LEVEL.getPreferredName())
+                   .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AuditMessage.MESSAGE.getPreferredName())
+                    .field(TYPE, TEXT)
+                    .startObject(FIELDS)
+                        .startObject(RAW)
+                            .field(TYPE, KEYWORD)
                         .endObject()
                     .endObject()
-                .endObject();
+                .endObject()
+                .startObject(AuditMessage.TIMESTAMP.getPreferredName())
+                    .field(TYPE, DATE)
+                .endObject()
+                .startObject(AuditMessage.NODE_NAME.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+        .endObject()
+        .endObject()
+        .endObject();
+
         return builder;
     }
 
@@ -994,12 +1002,12 @@ public class ElasticsearchMappings {
         List<String> indicesToUpdate = new ArrayList<>();
 
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> currentMapping = state.metaData().findMappings(concreteIndices,
-                new String[] {DOC_TYPE}, MapperPlugin.NOOP_FIELD_FILTER);
+                new String[0], MapperPlugin.NOOP_FIELD_FILTER);
 
         for (String index : concreteIndices) {
             ImmutableOpenMap<String, MappingMetaData> innerMap = currentMapping.get(index);
             if (innerMap != null) {
-                MappingMetaData metaData = innerMap.get(DOC_TYPE);
+                MappingMetaData metaData = innerMap.valuesIt().next();
                 try {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");
@@ -1038,7 +1046,8 @@ public class ElasticsearchMappings {
         return indicesToUpdate.toArray(new String[indicesToUpdate.size()]);
     }
 
-    public static void addDocMappingIfMissing(String alias, CheckedSupplier<XContentBuilder, IOException> mappingSupplier,
+    public static void addDocMappingIfMissing(String alias,
+                                              CheckedBiFunction<String, Collection<String>, XContentBuilder, IOException> mappingSupplier,
                                               Client client, ClusterState state, ActionListener<Boolean> listener) {
         AliasOrIndex aliasOrIndex = state.metaData().getAliasAndIndexLookup().get(alias);
         if (aliasOrIndex == null) {
@@ -1058,9 +1067,13 @@ public class ElasticsearchMappings {
         }
 
         if (indicesThatRequireAnUpdate.length > 0) {
-            try (XContentBuilder mapping = mappingSupplier.get()) {
+            // Use the mapping type of the first index in the update
+            IndexMetaData indexMetaData = state.metaData().index(indicesThatRequireAnUpdate[0]);
+            String mappingType = indexMetaData.mapping().type();
+
+            try (XContentBuilder mapping = mappingSupplier.apply(mappingType, Collections.emptyList())) {
                 PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
-                putMappingRequest.type(DOC_TYPE);
+                putMappingRequest.type(mappingType);
                 putMappingRequest.source(mapping);
                 executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
                     ActionListener.wrap(response -> {

@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE")
+@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
 public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     @Override
@@ -202,6 +202,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39172")
     public void testThreeNodesNoMasterBlock() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(2);
 

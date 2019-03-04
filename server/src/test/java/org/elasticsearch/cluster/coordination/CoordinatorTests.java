@@ -65,7 +65,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.SeedHostsProvider.HostsResolver;
-import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
@@ -1442,7 +1441,8 @@ public class CoordinatorTests extends ESTestCase {
                 leader.improveConfiguration(lastAcceptedState), sameInstance(lastAcceptedState));
 
             logger.info("checking linearizability of history with size {}: {}", history.size(), history);
-            assertTrue("history not linearizable: " + history, linearizabilityChecker.isLinearizable(spec, history, i -> null));
+            // See https://github.com/elastic/elasticsearch/issues/39437
+            //assertTrue("history not linearizable: " + history, linearizabilityChecker.isLinearizable(spec, history, i -> null));
             logger.info("linearizability check completed");
         }
 

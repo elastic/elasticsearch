@@ -11,13 +11,7 @@
           "description" : "The name of the index to explain"
         }
       },
-      "params": {
-        "human": {
-          "type" : "boolean",
-          "default" : "false",
-          "description" : "Return data such as dates in a human readable format"
-        }
-      }
+      "params": {}
     },
     "body": null
   }

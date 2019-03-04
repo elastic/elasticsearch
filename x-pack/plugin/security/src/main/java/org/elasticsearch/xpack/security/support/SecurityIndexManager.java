@@ -385,7 +385,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      * State of the security index.
      */
     public static class State {
-        public final static State UNRECOVERED_STATE = new State(false, false, false, false, null, null, null);
+        public static final State UNRECOVERED_STATE = new State(false, false, false, false, null, null, null);
         public final boolean indexExists;
         public final boolean isIndexUpToDate;
         public final boolean indexAvailable;

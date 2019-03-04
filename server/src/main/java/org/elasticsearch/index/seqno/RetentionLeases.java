@@ -19,15 +19,20 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Locale;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -37,7 +42,7 @@ import java.util.stream.Collectors;
  * Represents a versioned collection of retention leases. We version the collection of retention leases to ensure that sync requests that
  * arrive out of order on the replica, using the version to ensure that older sync requests are rejected.
  */
-public class RetentionLeases implements Writeable {
+public class RetentionLeases implements ToXContent, Writeable {
 
     private final long primaryTerm;
 
@@ -157,54 +162,59 @@ public class RetentionLeases implements Writeable {
         out.writeCollection(leases.values());
     }
 
-    /**
-     * Encodes a retention lease collection as a string. This encoding can be decoded by
-     * {@link RetentionLeases#decodeRetentionLeases(String)}. The encoding is a comma-separated encoding of each retention lease as encoded
-     * by {@link RetentionLease#encodeRetentionLease(RetentionLease)}, prefixed by the version of the retention lease collection.
-     *
-     * @param retentionLeases the retention lease collection
-     * @return the encoding of the retention lease collection
-     */
-    public static String encodeRetentionLeases(final RetentionLeases retentionLeases) {
-        Objects.requireNonNull(retentionLeases);
-        return String.format(
-                Locale.ROOT,
-                "primary_term:%d;version:%d;%s",
-                retentionLeases.primaryTerm,
-                retentionLeases.version,
-                retentionLeases.leases.values().stream().map(RetentionLease::encodeRetentionLease).collect(Collectors.joining(",")));
+    private static final ParseField PRIMARY_TERM_FIELD = new ParseField("primary_term");
+    private static final ParseField VERSION_FIELD = new ParseField("version");
+    private static final ParseField LEASES_FIELD = new ParseField("leases");
+
+    @SuppressWarnings("unchecked")
+    private static ConstructingObjectParser<RetentionLeases, Void> PARSER = new ConstructingObjectParser<>(
+            "retention_leases",
+            (a) -> new RetentionLeases((Long) a[0], (Long) a[1], (Collection<RetentionLease>) a[2]));
+
+    static {
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), PRIMARY_TERM_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> RetentionLease.fromXContent(p), LEASES_FIELD);
+    }
+
+    @Override
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        builder.field(PRIMARY_TERM_FIELD.getPreferredName(), primaryTerm);
+        builder.field(VERSION_FIELD.getPreferredName(), version);
+        builder.startArray(LEASES_FIELD.getPreferredName());
+        {
+            for (final RetentionLease retentionLease : leases.values()) {
+                retentionLease.toXContent(builder, params);
+            }
+        }
+        builder.endArray();
+        return builder;
     }
 
     /**
-     * Decodes retention leases encoded by {@link #encodeRetentionLeases(RetentionLeases)}.
+     * Parses a retention leases collection from {@link org.elasticsearch.common.xcontent.XContent}. This method assumes that the retention
+     * leases were converted to {@link org.elasticsearch.common.xcontent.XContent} via {@link #toXContent(XContentBuilder, Params)}.
      *
-     * @param encodedRetentionLeases an encoded retention lease collection
-     * @return the decoded retention lease collection
+     * @param parser the parser
+     * @return a retention leases collection
      */
-    public static RetentionLeases decodeRetentionLeases(final String encodedRetentionLeases) {
-        Objects.requireNonNull(encodedRetentionLeases);
-        if (encodedRetentionLeases.isEmpty()) {
-            return EMPTY;
-        }
-        assert encodedRetentionLeases.matches("primary_term:\\d+;version:\\d+;.*") : encodedRetentionLeases;
-        final int firstSemicolon = encodedRetentionLeases.indexOf(";");
-        final long primaryTerm = Long.parseLong(encodedRetentionLeases.substring("primary_term:".length(), firstSemicolon));
-        final int secondSemicolon = encodedRetentionLeases.indexOf(";", firstSemicolon + 1);
-        final long version = Long.parseLong(encodedRetentionLeases.substring(firstSemicolon + 1 + "version:".length(), secondSemicolon));
-        final Collection<RetentionLease> leases;
-        if (secondSemicolon + 1 == encodedRetentionLeases.length()) {
-            leases = Collections.emptyList();
-        } else {
-            assert Arrays.stream(encodedRetentionLeases.substring(secondSemicolon + 1).split(","))
-                    .allMatch(s -> s.matches("id:[^:;,]+;retaining_seq_no:\\d+;timestamp:\\d+;source:[^:;,]+"))
-                    : encodedRetentionLeases;
-            leases = Arrays.stream(encodedRetentionLeases.substring(secondSemicolon + 1).split(","))
-                    .map(RetentionLease::decodeRetentionLease)
-                    .collect(Collectors.toList());
+    public static RetentionLeases fromXContent(final XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    static final MetaDataStateFormat<RetentionLeases> FORMAT = new MetaDataStateFormat<RetentionLeases>("retention-leases-") {
+
+        @Override
+        public void toXContent(final XContentBuilder builder, final RetentionLeases retentionLeases) throws IOException {
+            retentionLeases.toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
 
-        return new RetentionLeases(primaryTerm, version, leases);
-    }
+        @Override
+        public RetentionLeases fromXContent(final XContentParser parser) {
+            return RetentionLeases.fromXContent(parser);
+        }
+
+    };
 
     @Override
     public boolean equals(Object o) {
@@ -237,7 +247,16 @@ public class RetentionLeases implements Writeable {
      * @return the map from retention lease ID to retention lease
      */
     private static Map<String, RetentionLease> toMap(final Collection<RetentionLease> leases) {
-        return leases.stream().collect(Collectors.toMap(RetentionLease::id, Function.identity()));
+        // use a linked hash map to preserve order
+        return leases.stream()
+                .collect(Collectors.toMap(
+                        RetentionLease::id,
+                        Function.identity(),
+                        (left, right) -> {
+                            assert left.id().equals(right.id()) : "expected [" + left.id() + "] to equal [" + right.id() + "]";
+                            throw new IllegalStateException("duplicate retention lease ID [" + left.id() + "]");
+                        },
+                        LinkedHashMap::new));
     }
 
     /**

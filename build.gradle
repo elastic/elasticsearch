@@ -162,7 +162,6 @@ task verifyVersions {
 
 boolean bwc_tests_enabled = true
 final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
-
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -175,12 +174,6 @@ if (bwc_tests_enabled == false) {
 if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } != null) {
   // Disable BWC tests for checkPart* tasks as it's expected that this will run un it's own check
   bwc_tests_enabled = false
-}
-if (project.gradle.startParameter.taskNames.contains("bwcTestSnapshots") && bwc_tests_enabled == false) {
-  throw new GradleException("BWC tests are disabled. " +
-          "This can happen if a branch happened to be created when they were disabled and can be solved by mergin at" +
-          "least to the commit on the parent branch that re-enabled them"
-  )
 }
 
 subprojects {
@@ -248,7 +241,7 @@ allprojects {
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
     // for security example plugins
     "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core',
-    "org.elasticsearch.client.x-pack-transport:${version}": ':x-pack:transport-client'
+    "org.elasticsearch.client:x-pack-transport:${version}": ':x-pack:transport-client'
   ]
 
   /*
@@ -616,9 +609,10 @@ if (System.properties.get("build.compare") != null) {
 
 allprojects {
   task resolveAllDependencies {
-    doLast {
-      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
-    }
+      dependsOn tasks.matching { it.name == "pullFixture"}
+      doLast {
+        configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
+      }
   }
 }
 

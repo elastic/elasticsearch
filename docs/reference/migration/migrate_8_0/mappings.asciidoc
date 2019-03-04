@@ -3,8 +3,7 @@
 === Mapping changes
 
 [float]
-==== The `nGram` and `edgeNGram` token filter names have been removed
+==== Limiting the number of completion contexts
 
-The `nGram` and `edgeNGram` token filter names that have been deprecated since
-version 6.4 have been removed. Both token filters should be used by their 
-alternative names `ngram` and `edge_ngram` instead.
+The number of completion contexts within a single completion field
+has been limited to 10.

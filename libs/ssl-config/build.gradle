@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: "nebula.maven-scm"
 
 dependencies {
     compile "org.elasticsearch:elasticsearch-core:${version}"
@@ -31,9 +32,23 @@ dependencies {
     testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
 }
 
+if (isEclipse) {
+  // in eclipse the project is under a fake root, we need to change around the source sets
+  sourceSets {
+    if (project.path == ":libs:ssl-config") {
+      main.java.srcDirs = ['java']
+      main.resources.srcDirs = ['resources']
+    } else {
+      test.java.srcDirs = ['java']
+      test.resources.srcDirs = ['resources']
+    }
+  }
+}
+
 forbiddenApisMain {
     replaceSignatureFiles 'jdk-signatures'
 }
+
 forbiddenPatterns {
     exclude '**/*.key'
     exclude '**/*.pem'

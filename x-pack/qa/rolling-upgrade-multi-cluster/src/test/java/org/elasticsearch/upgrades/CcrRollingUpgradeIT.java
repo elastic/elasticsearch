@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
-    public void testIndexFollowing() throws Exception {
+    public void testUniDirectionalIndexFollowing() throws Exception {
         logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);
 
         if (clusterName == ClusterName.LEADER) {
@@ -222,10 +222,68 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
             assertThat(e.getMessage(), containsString("] which is higher than the version of this node ["));
         } else if (clusterName == ClusterName.LEADER) {
             // At this point all nodes in both clusters have been updated and
-            // the leader cluster can now follow leader_index4 in the follower cluster:
+            // the leader cluster can now follow not_supported index in the follower cluster:
+            ensureGreen(followerClient(), "not_supported");
             followIndex(leaderClient(), "follower", "not_supported", "not_supported");
             assertTotalHitCount("not_supported", 64, leaderClient());
         } else {
+            throw new AssertionError("unexpected cluster_name [" + clusterName + "]");
+        }
+    }
+
+    public void testBiDirectionalIndexFollowing() throws Exception {
+        logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);
+
+        if (clusterName == ClusterName.FOLLOWER) {
+            switch (upgradeState) {
+                case NONE:
+                    createLeaderIndex(leaderClient(), "leader_index5");
+                    index(leaderClient(), "leader_index5", 128);
+
+                    followIndex(followerClient(), "leader", "leader_index5", "follower_index5");
+                    followIndex(leaderClient(), "follower", "follower_index5", "follower_index6");
+                    assertTotalHitCount("follower_index5", 128, followerClient());
+                    assertTotalHitCount("follower_index6", 128, leaderClient());
+
+                    index(leaderClient(), "leader_index5", 128);
+                    pauseIndexFollowing(followerClient(), "follower_index5");
+                    pauseIndexFollowing(leaderClient(), "follower_index6");
+                    break;
+                case ONE_THIRD:
+                    index(leaderClient(), "leader_index5", 128);
+                    break;
+                case TWO_THIRD:
+                    index(leaderClient(), "leader_index5", 128);
+                    break;
+                case ALL:
+                    index(leaderClient(), "leader_index5", 128);
+                    break;
+                default:
+                    throw new AssertionError("unexpected upgrade_state [" + upgradeState + "]");
+            }
+        } else if (clusterName == ClusterName.LEADER) {
+            switch (upgradeState) {
+                case NONE:
+                    break;
+                case ONE_THIRD:
+                    index(leaderClient(), "leader_index5", 128);
+                    break;
+                case TWO_THIRD:
+                    index(leaderClient(), "leader_index5", 128);
+                    break;
+                case ALL:
+                    ensureGreen(followerClient(), "follower_index5");
+                    resumeIndexFollowing(followerClient(), "follower_index5");
+                    ensureGreen(leaderClient(), "follower_index6");
+                    resumeIndexFollowing(leaderClient(), "follower_index6");
+
+                    assertTotalHitCount("follower_index5", 896, followerClient());
+                    assertTotalHitCount("follower_index6", 896, leaderClient());
+                    break;
+                default:
+                    throw new AssertionError("unexpected upgrade_state [" + upgradeState + "]");
+            }
+        }  else {
             throw new AssertionError("unexpected cluster_name [" + clusterName + "]");
         }
     }
@@ -305,9 +363,26 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     private static void stopIndexFollowing(RestClient client, String followerIndex) throws IOException {
-        assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/pause_follow")));
+        pauseIndexFollowing(client, followerIndex);
         assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_close")));
         assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/unfollow")));
+    }
+
+    private static void pauseIndexFollowing(RestClient client, String followerIndex) throws IOException {
+        assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/pause_follow")));
+    }
+
+    private static void resumeIndexFollowing(RestClient client, String followerIndex) throws IOException {
+        assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/resume_follow")));
+    }
+
+    private static void ensureGreen(RestClient client, String index) throws IOException {
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("wait_for_status", "green");
+        request.addParameter("wait_for_no_relocating_shards", "true");
+        request.addParameter("timeout", "70s");
+        request.addParameter("level", "shards");
+        client.performRequest(request);
     }
 
 }

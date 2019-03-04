@@ -5,16 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
-import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.TypeResolutions;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Collections;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNotFoldable;
 
 /**
  * Super class of Aggregation functions on field types other than numeric, that need to be
@@ -37,29 +36,25 @@ public abstract class TopHits extends AggregateFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (field().foldable()) {
-            return new TypeResolution(format(null, "First argument of [{}] must be a table column, found constant [{}]",
-                functionName(),
-                Expressions.name(field())));
+        TypeResolution resolution = isNotFoldable(field(), sourceText(), ParamOrdinal.FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
         }
-        try {
-            ((FieldAttribute) field()).exactAttribute();
-        } catch (MappingException ex) {
-            return new TypeResolution(format(null, "[{}] cannot operate on first argument field of data type [{}]",
-                functionName(), field().dataType().typeName));
+
+        resolution = TypeResolutions.isExact(field(), sourceText(), ParamOrdinal.FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
         }
 
         if (orderField() != null) {
-            if (orderField().foldable()) {
-                return new TypeResolution(format(null, "Second argument of [{}] must be a table column, found constant [{}]",
-                    functionName(),
-                    Expressions.name(orderField())));
+            resolution = isNotFoldable(orderField(), sourceText(), ParamOrdinal.SECOND);
+            if (resolution.unresolved()) {
+                return resolution;
             }
-            try {
-                ((FieldAttribute) orderField()).exactAttribute();
-            } catch (MappingException ex) {
-                return new TypeResolution(format(null, "[{}] cannot operate on second argument field of data type [{}]",
-                    functionName(), orderField().dataType().typeName));
+
+            resolution = TypeResolutions.isExact(orderField(), sourceText(), ParamOrdinal.SECOND);
+            if (resolution.unresolved()) {
+                return resolution;
             }
         }
         return TypeResolution.TYPE_RESOLVED;

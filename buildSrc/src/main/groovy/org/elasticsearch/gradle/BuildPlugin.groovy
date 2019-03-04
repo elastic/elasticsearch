@@ -591,7 +591,7 @@ class BuildPlugin implements Plugin<Project> {
             String revision = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
             repos.maven {
                 name 'lucene-snapshots'
-                url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+                url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
         }
     }

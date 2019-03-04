@@ -51,7 +51,6 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -120,7 +119,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
+        logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         super.tearDown();
         assertAcked(client().admin().indices().prepareDelete("*").get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
@@ -312,8 +311,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
-        ThreadPool threadPool = indexService.getThreadPool();
-        return new TestSearchContext(threadPool, bigArrays, indexService);
+        return new TestSearchContext(bigArrays, indexService);
     }
 
     /**

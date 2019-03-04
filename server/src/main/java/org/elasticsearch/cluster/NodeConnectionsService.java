@@ -67,8 +67,8 @@ import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
  * need not block on re-establishing existing connections because if a connection is down then we are already in an exceptional situation
  * and it doesn't matter much if we stay in this situation a little longer.
  * <p>
- * This component does not block on disconnections at all, because a disconnection might need to wait for an ongoing connection attempt to
- * complete first.
+ * This component does not block on disconnections at all, because a disconnection might need to wait for an ongoing (background) connection
+ * attempt to complete first.
  */
 public class NodeConnectionsService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(NodeConnectionsService.class);
@@ -243,22 +243,26 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
      * Each {@link ConnectionTarget} is in one of these states:
      * <p>
      * - idle                       ({@link ConnectionTarget#listeners} empty)
-     * - awaiting connection        ({@link ConnectionTarget#listeners} contains at least one 1 listener awaiting a connection)
-     * - awaiting disconnection     ({@link ConnectionTarget#listeners} contains at least one 1 listener awaiting a disconnection)
+     * - awaiting connection        ({@link ConnectionTarget#listeners} may contain listeners awaiting a connection)
+     * - awaiting disconnection     ({@link ConnectionTarget#listeners} may contain listeners awaiting a disconnection)
      * <p>
-     * It will be awaiting connection (respectively disconnection) after calling {@code connect()} (respectively {@code disconnect()}).
+     * It will be awaiting connection (respectively disconnection) after calling {@code connect()} (respectively {@code disconnect()}). It
+     * will eventually become idle if these methods are not called infinitely often.
      * <p>
      * These methods return a {@link Runnable} which starts the connection/disconnection process iff it was idle before the method was
-     * called. The connection/disconnection process continues until all listeners have been notified, at which point it becomes idle again.
+     * called, and which notifies any failed listeners if the {@code ConnectionTarget} went from {@code CONNECTING} to {@code DISCONNECTING}
+     * or vice versa. The connection/disconnection process continues until all listeners have been removed, at which point it becomes idle
+     * again.
      * <p>
      * Additionally if the last step of the process was a disconnection then this target is removed from the current set of targets. Thus
      * if this {@link ConnectionTarget} is idle and in the current set of targets then it should be connected.
      * <p>
      * All of the {@code listeners} are awaiting the completion of the same activity, which is either a connection or a disconnection.  If
      * we are currently connecting and then {@link ConnectionTarget#disconnect()} is called then all connection listeners are
-     * immediately notified of failure; once the connecting process has finished a disconnection will be started. Similarly if we are
-     * currently disconnecting and then {@link ConnectionTarget#connect(ActionListener)} is called then all disconnection listeners are
-     * immediately notified of failure and a connection is started once the disconnection is complete.
+     * removed from the list so they can be notified of failure; once the connecting process has finished a disconnection will be started.
+     * Similarly if we are currently disconnecting and then {@link ConnectionTarget#connect(ActionListener)} is called then all
+     * disconnection listeners are immediately removed for failure notification and a connection is started once the disconnection is
+     * complete.
      */
     private class ConnectionTarget {
         private final DiscoveryNode discoveryNode;

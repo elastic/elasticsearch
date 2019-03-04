@@ -25,12 +25,13 @@ import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
+import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 public class AnnotatedTextHighlighter extends UnifiedHighlighter {
@@ -39,30 +40,35 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     
     @Override
     protected Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type, HitContext hitContext) {
-        // Stash the special Analyzer used for annotations in the hitContext
-        hitContext.analyzer(new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper, type, hitContext)));
-        return hitContext.analyzer();
+        return new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper, type, hitContext), hitContext);
     }
 
     // Convert the marked-up values held on-disk to plain-text versions for highlighting
     @Override
     protected List<Object> loadFieldValues(MappedFieldType fieldType, Field field, SearchContext context, HitContext hitContext)
             throws IOException {
-        // Retrieve the special Analyzer used for annotations in the hitContext
-        assert hitContext.analyzer() != null;
         List<Object> fieldValues = super.loadFieldValues(fieldType, field, context, hitContext);
         String[] fieldValuesAsString = fieldValues.toArray(new String[fieldValues.size()]);
-        AnnotatedHighlighterAnalyzer annotatedHighlighterAnalyzer = (AnnotatedHighlighterAnalyzer) hitContext.analyzer();
-        annotatedHighlighterAnalyzer.init(fieldValuesAsString);
-        return Arrays.asList((Object[]) annotatedHighlighterAnalyzer.getPlainTextValuesForHighlighter());
+        
+        AnnotatedText[] annotations = new AnnotatedText[fieldValuesAsString.length];
+        for (int i = 0; i < fieldValuesAsString.length; i++) {
+            annotations[i] = AnnotatedText.parse(fieldValuesAsString[i]);
+        }
+        // Store the annotations in the hitContext
+        hitContext.cache().put(AnnotatedText.class.getName(), annotations);
+        
+        ArrayList<Object> result = new ArrayList<>(annotations.length);
+        for (int i = 0; i < annotations.length; i++) {
+            result.add(annotations[i].textMinusMarkup);
+        }
+        return result;
     }
 
     @Override
     protected PassageFormatter getPassageFormatter(HitContext hitContext,SearchContextHighlight.Field field, Encoder encoder) {
-        // Retrieve the special Analyzer used for annotations in the hitContext
-        assert hitContext.analyzer() != null;
-        AnnotatedHighlighterAnalyzer annotatedHighlighterAnalyzer = (AnnotatedHighlighterAnalyzer) hitContext.analyzer();
-        return new AnnotatedPassageFormatter(annotatedHighlighterAnalyzer, encoder);
+        // Retrieve the annotations from the hitContext
+        AnnotatedText[] annotations = (AnnotatedText[]) hitContext.cache().get(AnnotatedText.class.getName());
+        return new AnnotatedPassageFormatter(annotations, encoder);
     }
 
 }

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.fetch;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -41,7 +40,6 @@ public interface FetchSubPhase {
         private LeafReaderContext readerContext;
         private int docId;
         private Map<String, Object> cache;
-        private Analyzer analyzer;
 
         public void reset(SearchHit hit, LeafReaderContext context, int docId, IndexSearcher searcher) {
             this.hit = hit;
@@ -76,14 +74,6 @@ public interface FetchSubPhase {
             }
             return cache;
         }
-
-        public void analyzer(Analyzer analyzer) {
-            this.analyzer=analyzer;
-        }
-        public Analyzer analyzer() {
-            return analyzer;
-        }
-
     }
 
     /**

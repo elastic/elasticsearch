@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAc
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.ValidateDataFrameTransformAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.action.TransportDeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsAction;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.dataframe.action.TransportPreviewDataFrameTransfo
 import org.elasticsearch.xpack.dataframe.action.TransportPutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.action.TransportValidateDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteDataFrameTransformAction;
@@ -64,6 +66,7 @@ import org.elasticsearch.xpack.dataframe.rest.action.RestPreviewDataFrameTransfo
 import org.elasticsearch.xpack.dataframe.rest.action.RestPutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.rest.action.RestValidateDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformPersistentTasksExecutor;
 
 import java.io.IOException;
@@ -135,7 +138,8 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new RestDeleteDataFrameTransformAction(settings, restController),
                 new RestGetDataFrameTransformsAction(settings, restController),
                 new RestGetDataFrameTransformsStatsAction(settings, restController),
-                new RestPreviewDataFrameTransformAction(settings, restController)
+                new RestPreviewDataFrameTransformAction(settings, restController),
+                new RestValidateDataFrameTransformAction(settings, restController)
         );
     }
 
@@ -152,7 +156,8 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new ActionHandler<>(DeleteDataFrameTransformAction.INSTANCE, TransportDeleteDataFrameTransformAction.class),
                 new ActionHandler<>(GetDataFrameTransformsAction.INSTANCE, TransportGetDataFrameTransformsAction.class),
                 new ActionHandler<>(GetDataFrameTransformsStatsAction.INSTANCE, TransportGetDataFrameTransformsStatsAction.class),
-                new ActionHandler<>(PreviewDataFrameTransformAction.INSTANCE, TransportPreviewDataFrameTransformAction.class)
+                new ActionHandler<>(PreviewDataFrameTransformAction.INSTANCE, TransportPreviewDataFrameTransformAction.class),
+                new ActionHandler<>(ValidateDataFrameTransformAction.INSTANCE, TransportValidateDataFrameTransformAction.class)
                 );
     }
 

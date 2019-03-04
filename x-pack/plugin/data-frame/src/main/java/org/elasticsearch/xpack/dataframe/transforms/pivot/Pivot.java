@@ -99,7 +99,7 @@ public class Pivot {
             }
             listener.onResponse(true);
         }, e->{
-            listener.onFailure(new RuntimeException("Failed to test query",e));
+            listener.onFailure(new RuntimeException("Failed to test query", e));
         }));
     }
 

@@ -1,0 +1,205 @@
+setup:
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+
+---
+"Test validate transform configuration":
+  - do:
+      catch: /Required \[source, dest\]/
+      data_frame.validate_data_frame_transform:
+        body: >
+          {
+
+          }
+
+  - do:
+      catch: /\[id\] must not be null/
+      data_frame.validate_data_frame_transform:
+        body: >
+          {
+             "source": "airline-data",
+             "dest": "airline-data-transformed"
+          }
+
+  - do:
+      catch: /Data frame transform configuration must specify exactly 1 function/
+      data_frame.validate_data_frame_transform:
+        body: >
+          {
+             "id": "airline-transform",
+             "source": "airline-data",
+             "dest": "airline-data-transformed"
+          }
+
+  - do:
+      catch: /Required \[aggregations\]/
+      data_frame.validate_data_frame_transform:
+        body: >
+          {
+             "id": "airline-transform",
+             "source": "airline-data",
+             "dest": "airline-data-transformed",
+             "pivot": {
+                "group_by": { "airline": {"terms": {"field": "airline"}}}
+              }
+          }
+  - do:
+      catch: /invalid grouping type[:] significant_terms/
+      data_frame.validate_data_frame_transform:
+        body: >
+          {
+             "id": "airline-transform",
+             "source": "airline-data",
+             "dest": "airline-data-transformed",
+             "pivot": {
+                "group_by": { "airline": {"significant_terms": {"field": "airline"}}},
+                "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+              }
+          }
+  - do:
+      catch: /Unsupported aggregation type \[stats\]/
+      data_frame.validate_data_frame_transform:
+        body: >
+          {
+             "id": "airline-transform",
+             "source": "airline-data",
+             "dest": "airline-data-transformed",
+             "pivot": {
+                "group_by": { "airline": {"terms": {"field": "airline"}}},
+                "aggs": {"avg_response": {"stats": {"field": "responsetime"}}}
+              }
+          }
+  - do:
+      catch: /\[avg\] unknown field \[bad-field\], parser not found/
+      data_frame.validate_data_frame_transform:
+        body: >
+          {
+             "id": "airline-transform",
+             "source": "airline-data",
+             "dest": "airline-data-transformed",
+             "pivot": {
+                "group_by": { "airline": {"terms": {"field": "airline"}}},
+                "aggs": {"avg_response": {"avg": {"bad-field": "responsetime"}}}
+              }
+          }
+  - do:
+      catch: /\[data_frame_terms_group\] unknown field \[bad-field\], parser not found/
+      data_frame.validate_data_frame_transform:
+        body: >
+          {
+             "id": "airline-transform",
+             "source": "airline-data",
+             "dest": "airline-data-transformed",
+             "pivot": {
+                "group_by": { "airline": {"terms": {"bad-field": "airline"}}},
+                "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+              }
+          }
+  - do:
+      catch: /no \[query\] registered for \[bad-query\]/
+      data_frame.validate_data_frame_transform:
+        body: >
+          {
+             "id": "airline-transform",
+             "source": "airline-data",
+             "dest": "airline-data-transformed",
+             "pivot": {
+                "group_by": { "airline": {"terms": {"field": "airline"}}},
+                "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+              },
+             "query": { "bad-query": {} }
+          }
+  - do:
+      data_frame.validate_data_frame_transform:
+        body: >
+          {
+             "id": "airline-transform",
+             "source": "airline-data",
+             "dest": "airline-data-transformed",
+             "pivot": {
+                "group_by": { "airline": {"terms": {"field": "airline"}}},
+                "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+              }
+          }
+  - match: { acknowledged: true }
+
+---
+"Test validate transform configuration with missing source":
+  - do:
+      catch: /no such index \[airline-data-missing\]/
+      data_frame.validate_data_frame_transform:
+        body: >
+          {
+             "id": "airline-transform",
+             "source": "airline-data-missing",
+             "dest": "airline-data-transformed",
+             "pivot": {
+                "group_by": { "airline": {"terms": {"field": "airline"}}},
+                "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+              }
+          }
+---
+"Test validate transform configuration with existing target":
+  - do:
+      indices.create:
+        index: airline-data-transformed
+
+  - do:
+      catch: /Target index \[airline-data-transformed\] already exists/
+      data_frame.validate_data_frame_transform:
+        body: >
+          {
+             "id": "airline-transform",
+             "source": "airline-data",
+             "dest": "airline-data-transformed",
+             "pivot": {
+                "group_by": { "airline": {"terms": {"field": "airline"}}},
+                "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+              }
+          }
+
+---
+"Test validate transform configuration with existing transform":
+
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: airline-transform
+        body: >
+          {
+             "id": "airline-transform",
+             "source": "airline-data",
+             "dest": "airline-data-transformed",
+             "pivot": {
+                "group_by": { "airline": {"terms": {"field": "airline"}}},
+                "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+              }
+          }
+
+  - do:
+      catch: /Transform with id \[airline-transform\] already exists/
+      data_frame.validate_data_frame_transform:
+        body: >
+          {
+             "id": "airline-transform",
+             "source": "airline-data",
+             "dest": "airline-data-transformed",
+             "pivot": {
+                "group_by": { "airline": {"terms": {"field": "airline"}}},
+                "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+              }
+          }
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: airline-transform

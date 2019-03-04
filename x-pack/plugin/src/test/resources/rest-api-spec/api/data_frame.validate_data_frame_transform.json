@@ -1,0 +1,14 @@
+{
+  "data_frame.validate_data_frame_transform": {
+    "documentation": "TODO",
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_data_frame/transforms/_validate",
+      "paths": [ "/_data_frame/transforms/_validate" ]
+    },
+    "body": {
+      "description" : "The definition for the data_frame transform to validate",
+      "required": true
+    }
+  }
+}

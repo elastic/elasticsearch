@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -156,7 +157,14 @@ public class GroupConfig implements Writeable, ToXContentObject {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
             token = parser.nextToken();
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-            SingleGroupSource.Type groupType = SingleGroupSource.Type.valueOf(parser.currentName().toUpperCase(Locale.ROOT));
+            String typeString = parser.currentName().toUpperCase(Locale.ROOT);
+
+            // `valueOf` fails with a message about a missing enum constant if we don't verify its existence before hand
+            if(Arrays.stream(SingleGroupSource.Type.values()).map(String::valueOf).noneMatch(v -> v.equals(typeString))) {
+                throw new ParsingException(parser.getTokenLocation(), "invalid grouping type: " + parser.currentName());
+            }
+
+            SingleGroupSource.Type groupType = SingleGroupSource.Type.valueOf(typeString);
 
             token = parser.nextToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);

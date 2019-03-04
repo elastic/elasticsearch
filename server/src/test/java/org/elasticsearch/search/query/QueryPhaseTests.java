@@ -21,6 +21,8 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
@@ -121,10 +123,13 @@ public class QueryPhaseTests extends IndexShardTestCase {
             if (randomBoolean()) {
                 doc.add(new StringField("foo", "bar", Store.NO));
                 doc.add(new SortedSetDocValuesField("foo", new BytesRef("bar")));
+                doc.add(new SortedSetDocValuesField("docValuesOnlyField", new BytesRef("bar")));
+                doc.add(new LatLonDocValuesField("latLonDVField", 1.0, 1.0));
+                doc.add(new LatLonPoint("latLonDVField", 1.0, 1.0));
             }
             if (randomBoolean()) {
-                doc.add(new StringField("foo", "bar", Store.NO));
-                doc.add(new SortedSetDocValuesField("foo", new BytesRef("bar")));
+                doc.add(new StringField("foo", "baz", Store.NO));
+                doc.add(new SortedSetDocValuesField("foo", new BytesRef("baz")));
             }
             if (withDeletions && (rarely() || i == 0)) {
                 doc.add(new StringField("delete", "yes", Store.NO));
@@ -140,6 +145,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
         Query tq = new TermQuery(new Term("foo", "bar"));
         Query tCsq = new ConstantScoreQuery(tq);
         Query dvfeq = new DocValuesFieldExistsQuery("foo");
+        Query dvfeq_points = new DocValuesFieldExistsQuery("latLonDVField");
+        Query dvfeqCsq = new ConstantScoreQuery(dvfeq);
+        // field with doc-values but not indexed will need to collect
+        Query dvOnlyfeq = new DocValuesFieldExistsQuery("docValuesOnlyField");
         BooleanQuery bq = new BooleanQuery.Builder()
             .add(matchAll, Occur.SHOULD)
             .add(tq, Occur.MUST)
@@ -150,6 +159,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         countTestCase(tq, reader, withDeletions, withDeletions);
         countTestCase(tCsq, reader, withDeletions, withDeletions);
         countTestCase(dvfeq, reader, withDeletions, true);
+        countTestCase(dvfeq_points, reader, withDeletions, true);
+        countTestCase(dvfeqCsq, reader, withDeletions, true);
+        countTestCase(dvOnlyfeq, reader, true, true);
         countTestCase(bq, reader, true, true);
         reader.close();
         w.close();

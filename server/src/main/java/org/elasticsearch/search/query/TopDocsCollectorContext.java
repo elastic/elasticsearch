@@ -375,6 +375,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 } else if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
                     Terms terms = context.reader().terms(field);
                     count += terms.getDocCount();
+                } else {
+                    return -1; // no shortcut possible for fields that are not indexed
                 }
             }
             return count;

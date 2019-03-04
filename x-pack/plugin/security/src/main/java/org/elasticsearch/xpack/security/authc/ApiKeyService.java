@@ -93,9 +93,11 @@ import java.util.stream.Collectors;
 
 import javax.crypto.SecretKeyFactory;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 
 public class ApiKeyService {
 
@@ -247,7 +249,7 @@ public class ApiKeyService {
                             .endObject()
                             .endObject();
                         final IndexRequest indexRequest =
-                            client.prepareIndex().setIndex(SecurityIndexManager.SECURITY_INDEX_NAME)
+                            client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME)
                                 .setSource(builder)
                                 .setRefreshPolicy(request.getRefreshPolicy())
                                 .request();
@@ -285,10 +287,10 @@ public class ApiKeyService {
             }
 
             if (credentials != null) {
-                final GetRequest getRequest = client.prepareGet()
-                    .setIndex(SecurityIndexManager.SECURITY_INDEX_NAME)
-                    .setId(credentials.getId())
-                    .setFetchSource(true).request();
+                final GetRequest getRequest = client
+                        .prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, credentials.getId())
+                        .setFetchSource(true)
+                        .request();
                 executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
                         try (ApiKeyCredentials ignore = credentials) {
@@ -694,7 +696,7 @@ public class ApiKeyService {
             expiredQuery.should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
             boolQuery.filter(expiredQuery);
         }
-        final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+        final SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
             .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
             .setQuery(boolQuery)
             .setVersion(false)
@@ -767,11 +769,10 @@ public class ApiKeyService {
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String apiKeyId : apiKeyIds) {
-                UpdateRequest request = client.prepareUpdate()
-                    .setIndex(SecurityIndexManager.SECURITY_INDEX_NAME)
-                    .setId(apiKeyId)
-                    .setDoc(Collections.singletonMap("api_key_invalidated", true))
-                    .request();
+                UpdateRequest request = client
+                        .prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, apiKeyId)
+                        .setDoc(Collections.singletonMap("api_key_invalidated", true))
+                        .request();
                 bulkRequestBuilder.add(request);
             }
             bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);

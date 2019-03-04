@@ -56,6 +56,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -150,7 +151,8 @@ public class NativePrivilegeStore {
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure,
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet().setIndex(SECURITY_INDEX_NAME).setId(toDocId(application, name)).request(),
+                    client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, toDocId(application, name))
+                            .request(),
                     new ActionListener<GetResponse>() {
                         @Override
                         public void onResponse(GetResponse response) {

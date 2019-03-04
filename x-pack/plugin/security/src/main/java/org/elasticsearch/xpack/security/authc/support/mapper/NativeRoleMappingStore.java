@@ -56,6 +56,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -199,9 +200,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                 return;
             }
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex()
-                            .setIndex(SECURITY_INDEX_NAME)
-                            .setId(getIdForName(mapping.getName()))
+                    client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForName(mapping.getName()))
                             .setSource(xContentBuilder)
                             .setRefreshPolicy(request.getRefreshPolicy())
                             .request(),
@@ -230,9 +229,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareDelete()
-                        .setIndex(SECURITY_INDEX_NAME)
-                        .setId(getIdForName(request.getName()))
+                        client.prepareDelete(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForName(request.getName()))
                         .setRefreshPolicy(request.getRefreshPolicy())
                         .request(),
                     new ActionListener<DeleteResponse>() {

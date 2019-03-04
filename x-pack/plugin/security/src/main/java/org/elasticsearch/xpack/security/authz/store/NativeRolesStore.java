@@ -63,6 +63,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -177,9 +178,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                DeleteRequest request = client.prepareDelete()
-                        .setIndex(SecurityIndexManager.SECURITY_INDEX_NAME)
-                        .setId(getIdForRole(deleteRoleRequest.name())).request();
+                DeleteRequest request = client
+                        .prepareDelete(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForRole(deleteRoleRequest.name())).request();
                 request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                     new ActionListener<DeleteResponse>() {
@@ -219,7 +219,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 listener.onFailure(e);
                 return;
             }
-            final IndexRequest indexRequest = client.prepareIndex().setIndex(SECURITY_INDEX_NAME).setId(getIdForRole(role.getName()))
+            final IndexRequest indexRequest = client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForRole(role.getName()))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
@@ -340,7 +340,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
         securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet().setIndex(SECURITY_INDEX_NAME).setId(getIdForRole(role)).request(),
+                    client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForRole(role)).request(),
                     listener,
                     client::get));
     }

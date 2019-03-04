@@ -78,7 +78,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -106,6 +108,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     private final ThreadPool threadPool;
 
     private final Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> shardSnapshots = new HashMap<>();
+
+    private final Map<Snapshot, AtomicInteger> shardSnapshotPriorities = new HashMap<>();
 
     // A map of snapshots to the shardIds that we already reported to the master as failed
     private final TransportRequestDeduplicator<UpdateIndexShardSnapshotStatusRequest> remoteFailedRequestDeduplicator =
@@ -226,6 +230,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 // running shards is missed, then the snapshot is removed is a subsequent cluster
                 // state update, which is being processed here
                 it.remove();
+                shardSnapshotPriorities.remove(snapshot);
                 for (IndexShardSnapshotStatus snapshotStatus : entry.getValue().values()) {
                     snapshotStatus.abortIfNotCompleted("snapshot has been removed in cluster state, aborting");
                 }
@@ -259,6 +264,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 }
                 if (startedShards != null && startedShards.isEmpty() == false) {
                     shardSnapshots.computeIfAbsent(snapshot, s -> new HashMap<>()).putAll(startedShards);
+                    shardSnapshotPriorities.computeIfAbsent(snapshot, a -> new AtomicInteger());
                     startNewShards(entry, startedShards);
                 }
             } else if (entryState == State.ABORTED) {
@@ -299,6 +305,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         final Snapshot snapshot = entry.snapshot();
         final Map<String, IndexId> indicesMap = entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final Executor segmentExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT_SEGMENTS);
+        final AtomicInteger shardPriorityProvider = shardSnapshotPriorities.get(snapshot);
         for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : startedShards.entrySet()) {
             final ShardId shardId = shardEntry.getKey();
             final IndexId indexId = indicesMap.get(shardId.getIndexName());
@@ -311,7 +319,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 public void doRun() {
                     final IndexShard indexShard =
                         indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
-                    snapshot(indexShard, snapshot, indexId, shardEntry.getValue());
+                    snapshot(indexShard, snapshot, indexId, shardEntry.getValue(), shardPriorityProvider, segmentExecutor);
                 }
 
                 @Override
@@ -345,7 +353,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
      * @param snapshotStatus snapshot status
      */
     private void snapshot(final IndexShard indexShard, final Snapshot snapshot, final IndexId indexId,
-                          final IndexShardSnapshotStatus snapshotStatus) {
+                          final IndexShardSnapshotStatus snapshotStatus, final AtomicInteger priorityProvider, final Executor executor) {
         final ShardId shardId = indexShard.shardId();
         if (indexShard.routingEntry().primary() == false) {
             throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
@@ -366,7 +374,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             // we flush first to make sure we get the latest writes snapshotted
             try (Engine.IndexCommitRef snapshotRef = indexShard.acquireLastIndexCommit(true)) {
                 repository.snapshotShard(indexShard, indexShard.store(), snapshot.getSnapshotId(), indexId, snapshotRef.getIndexCommit(),
-                    snapshotStatus);
+                    snapshotStatus, Optional.of(priorityProvider), Optional.of(executor));
                 if (logger.isDebugEnabled()) {
                     final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
                     logger.debug("snapshot ({}) completed to {} with {}", snapshot, repository, lastSnapshotStatus);

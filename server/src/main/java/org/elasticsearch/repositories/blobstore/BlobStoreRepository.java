@@ -60,6 +60,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractPrioritizedRunnable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -108,7 +109,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
@@ -165,6 +171,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     protected final NamedXContentRegistry namedXContentRegistry;
 
     private static final int BUFFER_SIZE = 4096;
+
+    private static final int MAX_SEGMENT_PRIORITY_IN_A_SHARD = 10000;
 
     private static final String SNAPSHOT_PREFIX = "snap-";
 
@@ -847,7 +855,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
                               IndexShardSnapshotStatus snapshotStatus) {
-        SnapshotContext snapshotContext = new SnapshotContext(store, snapshotId, indexId, snapshotStatus, System.currentTimeMillis());
+        snapshotShard(shard, store, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, Optional.empty(), Optional.empty());
+    }
+
+    @Override
+    public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
+                              IndexShardSnapshotStatus snapshotStatus,Optional<AtomicInteger> priorityGenerator,
+                              Optional<Executor> executor) {
+        SnapshotContext snapshotContext = new SnapshotContext(store, snapshotId, indexId, snapshotStatus, System.currentTimeMillis(),
+            priorityGenerator, executor);
         try {
             snapshotContext.snapshot(snapshotIndexCommit);
         } catch (Exception e) {
@@ -1165,20 +1181,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private final Store store;
         private final IndexShardSnapshotStatus snapshotStatus;
         private final long startTime;
+        private final Optional<AtomicInteger> priorityProvider;
+        private final Optional<Executor> executor;
 
         /**
          * Constructs new context
          *
-         * @param store          store to be snapshotted
-         * @param snapshotId     snapshot id
-         * @param indexId        the id of the index being snapshotted
-         * @param snapshotStatus snapshot status to report progress
+         * @param store            store to be snapshotted
+         * @param snapshotId       snapshot id
+         * @param indexId          the id of the index being snapshotted
+         * @param snapshotStatus   snapshot status to report progress
+         * @param priorityProvider priority provider for this shard
+         * @param executor         executor to upload the files
          */
-        SnapshotContext(Store store, SnapshotId snapshotId, IndexId indexId, IndexShardSnapshotStatus snapshotStatus, long startTime) {
+        SnapshotContext(Store store, SnapshotId snapshotId, IndexId indexId, IndexShardSnapshotStatus snapshotStatus, long startTime,
+                        Optional<AtomicInteger> priorityProvider, Optional<Executor> executor) {
             super(snapshotId, indexId, store.shardId());
             this.snapshotStatus = snapshotStatus;
             this.store = store;
             this.startTime = startTime;
+            this.priorityProvider = priorityProvider;
+            this.executor = executor;
         }
 
         /**
@@ -1275,13 +1298,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 snapshotStatus.moveToStarted(startTime, indexIncrementalFileCount,
                     indexTotalNumberOfFiles, indexIncrementalSize, indexTotalFileCount);
 
-                for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
-                    try {
-                        snapshotFile(snapshotFileInfo);
-                    } catch (IOException e) {
-                        throw new IndexShardSnapshotFailedException(shardId, "Failed to perform snapshot (index files)", e);
-                    }
-                }
+                snapshotFiles(filesToSnapshot);
             } finally {
                 store.decRef();
             }
@@ -1318,6 +1335,84 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // finalize the snapshot and rewrite the snapshot index with the next sequential snapshot index
             finalize(newSnapshotsList, fileListGeneration + 1, blobs, "snapshot creation [" + snapshotId + "]");
             snapshotStatus.moveToDone(System.currentTimeMillis());
+        }
+
+        /**
+         * Snapshot all files that belong to a shard.
+         *
+         * @param filesToSnapshot files to be snapshotted
+         */
+        private void snapshotFiles(final List<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot) {
+            if (executor.isPresent()) {
+                // Sort the files in descending order of size so that bigger segments are uploaded before smaller
+                // segments, this will help in the max utilization of segment thread pool. If bigger segments are
+                // uploaded later then there will be only few threads which are active towards the end and rest of the
+                // threads will be idle.
+                filesToSnapshot.sort((f1, f2) -> (int)(f2.metadata().length() - f1.metadata().length()));
+                final SetOnce<Exception> shardFailure = new SetOnce<>();
+                final CountDownLatch countDownLatch = new CountDownLatch(filesToSnapshot.size());
+                final long priority = priorityProvider.get().getAndIncrement() * MAX_SEGMENT_PRIORITY_IN_A_SHARD;
+                int segmentCounter = 0;
+                for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
+                    if (segmentCounter < MAX_SEGMENT_PRIORITY_IN_A_SHARD) {
+                        segmentCounter++;
+                    }
+                    final long segmentPriority = priority + segmentCounter;
+                    executor.get().execute(new AbstractPrioritizedRunnable(segmentPriority) {
+                        @Override
+                        public void doRun() throws Exception {
+                            if (shardFailure.get() == null && !snapshotStatus.isAborted()){
+                                // shard failure will be set if any of the previous segments got an exception, if
+                                // shard failure is set we can return immediately. shard failure is not set here
+                                // indicating previous segments uploads were fine, good to go.
+                                snapshotFile(snapshotFileInfo);
+                            } else {
+                                logger.info(() -> new ParameterizedMessage("Skipping segment upload {} as the shard {} already errored out",
+                                    snapshotFileInfo.name(), shardId));
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn(() -> new ParameterizedMessage("Failed to perform snapshot for segment {}",
+                                snapshotFileInfo.name()), e);
+                            if (shardFailure.get() == null) {
+                                try {
+                                    shardFailure.set(e);
+                                } catch (SetOnce.AlreadySetException ase) {
+                                    // Some other thread has set it, swallow the exception
+                                }
+                            }
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            countDownLatch.countDown();
+                        }
+                    });
+                }
+                while (shardFailure.get() == null && countDownLatch.getCount() > 0 && !snapshotStatus.isAborted()) {
+                    try {
+                        countDownLatch.await(1, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        // Do nothing
+                    }
+                }
+                if (snapshotStatus.isAborted()) {
+                    throw new IndexShardSnapshotFailedException(shardId, "Aborted");
+                }
+                if (shardFailure.get() != null) {
+                    throw new IndexShardSnapshotFailedException(shardId, "Failed to perform snapshot (index files)", shardFailure.get());
+                }
+            } else {
+                for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
+                    try {
+                        snapshotFile(snapshotFileInfo);
+                    } catch (IOException e) {
+                        throw new IndexShardSnapshotFailedException(shardId, "Failed to perform snapshot (index files)", e);
+                    }
+                }
+            }
         }
 
         /**

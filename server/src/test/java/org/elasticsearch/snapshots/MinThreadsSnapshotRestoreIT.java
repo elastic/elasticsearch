@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -32,6 +33,8 @@ import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests for snapshot/restore that require at least 2 threads available
@@ -45,6 +48,8 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                    .put("thread_pool.snapshot.core", 2)
                    .put("thread_pool.snapshot.max", 2)
+                   .put("thread_pool.snapshot_segments.core", 1)
+                   .put("thread_pool.snapshot_segments.max", 2)
                    .build();
     }
 
@@ -205,5 +210,44 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> restoring snapshot, which should now work");
         client().admin().cluster().prepareRestoreSnapshot(repo, snapshot1).setWaitForCompletion(true).get();
         assertEquals(1, client().admin().cluster().prepareGetSnapshots(repo).setSnapshots("_all").get().getSnapshots().size());
+    }
+
+    public void testSnapshotPartialDuringUploadFailure() throws Exception {
+        logger.info("--> start 2 nodes");
+        internalCluster().startNode();
+        internalCluster().startNode();
+        Client client = client();
+
+        assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 0)));
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+
+        logger.info("--> create repository");
+        logger.info("--> creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+            .setType("mock").setSettings(
+                Settings.builder()
+                    .put("location", randomRepoPath())
+                    .put("random", randomAlphaOfLength(10))
+            ).get());
+
+        String errorNode = errorNodeWithIndex("test-repo", "test-idx", 100);
+
+        logger.info("--> snapshot");
+        client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
+
+        logger.info("--> waiting for completion");
+        SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(60));
+        logger.info("Number of failed shards [{}]", snapshotInfo.shardFailures().size());
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
+        assertThat(((MockRepository)internalCluster().getInstance(RepositoriesService.class, errorNode).repository("test-repo"))
+            .getFailureCount(), lessThanOrEqualTo(2L));
+        logger.info("--> done");
     }
 }

@@ -87,7 +87,7 @@ public class MockRepository extends FsRepository {
 
     private final double randomControlIOExceptionRate;
 
-    private final double randomDataFileIOExceptionRate;
+    private volatile double randomDataFileIOExceptionRate;
 
     private final boolean useLuceneCorruptionException;
 
@@ -173,6 +173,10 @@ public class MockRepository extends FsRepository {
         blockOnWriteIndexFile = false;
         blockAndFailOnWriteSnapFile = false;
         this.notifyAll();
+    }
+
+    public void randomDataFileIOExceptionRate(double rate) {
+        randomDataFileIOExceptionRate = rate;
     }
 
     public void blockOnDataFiles(boolean blocked) {

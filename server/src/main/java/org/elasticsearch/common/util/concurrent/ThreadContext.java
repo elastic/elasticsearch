@@ -345,11 +345,17 @@ public final class ThreadContext implements Closeable, Writeable {
      * <code>command</code> has already been passed through this method then it is returned unaltered rather than wrapped twice.
      */
     public Runnable preserveContext(Runnable command) {
+        if (command instanceof ContextPreservingAbstractPrioritizedRunnable) {
+            return command;
+        }
         if (command instanceof ContextPreservingAbstractRunnable) {
             return command;
         }
         if (command instanceof ContextPreservingRunnable) {
             return command;
+        }
+        if (command instanceof AbstractPrioritizedRunnable) {
+            return new ContextPreservingAbstractPrioritizedRunnable((AbstractPrioritizedRunnable) command);
         }
         if (command instanceof AbstractRunnable) {
             return new ContextPreservingAbstractRunnable((AbstractRunnable) command);
@@ -361,6 +367,9 @@ public final class ThreadContext implements Closeable, Writeable {
      * Unwraps a command that was previously wrapped by {@link #preserveContext(Runnable)}.
      */
     public Runnable unwrap(Runnable command) {
+        if (command instanceof ContextPreservingAbstractPrioritizedRunnable) {
+            return ((ContextPreservingAbstractPrioritizedRunnable) command).unwrap();
+        }
         if (command instanceof WrappedRunnable) {
             return ((WrappedRunnable) command).unwrap();
         }
@@ -769,6 +778,77 @@ public final class ThreadContext implements Closeable, Writeable {
         public AbstractRunnable unwrap() {
             return in;
         }
+    }
+
+    /**
+     * Wraps an AbstractPrioritizedRunnable to preserve the thread context.
+     */
+    private class ContextPreservingAbstractPrioritizedRunnable extends AbstractPrioritizedRunnable {
+        private final AbstractPrioritizedRunnable in;
+        private final ThreadContext.StoredContext creatorsContext;
+
+        private ThreadContext.StoredContext threadsOriginalContext = null;
+
+        private ContextPreservingAbstractPrioritizedRunnable(AbstractPrioritizedRunnable in) {
+            super(in.getPriority());
+            creatorsContext = newStoredContext(false);
+            this.in = in;
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            return in.isForceExecution();
+        }
+
+        @Override
+        public void onAfter() {
+            try {
+                in.onAfter();
+            } finally {
+                if (threadsOriginalContext != null) {
+                    threadsOriginalContext.restore();
+                }
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            in.onFailure(e);
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            in.onRejection(e);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            boolean whileRunning = false;
+            threadsOriginalContext = stashContext();
+            try {
+                creatorsContext.restore();
+                whileRunning = true;
+                in.doRun();
+                whileRunning = false;
+            } catch (IllegalStateException ex) {
+                if (whileRunning || threadLocal.closed.get() == false) {
+                    throw ex;
+                }
+                // if we hit an ISE here we have been shutting down
+                // this comes from the threadcontext and barfs if
+                // our threadpool has been shutting down
+            }
+        }
+
+        @Override
+        public String toString() {
+            return in.toString();
+        }
+
+        public AbstractPrioritizedRunnable unwrap() {
+            return in;
+        }
+
     }
 
     private static final Collector<String, Set<String>, Set<String>> LINKED_HASH_SET_COLLECTOR = new LinkedHashSetCollector<>();

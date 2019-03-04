@@ -159,6 +159,16 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return null;
     }
 
+    public static String errorNodeWithIndex(final String repositoryName, final String indexName, double errorRate) {
+        for(String node : internalCluster().nodesInclude(indexName)) {
+            ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repositoryName))
+                .randomDataFileIOExceptionRate(errorRate);
+            return node;
+        }
+        fail("No nodes for the index " + indexName + " found");
+        return null;
+    }
+
     public static void blockAllDataNodes(String repository) {
         for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
             ((MockRepository)repositoriesService.repository(repository)).blockOnDataFiles(true);

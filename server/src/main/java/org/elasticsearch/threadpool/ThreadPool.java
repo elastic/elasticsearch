@@ -79,6 +79,7 @@ public class ThreadPool implements Scheduler, Closeable {
         public static final String REFRESH = "refresh";
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
+        public static final String SNAPSHOT_SEGMENTS = "snapshot_segments";
         public static final String FORCE_MERGE = "force_merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
@@ -88,7 +89,8 @@ public class ThreadPool implements Scheduler, Closeable {
         DIRECT("direct"),
         FIXED("fixed"),
         FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"),
-        SCALING("scaling");
+        SCALING("scaling"),
+        PRIORITIZED_SCALING("prioritized_scaling");
 
         private final String type;
 
@@ -135,6 +137,7 @@ public class ThreadPool implements Scheduler, Closeable {
         map.put(Names.REFRESH, ThreadPoolType.SCALING);
         map.put(Names.WARMER, ThreadPoolType.SCALING);
         map.put(Names.SNAPSHOT, ThreadPoolType.SCALING);
+        map.put(Names.SNAPSHOT_SEGMENTS, ThreadPoolType.PRIORITIZED_SCALING);
         map.put(Names.FORCE_MERGE, ThreadPoolType.FIXED);
         map.put(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING);
         map.put(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING);
@@ -169,6 +172,7 @@ public class ThreadPool implements Scheduler, Closeable {
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
         final int availableProcessors = EsExecutors.numberOfProcessors(settings);
+        final int halfNumberOfProcessors = halfNumberOfProcessors(availableProcessors);
         final int halfProcMaxAt5 = halfNumberOfProcessorsMaxFive(availableProcessors);
         final int halfProcMaxAt10 = halfNumberOfProcessorsMaxTen(availableProcessors);
         final int genericThreadPoolMax = boundedBy(4 * availableProcessors, 128, 512);
@@ -188,6 +192,8 @@ public class ThreadPool implements Scheduler, Closeable {
         builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5)));
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
+        builders.put(Names.SNAPSHOT_SEGMENTS,
+                new PrioritizedScalingExecutorBuilder(Names.SNAPSHOT_SEGMENTS, 1, halfNumberOfProcessors, TimeValue.timeValueMinutes(5)));
         builders.put(Names.FETCH_SHARD_STARTED,
                 new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
         builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1));
@@ -432,6 +438,10 @@ public class ThreadPool implements Scheduler, Closeable {
      */
     static int boundedBy(int value, int min, int max) {
         return Math.min(max, Math.max(min, value));
+    }
+
+    static int halfNumberOfProcessors(int numberOfProcessors) {
+        return (numberOfProcessors + 1) / 2;
     }
 
     static int halfNumberOfProcessorsMaxFive(int numberOfProcessors) {
@@ -688,7 +698,7 @@ public class ThreadPool implements Scheduler, Closeable {
             builder.startObject(name);
             builder.field("type", type.getType());
 
-            if (type == ThreadPoolType.SCALING) {
+            if (type == ThreadPoolType.SCALING || type == ThreadPoolType.PRIORITIZED_SCALING) {
                 assert min != -1;
                 builder.field("core", min);
                 assert max != -1;

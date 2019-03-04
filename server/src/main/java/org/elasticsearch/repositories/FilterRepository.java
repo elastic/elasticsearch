@@ -37,6 +37,9 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class FilterRepository implements Repository {
 
@@ -122,6 +125,13 @@ public class FilterRepository implements Repository {
     public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
                               IndexShardSnapshotStatus snapshotStatus) {
         in.snapshotShard(shard, store, snapshotId, indexId, snapshotIndexCommit, snapshotStatus);
+    }
+
+    @Override
+    public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
+                              IndexShardSnapshotStatus snapshotStatus, Optional<AtomicInteger> priorityGenerator,
+                              Optional<Executor> executor) {
+        in.snapshotShard(shard, store, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, priorityGenerator, executor);
     }
 
     @Override

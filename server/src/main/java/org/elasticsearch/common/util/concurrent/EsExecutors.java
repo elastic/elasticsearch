@@ -36,12 +36,14 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedTransferQueue;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 public class EsExecutors {
@@ -75,6 +77,16 @@ public class EsExecutors {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
         EsThreadPoolExecutor executor =
             new EsThreadPoolExecutor(name, min, max, keepAliveTime, unit, queue, threadFactory, new ForceQueuePolicy(), contextHolder);
+        queue.executor = executor;
+        return executor;
+    }
+
+
+    public static EsThreadPoolExecutor newPrioritizedScaling(String name, int min, int max, long keepAliveTime, TimeUnit  unit,
+                                                             ThreadFactory threadFactory, ThreadContext contextHolder) {
+        ExecutorPrioritizedScalingQueue<Runnable> queue = new ExecutorPrioritizedScalingQueue<>();
+        EsThreadPoolExecutor executor = new EsThreadPoolExecutor(name, min, max, keepAliveTime, unit, queue, threadFactory,
+            new ForceQueuePolicy(), contextHolder);
         queue.executor = executor;
         return executor;
     }
@@ -307,6 +319,55 @@ public class EsExecutors {
 
     }
 
+    static class ExecutorPrioritizedScalingQueue<E> extends PriorityBlockingQueue<E> {
+
+        private final ReentrantLock lock;
+        ThreadPoolExecutor executor;
+
+        ExecutorPrioritizedScalingQueue() {
+            lock = new ReentrantLock(true);
+        }
+
+        @Override
+        public boolean offer(E e) {
+            final ReentrantLock lock = this.lock;
+            lock.lock();
+            try {
+                // check if any threads is idle in pool
+                int notActive = executor.getPoolSize() - executor.getActiveCount();
+                if (notActive > 0) {
+                    // There exists some idle threads in the pool, adding to the queue so that they get picked up
+                    return super.offer(e);
+                }
+                // check if there might be spare capacity in the thread pool executor
+                int left = executor.getMaximumPoolSize() - executor.getPoolSize();
+                if (left > 0) {
+                    // reject queuing the task to force the thread pool executor to add a worker if it can; combined
+                    // with ForceQueuePolicy, this causes the thread pool to always scale up to max pool size and we
+                    // only queue when there is no spare capacity
+                    return false;
+                } else {
+                    return super.offer(e);
+                }
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        @Override
+        public void put(E e) {
+            final ReentrantLock lock = this.lock;
+            lock.lock();
+            try {
+                // This is called from ForceQueuePolicy so directly add it to parent
+                super.offer(e);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+    }
+
     /**
      * A handler for rejected tasks that adds the specified element to this queue,
      * waiting if necessary for space to become available.
@@ -317,7 +378,8 @@ public class EsExecutors {
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
             try {
                 // force queue policy should only be used with a scaling queue
-                assert executor.getQueue() instanceof ExecutorScalingQueue;
+                assert (executor.getQueue() instanceof ExecutorScalingQueue) ||
+                    (executor.getQueue() instanceof ExecutorPrioritizedScalingQueue);
                 executor.getQueue().put(r);
             } catch (final InterruptedException e) {
                 // a scaling queue never blocks so a put to it can never be interrupted

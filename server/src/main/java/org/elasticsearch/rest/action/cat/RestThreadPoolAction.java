@@ -215,7 +215,8 @@ public class RestThreadPoolAction extends AbstractCatAction {
                         keepAlive = poolInfo.getKeepAlive().toString();
                     }
 
-                    if (poolInfo.getThreadPoolType() == ThreadPool.ThreadPoolType.SCALING) {
+                    if (poolInfo.getThreadPoolType() == ThreadPool.ThreadPoolType.SCALING ||
+                        poolInfo.getThreadPoolType() == ThreadPool.ThreadPoolType.PRIORITIZED_SCALING) {
                         assert poolInfo.getMin() >= 0;
                         core = poolInfo.getMin();
                         assert poolInfo.getMax() > 0;

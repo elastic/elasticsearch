@@ -24,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractPrioritizedRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -134,6 +135,9 @@ public class DeterministicTaskQueue {
      * Schedule a task for immediate execution.
      */
     public void scheduleNow(final Runnable task) {
+        if (task instanceof AbstractPrioritizedRunnable) {
+            task.run();
+        }
         if (executionDelayVariabilityMillis > 0 && random.nextBoolean()) {
             final long executionDelay = RandomNumbers.randomLongBetween(random, 1, executionDelayVariabilityMillis);
             final DeferredTask deferredTask = new DeferredTask(currentTimeMillis + executionDelay, task);

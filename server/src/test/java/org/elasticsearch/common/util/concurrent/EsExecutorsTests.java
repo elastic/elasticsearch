@@ -23,6 +23,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Vector;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -233,6 +236,143 @@ public class EsExecutorsTests extends ESTestCase {
         assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
         barrier.await();
+        assertBusy(() -> {
+            assertThat("wrong active count", pool.getActiveCount(), equalTo(0));
+            assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));
+        });
+        terminate(pool);
+    }
+
+    public void testPrioritizedScaleUp() throws Exception {
+        final int min = between(1, 3);
+        final int max = between(min + 1, 6);
+        final CyclicBarrier barrier = new CyclicBarrier(max + 1);
+
+        ThreadPoolExecutor pool = EsExecutors.newPrioritizedScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100),
+                                                                randomTimeUnit(), EsExecutors.daemonThreadFactory("test"), threadContext);
+        assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
+        assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
+
+        for (int i = 0; i < max; ++i) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            pool.execute(new AbstractPrioritizedRunnable(i) {
+                @Override
+                public void doRun() {
+                    latch.countDown();
+                    try {
+                        barrier.await();
+                        barrier.await();
+                        Thread.sleep((getPriority()+1)*100);
+                    } catch (Exception e) {
+                        barrier.reset();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                }
+
+            });
+
+            //wait until thread executes this task
+            //otherwise, a task might be queued
+            latch.await();
+        }
+
+        final List<Long> expectedPriority = new ArrayList<>();
+        final List<Long> actualPriority = new Vector<>();
+        for (int i = 0; i < max; ++i) {
+            expectedPriority.add(Long.valueOf(max+i));
+            pool.execute(new AbstractPrioritizedRunnable(2 * max - i - 1) {
+                @Override
+                public void doRun() {
+                    try {
+                        actualPriority.add(getPriority());
+                        barrier.await();
+                    } catch (Exception e) {
+                        barrier.reset();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                }
+
+            });
+        }
+
+        barrier.await();
+        assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
+        assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
+        barrier.await();
+        barrier.await();
+        assertThat("wrong priority order", actualPriority, equalTo(expectedPriority));
+        terminate(pool);
+    }
+
+    public void testPrioritizedScaleDown() throws Exception {
+        final int min = between(1, 3);
+        final int max = between(min + 1, 6);
+        final CyclicBarrier barrier = new CyclicBarrier(max + 1);
+
+        final ThreadPoolExecutor pool = EsExecutors.newPrioritizedScaling(getClass().getName() + "/" + getTestName(), min, max,
+                                          between(1, 100), TimeUnit.MILLISECONDS, EsExecutors.daemonThreadFactory("test"), threadContext);
+        assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
+        assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
+
+        for (int i = 0; i < max; ++i) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            pool.execute(new AbstractPrioritizedRunnable(i) {
+                @Override
+                public void doRun() {
+                    latch.countDown();
+                    try {
+                        barrier.await();
+                        barrier.await();
+                        Thread.sleep((getPriority()+1)*100);
+                    } catch (Exception e) {
+                        barrier.reset();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                }
+            });
+
+            //wait until thread executes this task
+            //otherwise, a task might be queued
+            latch.await();
+        }
+
+        final List<Long> expectedPriority = new ArrayList<>();
+        final List<Long> actualPriority = new Vector<>();
+        for (int i = 0; i < max; ++i) {
+            expectedPriority.add(Long.valueOf(max+i));
+            pool.execute(new AbstractPrioritizedRunnable(2 * max - i - 1) {
+                @Override
+                public void doRun() {
+                    try {
+                        actualPriority.add(Long.valueOf(getPriority()));
+                        barrier.await();
+                    } catch (Exception e) {
+                        barrier.reset();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                }
+
+            });
+        }
+
+        barrier.await();
+        assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
+        assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
+        barrier.await();
+        barrier.await();
+        assertThat("wrong priority order", actualPriority, equalTo(expectedPriority));
         assertBusy(() -> {
             assertThat("wrong active count", pool.getActiveCount(), equalTo(0));
             assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));

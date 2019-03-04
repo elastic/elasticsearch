@@ -36,6 +36,9 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
@@ -203,6 +206,30 @@ public interface Repository extends LifecycleComponent {
      */
     void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
                        IndexShardSnapshotStatus snapshotStatus);
+
+    /**
+     * Creates a snapshot of the shard based on the index commit point.
+     * <p>
+     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#acquireLastIndexCommit} method.
+     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
+     * <p>
+     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
+     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
+     * @param shard               shard to be snapshotted
+     * @param store               store to be snapshotted
+     * @param snapshotId          snapshot id
+     * @param indexId             id for the index being snapshotted
+     * @param snapshotIndexCommit commit point
+     * @param snapshotStatus      snapshot status
+     * @param priorityGenerator   priority generator for this shard
+     * @param executor            executor to upload files in parallel
+     */
+    default void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
+                               IndexShardSnapshotStatus snapshotStatus, Optional<AtomicInteger> priorityGenerator,
+                               Optional<Executor> executor) {
+        // Default implementation will ignore priority and executor and execute the older way
+        snapshotShard(shard, store, snapshotId, indexId, snapshotIndexCommit, snapshotStatus);
+    }
 
     /**
      * Restores snapshot of the shard.

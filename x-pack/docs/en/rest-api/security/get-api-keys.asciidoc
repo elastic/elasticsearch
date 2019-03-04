@@ -59,7 +59,7 @@ The following example retrieves all API keys for the `native1` realm:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/api_key?realm_name=native1
+GET /_security/api_key?realm_name=native1
 --------------------------------------------------
 // NOTCONSOLE
 
@@ -67,7 +67,7 @@ The following example retrieves all API keys for the user `myuser` in all realms
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/api_key?username=myuser
+GET /_security/api_key?username=myuser
 --------------------------------------------------
 // NOTCONSOLE
 
@@ -76,7 +76,7 @@ Finally, the following example retrieves all API keys for the user `myuser` in
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/api_key?username=myuser&realm_name=native1
+GET /_security/api_key?username=myuser&realm_name=native1
 --------------------------------------------------
 // NOTCONSOLE
 

@@ -126,7 +126,6 @@ public class Gateway {
         }
         ClusterState recoveredState = Function.<ClusterState>identity()
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
-            .andThen(state -> ClusterStateUpdaters.closeBadIndices(state, indicesService))
             .apply(ClusterState.builder(clusterService.getClusterName()).metaData(metaDataBuilder).build());
 
         listener.onSuccess(recoveredState);

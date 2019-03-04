@@ -24,6 +24,9 @@ public class DataFrameMessages {
     public static final String REST_PUT_DATA_FRAME_FAILED_TO_CREATE_TARGET_INDEX = "Failed to create target index";
     public static final String REST_PUT_DATA_FRAME_FAILED_TO_START_PERSISTENT_TASK =
             "Failed to start persistent task, configuration has been cleaned up: [{0}]";
+    public static final String REST_PUT_DATA_FRAME_INCONSISTENT_ID =
+            "Inconsistent id; ''{0}'' specified in the body differs from ''{1}'' specified as a URL argument";
+
     public static final String REST_DATA_FRAME_FAILED_TO_SERIALIZE_TRANSFORM = "Failed to serialise transform [{0}]";
 
     public static final String FAILED_TO_CREATE_DESTINATION_INDEX = "Could not create destination index [{0}] for transform[{1}]";

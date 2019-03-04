@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
-import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
@@ -108,16 +107,6 @@ public class QueryTranslatorTests extends ESTestCase {
         TermQuery tq = (TermQuery) query;
         assertEquals("some.string.typical", tq.term());
         assertEquals("value", tq.value());
-    }
-
-    public void testTermEqualityAnalyzerAmbiguous() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE some.ambiguous = 'value'");
-        assertTrue(p instanceof Project);
-        p = ((Project) p).child();
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        // the message is checked elsewhere (in FieldAttributeTests)
-        expectThrows(MappingException.class, () -> QueryTranslator.toQuery(condition, false));
     }
 
     public void testTermEqualityNotAnalyzed() {
@@ -640,7 +629,7 @@ public class QueryTranslatorTests extends ESTestCase {
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.output().size());
             assertEquals("FIRST(keyword)", eqe.output().get(0).qualifiedName());
-            assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
+            assertEquals(DataType.KEYWORD, eqe.output().get(0).dataType());
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
                         "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
@@ -652,7 +641,7 @@ public class QueryTranslatorTests extends ESTestCase {
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.output().size());
             assertEquals("LAST(date)", eqe.output().get(0).qualifiedName());
-            assertTrue(eqe.output().get(0).dataType() == DataType.DATETIME);
+            assertEquals(DataType.DATETIME, eqe.output().get(0).dataType());
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
                     "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"epoch_millis\"}]," +
@@ -667,7 +656,7 @@ public class QueryTranslatorTests extends ESTestCase {
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.output().size());
             assertEquals("FIRST(keyword, int)", eqe.output().get(0).qualifiedName());
-            assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
+            assertEquals(DataType.KEYWORD, eqe.output().get(0).dataType());
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
                     "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
@@ -681,12 +670,62 @@ public class QueryTranslatorTests extends ESTestCase {
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.output().size());
             assertEquals("LAST(date, int)", eqe.output().get(0).qualifiedName());
-            assertTrue(eqe.output().get(0).dataType() == DataType.DATETIME);
+            assertEquals(DataType.DATETIME, eqe.output().get(0).dataType());
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
                     "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"epoch_millis\"}]," +
                     "\"sort\":[{\"int\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
                     "{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
         }
+    }
+
+
+    public void testGlobalCountInImplicitGroupByForcesTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(*) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testGlobalCountAllInImplicitGroupByForcesTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(ALL *) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testGlobalCountInSpecificGroupByDoesNotForceTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(*) FROM test GROUP BY int");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testFieldAllCountDoesNotTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(ALL int) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testFieldCountDoesNotTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(int) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testDistinctCountDoesNotTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT int) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testNoCountDoesNotTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT int FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 }

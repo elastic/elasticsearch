@@ -128,19 +128,13 @@ public class IntervalBuilderTests extends ESTestCase {
 
     }
 
-    private static Token graphToken(String text, int posInc, int posLen, int start, int end) {
-        Token token = new Token(text, posInc, start, end);
-        token.setPositionLength(posLen);
-        return token;
-    }
-
     public void testGraphSynonyms() throws IOException {
 
         // term1 term2:2/term3 term4 term5
 
         CannedTokenStream ts = new CannedTokenStream(
             new Token("term1", 1, 2),
-            graphToken("term2", 1, 2, 3, 4),
+            new Token("term2", 1, 3, 4, 2),
             new Token("term3", 0, 3, 4),
             new Token("term4", 5, 6),
             new Token("term5", 6, 7)
@@ -163,7 +157,7 @@ public class IntervalBuilderTests extends ESTestCase {
 
         CannedTokenStream ts = new CannedTokenStream(
             new Token("term1", 1, 2),
-            graphToken("term2", 2, 4, 3, 4),
+            new Token("term2", 2, 3, 4, 4),
             new Token("term3", 0, 3, 4),
             new Token("term4", 3, 5, 6),
             new Token("term5", 6, 7)

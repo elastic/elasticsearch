@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -98,6 +99,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
@@ -118,10 +120,10 @@ import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
-import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_ALL;
-import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_ID;
-import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_SETTING;
-import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
+import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ALL;
+import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
+import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_SETTING;
+import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
@@ -1046,13 +1048,34 @@ public class CoordinatorTests extends ESTestCase {
             Loggers.removeAppender(joinLogger, mockAppender);
             mockAppender.stop();
         }
-        assertTrue(newNode.getLastAppliedClusterState().version() == 0);
+        assertEquals(0, newNode.getLastAppliedClusterState().version());
 
         final ClusterNode detachedNode = newNode.restartedNode(
             metaData -> DetachClusterCommand.updateMetaData(metaData),
             term -> DetachClusterCommand.updateCurrentTerm());
         cluster1.clusterNodes.replaceAll(cn -> cn == newNode ? detachedNode : cn);
         cluster1.stabilise();
+    }
+
+    public void testDiscoveryUsesNodesFromLastClusterState() {
+        final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode partitionedNode = cluster.getAnyNode();
+        if (randomBoolean()) {
+            logger.info("--> blackholing {}", partitionedNode);
+            partitionedNode.blackhole();
+        } else {
+            logger.info("--> disconnecting {}", partitionedNode);
+            partitionedNode.disconnect();
+        }
+        cluster.setEmptyUnicastHostsList();
+        cluster.stabilise();
+
+        partitionedNode.heal();
+        cluster.runRandomly(false);
+        cluster.stabilise();
     }
 
     private static long defaultMillis(Setting<TimeValue> setting) {
@@ -1094,6 +1117,8 @@ public class CoordinatorTests extends ESTestCase {
             * defaultInt(LEADER_CHECK_RETRY_COUNT_SETTING)
             // then wait for a follower to be promoted to leader
             + DEFAULT_ELECTION_DELAY
+            // perhaps there is an election collision requiring another publication (which times out) and a term bump
+            + defaultMillis(PUBLISH_TIMEOUT_SETTING) + DEFAULT_ELECTION_DELAY
             // then wait for the new leader to notice that the old leader is unresponsive
             + (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
             * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
@@ -1110,14 +1135,17 @@ public class CoordinatorTests extends ESTestCase {
             // TODO does ThreadPool need a node name any more?
             Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build(), random());
         private boolean disruptStorage;
+
         private final VotingConfiguration initialConfiguration;
 
         private final Set<String> disconnectedNodes = new HashSet<>();
         private final Set<String> blackholedNodes = new HashSet<>();
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
 
-        private final Function<DiscoveryNode, MockPersistedState> defaultPersistedStateSupplier =
-                localNode -> new MockPersistedState(localNode);
+        private final Function<DiscoveryNode, MockPersistedState> defaultPersistedStateSupplier = MockPersistedState::new;
+
+        @Nullable // null means construct a list from all the current nodes
+        private List<TransportAddress> unicastHostsList;
 
         Cluster(int initialNodeCount) {
             this(initialNodeCount, true);
@@ -1177,6 +1205,10 @@ public class CoordinatorTests extends ESTestCase {
         }
 
         void runRandomly() {
+            runRandomly(true);
+        }
+
+        void runRandomly(boolean allowReboots) {
 
             // TODO supporting (preserving?) existing disruptions needs implementing if needed, for now we just forbid it
             assertThat("may reconnect disconnected nodes, probably unexpected", disconnectedNodes, empty());
@@ -1223,7 +1255,7 @@ public class CoordinatorTests extends ESTestCase {
                                     thisStep, autoShrinkVotingConfiguration, clusterNode.getId());
                                 clusterNode.submitSetAutoShrinkVotingConfiguration(autoShrinkVotingConfiguration);
                             }).run();
-                    } else if (rarely()) {
+                    } else if (allowReboots && rarely()) {
                         // reboot random node
                         final ClusterNode clusterNode = getAnyNode();
                         logger.debug("----> [runRandomly {}] rebooting [{}]", thisStep, clusterNode.getId());
@@ -1504,6 +1536,10 @@ public class CoordinatorTests extends ESTestCase {
             return getAnyNode();
         }
 
+        void setEmptyUnicastHostsList() {
+            unicastHostsList = emptyList();
+        }
+
         class MockPersistedState implements PersistedState {
             private final PersistedState delegate;
             private final NodeEnvironment nodeEnvironment;
@@ -1678,13 +1714,15 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             void close() {
-                logger.trace("taking down [{}]", localNode);
-                coordinator.stop();
-                clusterService.stop();
-                //transportService.stop(); // does blocking stuff :/
-                clusterService.close();
-                coordinator.close();
-                //transportService.close(); // does blocking stuff :/
+                onNode(() -> {
+                    logger.trace("taking down [{}]", localNode);
+                    coordinator.stop();
+                    clusterService.stop();
+                    //transportService.stop(); // does blocking stuff :/
+                    clusterService.close();
+                    coordinator.close();
+                    //transportService.close(); // does blocking stuff :/
+                });
             }
 
             ClusterNode restartedNode() {
@@ -1866,7 +1904,8 @@ public class CoordinatorTests extends ESTestCase {
         }
 
         private List<TransportAddress> provideUnicastHosts(HostsResolver ignored) {
-            return clusterNodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getAddress).collect(Collectors.toList());
+            return unicastHostsList != null ? unicastHostsList
+                : clusterNodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getAddress).collect(Collectors.toList());
         }
     }
 

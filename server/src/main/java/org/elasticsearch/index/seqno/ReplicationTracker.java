@@ -177,8 +177,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private RetentionLeases retentionLeases = RetentionLeases.EMPTY;
 
     /**
-     * Get all non-expired retention leases tracked on this shard. An unmodifiable copy of the retention leases is returned. Note that only
-     * the primary shard calculates which leases are expired, and if any have expired, syncs the retention leases to any replicas.
+     * Get all non-expired retention leases tracked on this shard. Note that only the primary shard calculates which leases are expired,
+     * and if any have expired, syncs the retention leases to any replicas.
      *
      * @return the retention leases
      */

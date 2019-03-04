@@ -19,7 +19,7 @@ cloud:
       project_id: <your-google-project-id>
       zone: <your-zone>
 discovery:
-      zen.hosts_provider: gce
+      seed_providers: gce
 --------------------------------------------------
 
 The following gce settings (prefixed with `cloud.gce`) are supported:
@@ -232,7 +232,7 @@ cloud:
       project_id: es-cloud
       zone: europe-west1-a
 discovery:
-      zen.hosts_provider: gce
+      seed_providers: gce
 --------------------------------------------------
 
 
@@ -346,7 +346,7 @@ cloud:
       project_id: <your-google-project-id>
       zone: ["<your-zone1>", "<your-zone2>"]
 discovery:
-      zen.hosts_provider: gce
+      seed_providers: gce
 --------------------------------------------------
 
 
@@ -382,7 +382,7 @@ cloud:
       project_id: es-cloud
       zone: europe-west1-a
 discovery:
-      zen.hosts_provider: gce
+      seed_providers: gce
       gce:
             tags: elasticsearch, dev
 --------------------------------------------------
@@ -497,7 +497,7 @@ cloud:
       project_id: es-cloud
       zone: europe-west1-a
 discovery:
-      zen.hosts_provider: gce
+      seed_providers: gce
 --------------------------------------------------
 
 Replaces `project_id` and `zone` with your settings.

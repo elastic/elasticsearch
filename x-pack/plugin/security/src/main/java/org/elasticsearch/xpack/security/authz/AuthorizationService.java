@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -64,6 +63,7 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -86,7 +86,7 @@ public class AuthorizationService {
     public static final String ROLE_NAMES_KEY = "_effective_role_names";
 
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
-        ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
+            ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
 
     private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
     private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
@@ -102,12 +102,14 @@ public class AuthorizationService {
     private final ThreadContext threadContext;
     private final AnonymousUser anonymousUser;
     private final FieldPermissionsCache fieldPermissionsCache;
+    private final ApiKeyService apiKeyService;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
     public AuthorizationService(Settings settings, CompositeRolesStore rolesStore, ClusterService clusterService,
                                 AuditTrailService auditTrail, AuthenticationFailureHandler authcFailureHandler,
-                                ThreadPool threadPool, AnonymousUser anonymousUser) {
+                                ThreadPool threadPool, AnonymousUser anonymousUser, ApiKeyService apiKeyService,
+                                FieldPermissionsCache fieldPermissionsCache) {
         this.rolesStore = rolesStore;
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
@@ -117,7 +119,8 @@ public class AuthorizationService {
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
-        this.fieldPermissionsCache = new FieldPermissionsCache(settings);
+        this.fieldPermissionsCache = fieldPermissionsCache;
+        this.apiKeyService = apiKeyService;
     }
 
     /**
@@ -194,8 +197,7 @@ public class AuthorizationService {
 
         // first, we'll check if the action is a cluster action. If it is, we'll only check it against the cluster permissions
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
-            final ClusterPermission cluster = permission.cluster();
-            if (cluster.check(action, request) || checkSameUserPermissions(action, request, authentication)) {
+            if (permission.checkClusterAction(action, request) || checkSameUserPermissions(action, request, authentication)) {
                 putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                 auditTrail.accessGranted(auditId, authentication, action, request, permission.names());
                 return;
@@ -215,7 +217,7 @@ public class AuthorizationService {
                     + ", " + request.getClass().getSimpleName() + " doesn't");
             }
             // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
-            if (permission.indices().check(action)) {
+            if (permission.checkIndicesAction(action)) {
                 auditTrail.accessGranted(auditId, authentication, action, request, permission.names());
                 return;
             }
@@ -226,7 +228,7 @@ public class AuthorizationService {
                     + ", " + request.getClass().getSimpleName() + " doesn't");
             }
             // we check if the user can execute the action, without looking at indices, which will be authorized at the shard level
-            if (permission.indices().check(action)) {
+            if (permission.checkIndicesAction(action)) {
                 auditTrail.accessGranted(auditId, authentication, action, request, permission.names());
                 return;
             }
@@ -237,7 +239,7 @@ public class AuthorizationService {
                 throw new IllegalStateException("originalRequest is not a proxy request: [" + originalRequest + "] but action: ["
                     + action + "] is a proxy action");
             }
-            if (permission.indices().check(action)) {
+            if (permission.checkIndicesAction(action)) {
                 auditTrail.accessGranted(auditId, authentication, action, request, permission.names());
                 return;
             } else {
@@ -261,7 +263,7 @@ public class AuthorizationService {
                 // if the action is a search scroll action, we first authorize that the user can execute the action for some
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
-                if (SearchScrollAction.NAME.equals(action) && permission.indices().check(action) == false) {
+                if (SearchScrollAction.NAME.equals(action) && permission.checkIndicesAction(action) == false) {
                     throw denial(auditId, authentication, action, request, permission.names());
                 } else {
                     // we store the request as a transient in the ThreadContext in case of a authorization failure at the shard
@@ -282,7 +284,7 @@ public class AuthorizationService {
 
         // If this request does not allow remote indices
         // then the user must have permission to perform this action on at least 1 local index
-        if (allowsRemoteIndices == false && permission.indices().check(action) == false) {
+        if (allowsRemoteIndices == false && permission.checkIndicesAction(action) == false) {
             throw denial(auditId, authentication, action, request, permission.names());
         }
 
@@ -295,7 +297,7 @@ public class AuthorizationService {
 
         // If this request does reference any remote indices
         // then the user must have permission to perform this action on at least 1 local index
-        if (resolvedIndices.getRemote().isEmpty() && permission.indices().check(action) == false) {
+        if (resolvedIndices.getRemote().isEmpty() && permission.checkIndicesAction(action) == false) {
             throw denial(auditId, authentication, action, request, permission.names());
         }
 
@@ -435,7 +437,7 @@ public class AuthorizationService {
         }
     }
 
-    public void roles(User user, ActionListener<Role> roleActionListener) {
+    public void roles(User user, Authentication authentication, ActionListener<Role> roleActionListener) {
         // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
         // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
         // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
@@ -454,21 +456,26 @@ public class AuthorizationService {
             return;
         }
 
-        Set<String> roleNames = new HashSet<>();
-        Collections.addAll(roleNames, user.roles());
-        if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
-            if (anonymousUser.roles().length == 0) {
-                throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-            }
-            Collections.addAll(roleNames, anonymousUser.roles());
-        }
-
-        if (roleNames.isEmpty()) {
-            roleActionListener.onResponse(Role.EMPTY);
-        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
-            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+        final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
+        if (authType == Authentication.AuthenticationType.API_KEY) {
+            apiKeyService.getRoleForApiKey(authentication, rolesStore, roleActionListener);
         } else {
-            rolesStore.roles(roleNames, fieldPermissionsCache, roleActionListener);
+            Set<String> roleNames = new HashSet<>();
+            Collections.addAll(roleNames, user.roles());
+            if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
+                if (anonymousUser.roles().length == 0) {
+                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+                }
+                Collections.addAll(roleNames, anonymousUser.roles());
+            }
+
+            if (roleNames.isEmpty()) {
+                roleActionListener.onResponse(Role.EMPTY);
+            } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+                roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+            } else {
+                rolesStore.roles(roleNames, roleActionListener);
+            }
         }
     }
 

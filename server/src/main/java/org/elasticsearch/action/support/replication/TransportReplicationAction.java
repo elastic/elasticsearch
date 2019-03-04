@@ -525,7 +525,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected static class ReplicaResult {
+    public static class ReplicaResult {
         final Exception finalFailure;
 
         public ReplicaResult(Exception finalFailure) {

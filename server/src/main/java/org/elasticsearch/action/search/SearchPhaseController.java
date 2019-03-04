@@ -512,7 +512,7 @@ public final class SearchPhaseController {
     }
 
     private static InternalAggregations reduceAggs(List<InternalAggregations> aggregationsList,
-                                            List<SiblingPipelineAggregator> pipelineAggregators, ReduceContext reduceContext) {
+                                               List<SiblingPipelineAggregator> pipelineAggregators, ReduceContext reduceContext) {
         InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, reduceContext);
         if (pipelineAggregators != null) {
             List<InternalAggregation> newAggs = StreamSupport.stream(aggregations.spliterator(), false)

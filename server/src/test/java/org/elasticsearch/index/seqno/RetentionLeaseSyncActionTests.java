@@ -155,7 +155,8 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
-        final TransportWriteAction.WriteReplicaResult result = action.shardOperationOnReplica(request, indexShard);
+        final TransportWriteAction.WriteReplicaResult<RetentionLeaseSyncAction.Request> result =
+                action.shardOperationOnReplica(request, indexShard);
         // the retention leases on the shard should be updated
         verify(indexShard).updateRetentionLeasesOnReplica(retentionLeases);
         // the retention leases on the shard should be flushed
@@ -229,7 +230,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         };
 
         // execution happens on the test thread, so no need to register an actual listener to callback
-        action.syncRetentionLeasesForShard(indexShard.shardId(), retentionLeases, ActionListener.wrap(() -> {}));
+        action.sync(indexShard.shardId(), retentionLeases, ActionListener.wrap(() -> {}));
         assertTrue(invoked.get());
     }
 

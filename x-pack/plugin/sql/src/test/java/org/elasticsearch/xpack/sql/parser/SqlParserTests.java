@@ -306,7 +306,7 @@ public class SqlParserTests extends ESTestCase {
         In in = (In) filter.condition();
         assertEquals("?a", in.value().toString());
         assertEquals(noChildren, in.list().size());
-        assertThat(in.list().get(0).toString(), startsWith("a + b#"));
+        assertThat(in.list().get(0).toString(), startsWith("Add[?a,?b]"));
     }
 
     public void testDecrementOfDepthCounter() {

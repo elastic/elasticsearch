@@ -28,7 +28,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
+import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkUnresponsive;
+import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService.TestPlugin;
 
@@ -39,7 +41,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
@@ -87,8 +88,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
-        assertBusy(() -> assertNull(client(unluckyNode).admin().cluster().state(
-            new ClusterStateRequest().local(true)).get().getState().nodes().getMasterNode()));
+        ensureNoMaster(unluckyNode);
 
         networkDisconnect.stopDisrupting();
 
@@ -99,48 +99,32 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         assertThat(internalCluster().getMasterName(), equalTo(masterNode));
     }
 
-    /**
-     * Verify that nodes fault detection works after master (re) election
-     */
-    public void testFollowerCheckerDetectsUnresponsiveNodeAfterMasterReelection() throws Exception {
-        internalCluster().startNodes(4,
-            Settings.builder()
-                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-                .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "10")
-                .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-                .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1).build());
-        ensureStableCluster(4);
-
-        logger.info("--> stopping current master");
-        internalCluster().stopCurrentMasterNode();
-
-        ensureStableCluster(3);
-
-        final String master = internalCluster().getMasterName();
-        final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames()).filter(n -> master.equals(n) == false)
-            .collect(Collectors.toList());
-        final String isolatedNode = randomFrom(nonMasters);
-        final String otherNode = nonMasters.get(nonMasters.get(0).equals(isolatedNode) ? 1 : 0);
-
-        logger.info("--> isolating [{}]", isolatedNode);
-
-        final NetworkDisruption networkDisruption = new NetworkDisruption(new NetworkDisruption.TwoPartitions(
-            singleton(isolatedNode), Sets.newHashSet(master, otherNode)), new NetworkUnresponsive());
-        setDisruptionScheme(networkDisruption);
-        networkDisruption.startDisrupting();
-
-        logger.info("--> waiting for master to remove it");
-        ensureStableCluster(2, master);
-
-        networkDisruption.stopDisrupting();
-        ensureStableCluster(3);
+    private void ensureNoMaster(String node) throws Exception {
+        assertBusy(() -> assertNull(client(node).admin().cluster().state(
+            new ClusterStateRequest().local(true)).get().getState().nodes().getMasterNode()));
     }
 
     /**
-     * Verify that nodes fault detection works after master (re) election
+     * Verify that nodes fault detection detects a disconnected node after master reelection
      */
     public void testFollowerCheckerDetectsDisconnectedNodeAfterMasterReelection() throws Exception {
-        internalCluster().startNodes(4);
+        testFollowerCheckerAfterMasterReelection(new NetworkDisconnect(), Settings.EMPTY);
+    }
+
+    /**
+     * Verify that nodes fault detection detects an unresponsive node after master reelection
+     */
+    public void testFollowerCheckerDetectsUnresponsiveNodeAfterMasterReelection() throws Exception {
+        testFollowerCheckerAfterMasterReelection(new NetworkUnresponsive(), Settings.builder()
+            .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+            .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "4")
+            .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+            .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1).build());
+    }
+
+    private void testFollowerCheckerAfterMasterReelection(NetworkLinkDisruptionType networkLinkDisruptionType,
+                                                          Settings settings) throws Exception {
+        internalCluster().startNodes(4, settings);
         ensureStableCluster(4);
 
         logger.info("--> stopping current master");
@@ -156,13 +140,14 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
 
         logger.info("--> isolating [{}]", isolatedNode);
 
-        final NetworkDisruption networkDisruption = new NetworkDisruption(new NetworkDisruption.TwoPartitions(
-            singleton(isolatedNode), Stream.of(master, otherNode).collect(Collectors.toSet())), new NetworkDisconnect());
+        final NetworkDisruption networkDisruption = new NetworkDisruption(new TwoPartitions(
+            singleton(isolatedNode), Sets.newHashSet(master, otherNode)), networkLinkDisruptionType);
         setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
         logger.info("--> waiting for master to remove it");
         ensureStableCluster(2, master);
+        ensureNoMaster(isolatedNode);
 
         networkDisruption.stopDisrupting();
         ensureStableCluster(3);

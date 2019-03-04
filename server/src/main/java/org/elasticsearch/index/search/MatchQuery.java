@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
@@ -78,7 +79,11 @@ public class MatchQuery {
         /**
          * The text is analyzed and used in a phrase query, with the last term acting as a prefix.
          */
-        PHRASE_PREFIX(2);
+        PHRASE_PREFIX(2),
+        /**
+         * The text is analyzed, terms are added to a boolean query with the last term acting as a prefix.
+         */
+        BOOLEAN_PREFIX(3);
 
         private final int ordinal;
 
@@ -248,7 +253,8 @@ public class MatchQuery {
          */
         if (analyzer == Lucene.KEYWORD_ANALYZER
                 && type != Type.PHRASE_PREFIX) {
-            return builder.newTermQuery(new Term(fieldName, value.toString()));
+            final Term term = new Term(fieldName, value.toString());
+            return type == Type.BOOLEAN_PREFIX ? builder.newPrefixQuery(term) : builder.newTermQuery(term);
         }
 
         return parseInternal(type, fieldName, builder, value);
@@ -263,6 +269,10 @@ public class MatchQuery {
                 } else {
                     query = createCommonTermsQuery(builder, fieldName, value.toString(), occur, occur, commonTermsCutoff);
                 }
+                break;
+
+            case BOOLEAN_PREFIX:
+                query = builder.createBooleanPrefixQuery(fieldName, value.toString(), occur);
                 break;
 
             case PHRASE:
@@ -354,8 +364,26 @@ public class MatchQuery {
             return createQuery(field, queryText, type, operator, slop);
         }
 
-        public Query createPhrasePrefixQuery(String field, String queryText, int slop) {
+        /**
+         * Creates a phrase prefix query from the query text.
+         *
+         * @param field field name
+         * @param queryText text to be passed to the analyzer
+         * @return {@code PrefixQuery}, {@code MultiPhrasePrefixQuery}, based on the analysis of {@code queryText}
+         */
+        protected Query createPhrasePrefixQuery(String field, String queryText, int slop) {
             return createQuery(field, queryText, Type.PHRASE_PREFIX, occur, slop);
+        }
+
+        /**
+         * Creates a boolean prefix query from the query text.
+         *
+         * @param field field name
+         * @param queryText text to be passed to the analyzer
+         * @return {@code PrefixQuery}, {@code BooleanQuery}, based on the analysis of {@code queryText}
+         */
+        protected Query createBooleanPrefixQuery(String field, String queryText, BooleanClause.Occur occur) {
+            return createQuery(field, queryText, Type.BOOLEAN_PREFIX, occur, 0);
         }
 
         private Query createFieldQuery(TokenStream source, Type type, BooleanClause.Occur operator, String field, int phraseSlop) {
@@ -405,14 +433,14 @@ public class MatchQuery {
                     if (type == Type.PHRASE_PREFIX) {
                         return analyzePhrasePrefix(field, stream, phraseSlop, positionCount);
                     } else {
-                        return analyzeTerm(field, stream);
+                        return analyzeTerm(field, stream, type == Type.BOOLEAN_PREFIX);
                     }
                 } else if (isGraph) {
                     // graph
                     if (type == Type.PHRASE || type == Type.PHRASE_PREFIX) {
                         return analyzeGraphPhrase(stream, field, type, phraseSlop);
                     } else {
-                        return analyzeGraphBoolean(field, stream, operator);
+                        return analyzeGraphBoolean(field, stream, operator, type == Type.BOOLEAN_PREFIX);
                     }
                 } else if (type == Type.PHRASE && positionCount > 1) {
                     // phrase
@@ -433,7 +461,7 @@ public class MatchQuery {
                         return analyzeBoolean(field, stream);
                     } else {
                         // complex case: multiple positions
-                        return analyzeMultiBoolean(field, stream, operator);
+                        return analyzeMultiBoolean(field, stream, operator, type == Type.BOOLEAN_PREFIX);
                     }
                 }
             } catch (IOException e) {
@@ -462,13 +490,13 @@ public class MatchQuery {
             }
         }
 
-        private SpanQuery newSpanQuery(Term[] terms, boolean prefix) {
+        private SpanQuery newSpanQuery(Term[] terms, boolean isPrefix) {
             if (terms.length == 1) {
-                return prefix ? fieldType.spanPrefixQuery(terms[0].text(), spanRewriteMethod, context) : new SpanTermQuery(terms[0]);
+                return isPrefix ? fieldType.spanPrefixQuery(terms[0].text(), spanRewriteMethod, context) : new SpanTermQuery(terms[0]);
             }
             SpanQuery[] spanQueries = new SpanQuery[terms.length];
             for (int i = 0; i < terms.length; i++) {
-                spanQueries[i] = prefix ? new SpanTermQuery(terms[i]) :
+                spanQueries[i] = isPrefix ? new SpanTermQuery(terms[i]) :
                     fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context);
             }
             return new SpanOrQuery(spanQueries);
@@ -479,7 +507,7 @@ public class MatchQuery {
             return createSpanQuery(in, field, false);
         }
 
-        private SpanQuery createSpanQuery(TokenStream in, String field, boolean prefix) throws IOException {
+        private SpanQuery createSpanQuery(TokenStream in, String field, boolean isPrefix) throws IOException {
             TermToBytesRefAttribute termAtt = in.getAttribute(TermToBytesRefAttribute.class);
             PositionIncrementAttribute posIncAtt = in.getAttribute(PositionIncrementAttribute.class);
             if (termAtt == null) {
@@ -498,7 +526,7 @@ public class MatchQuery {
                 lastTerm = new Term(field, termAtt.getBytesRef());
             }
             if (lastTerm != null) {
-                SpanQuery spanQuery = prefix ?
+                SpanQuery spanQuery = isPrefix ?
                     fieldType.spanPrefixQuery(lastTerm.text(), spanRewriteMethod, context) : new SpanTermQuery(lastTerm);
                 builder.addClause(spanQuery);
             }
@@ -535,6 +563,67 @@ public class MatchQuery {
                     throw e;
                 }
             }
+        }
+
+        /**
+         * Builds a new prefix query instance.
+         */
+        protected Query newPrefixQuery(Term term) {
+            return fieldType.prefixQuery(term.text(), null, context);
+        }
+
+        private Query analyzeTerm(String field, TokenStream stream, boolean isPrefix) throws IOException {
+            TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+            OffsetAttribute offsetAtt = stream.addAttribute(OffsetAttribute.class);
+
+            stream.reset();
+            if (!stream.incrementToken()) {
+                throw new AssertionError();
+            }
+            final Term term = new Term(field, termAtt.getBytesRef());
+            int lastOffset = offsetAtt.endOffset();
+            stream.end();
+            return isPrefix && lastOffset == offsetAtt.endOffset() ? newPrefixQuery(term) : newTermQuery(term);
+        }
+
+        private void add(BooleanQuery.Builder q, List<Term> current, BooleanClause.Occur operator, boolean isPrefix) {
+            if (current.isEmpty()) {
+                return;
+            }
+            if (current.size() == 1) {
+                if (isPrefix) {
+                    q.add(newPrefixQuery(current.get(0)), operator);
+                } else {
+                    q.add(newTermQuery(current.get(0)), operator);
+                }
+            } else {
+                // We don't apply prefix on synonyms
+                q.add(newSynonymQuery(current.toArray(new Term[current.size()])), operator);
+            }
+        }
+
+        private Query analyzeMultiBoolean(String field, TokenStream stream,
+                                          BooleanClause.Occur operator, boolean isPrefix) throws IOException {
+            BooleanQuery.Builder q = newBooleanQuery();
+            List<Term> currentQuery = new ArrayList<>();
+
+            TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+            PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
+            OffsetAttribute offsetAtt = stream.addAttribute(OffsetAttribute.class);
+
+            stream.reset();
+            int lastOffset = 0;
+            while (stream.incrementToken()) {
+                if (posIncrAtt.getPositionIncrement() != 0) {
+                    add(q, currentQuery, operator, false);
+                    currentQuery.clear();
+                }
+                currentQuery.add(new Term(field, termAtt.getBytesRef()));
+                lastOffset = offsetAtt.endOffset();
+            }
+            stream.end();
+            add(q, currentQuery, operator, isPrefix && lastOffset == offsetAtt.endOffset());
+            return q.build();
         }
 
         @Override
@@ -577,6 +666,55 @@ public class MatchQuery {
             }
         }
 
+        private Query analyzeGraphBoolean(String field, TokenStream source,
+                                            BooleanClause.Occur operator, boolean isPrefix) throws IOException {
+            source.reset();
+            GraphTokenStreamFiniteStrings graph = new GraphTokenStreamFiniteStrings(source);
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            int[] articulationPoints = graph.articulationPoints();
+            int lastState = 0;
+            for (int i = 0; i <= articulationPoints.length; i++) {
+                int start = lastState;
+                int end = -1;
+                if (i < articulationPoints.length) {
+                    end = articulationPoints[i];
+                }
+                lastState = end;
+                final Query queryPos;
+                boolean usePrefix = isPrefix && end == -1;
+                if (graph.hasSidePath(start)) {
+                    final Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
+                    Iterator<Query> queries = new Iterator<Query>() {
+                        @Override
+                        public boolean hasNext() {
+                            return it.hasNext();
+                        }
+
+                        @Override
+                        public Query next() {
+                            TokenStream ts = it.next();
+                            return createFieldQuery(ts, usePrefix ? Type.PHRASE_PREFIX : Type.PHRASE,
+                                BooleanClause.Occur.MUST, field, 0);
+                        }
+                    };
+                    queryPos = newGraphSynonymQuery(queries);
+                } else {
+                    Term[] terms = graph.getTerms(field, start);
+                    assert terms.length > 0;
+                    if (terms.length == 1) {
+                        queryPos = usePrefix ? newPrefixQuery(terms[0]) : newTermQuery(terms[0]);
+                    } else {
+                        // We don't apply prefix on synonyms
+                        queryPos = newSynonymQuery(terms);
+                    }
+                }
+                if (queryPos != null) {
+                    builder.add(queryPos, operator);
+                }
+            }
+            return builder.build();
+        }
+
         private Query analyzeGraphPhrase(TokenStream source, String field, Type type, int slop) throws IOException {
             assert type == Type.PHRASE_PREFIX || type == Type.PHRASE;
 
@@ -615,13 +753,13 @@ public class MatchQuery {
                 }
                 lastState = end;
                 final SpanQuery queryPos;
-                boolean endPrefix = end == -1 && type == Type.PHRASE_PREFIX;
+                boolean usePrefix = end == -1 && type == Type.PHRASE_PREFIX;
                 if (graph.hasSidePath(start)) {
                     List<SpanQuery> queries = new ArrayList<>();
                     Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
                     while (it.hasNext()) {
                         TokenStream ts = it.next();
-                        SpanQuery q = createSpanQuery(ts, field, endPrefix);
+                        SpanQuery q = createSpanQuery(ts, field, usePrefix);
                         if (q != null) {
                             if (queries.size() >= maxClauseCount) {
                                 throw new BooleanQuery.TooManyClauses();
@@ -640,7 +778,7 @@ public class MatchQuery {
                     if (terms.length >= maxClauseCount) {
                         throw new BooleanQuery.TooManyClauses();
                     }
-                    queryPos = newSpanQuery(terms, endPrefix);
+                    queryPos = newSpanQuery(terms, usePrefix);
                 }
 
                 if (queryPos != null) {

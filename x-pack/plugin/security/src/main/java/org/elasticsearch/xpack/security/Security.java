@@ -77,6 +77,9 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.SecuritySettings;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
@@ -127,6 +130,9 @@ import org.elasticsearch.xpack.core.ssl.TLSLicenseBootstrapCheck;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
+import org.elasticsearch.xpack.security.action.TransportCreateApiKeyAction;
+import org.elasticsearch.xpack.security.action.TransportGetApiKeyAction;
+import org.elasticsearch.xpack.security.action.TransportInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.elasticsearch.xpack.security.action.interceptor.BulkShardRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.IndicesAliasesRequestInterceptor;
@@ -163,6 +169,7 @@ import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -180,6 +187,9 @@ import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
+import org.elasticsearch.xpack.security.rest.action.RestCreateApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.RestGetApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.RestInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestDeletePrivilegesAction;
@@ -235,6 +245,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
@@ -280,6 +291,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             // fetched
             final List<BootstrapCheck> checks = new ArrayList<>();
             checks.addAll(Arrays.asList(
+                new ApiKeySSLBootstrapCheck(),
                 new TokenSSLBootstrapCheck(),
                 new PkiRealmBootstrapCheck(getSslService()),
                 new TLSLicenseBootstrapCheck(),
@@ -413,16 +425,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         securityIndex.get().addIndexStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
 
-        final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
-
-        authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
-                anonymousUser, tokenService));
-        components.add(authcService.get());
-        securityIndex.get().addIndexStateListener(authcService.get()::onSecurityIndexStateChange);
-
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
         components.add(privilegeStore);
 
+        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
         final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, getLicenseState());
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityIndex.get());
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
@@ -431,13 +437,24 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
         }
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
-            reservedRolesStore, privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState());
+            reservedRolesStore, privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache);
         securityIndex.get().addIndexStateListener(allRolesStore::onSecurityIndexStateChange);
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
+
+        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService,
+                allRolesStore);
+        components.add(apiKeyService);
+
+        final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
+        authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
+                anonymousUser, tokenService, apiKeyService));
+        components.add(authcService.get());
+        securityIndex.get().addIndexStateListener(authcService.get()::onSecurityIndexStateChange);
+
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
-            auditTrailService, failureHandler, threadPool, anonymousUser);
+            auditTrailService, failureHandler, threadPool, anonymousUser, apiKeyService, fieldPermissionsCache);
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
         components.add(allRolesStore); // for SecurityFeatureSet and clear roles cache
@@ -449,17 +466,17 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(),
                 authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
 
-        final Set<RequestInterceptor> requestInterceptors;
+        Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
+            new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService));
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
-            requestInterceptors = Collections.unmodifiableSet(Sets.newHashSet(
-                    new SearchRequestInterceptor(threadPool, getLicenseState()),
-                    new UpdateRequestInterceptor(threadPool, getLicenseState()),
-                    new BulkShardRequestInterceptor(threadPool, getLicenseState()),
-                    new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
-                    new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)));
-        } else {
-            requestInterceptors = Collections.emptySet();
+            requestInterceptors.addAll(Arrays.asList(
+                new SearchRequestInterceptor(threadPool, getLicenseState()),
+                new UpdateRequestInterceptor(threadPool, getLicenseState()),
+                new BulkShardRequestInterceptor(threadPool, getLicenseState())
+            ));
         }
+        requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
         securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, getLicenseState(),
                 requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
@@ -497,6 +514,13 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
                         .contains(bearerScheme) == false) {
                     defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
+                }
+            }
+            if (API_KEY_SERVICE_ENABLED_SETTING.get(settings)) {
+                final String apiKeyScheme = "ApiKey";
+                if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
+                    .contains(apiKeyScheme) == false) {
+                    defaultFailureResponseHeaders.get("WWW-Authenticate").add(apiKeyScheme);
                 }
             }
             failureHandler = new DefaultAuthenticationFailureHandler(defaultFailureResponseHeaders);
@@ -583,6 +607,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         settingsList.add(TokenService.DELETE_TIMEOUT);
         settingsList.add(SecurityServerTransportInterceptor.TRANSPORT_TYPE_PROFILE_SETTING);
         settingsList.addAll(SSLConfigurationSettings.getProfileSettings());
+        settingsList.add(ApiKeyService.PASSWORD_HASHING_ALGORITHM);
+        settingsList.add(ApiKeyService.DELETE_TIMEOUT);
+        settingsList.add(ApiKeyService.DELETE_INTERVAL);
 
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),
@@ -686,7 +713,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
                 new ActionHandler<>(GetPrivilegesAction.INSTANCE, TransportGetPrivilegesAction.class),
                 new ActionHandler<>(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
-                new ActionHandler<>(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class)
+                new ActionHandler<>(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class),
+                new ActionHandler<>(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
+                new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
+                new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class)
         );
     }
 
@@ -735,7 +765,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new RestSamlInvalidateSessionAction(settings, restController, getLicenseState()),
                 new RestGetPrivilegesAction(settings, restController, getLicenseState()),
                 new RestPutPrivilegesAction(settings, restController, getLicenseState()),
-                new RestDeletePrivilegesAction(settings, restController, getLicenseState())
+                new RestDeletePrivilegesAction(settings, restController, getLicenseState()),
+                new RestCreateApiKeyAction(settings, restController, getLicenseState()),
+                new RestInvalidateApiKeyAction(settings, restController, getLicenseState()),
+                new RestGetApiKeyAction(settings, restController, getLicenseState())
         );
     }
 
@@ -887,7 +920,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                     throw new IllegalStateException("unexpected call to getFieldFilter for index [" + index + "] which is not granted");
                 }
                 FieldPermissions fieldPermissions = indexPermissions.getFieldPermissions();
-                if (fieldPermissions == null) {
+                if (fieldPermissions.hasFieldLevelSecurity() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 return fieldPermissions::grantsAccessTo;

@@ -23,11 +23,11 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.elasticsearch.xpack.monitoring.collector.shards.ShardMonitoringDoc;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -168,7 +168,7 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
 
     public void testToUTC() {
         final long timestamp = System.currentTimeMillis();
-        final String expected = new DateTime(timestamp, DateTimeZone.UTC).toString();
+        final String expected = Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC).toString();
 
         assertEquals(expected, MonitoringDoc.toUTC(timestamp));
     }

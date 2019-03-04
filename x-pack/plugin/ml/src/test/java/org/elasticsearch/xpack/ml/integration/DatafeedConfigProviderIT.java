@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -86,7 +87,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<DatafeedConfig> configHolder = new AtomicReference<>();
         blockingCall(actionListener ->
                         datafeedConfigProvider.updateDatefeedConfig(datafeedId, update.build(), updateHeaders,
-                                (updatedConfig, listener) -> listener.onResponse(Boolean.TRUE), actionListener),
+                                (updatedConfig, listener) -> listener.onResponse(Boolean.TRUE), Version.CURRENT, actionListener),
                 configHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertThat(configHolder.get().getIndices(), equalTo(updateIndices));
@@ -167,7 +168,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<DatafeedConfig> configHolder = new AtomicReference<>();
         blockingCall(actionListener ->
                         datafeedConfigProvider.updateDatefeedConfig(datafeedId, update.build(), Collections.emptyMap(),
-                                (updatedConfig, listener) -> listener.onResponse(Boolean.TRUE), actionListener),
+                                (updatedConfig, listener) -> listener.onResponse(Boolean.TRUE), Version.CURRENT, actionListener),
                 configHolder, exceptionHolder);
         assertNull(configHolder.get());
         assertNotNull(exceptionHolder.get());
@@ -193,7 +194,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         blockingCall(actionListener ->
                         datafeedConfigProvider.updateDatefeedConfig(datafeedId, update.build(), Collections.emptyMap(),
-                                validateErrorFunction, actionListener),
+                                validateErrorFunction, Version.CURRENT, actionListener),
                 configHolder, exceptionHolder);
 
         assertNull(configHolder.get());

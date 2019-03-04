@@ -116,7 +116,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
             throw new RuntimeException(e);
         }
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), AzureDiscoveryPlugin.AZURE)
+            .put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), AzureDiscoveryPlugin.AZURE)
             .put(Environment.PATH_LOGS_SETTING.getKey(), resolve)
             .put(TransportSettings.PORT.getKey(), 0)
             .put(Node.WRITE_PORTS_FILE_SETTING.getKey(), "true")

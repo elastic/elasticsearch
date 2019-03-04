@@ -718,7 +718,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final NodeValidationException e = expectThrows(NodeValidationException.class,
             () -> BootstrapChecks.check(zen2Context, true, checks));
         assertThat(e, hasToString(containsString("the default discovery settings are unsuitable for production use; at least one " +
-            "of [discovery.zen.ping.unicast.hosts, discovery.zen.hosts_provider, cluster.initial_master_nodes] must be configured")));
+            "of [discovery.seed_hosts, discovery.seed_providers, cluster.initial_master_nodes] must be configured")));
 
         CheckedConsumer<Settings.Builder, NodeValidationException> ensureChecksPass = b ->
         {
@@ -727,8 +727,11 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             BootstrapChecks.check(context, true, checks);
         };
 
-        ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()));
-        ensureChecksPass.accept(Settings.builder().putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()));
+        ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey()));
+        ensureChecksPass.accept(Settings.builder().putList(SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey()));
+        ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()));
+        ensureChecksPass.accept(Settings.builder().putList(SettingsBasedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING
+            .getKey()));
     }
 }

@@ -388,13 +388,9 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
      * Test for https://github.com/elastic/elasticsearch/issues/11665
      */
     public void testIndicesDeleted() throws Exception {
-        final Settings settings = Settings.builder()
-            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait on isolated data node
-            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // wait till cluster state is committed
-            .build();
         final String idxName = "test";
-        final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(2, settings);
-        final String dataNode = internalCluster().startDataOnlyNode(settings);
+        final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(2);
+        final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
         assertAcked(prepareCreate("test"));
 

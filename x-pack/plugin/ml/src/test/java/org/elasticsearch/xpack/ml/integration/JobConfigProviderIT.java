@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -147,8 +148,8 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         JobUpdate jobUpdate = new JobUpdate.Builder(jobId).setDescription("This job has been updated").build();
 
         AtomicReference<Job> updateJobResponseHolder = new AtomicReference<>();
-        blockingCall(actionListener -> jobConfigProvider.updateJob(jobId, jobUpdate, new ByteSizeValue(32), actionListener),
-                updateJobResponseHolder, exceptionHolder);
+        blockingCall(actionListener -> jobConfigProvider.updateJob
+                (jobId, jobUpdate, new ByteSizeValue(32), Version.CURRENT, actionListener), updateJobResponseHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertEquals("This job has been updated", updateJobResponseHolder.get().getDescription());
 
@@ -205,8 +206,8 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
                 .build();
 
         AtomicReference<Job> updateJobResponseHolder = new AtomicReference<>();
-        blockingCall(actionListener -> jobConfigProvider.updateJob(jobId, invalidUpdate, new ByteSizeValue(32), actionListener),
-                updateJobResponseHolder, exceptionHolder);
+        blockingCall(actionListener -> jobConfigProvider.updateJob(jobId, invalidUpdate, new ByteSizeValue(32), Version.CURRENT,
+            actionListener), updateJobResponseHolder, exceptionHolder);
         assertNull(updateJobResponseHolder.get());
         assertNotNull(exceptionHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ElasticsearchStatusException.class));
@@ -229,9 +230,8 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<Job> updateJobResponseHolder = new AtomicReference<>();
         // update with the no-op validator
-        blockingCall(actionListener ->
-                        jobConfigProvider.updateJobWithValidation(jobId, jobUpdate, new ByteSizeValue(32), validator, actionListener),
-                updateJobResponseHolder, exceptionHolder);
+        blockingCall(actionListener -> jobConfigProvider.updateJobWithValidation(
+            jobId, jobUpdate, new ByteSizeValue(32), validator, Version.CURRENT, actionListener), updateJobResponseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
         assertNotNull(updateJobResponseHolder.get());
@@ -244,7 +244,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         updateJobResponseHolder.set(null);
         // Update with a validator that errors
         blockingCall(actionListener -> jobConfigProvider.updateJobWithValidation(jobId, jobUpdate, new ByteSizeValue(32),
-                validatorWithAnError, actionListener),
+                validatorWithAnError, Version.CURRENT, actionListener),
                 updateJobResponseHolder, exceptionHolder);
 
         assertNull(updateJobResponseHolder.get());

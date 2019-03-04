@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -21,6 +22,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -225,9 +227,12 @@ public class JobConfigProvider {
      * @param maxModelMemoryLimit The maximum model memory allowed. This can be {@code null}
      *                            if the job's {@link org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits}
      *                            are not changed.
+     * @param minClusterNodeVersion the minimum version of nodes in the cluster
      * @param updatedJobListener Updated job listener
      */
-    public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit, ActionListener<Job> updatedJobListener) {
+    public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit,
+                          Version minClusterNodeVersion,
+                          ActionListener<Job> updatedJobListener) {
         GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
 
@@ -239,7 +244,9 @@ public class JobConfigProvider {
                     return;
                 }
 
-                long version = getResponse.getVersion();
+                final long version = getResponse.getVersion();
+                final long seqNo = getResponse.getSeqNo();
+                final long primaryTerm = getResponse.getPrimaryTerm();
                 BytesReference source = getResponse.getSourceAsBytesRef();
                 Job.Builder jobBuilder;
                 try {
@@ -259,7 +266,7 @@ public class JobConfigProvider {
                     return;
                 }
 
-                indexUpdatedJob(updatedJob, version, updatedJobListener);
+                indexUpdatedJob(updatedJob, version, seqNo, primaryTerm, minClusterNodeVersion, updatedJobListener);
             }
 
             @Override
@@ -280,17 +287,18 @@ public class JobConfigProvider {
     }
 
     /**
-     * Similar to {@link #updateJob(String, JobUpdate, ByteSizeValue, ActionListener)} but
+     * Similar to {@link #updateJob(String, JobUpdate, ByteSizeValue, Version, ActionListener)} but
      * with an extra validation step which is called before the updated is applied.
      *
      * @param jobId The Id of the job to update
      * @param update The job update
      * @param maxModelMemoryLimit The maximum model memory allowed
      * @param validator The job update validator
+     * @param minClusterNodeVersion the minimum version of a node ifn the cluster
      * @param updatedJobListener Updated job listener
      */
     public void updateJobWithValidation(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit,
-                                        UpdateValidator validator, ActionListener<Job> updatedJobListener) {
+                                        UpdateValidator validator, Version minClusterNodeVersion, ActionListener<Job> updatedJobListener) {
         GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
 
@@ -302,7 +310,9 @@ public class JobConfigProvider {
                     return;
                 }
 
-                long version = getResponse.getVersion();
+                final long version = getResponse.getVersion();
+                final long seqNo = getResponse.getSeqNo();
+                final long primaryTerm = getResponse.getPrimaryTerm();
                 BytesReference source = getResponse.getSourceAsBytesRef();
                 Job originalJob;
                 try {
@@ -324,7 +334,7 @@ public class JobConfigProvider {
                                 return;
                             }
 
-                            indexUpdatedJob(updatedJob, version, updatedJobListener);
+                            indexUpdatedJob(updatedJob, version, seqNo, primaryTerm, minClusterNodeVersion, updatedJobListener);
                         },
                         updatedJobListener::onFailure
                 ));
@@ -337,17 +347,22 @@ public class JobConfigProvider {
         });
     }
 
-    private void indexUpdatedJob(Job updatedJob, long version, ActionListener<Job> updatedJobListener) {
+    private void indexUpdatedJob(Job updatedJob, long version, long seqNo, long primaryTerm, Version minClusterNodeVersion,
+                                 ActionListener<Job> updatedJobListener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedJob.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            IndexRequest indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
+            IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
                     ElasticsearchMappings.DOC_TYPE, Job.documentId(updatedJob.getId()))
                     .setSource(updatedSource)
-                    .setVersion(version)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .request();
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            if (minClusterNodeVersion.onOrAfter(Version.V_6_7_0)) {
+                indexRequest.setIfSeqNo(seqNo);
+                indexRequest.setIfPrimaryTerm(primaryTerm);
+            } else {
+                indexRequest.setVersion(version);
+            }
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest.request(), ActionListener.wrap(
                     indexResponse -> {
                         assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
                         updatedJobListener.onResponse(updatedJob);

@@ -28,16 +28,16 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeDate;
-import static org.joda.time.DateTimeZone.UTC;
 
 /**
  * Performs the watch de/activation operation.
@@ -60,7 +60,7 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
     @Override
     protected void doExecute(ActivateWatchRequest request, ActionListener<ActivateWatchResponse> listener) {
         try {
-            DateTime now = new DateTime(clock.millis(), UTC);
+            ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
             UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId());
             updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             XContentBuilder builder = activateWatchBuilder(request.isActivate(), now);
@@ -93,7 +93,7 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
         }
     }
 
-    private XContentBuilder activateWatchBuilder(boolean active, DateTime now) throws IOException {
+    private XContentBuilder activateWatchBuilder(boolean active, ZonedDateTime now) throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject()
                     .startObject(WatchField.STATUS.getPreferredName())

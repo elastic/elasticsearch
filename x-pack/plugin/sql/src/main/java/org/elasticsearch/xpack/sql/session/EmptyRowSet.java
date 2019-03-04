@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.xpack.sql.type.Schema;
 
-class EmptyRowSetCursor extends AbstractRowSet implements SchemaRowSet {
+class EmptyRowSet extends AbstractRowSet implements SchemaRowSet {
     private final Schema schema;
 
-    EmptyRowSetCursor(Schema schema) {
+    EmptyRowSet(Schema schema) {
         this.schema = schema;
     }
 

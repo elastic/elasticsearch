@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import static java.util.Collections.singletonList;
 
 public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
@@ -85,5 +87,15 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
             && table.equals(other.table)
             && Objects.equals(alias, other.alias)
             && unresolvedMsg.equals(other.unresolvedMsg);
+    }
+
+    @Override
+    public List<Object> nodeProperties() {
+        return singletonList(table);
+    }
+
+    @Override
+    public String toString() {
+        return UNRESOLVED_PREFIX + table.index();
     }
 }

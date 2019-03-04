@@ -99,8 +99,12 @@ public class XPackSettings {
     public static final Setting<Boolean> RESERVED_REALM_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.reserved_realm.enabled",
             true, Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling the token service. Defaults to true */
+    /** Setting for enabling or disabling the token service. Defaults to the value of https being enabled */
     public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.token.enabled",
+        XPackSettings.HTTP_SSL_ENABLED::getRaw, Setting.Property.NodeScope);
+
+    /** Setting for enabling or disabling the api key service. Defaults to the value of https being enabled */
+    public static final Setting<Boolean> API_KEY_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.api_key.enabled",
         XPackSettings.HTTP_SSL_ENABLED::getRaw, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling FIPS mode. Defaults to false */
@@ -199,6 +203,7 @@ public class XPackSettings {
         settings.add(HTTP_SSL_ENABLED);
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
+        settings.add(API_KEY_SERVICE_ENABLED_SETTING);
         settings.add(SQL_ENABLED);
         settings.add(USER_SETTING);
         settings.add(ROLLUP_ENABLED);

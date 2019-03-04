@@ -31,3 +31,12 @@ Note: GC logs which are written to the file `gc.log` will not be changed.
 ==== Docker output in JSON format
 
 All Docker console logs are now in JSON format. You can distinguish logs streams with the `type` field.
+
+[float]
+==== Audit plaintext log file removed, JSON file renamed
+
+Elasticsearch no longer produces the `${cluster_name}_access.log` plaintext
+audit log file. The `${cluster_name}_audit.log` files also no longer exist; they
+are replaced by `${cluster_name}_audit.json` files. When auditing is enabled,
+auditing events are stored in these dedicated JSON log files on each node.
+

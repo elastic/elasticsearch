@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -63,7 +64,8 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         Role role = Role.builder().add(fieldPermissions, queries, IndexPrivilege.ALL, randomBoolean(), "foo").build();
         final String action = randomFrom(ShrinkAction.NAME, ResizeAction.NAME);
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.singletonMap("foo",
-                        new IndicesAccessControl.IndexAccessControl(true, fieldPermissions, queries)));
+                new IndicesAccessControl.IndexAccessControl(true, fieldPermissions,
+                        (useDls) ? DocumentPermissions.filteredBy(queries) : DocumentPermissions.allowAll())));
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
 
         ResizeRequestInterceptor resizeRequestInterceptor =

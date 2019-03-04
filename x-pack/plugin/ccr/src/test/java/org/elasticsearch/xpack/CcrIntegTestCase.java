@@ -98,8 +98,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.empty;
@@ -194,8 +194,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "2048/1m");
         // wait short time for other active shards before actually deleting, default 30s not needed in tests
         builder.put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
-        builder.putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
-        builder.putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file");
+        builder.putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
+        builder.putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         builder.put(XPackSettings.MONITORING_ENABLED.getKey(), false);

@@ -20,7 +20,8 @@ public class TestUtils {
     private TestUtils() {}
 
     public static final Configuration TEST_CFG = new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE,
-            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null);
+            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN,
+            null, null, null);
 
     /**
      * Returns the current UTC date-time with milliseconds precision.

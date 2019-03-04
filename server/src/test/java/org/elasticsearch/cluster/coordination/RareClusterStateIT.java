@@ -283,6 +283,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/36813")
     public void testDelayedMappingPropagationOnReplica() throws Exception {
         // This is essentially the same thing as testDelayedMappingPropagationOnPrimary
         // but for replicas

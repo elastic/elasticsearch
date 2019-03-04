@@ -77,11 +77,11 @@ public class DiscoveryUpgradeService {
     // how long to wait after activation before attempting to join a master or perform a bootstrap upgrade
     public static final Setting<TimeValue> BWC_PING_TIMEOUT_SETTING =
         Setting.timeSetting("discovery.zen.bwc_ping_timeout",
-            PING_TIMEOUT_SETTING, TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+            PING_TIMEOUT_SETTING, TimeValue.timeValueMillis(1), Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     // whether to try and bootstrap all the discovered Zen2 nodes when the last Zen1 node leaves the cluster.
     public static final Setting<Boolean> ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING =
-        Setting.boolSetting("discovery.zen.unsafe_rolling_upgrades_enabled", true, Setting.Property.NodeScope);
+        Setting.boolSetting("discovery.zen.unsafe_rolling_upgrades_enabled", true, Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     /**
      * Dummy {@link ElectMasterService} that is only used to choose the best 6.x master from the discovered nodes, ignoring the

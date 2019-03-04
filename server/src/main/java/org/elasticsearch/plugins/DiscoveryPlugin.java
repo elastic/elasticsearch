@@ -100,7 +100,7 @@ public interface DiscoveryPlugin {
      * Returns providers of unicast host lists for zen discovery.
      *
      * The key of the returned map is the name of the host provider
-     * (see {@link org.elasticsearch.discovery.DiscoveryModule#DISCOVERY_HOSTS_PROVIDER_SETTING}), and
+     * (see {@link org.elasticsearch.discovery.DiscoveryModule#DISCOVERY_SEED_PROVIDERS_SETTING}), and
      * the value is a supplier to construct the host provider when it is selected for use.
      *
      * @param transportService Use to form the {@link org.elasticsearch.common.transport.TransportAddress} portion

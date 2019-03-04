@@ -46,7 +46,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
-import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
 
 /**
  * Persists result types, Quantiles etc to Elasticsearch<br>
@@ -175,7 +174,7 @@ public class JobResultsPersister {
 
         private void indexResult(String id, ToXContent resultDoc, String resultType) {
             try (XContentBuilder content = toXContentBuilder(resultDoc)) {
-                bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, id).source(content));
+                bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error serialising {}", jobId, resultType), e);
             }
@@ -349,7 +348,7 @@ public class JobResultsPersister {
             logCall(indexName);
 
             try (XContentBuilder content = toXContentBuilder(object)) {
-                IndexRequest indexRequest = new IndexRequest(indexName, DOC_TYPE, id).source(content).setRefreshPolicy(refreshPolicy);
+                IndexRequest indexRequest = new IndexRequest(indexName).id(id).source(content).setRefreshPolicy(refreshPolicy);
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest, listener, client::index);
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);

@@ -18,6 +18,7 @@
 
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.redline_rpm.header.Flags
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -329,6 +330,8 @@ Closure commonRpmConfig(boolean oss) {
 
     packageGroup 'Application/Internet'
     requires '/bin/bash'
+
+    obsoletes packageName, '7.0.0', Flags.LESS
 
     prefix '/usr'
     packager 'Elasticsearch'

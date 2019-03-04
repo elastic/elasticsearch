@@ -400,7 +400,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract DeleteResult delete(Delete delete) throws IOException;
 
-    public abstract NoOpResult noOp(NoOp noOp);
+    public abstract NoOpResult noOp(NoOp noOp) throws IOException;
 
     /**
      * Base class for index and delete operation results
@@ -1052,6 +1052,15 @@ public abstract class Engine implements Closeable {
      */
     @Nullable
     public abstract void refresh(String source) throws EngineException;
+
+    /**
+     * Synchronously refreshes the engine for new search operations to reflect the latest
+     * changes unless another thread is already refreshing the engine concurrently.
+     *
+     * @return <code>true</code> if the a refresh happened. Otherwise <code>false</code>
+     */
+    @Nullable
+    public abstract boolean maybeRefresh(String source) throws EngineException;
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.

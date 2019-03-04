@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -194,15 +193,14 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     public void testJoinValidator() {
         BiConsumer<DiscoveryNode, ClusterState> consumer = (a, b) -> {};
-        // TODO: move to zen2 once join validators are implemented
         DiscoveryModule module = newModule(Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
-            DiscoveryModule.ZEN_DISCOVERY_TYPE).build(), Collections.singletonList(new DiscoveryPlugin() {
+            DiscoveryModule.ZEN2_DISCOVERY_TYPE).build(), Collections.singletonList(new DiscoveryPlugin() {
             @Override
             public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
                 return consumer;
             }
         }));
-        ZenDiscovery discovery = (ZenDiscovery) module.getDiscovery();
+        Coordinator discovery = (Coordinator) module.getDiscovery();
         Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators = discovery.getOnJoinValidators();
         assertEquals(2, onJoinValidators.size());
         assertTrue(onJoinValidators.contains(consumer));

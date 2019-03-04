@@ -521,11 +521,10 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(response.getHits().getHits().length, equalTo(0));
     }
 
-    public void testCloseAndReopenOrDeleteWithActiveScroll() throws IOException {
+    public void testCloseAndReopenOrDeleteWithActiveScroll() {
         createIndex("test");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject())
-            .get();
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", i).get();
         }
         refresh();
         SearchResponse searchResponse = client().prepareSearch()
@@ -541,11 +540,11 @@ public class SearchScrollIT extends ESIntegTestCase {
             assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
         }
         if (randomBoolean()) {
-            client().admin().indices().prepareClose("test").get();
-            client().admin().indices().prepareOpen("test").get();
+            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(client().admin().indices().prepareOpen("test"));
             ensureGreen("test");
         } else {
-            client().admin().indices().prepareDelete("test").get();
+            assertAcked(client().admin().indices().prepareDelete("test"));
         }
     }
 

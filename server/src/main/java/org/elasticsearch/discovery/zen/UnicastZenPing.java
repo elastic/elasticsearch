@@ -34,8 +34,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -46,6 +44,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -68,18 +67,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -97,17 +89,6 @@ public class UnicastZenPing implements ZenPing {
     private static final Logger logger = LogManager.getLogger(UnicastZenPing.class);
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
-
-    public static final Setting<Integer> LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING =
-        Setting.intSetting("discovery.zen.ping.unicast.concurrent_connects", 10, 0, Property.NodeScope, Property.Deprecated);
-    public static final Setting<TimeValue> LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT =
-        Setting.positiveTimeSetting("discovery.zen.ping.unicast.hosts.resolve_timeout", TimeValue.timeValueSeconds(5),
-            Property.NodeScope, Property.Deprecated);
-
-    public static final Setting<Integer> DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING =
-        Setting.intSetting("discovery.seed_resolver.max_concurrent_resolvers", 10, 0, Property.NodeScope);
-    public static final Setting<TimeValue> DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING =
-        Setting.positiveTimeSetting("discovery.seed_resolver.timeout", TimeValue.timeValueSeconds(5), Property.NodeScope);
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -140,8 +121,8 @@ public class UnicastZenPing implements ZenPing {
         this.hostsProvider = seedHostsProvider;
         this.contextProvider = contextProvider;
 
-        final int concurrentConnects = getMaxConcurrentResolvers(settings);
-        resolveTimeout = getResolveTimeout(settings);
+        final int concurrentConnects = SeedHostsResolver.getMaxConcurrentResolvers(settings);
+        resolveTimeout = SeedHostsResolver.getResolveTimeout(settings);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         logger.debug(
             "using max_concurrent_resolvers [{}], resolver timeout [{}]",
@@ -162,85 +143,8 @@ public class UnicastZenPing implements ZenPing {
                 threadPool.getThreadContext());
     }
 
-    /**
-     * Resolves a list of hosts to a list of transport addresses. Each host is resolved into a transport address (or a collection of
-     * addresses if the number of ports is greater than one). Host lookups are done in parallel using specified executor service up
-     * to the specified resolve timeout.
-     *
-     * @param executorService  the executor service used to parallelize hostname lookups
-     * @param logger           logger used for logging messages regarding hostname lookups
-     * @param hosts            the hosts to resolve
-     * @param limitPortCounts  the number of ports to resolve (should be 1 for non-local transport)
-     * @param transportService the transport service
-     * @param resolveTimeout   the timeout before returning from hostname lookups
-     * @return a list of resolved transport addresses
-     */
-    public static List<TransportAddress> resolveHostsLists(
-        final ExecutorService executorService,
-        final Logger logger,
-        final List<String> hosts,
-        final int limitPortCounts,
-        final TransportService transportService,
-        final TimeValue resolveTimeout) {
-        Objects.requireNonNull(executorService);
-        Objects.requireNonNull(logger);
-        Objects.requireNonNull(hosts);
-        Objects.requireNonNull(transportService);
-        Objects.requireNonNull(resolveTimeout);
-        if (resolveTimeout.nanos() < 0) {
-            throw new IllegalArgumentException("resolve timeout must be non-negative but was [" + resolveTimeout + "]");
-        }
-        // create tasks to submit to the executor service; we will wait up to resolveTimeout for these tasks to complete
-        final List<Callable<TransportAddress[]>> callables =
-            hosts
-                .stream()
-                .map(hn -> (Callable<TransportAddress[]>) () -> transportService.addressesFromString(hn, limitPortCounts))
-                .collect(Collectors.toList());
-        final List<Future<TransportAddress[]>> futures;
-        try {
-            futures = executorService.invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return Collections.emptyList();
-        }
-        final List<TransportAddress> transportAddresses = new ArrayList<>();
-        final Set<TransportAddress> localAddresses = new HashSet<>();
-        localAddresses.add(transportService.boundAddress().publishAddress());
-        localAddresses.addAll(Arrays.asList(transportService.boundAddress().boundAddresses()));
-        // ExecutorService#invokeAll guarantees that the futures are returned in the iteration order of the tasks so we can associate the
-        // hostname with the corresponding task by iterating together
-        final Iterator<String> it = hosts.iterator();
-        for (final Future<TransportAddress[]> future : futures) {
-            final String hostname = it.next();
-            if (!future.isCancelled()) {
-                assert future.isDone();
-                try {
-                    final TransportAddress[] addresses = future.get();
-                    logger.trace("resolved host [{}] to {}", hostname, addresses);
-                    for (int addressId = 0; addressId < addresses.length; addressId++) {
-                        final TransportAddress address = addresses[addressId];
-                        // no point in pinging ourselves
-                        if (localAddresses.contains(address) == false) {
-                            transportAddresses.add(address);
-                        }
-                    }
-                } catch (final ExecutionException e) {
-                    assert e.getCause() != null;
-                    final String message = "failed to resolve host [" + hostname + "]";
-                    logger.warn(message, e.getCause());
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    // ignore
-                }
-            } else {
-                logger.warn("timed out after [{}] resolving host [{}]", resolveTimeout, hostname);
-            }
-        }
-        return Collections.unmodifiableList(transportAddresses);
-    }
-
     private SeedHostsProvider.HostsResolver createHostsResolver() {
-        return (hosts, limitPortCounts) -> resolveHostsLists(unicastZenPingExecutorService, logger, hosts,
+        return (hosts, limitPortCounts) -> SeedHostsResolver.resolveHostsLists(unicastZenPingExecutorService, logger, hosts,
             limitPortCounts, transportService, resolveTimeout);
     }
 
@@ -671,27 +575,4 @@ public class UnicastZenPing implements ZenPing {
         return Version.CURRENT; // for tests
     }
 
-    public static int getMaxConcurrentResolvers(Settings settings) {
-        if (LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.exists(settings)) {
-            if (DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING.exists(settings)) {
-                throw new IllegalArgumentException("it is forbidden to set both ["
-                    + DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING.getKey() + "] and ["
-                    + LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.getKey() + "]");
-            }
-            return LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
-        }
-        return DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING.get(settings);
-    }
-
-    public static TimeValue getResolveTimeout(Settings settings) {
-        if (LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.exists(settings)) {
-            if (DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.exists(settings)) {
-                throw new IllegalArgumentException("it is forbidden to set both ["
-                    + DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.getKey() + "] and ["
-                    + LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.getKey() + "]");
-            }
-            return LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
-        }
-        return DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.get(settings);
-    }
 }

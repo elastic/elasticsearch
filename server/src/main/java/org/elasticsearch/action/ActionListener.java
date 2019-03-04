@@ -208,4 +208,18 @@ public interface ActionListener<Response> {
             listener.onFailure(e);
         }
     }
+
+    class Empty<Response> implements ActionListener<Response> {
+        @Override
+        public void onResponse(Response response) {
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+        }
+    }
+
+    static <Response> ActionListener<Response> empty() {
+        return new Empty<>();
+    }
 }

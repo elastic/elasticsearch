@@ -278,7 +278,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
             final List<String> remoteClusterAliases = Collections.singletonList("valid");
             licenseChecker.checkRemoteClusterLicenses(
-                    remoteClusterAliases, doubleInvocationProtectingListener(ActionListener.wrap(() -> {})));
+                    remoteClusterAliases, doubleInvocationProtectingListener(ActionListener.empty()));
 
             verify(client, times(1)).execute(same(XPackInfoAction.INSTANCE), any(), any());
         } finally {

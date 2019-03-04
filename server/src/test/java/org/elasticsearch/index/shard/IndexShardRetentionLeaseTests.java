@@ -79,7 +79,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             for (int i = 0; i < length; i++) {
                 minimumRetainingSequenceNumbers[i] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
                 indexShard.addRetentionLease(
-                        Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.wrap(() -> {}));
+                        Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.empty());
                 assertRetentionLeases(
                         indexShard, i + 1, minimumRetainingSequenceNumbers, primaryTerm, 1 + i, true, false);
             }
@@ -110,13 +110,13 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             for (int i = 0; i < length; i++) {
                 minimumRetainingSequenceNumbers[i] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
                 indexShard.addRetentionLease(
-                        Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.wrap(() -> {}));
+                        Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.empty());
                 assertRetentionLeases(
                         indexShard, i + 1, minimumRetainingSequenceNumbers, primaryTerm, 1 + i, true, false);
             }
 
             for (int i = 0; i < length; i++) {
-                indexShard.removeRetentionLease(Integer.toString(length - i - 1), ActionListener.wrap(() -> {}));
+                indexShard.removeRetentionLease(Integer.toString(length - i - 1), ActionListener.empty());
                 assertRetentionLeases(
                         indexShard,
                         length - i - 1,
@@ -154,7 +154,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             final long[] retainingSequenceNumbers = new long[1];
             retainingSequenceNumbers[0] = randomLongBetween(0, Long.MAX_VALUE);
             if (primary) {
-                indexShard.addRetentionLease("0", retainingSequenceNumbers[0], "test-0", ActionListener.wrap(() -> {}));
+                indexShard.addRetentionLease("0", retainingSequenceNumbers[0], "test-0", ActionListener.empty());
             } else {
                 final RetentionLeases retentionLeases = new RetentionLeases(
                         primaryTerm,
@@ -224,7 +224,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
                 minimumRetainingSequenceNumbers[i] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
                 currentTimeMillis.set(TimeUnit.NANOSECONDS.toMillis(randomNonNegativeLong()));
                 indexShard.addRetentionLease(
-                        Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.wrap(() -> {}));
+                        Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.empty());
             }
 
             currentTimeMillis.set(TimeUnit.NANOSECONDS.toMillis(Long.MAX_VALUE));
@@ -275,7 +275,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             for (int i = 0; i < length; i++) {
                 minimumRetainingSequenceNumbers[i] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
                 indexShard.addRetentionLease(
-                        Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.wrap(() -> {}));
+                        Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.empty());
             }
             final RetentionLeaseStats stats = indexShard.getRetentionLeaseStats();
             assertRetentionLeases(

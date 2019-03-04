@@ -743,7 +743,7 @@ public final class TokenService {
                         .preserveContext(() -> findTokenFromRefreshToken(refreshToken, listener, backoff));
                 client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);
             } else {
-                logger.warn("back off retries exhausted");
+                logger.warn("failed to find token from refresh token after all retries");
                 onFailure.accept(ex);
             }
         };

@@ -20,6 +20,9 @@ package org.elasticsearch.gradle.testclusters;
 
 import groovy.lang.Closure;
 import org.elasticsearch.GradleServicesAdapter;
+import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionCollection;
+import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -27,6 +30,7 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
+import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -37,6 +41,7 @@ import org.gradle.api.tasks.TaskState;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -102,21 +107,20 @@ public class TestClustersPlugin implements Plugin<Project> {
             // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
             // the build.
             rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, Sync.class, sync -> {
-                sync.from((Callable<List<FileTree>>) () ->
-                    helperConfiguration.getFiles()
-                        .stream()
-                        .map(file -> {
-                          if (file.getName().endsWith(".zip")) {
-                              return project.zipTree(file);
-                          } else if (file.getName().endsWith("tar.gz")) {
-                              return project.tarTree(file);
-                          } else {
-                              throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
-                          }
-                        })
-                        .collect(Collectors.toList())
+                sync.dependsOn(helperConfiguration);
+                helperConfiguration.getIncoming().afterResolve(dependencies ->
+                    dependencies.getFiles().forEach(file -> {
+                        final FileTree files;
+                        if (file.getName().endsWith(".zip")) {
+                            files = project.zipTree(file);
+                        } else if (file.getName().endsWith("tar.gz")) {
+                            files = project.tarTree(file);
+                        } else {
+                            throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
+                        }
+                        sync.from(files).into(getTestClustersConfigurationExtractDir(project) + "/" + file.getName());
+                    })
                 );
-                sync.into(getTestClustersConfigurationExtractDir(project));
             });
 
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
@@ -293,16 +297,49 @@ public class TestClustersPlugin implements Plugin<Project> {
         // We need afterEvaluate here despite the fact that container is a domain object, we can't implement this with
         // all because fields can change after the fact.
         project.afterEvaluate(ip -> container.forEach(esNode -> {
-            // declare dependencies against artifacts needed by cluster formation.
-            String dependency = String.format(
-                "unused:%s:%s:%s@%s",
-                esNode.getDistribution().getArtifactName(),
-                esNode.getVersion(),
-                esNode.getDistribution().getClassifier(),
-                esNode.getDistribution().getFileExtension()
-            );
-            logger.info("Cluster {} depends on {}", esNode.getName(), dependency);
-            rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
+            final VersionCollection bwcVersions;
+            final List<Version> unreleased;
+            {
+                ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
+                if (extraProperties.has("bwcVersions")) {
+                    Object bwcVersionsObj = extraProperties.get("bwcVersions");
+                    if (bwcVersionsObj instanceof VersionCollection == false) {
+                        throw new IllegalStateException("Expected project.bwcVersions to be of type VersionCollection " +
+                            "but instead it was " + bwcVersionsObj.getClass());
+                    }
+                    bwcVersions = (VersionCollection) bwcVersionsObj;
+                    unreleased = ((VersionCollection) bwcVersionsObj).getUnreleased();
+                } else {
+                    logger.info("No version information available, assuming all versions used are released");
+                    unreleased = Collections.emptyList();
+                    bwcVersions = null;
+                }
+            }
+            if (unreleased.contains(Version.fromString(esNode.getVersion()))) {
+                VersionCollection.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(
+                    Version.fromString(esNode.getVersion())
+                );
+                Map<String, Object> projectNotation = new HashMap<>();
+                projectNotation.put("path", unreleasedInfo.gradleProjectPath);
+                projectNotation.put("configuration", esNode.getDistribution().getLiveConfiguration());
+                rootProject.getDependencies().add(
+                    HELPER_CONFIGURATION_NAME,
+                    project.getDependencies().project(projectNotation)
+                );
+            } else {
+                // declare dependencies to be downloaded from the download service.
+                // The BuildPlugin sets up the right repo for this to work
+                // TODO: move the repo definition in this plugin when ClusterFormationTasks is removed
+                String dependency = String.format(
+                    "download_service:%s:%s:%s@%s",
+                    esNode.getDistribution().getArtifactName(),
+                    esNode.getVersion(),
+                    esNode.getDistribution().getClassifier(),
+                    esNode.getDistribution().getFileExtension()
+                );
+                logger.info("Cluster {} depends on {}", esNode.getName(), dependency);
+                rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
+            }
         }));
     }
 

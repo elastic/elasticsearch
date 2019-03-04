@@ -92,7 +92,11 @@ tasks.withType(AbstractArchiveTask) {
   dependsOn createLogsDir, createPluginsDir
   String subdir = it.name.substring('build'.size()).replaceAll(/[A-Z]/) { '-' + it.toLowerCase() }.substring(1)
   destinationDir = file("${subdir}/build/distributions")
-  baseName = "elasticsearch${ subdir.contains('oss') ? '-oss' : ''}"
+  if (subdir.contains('integ-test')) {
+    baseName = "integ-test-zip"
+  } else {
+    baseName = "elasticsearch${subdir.contains('oss') ? '-oss' : ''}"
+  }
 }
 
 Closure commonZipConfig = {
@@ -298,7 +302,11 @@ configure(subprojects.findAll { it.name.contains('zip') }) {
   project.group = "org.elasticsearch.distribution.${subgroup}"
 
   // make the pom file name use elasticsearch instead of the project name
-  archivesBaseName = "elasticsearch${it.name.contains('oss') ? '-oss' : ''}"
+  if (project.name == 'integ-test-zip') {
+    archivesBaseName = "integ-test-zip"
+  } else {
+    archivesBaseName = "elasticsearch${it.name.contains('oss') ? '-oss' : ''}"
+  }
 
   publishing {
     publications {

@@ -20,7 +20,7 @@ package org.elasticsearch.gradle;
 
 public enum Distribution {
 
-    INTEG_TEST("integ-test"),
+    INTEG_TEST("integ-test-zip"),
     DEFAULT("elasticsearch"),
     OSS("elasticsearch-oss");
 
@@ -51,6 +51,18 @@ public enum Distribution {
             .onWindows(() -> "windows-x86_64")
             .onMac(() -> "darwin-x86_64")
             .supply();
+    }
+
+    public String getLiveConfiguration() {
+        if (this.equals(INTEG_TEST)) {
+            return "integ-test-zip";
+        } else {
+            return (this.equals(OSS) ? "oss-" : "") + OS.<String>conditional()
+                .onLinux(() -> "linux-tar")
+                .onWindows(() -> "windows-zip")
+                .onMac(() -> "darwin-tar")
+                .supply();
+        }
     }
 
 }

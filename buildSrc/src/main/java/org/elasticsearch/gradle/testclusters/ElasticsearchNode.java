@@ -200,7 +200,8 @@ public class ElasticsearchNode {
         logger.info("Starting `{}`", this);
 
         Path distroArtifact = artifactsExtractDir
-            .resolve(distribution.getArtifactName() + "-" + getVersion());
+            .resolve(distribution.getArtifactName() + "-" + getVersion() + "." + distribution.getFileExtension())
+            .resolve("elasticsearch-" + getVersion());
 
         if (Files.exists(distroArtifact) == false) {
             throw new TestClustersException("Can not start " + this + ", missing: " + distroArtifact);
@@ -209,8 +210,8 @@ public class ElasticsearchNode {
             throw new TestClustersException("Can not start " + this + ", is not a directory: " + distroArtifact);
         }
         services.sync(spec -> {
-            spec.from(distroArtifact.resolve("config").toFile());
-            spec.into(configFile.getParent());
+            spec.from(distroArtifact);
+            spec.into(workingDir);
         });
 
         try {

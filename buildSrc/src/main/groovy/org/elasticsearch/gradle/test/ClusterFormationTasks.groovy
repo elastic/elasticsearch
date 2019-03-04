@@ -176,8 +176,10 @@ class ClusterFormationTasks {
     static void configureDistributionDependency(Project project, String distro, Configuration configuration, String elasticsearchVersion) {
         if (distro.equals("integ-test-zip")) {
             // short circuit integ test so it doesn't complicate the rest of the distribution setup below
-            project.dependencies.add(configuration.name,
-                    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${elasticsearchVersion}@zip")
+            project.dependencies.add(
+                    configuration.name,
+                    project.dependencies.project(path: ":distribution", configuration: 'integ-test-zip')
+            )
             return
         }
         // TEMP HACK
@@ -216,7 +218,8 @@ class ClusterFormationTasks {
         }
         if (unreleasedInfo != null) {
             dependency = project.dependencies.project(
-                        path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: snapshotProject)
+                    path: unreleasedInfo.gradleProjectPath, configuration: snapshotProject
+            )
         } else if (internalBuild && elasticsearchVersion.equals(VersionProperties.elasticsearch)) {
             dependency = project.dependencies.project(path: ":distribution:archives:${snapshotProject}")
         } else {

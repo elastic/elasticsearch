@@ -438,6 +438,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39510")
     public void testDoNotWaitForPendingSeqNo() throws Exception {
         IndexMetaData metaData = buildIndexMetaData(1);
 

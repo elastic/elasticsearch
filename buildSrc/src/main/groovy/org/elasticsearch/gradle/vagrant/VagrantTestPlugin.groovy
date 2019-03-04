@@ -4,7 +4,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.FileContentsTask
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionCollection
+import org.elasticsearch.gradle.BwcVersions
 import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionAdapter
@@ -194,7 +194,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         if (project.ext.bwc_tests_enabled) {
             // The version of elasticsearch that we upgrade *from*
             // we only add them as dependencies if the bwc tests are enabled, so we don't trigger builds otherwise
-            VersionCollection.UnreleasedVersionInfo unreleasedInfo = project.bwcVersions.unreleasedInfo(upgradeFromVersion)
+            BwcVersions.UnreleasedVersionInfo unreleasedInfo = project.bwcVersions.unreleasedInfo(upgradeFromVersion)
             if (unreleasedInfo != null) {
                 // handle snapshots pointing to bwc build
                 UPGRADE_FROM_ARCHIVES.each {

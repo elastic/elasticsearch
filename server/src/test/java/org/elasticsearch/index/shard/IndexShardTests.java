@@ -2622,12 +2622,10 @@ public class IndexShardTests extends IndexShardTestCase {
                             maxAutoIdTimestamp,
                             maxSeqNoOfUpdatesOrDeletes,
                             retentionLeases,
-                            ActionListener.wrap(
-                                    checkpoint -> {
-                                        assertListenerCalled.accept(replica);
-                                        listener.onResponse(checkpoint);
-                                    },
-                                    listener::onFailure));
+                            ActionListener.map(listener, checkpoint -> {
+                                assertListenerCalled.accept(replica);
+                                return checkpoint;
+                            }));
                 }
 
                 @Override

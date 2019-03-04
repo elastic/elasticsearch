@@ -19,7 +19,6 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -212,13 +211,8 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
         assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(1));
 
-        if (Version.CURRENT.onOrAfter(Version.V_8_0_0)) {
-            assertShardStatesMatch(stateChangeListenerNode1, 6, CLOSED, CREATED, RECOVERING, POST_RECOVERY, STARTED);
-            assertShardStatesMatch(stateChangeListenerNode2, 6, CLOSED, CREATED, RECOVERING, POST_RECOVERY, STARTED);
-        } else {
-            assertShardStatesMatch(stateChangeListenerNode1, 6, CLOSED);
-            assertShardStatesMatch(stateChangeListenerNode2, 6, CLOSED);
-        }
+        assertShardStatesMatch(stateChangeListenerNode1, 6, CLOSED, CREATED, RECOVERING, POST_RECOVERY, STARTED);
+        assertShardStatesMatch(stateChangeListenerNode2, 6, CLOSED, CREATED, RECOVERING, POST_RECOVERY, STARTED);
     }
 
     private static void assertShardStatesMatch(final IndexShardStateChangeListener stateChangeListener,

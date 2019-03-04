@@ -128,6 +128,25 @@ public class IntervalBuilderTests extends ESTestCase {
 
     }
 
+    public void testSimpleSynonymsWithGap() throws IOException {
+        // term1 [] term2/term3/term4 term5
+        CannedTokenStream ts = new CannedTokenStream(
+            new Token("term1", 1, 2),
+            new Token("term2", 2, 3, 4),
+            new Token("term3", 0, 3, 4),
+            new Token("term4", 0, 3, 4),
+            new Token("term5", 5, 6)
+        );
+
+        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), -1, true);
+        IntervalsSource expected = Intervals.ordered(
+            Intervals.term("term1"),
+            Intervals.extend(Intervals.or(Intervals.term("term2"), Intervals.term("term3"), Intervals.term("term4")), 1, 0),
+            Intervals.term("term5")
+        );
+        assertEquals(expected, source);
+    }
+
     public void testGraphSynonyms() throws IOException {
 
         // term1 term2:2/term3 term4 term5

@@ -167,9 +167,10 @@ public class IntervalBuilder {
         TermToBytesRefAttribute bytesAtt = ts.addAttribute(TermToBytesRefAttribute.class);
         PositionIncrementAttribute posAtt = ts.addAttribute(PositionIncrementAttribute.class);
         ts.reset();
+        int spaces = 0;
         while (ts.incrementToken()) {
-            int spaces = posAtt.getPositionIncrement() - 1;
-            if (spaces >= 0) {
+            int posInc = posAtt.getPositionIncrement();
+            if (posInc > 0) {
                 if (synonyms.size() == 1) {
                     terms.add(extend(synonyms.get(0), spaces));
                 }
@@ -177,10 +178,10 @@ public class IntervalBuilder {
                     terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
                 }
                 synonyms.clear();
+                spaces = posInc - 1;
             }
             synonyms.add(Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef())));
         }
-        int spaces = posAtt.getPositionIncrement() - 1;
         if (synonyms.size() == 1) {
             terms.add(extend(synonyms.get(0), spaces));
         }

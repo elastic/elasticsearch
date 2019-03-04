@@ -19,7 +19,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -334,18 +333,24 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the expiration time to a day before
         Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(dayBefore));
-        UpdateResponse expirationDateUpdatedResponse = client
-                .prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, MapperService.SINGLE_MAPPING_NAME, createdApiKeys.get(0).getId())
-                .setDoc("expiration_time", dayBefore.toEpochMilli()).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        UpdateResponse expirationDateUpdatedResponse = client.prepareUpdate()
+                .setIndex(SecurityIndexManager.SECURITY_INDEX_NAME)
+                .setId(createdApiKeys.get(0).getId())
+                .setDoc("expiration_time", dayBefore.toEpochMilli())
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
         assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
         // Expire the 2nd key such that it cannot be deleted by the remover
         // hack doc to modify the expiration time to the week before
         Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(weekBefore));
-        expirationDateUpdatedResponse = client
-                .prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, MapperService.SINGLE_MAPPING_NAME, createdApiKeys.get(1).getId())
-                .setDoc("expiration_time", weekBefore.toEpochMilli()).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        expirationDateUpdatedResponse = client.prepareUpdate()
+                .setIndex(SecurityIndexManager.SECURITY_INDEX_NAME)
+                .setId(createdApiKeys.get(1).getId())
+                .setDoc("expiration_time", weekBefore.toEpochMilli())
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
         assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
         // Invalidate to trigger the remover

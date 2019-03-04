@@ -112,6 +112,12 @@ public class IndexDeprecationChecks {
                     "The .tasks index was created before version 6.0 and cannot be opened in 7.0. " +
                         "You must delete this index and allow it to be re-created by Elasticsearch. If you wish to preserve task history, "+
                         "reindex this index to a new index before deleting it.");
+            } else if (".watches".equals(indexMetaData.getIndex().getName())) {
+                return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                    ".watches was not properly upgraded before upgrading to Elasticsearch 6",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-upgrade.html",
+                    "The .watches index was created before version 6.0, and was not properly upgraded in 5.6. " +
+                        "Please upgrade this index using the Migration Upgrade API.");
             }
             if ((mappingCount == 2 && !hasDefaultMapping)
                 || mappingCount > 2) {

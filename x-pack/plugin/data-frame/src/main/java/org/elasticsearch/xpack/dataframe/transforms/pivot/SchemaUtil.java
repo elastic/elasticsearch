@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -26,7 +27,7 @@ public class SchemaUtil {
     }
 
     public static void deduceMappings(final Client client, final PivotConfig config, final String source,
-            final ActionListener<Map<String, String>> listener) {
+                                      final ActionListener<Map<String, String>> listener) {
         // collects the fieldnames used as source for aggregations
         Map<String, String> aggregationSourceFieldNames = new HashMap<>();
         // collects the aggregation types by source name

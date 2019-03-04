@@ -738,6 +738,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         t.join();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39565")
     public void testPendingRefreshWithIntervalChange() throws InterruptedException {
         Settings.Builder builder = Settings.builder();
         builder.put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO);

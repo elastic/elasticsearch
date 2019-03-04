@@ -14,7 +14,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
 
 import java.io.IOException;
 

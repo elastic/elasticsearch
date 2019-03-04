@@ -57,9 +57,9 @@ public class ClusterHealthRequestTests extends ESTestCase {
 
     public void testBwcSerialization() throws Exception {
         for (int runs = 0; runs < randomIntBetween(5, 20); runs++) {
-            // Generate a random cluster health request in version < 8.0.0 and serializes it
+            // Generate a random cluster health request in version < 7.1.0 and serializes it
             final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(randomVersionBetween(random(), Version.V_6_3_0, getPreviousVersion(Version.V_8_0_0)));
+            out.setVersion(randomVersionBetween(random(), Version.V_6_3_0, getPreviousVersion(Version.V_7_1_0)));
 
             final ClusterHealthRequest expected = randomRequest();
             {
@@ -112,9 +112,9 @@ public class ClusterHealthRequestTests extends ESTestCase {
             // Generate a random cluster health request in current version
             final ClusterHealthRequest expected = randomRequest();
 
-            // Serialize to node in version < 8.0.0
+            // Serialize to node in version < 7.1.0
             final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(randomVersionBetween(random(), Version.V_6_3_0, getPreviousVersion(Version.V_8_0_0)));
+            out.setVersion(randomVersionBetween(random(), Version.V_6_3_0, getPreviousVersion(Version.V_7_1_0)));
             expected.writeTo(out);
 
             // Deserialize and check the cluster health request

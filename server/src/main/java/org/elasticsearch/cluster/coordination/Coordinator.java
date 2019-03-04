@@ -85,8 +85,6 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
 
-    public static final long ZEN1_BWC_TERM = 0;
-
     private static final Logger logger = LogManager.getLogger(Coordinator.class);
 
     // the timeout for the publication of each value
@@ -267,14 +265,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 // Rare case in which we stood down as leader between starting this publication and receiving it ourselves. The publication
                 // is already failed so there is no point in proceeding.
                 throw new CoordinationStateRejectedException("no longer leading this publication's term: " + publishRequest);
-            }
-
-            if (publishRequest.getAcceptedState().term() == ZEN1_BWC_TERM && getCurrentTerm() == ZEN1_BWC_TERM
-                && mode == Mode.FOLLOWER && Optional.of(sourceNode).equals(lastKnownLeader) == false) {
-
-                logger.debug("received cluster state from {} but currently following {}, rejecting", sourceNode, lastKnownLeader);
-                throw new CoordinationStateRejectedException("received cluster state from " + sourceNode + " but currently following "
-                    + lastKnownLeader + ", rejecting");
             }
 
             final ClusterState localState = coordinationState.get().getLastAcceptedState();
@@ -601,7 +591,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private PreVoteResponse getPreVoteResponse() {
         return new PreVoteResponse(getCurrentTerm(), coordinationState.get().getLastAcceptedTerm(),
-            coordinationState.get().getLastAcceptedState().getVersionOrMetaDataVersion());
+            coordinationState.get().getLastAcceptedState().version());
     }
 
     // package-visible for testing

@@ -69,7 +69,7 @@ public class TransportBulkShardOperationsAction
         try {
             listener.onResponse(shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(), request.getOperations(),
                 request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger));
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }

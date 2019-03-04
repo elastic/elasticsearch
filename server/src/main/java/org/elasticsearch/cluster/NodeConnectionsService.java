@@ -254,7 +254,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
      * Additionally if the last step of the process was a disconnection then this target is removed from the current set of targets. Thus
      * if this {@link ConnectionTarget} is idle and in the current set of targets then it should be connected.
      * <p>
-     * All of the {@code listeners} are awaiting the completion of the same activityType, which is either a connection or a disconnection.  If
+     * All of the {@code listeners} are awaiting the completion of the same activity, which is either a connection or a disconnection.  If
      * we are currently connecting and then {@link ConnectionTarget#disconnect()} is called then all connection listeners are
      * immediately notified of failure; once the connecting process has finished a disconnection will be started. Similarly if we are
      * currently disconnecting and then {@link ConnectionTarget#connect(ActionListener)} is called then all disconnection listeners are

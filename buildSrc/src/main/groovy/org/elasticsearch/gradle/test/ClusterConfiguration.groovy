@@ -126,7 +126,7 @@ class ClusterConfiguration {
         }
         if (ant.properties.containsKey("failed.${seedNode.transportPortsFile.path}".toString())) {
             throw new GradleException("Failed to locate seed node transport file [${seedNode.transportPortsFile}]: " +
-                    "timed out waiting for it to be created after ${waitSeconds} seconds")
+                    "timed out waiting for it to be created after 40 seconds")
         }
         return seedNode.transportUri()
     }

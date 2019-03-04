@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * A listener for action responses or failures.
@@ -83,14 +82,6 @@ public interface ActionListener<Response> {
      */
     static <Response> ActionListener<Response> wrap(Runnable runnable) {
         return wrap(r -> runnable.run(), e -> runnable.run());
-    }
-
-    static <T, R> ActionListener<R> map(ActionListener<T> listener, BiConsumer<ActionListener<T>, R> mapping) {
-        return wrap(r -> mapping.accept(listener, r), listener::onFailure);
-    }
-
-    static <T, R> ActionListener<R> map(ActionListener<T> listener, Function<R, T> mapping) {
-        return wrap(r -> listener.onResponse(mapping.apply(r)), listener::onFailure);
     }
 
     /**

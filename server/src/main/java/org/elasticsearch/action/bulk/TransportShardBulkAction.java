@@ -209,8 +209,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
 
-            final ActionListener<Boolean> mappingUpdatedListener = ActionListener.map(
-                itemDoneListener, (listener, mappingUpdateInvoked) -> {
+            final ActionListener<Boolean> mappingUpdatedListener = ActionListener.wrap(
+                mappingUpdateInvoked -> {
                     if (mappingUpdateInvoked) {
                         assert context.requiresWaitingForMappingUpdate();
                         waitForMappingUpdate.accept(
@@ -218,20 +218,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                 @Override
                                 public void onResponse(Void aVoid) {
                                     context.resetForExecutionForRetry();
-                                    listener.onResponse(true);
+                                    itemDoneListener.onResponse(true);
                                 }
 
                                 @Override
                                 public void onFailure(Exception e) {
                                     context.failOnMappingUpdate(e);
-                                    listener.onResponse(true);
+                                    itemDoneListener.onResponse(true);
                                 }
                             }
                         );
                     } else {
-                        listener.onResponse(true);
+                        itemDoneListener.onResponse(true);
                     }
-                }
+                }, itemDoneListener::onFailure
             );
 
             if (context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE) {

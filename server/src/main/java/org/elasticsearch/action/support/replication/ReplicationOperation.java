@@ -99,7 +99,7 @@ public class ReplicationOperation<
 
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet(); // increase by 1 until we finish all primary coordination
-        primary.perform(request, ActionListener.map(resultListener, (listener, primaryResult) -> {
+        primary.perform(request, ActionListener.wrap(primaryResult -> {
             this.primaryResult = primaryResult;
             primary.updateLocalCheckpointForShard(primaryRouting.allocationId().getId(), primary.localCheckpoint());
             final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
@@ -129,7 +129,7 @@ public class ReplicationOperation<
 
             successfulShards.incrementAndGet();  // mark primary as successful
             decPendingAndFinishIfNeeded();
-        }));
+        }, resultListener::onFailure));
     }
 
     private void markUnavailableShardsAsStale(ReplicaRequest replicaRequest, ReplicationGroup replicationGroup) {

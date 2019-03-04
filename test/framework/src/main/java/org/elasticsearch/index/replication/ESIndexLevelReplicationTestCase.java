@@ -611,7 +611,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public void execute() {
             try {
                 new ReplicationOperation<>(request, new PrimaryRef(),
-                    ActionListener.map(listener, (listen, result) -> result.respond(listen)), new ReplicasRef(), logger, opType
+                    ActionListener.wrap(result -> result.respond(listener), listener::onFailure), new ReplicasRef(), logger, opType
                 ).execute();
             } catch (Exception e) {
                 listener.onFailure(e);

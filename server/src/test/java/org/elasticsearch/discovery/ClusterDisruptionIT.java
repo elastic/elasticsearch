@@ -442,9 +442,9 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         assertFalse(client().admin().indices().prepareExists(idxName).get().isExists());
     }
 
-    public void testRestartPrimaryNodeWhileIndexing() throws Exception {
+    public void testRestartNodeWhileIndexing() throws Exception {
         startCluster(3);
-        String index = "failover_index";
+        String index = "restart_while_indexing";
         assertAcked(client().admin().indices().prepareCreate(index).setSettings(Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, between(1, 2))));
         AtomicBoolean stopped = new AtomicBoolean();
@@ -454,15 +454,14 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 while (stopped.get() == false && docID.get() < 5000) {
-                    int docId = frequently() ? docID.getAndIncrement() : between(0, docID.getAndIncrement());
+                    String id = Integer.toString(docID.incrementAndGet());
                     try {
-                        IndexResponse response = client().prepareIndex(index, "_doc", Integer.toString(docId))
-                            .setSource("{\"f\":" + docId + "}", XContentType.JSON).get();
+                        IndexResponse response = client().prepareIndex(index, "_doc", id).setSource("{}", XContentType.JSON).get();
                         assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
                         logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
                         ackedDocs.add(response.getId());
                     } catch (ElasticsearchException ignore) {
-                        logger.info("--> fail to index id={}", docId);
+                        logger.info("--> fail to index id={}", id);
                     }
                 }
             });
@@ -470,21 +469,14 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         }
         ensureGreen(index);
         assertBusy(() -> assertThat(docID.get(), greaterThanOrEqualTo(100)));
-        ClusterState clusterState = internalCluster().clusterService().state();
-        for (ShardRouting shardRouting : clusterState.routingTable().allShards(index)) {
-            if (shardRouting.primary()) {
-                String nodeName = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
-                internalCluster().restartNode(nodeName, new InternalTestCluster.RestartCallback());
-                break;
-            }
-        }
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback());
         ensureGreen(index);
         assertBusy(() -> assertThat(docID.get(), greaterThanOrEqualTo(200)));
         stopped.set(true);
         for (Thread thread : threads) {
             thread.join();
         }
-        clusterState = internalCluster().clusterService().state();
+        ClusterState clusterState = internalCluster().clusterService().state();
         for (ShardRouting shardRouting : clusterState.routingTable().allShards(index)) {
             String nodeName = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);

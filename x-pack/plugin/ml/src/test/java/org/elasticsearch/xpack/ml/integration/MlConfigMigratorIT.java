@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.MlConfigMigrator;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
@@ -213,13 +212,12 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client(), clusterService.state(), future);
         future.actionGet();
 
-        IndexRequestBuilder indexRequest = client().prepareIndex(AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
-                ElasticsearchMappings.DOC_TYPE, "ml-config")
-                .setSource(Collections.singletonMap("a_field", "a_value"))
-                .setOpType(DocWriteRequest.OpType.CREATE)
+        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).id("ml-config")
+                .source(Collections.singletonMap("a_field", "a_value"))
+                .opType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        indexRequest.execute().actionGet();
+        client().index(indexRequest).actionGet();
 
         doAnswer(invocation -> {
             ClusterStateUpdateTask listener = (ClusterStateUpdateTask) invocation.getArguments()[1];
@@ -386,7 +384,6 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern()).get();
         SearchResponse searchResponse = client()
             .prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setTypes(ElasticsearchMappings.DOC_TYPE)
             .setSize(1)
             .setQuery(QueryBuilders.idsQuery().addIds("ml-config"))
             .get();

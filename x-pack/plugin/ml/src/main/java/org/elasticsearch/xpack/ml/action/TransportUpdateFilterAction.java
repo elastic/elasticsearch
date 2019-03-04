@@ -103,7 +103,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     private void indexUpdatedFilter(MlFilter filter, final long seqNo, final long primaryTerm,
                                     UpdateFilterAction.Request request,
                                     ActionListener<PutFilterAction.Response> listener) {
-        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
+        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(filter.documentId());
         indexRequest.setIfSeqNo(seqNo);
         indexRequest.setIfPrimaryTerm(primaryTerm);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -139,7 +139,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     }
 
     private void getFilterWithVersion(String filterId, ActionListener<FilterWithSeqNo> listener) {
-        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, MlFilter.documentId(filterId));
+        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlFilter.documentId(filterId));
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getDocResponse) {

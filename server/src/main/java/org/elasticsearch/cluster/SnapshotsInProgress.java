@@ -446,7 +446,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             long repositoryStateId = in.readLong();
             final String failure;
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
                 failure = in.readOptionalString();
             } else {
                 failure = null;
@@ -488,7 +488,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 }
             }
             out.writeLong(entry.repositoryStateId);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
                 out.writeOptionalString(entry.failure);
             }
         }

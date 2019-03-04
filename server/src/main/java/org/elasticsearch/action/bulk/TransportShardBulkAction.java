@@ -31,7 +31,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -483,17 +482,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             U result = toExecute.get();
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), shardId, request.type(),
-                    new ActionListener<AcknowledgedResponse>() {
+                    new ActionListener<Void>() {
                         @Override
-                        public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        public void onResponse(Void aVoid) {
                             context.markAsRequiringMappingUpdate();
                             mappingUpdatedListener.onResponse(true);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            context.markAsRequiringMappingUpdate();
-                            mappingUpdatedListener.onFailure(e);
+                            context.markOperationAsExecuted(exceptionToResult.apply(e));
+                            mappingUpdatedListener.onResponse(false);
                         }
                     });
                 return false;

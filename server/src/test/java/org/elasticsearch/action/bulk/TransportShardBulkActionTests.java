@@ -33,7 +33,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction.WritePrimaryResult;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -301,7 +300,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 // There should indeed be a mapping update
                 assertNotNull(update);
                 updateCalled.incrementAndGet();
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(null);
             }, listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER);
         assertTrue(context.isInitial());
         assertTrue(context.hasMoreOperationsToExecute());
@@ -909,8 +908,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     /** Doesn't perform any mapping updates */
     public static class NoopMappingUpdatePerformer implements MappingUpdatePerformer {
         @Override
-        public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<AcknowledgedResponse> listener) {
-            listener.onResponse(new AcknowledgedResponse(true));
+        public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
     }
 
@@ -923,7 +922,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         }
 
         @Override
-        public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<AcknowledgedResponse> listener) {
+        public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener) {
             listener.onFailure(e);
         }
     }

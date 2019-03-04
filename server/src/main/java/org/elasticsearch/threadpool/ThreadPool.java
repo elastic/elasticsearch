@@ -38,7 +38,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
@@ -745,7 +744,8 @@ public class ThreadPool implements Scheduler, Closeable {
      */
     public static boolean terminate(ThreadPool pool, long timeout, TimeUnit timeUnit) {
         if (pool != null) {
-            try {
+            // Leverage try-with-resources to close the threadpool
+            try (ThreadPool c = pool) {
                 pool.shutdown();
                 if (awaitTermination(pool, timeout, timeUnit)) {
                     return true;
@@ -753,8 +753,6 @@ public class ThreadPool implements Scheduler, Closeable {
                 // last resort
                 pool.shutdownNow();
                 return awaitTermination(pool, timeout, timeUnit);
-            } finally {
-                IOUtils.closeWhileHandlingException(pool);
             }
         }
         return false;
@@ -775,7 +773,7 @@ public class ThreadPool implements Scheduler, Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         threadContext.close();
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 
 import java.util.ArrayList;
@@ -90,6 +91,20 @@ public interface ActionListener<Response> {
 
     static <T, R> ActionListener<R> map(ActionListener<T> listener, Function<R, T> mapping) {
         return wrap(r -> listener.onResponse(mapping.apply(r)), listener::onFailure);
+    }
+
+    /**
+     * Creates a listener that wraps another listener, mapping response values via the given mapping function and passing along
+     * exceptions to the delegate.
+     *
+     * @param listener Listener to delegate to
+     * @param fn Function to apply to listener response
+     * @param <Response> Response type of the new listener
+     * @param <T> Response type of the wrapped listener
+     * @return a listener that maps the received response and then passes it to its delegate listener
+     */
+    static <T, Response> ActionListener<Response> map(ActionListener<T> listener, CheckedFunction<Response, T, Exception> fn) {
+        return wrap(r -> listener.onResponse(fn.apply(r)), listener::onFailure);
     }
 
     /**

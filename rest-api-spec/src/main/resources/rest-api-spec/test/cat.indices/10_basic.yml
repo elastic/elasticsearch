@@ -50,10 +50,10 @@
                 )
                 $/
 ---
-"Test cat indices output for closed index (pre 8.0.0)":
+"Test cat indices output for closed index (pre 7.1.0)":
   - skip:
-      version: "8.0.0 - "
-      reason:  "closed indices are replicated starting version 8.0"
+      version: "7.1.0 - "
+      reason:  "closed indices are replicated starting version 7.1.0"
 
   - do:
       indices.create:
@@ -93,8 +93,8 @@
 ---
 "Test cat indices output for closed index":
   - skip:
-      version: " - 7.99.99"
-      reason:  "closed indices are replicated starting version 8.0"
+      version: " - 7.0.99"
+      reason:  "closed indices are replicated starting version 7.1.0"
 
   - do:
       indices.create:

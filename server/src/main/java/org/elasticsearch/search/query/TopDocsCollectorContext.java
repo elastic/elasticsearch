@@ -370,13 +370,17 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             for (LeafReaderContext context : reader.leaves()) {
                 FieldInfos fieldInfos = context.reader().getFieldInfos();
                 FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
-                if (fieldInfo.getPointIndexDimensionCount() > 0) {
-                    count += PointValues.getDocCount(context.reader(), field);
-                } else if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
-                    Terms terms = context.reader().terms(field);
-                    count += terms.getDocCount();
-                } else {
-                    return -1; // no shortcut possible for fields that are not indexed
+                if (fieldInfo != null) {
+                    if (fieldInfo.getPointIndexDimensionCount() > 0) {
+                        count += PointValues.getDocCount(context.reader(), field);
+                    } else if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
+                        Terms terms = context.reader().terms(field);
+                        if (terms != null) {
+                            count += terms.getDocCount();
+                        }
+                    } else {
+                        return -1; // no shortcut possible for fields that are not indexed
+                    }
                 }
             }
             return count;

@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -203,15 +204,20 @@ public class ReplicationOperation<
     }
 
     private void onNoLongerPrimary(Exception failure) {
+        final boolean nodeIsClosing = failure instanceof NodeClosedException ||
+            (failure instanceof TransportException && "TransportService is closed stopped can't send request".equals(failure.getMessage()));
         final String message;
-        if (failure instanceof ShardStateAction.NoLongerPrimaryShardException) {
+        if (nodeIsClosing) {
+            message = String.format(Locale.ROOT, "primary node [%s] is shutting down while failing replica shard", primary.routingEntry());
+        } else {
+            if (Assertions.ENABLED) {
+                if (failure instanceof ShardStateAction.NoLongerPrimaryShardException == false) {
+                    throw new AssertionError("unexpected failure", failure);
+                }
+            }
             // we are no longer the primary, fail ourselves and start over
             message = String.format(Locale.ROOT, "primary shard [%s] was demoted while failing replica shard", primary.routingEntry());
             primary.failShard(message, failure);
-        } else {
-            // these can occur if the node is shutting down and are okay any other exception here is not expected and merits investigation.
-            assert failure instanceof NodeClosedException || failure instanceof TransportException : failure;
-            message = String.format(Locale.ROOT, "primary node [%s] is shutting down while failing replica shard", primary.routingEntry());
         }
         finishAsFailed(new RetryOnPrimaryException(primary.routingEntry().shardId(), message, failure));
     }

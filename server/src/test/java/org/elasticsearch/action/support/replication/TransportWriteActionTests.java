@@ -335,11 +335,11 @@ public class TransportWriteActionTests extends ESTestCase {
             assertFalse(success.get());
             assertNotNull(failure.get());
         } else {
-            // simulated an "ignored" exception
+            // simulated a node closing exception
             transport.handleRemoteError(shardFailedRequest.requestId,
                 new NodeClosedException(state.nodes().getLocalNode()));
             assertFalse(success.get());
-            assertNull(failure.get());
+            assertNotNull(failure.get());
         }
     }
 

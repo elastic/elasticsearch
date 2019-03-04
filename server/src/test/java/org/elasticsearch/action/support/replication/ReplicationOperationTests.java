@@ -43,6 +43,7 @@ import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportException;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -201,6 +202,8 @@ public class ReplicationOperationTests extends ESTestCase {
         final Exception shardActionFailure;
         if (randomBoolean()) {
             shardActionFailure = new NodeClosedException(new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT));
+        } else if (randomBoolean()) {
+            shardActionFailure = new TransportException("TransportService is closed stopped can't send request");
         } else {
             shardActionFailure = new ShardStateAction.NoLongerPrimaryShardException(failedReplica.shardId(), "the king is dead");
         }

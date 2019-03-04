@@ -468,6 +468,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             waitForPendingRollupTasks();
         }
 
+        wipeSnapshots();
+
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
@@ -507,8 +509,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                 adminClient().performRequest(new Request("DELETE", "_template/*"));
             }
         }
-
-        wipeSnapshots();
 
         // wipe cluster settings
         if (preserveClusterSettings() == false) {

@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -782,7 +783,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      */
     public void testSnapshotRestore() throws IOException {
         int count;
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().major < 8) {
+        if (isRunningAgainstOldCluster()) {
             // Create the index
             count = between(200, 300);
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());

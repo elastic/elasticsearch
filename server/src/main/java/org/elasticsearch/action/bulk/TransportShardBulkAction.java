@@ -231,7 +231,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     } else {
                         itemDoneListener.onResponse(true);
                     }
-                }, itemDoneListener::onFailure
+                }, e -> {
+                    context.failOnMappingUpdate(e);
+                    itemDoneListener.onResponse(true);
+                }
             );
 
             if (context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE) {
@@ -489,8 +492,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                         @Override
                         public void onFailure(Exception e) {
-                            onComplete.accept(exceptionToResult.apply(e));
-                            mappingUpdatedListener.onResponse(false);
+                            context.markAsRequiringMappingUpdate();
+                            mappingUpdatedListener.onFailure(e);
                         }
                     });
                 return false;

@@ -30,13 +30,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -45,7 +44,6 @@ import java.util.Map;
 
 import static org.elasticsearch.ingest.common.IngestCommonPlugin.GROK_PATTERNS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Response> {
 
@@ -68,7 +66,7 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Respon
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
         private Map<String, String> grokPatterns;
 
         Response(Map<String, String> grokPatterns) {
@@ -86,11 +84,6 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Respon
             builder.map(grokPatterns);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public RestStatus status() {
-            return OK;
         }
 
         @Override
@@ -136,7 +129,7 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Respon
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-            return channel -> client.executeLocally(INSTANCE, new Request(), new RestStatusToXContentListener<>(channel));
+            return channel -> client.executeLocally(INSTANCE, new Request(), new RestToXContentListener<>(channel));
         }
     }
 }

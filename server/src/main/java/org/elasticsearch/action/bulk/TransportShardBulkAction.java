@@ -208,9 +208,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
 
-            final ActionListener<Boolean> mappingUpdatedListener = ActionListener.wrap(
-                mappingUpdateInvoked -> {
-                    if (mappingUpdateInvoked) {
+            final ActionListener<Engine.Result> mappingUpdatedListener = ActionListener.wrap(
+                result -> {
+                    if (result == null) {
                         assert context.requiresWaitingForMappingUpdate();
                         waitForMappingUpdate.accept(
                             new ActionListener<Void>() {
@@ -447,7 +447,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     /** Executes index operation on primary shard after updates mapping if dynamic mappings are found */
     private static boolean executeIndexRequestOnPrimary(BulkPrimaryExecutionContext context,
         MappingUpdatePerformer mappingUpdater,
-        ActionListener<Boolean> mappingUpdatedListener, UpdateHelper.Result updateResult) {
+        ActionListener<Engine.Result> mappingUpdatedListener, UpdateHelper.Result updateResult) {
         final IndexRequest request = context.getRequestToExecute();
         final IndexShard primary = context.getPrimary();
         final SourceToParse sourceToParse =
@@ -463,7 +463,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static boolean executeDeleteRequestOnPrimary(BulkPrimaryExecutionContext context,
         MappingUpdatePerformer mappingUpdater,
-        ActionListener<Boolean> mappingUpdatedListener, UpdateHelper.Result updateResult) {
+        ActionListener<Engine.Result> mappingUpdatedListener, UpdateHelper.Result updateResult) {
         final DeleteRequest request = context.getRequestToExecute();
         final IndexShard primary = context.getPrimary();
         return executeOnPrimaryWhileHandlingMappingUpdates(
@@ -477,7 +477,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private static <T extends DocWriteRequest<?>, U extends Engine.Result> boolean executeOnPrimaryWhileHandlingMappingUpdates(
             CheckedSupplier<U, IOException> toExecute, Function<Exception, U> exceptionToResult, Consumer<U> onComplete,
             MappingUpdatePerformer mappingUpdater, ShardId shardId, T request, BulkPrimaryExecutionContext context,
-            ActionListener<Boolean> mappingUpdatedListener) {
+            ActionListener<U> mappingUpdatedListener) {
         try {
             U result = toExecute.get();
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
@@ -486,13 +486,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         @Override
                         public void onResponse(Void aVoid) {
                             context.markAsRequiringMappingUpdate();
-                            mappingUpdatedListener.onResponse(true);
+                            mappingUpdatedListener.onResponse(null);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            context.markOperationAsExecuted(exceptionToResult.apply(e));
-                            mappingUpdatedListener.onResponse(false);
+                            final U res = exceptionToResult.apply(e);
+                            onComplete.accept(res);
+                            mappingUpdatedListener.onResponse(res);
                         }
                     });
                 return false;

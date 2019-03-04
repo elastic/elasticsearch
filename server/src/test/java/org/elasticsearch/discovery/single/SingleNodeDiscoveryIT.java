@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -83,7 +83,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             final TransportService nodeTransport =
                     internalCluster().getInstance(TransportService.class);
             // try to ping the single node directly
-            final UnicastHostsProvider provider =
+            final SeedHostsProvider provider =
                 hostsResolver -> Collections.singletonList(nodeTransport.getLocalNode().getAddress());
             final CountDownLatch latch = new CountDownLatch(1);
             final DiscoveryNodes nodes = DiscoveryNodes.builder()
@@ -130,7 +130,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                          * We align the port ranges of the two as then with zen discovery these two
                          * nodes would find each other.
                          */
-                        .put("transport.tcp.port", port + "-" + (port + 5 - 1))
+                        .put("transport.port", port + "-" + (port + 5 - 1))
                         .build();
             }
 
@@ -165,6 +165,12 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                     first.metaData().clusterUUID(),
                     not(equalTo(second.metaData().clusterUUID())));
         }
+    }
+
+    public void testStatePersistence() throws Exception {
+        createIndex("test");
+        internalCluster().fullRestart();
+        assertTrue(client().admin().indices().prepareExists("test").get().isExists());
     }
 
 }

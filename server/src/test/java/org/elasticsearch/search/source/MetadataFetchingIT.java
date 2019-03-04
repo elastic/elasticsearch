@@ -41,7 +41,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        client().prepareIndex("test", "_doc", "1").setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test", "_doc", "1").setSource("field", "value").get();
         refresh();
 
         SearchResponse response = client()
@@ -66,7 +66,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("_doc", "nested", "type=nested"));
         ensureGreen();
         client().prepareIndex("test", "_doc", "1")
-            .setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).execute().actionGet();
+            .setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
         refresh();
 
         SearchResponse response = client()
@@ -80,13 +80,13 @@ public class MetadataFetchingIT extends ESIntegTestCase {
                         .setFetchSourceContext(new FetchSourceContext(false)))
             )
             .get();
-        assertThat(response.getHits().totalHits, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(0).getId(), nullValue());
         assertThat(response.getHits().getAt(0).getType(), equalTo("_doc"));
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         SearchHits hits = response.getHits().getAt(0).getInnerHits().get("nested");
-        assertThat(hits.totalHits, equalTo(1L));
+        assertThat(hits.getTotalHits().value, equalTo(1L));
         assertThat(hits.getAt(0).getId(), nullValue());
         assertThat(hits.getAt(0).getType(), equalTo("_doc"));
         assertThat(hits.getAt(0).getSourceAsString(), nullValue());
@@ -96,7 +96,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        client().prepareIndex("test", "_doc", "1").setSource("field", "value").setRouting("toto").execute().actionGet();
+        client().prepareIndex("test", "_doc", "1").setSource("field", "value").setRouting("toto").get();
         refresh();
 
         SearchResponse response = client()

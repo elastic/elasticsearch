@@ -66,7 +66,7 @@ import static org.mockito.Mockito.when;
 public class IndexerUtilsTests extends AggregatorTestCase {
     public void testMissingFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String timestampField = "the_histo";
         String valueField = "the_avg";
@@ -130,7 +130,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testCorrectFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String timestampField = "the_histo";
         String valueField = "the_avg";
@@ -198,9 +198,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testNumericTerms() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats= new RollupIndexerJobStats(0, 0, 0, 0);
+        RollupIndexerJobStats stats= new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
-        String timestampField = "the_histo";
         String valueField = "the_avg";
 
         Directory directory = newDirectory();
@@ -255,7 +254,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testEmptyCounts() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String timestampField = "ts";
         String valueField = "the_avg";
@@ -491,7 +490,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testMissingBuckets() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         String metricField = "metric_field";
         String valueField = "value_field";

@@ -19,18 +19,11 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
-
 /**
  * ClusterInfoService that provides empty maps for disk usage and shard sizes
  */
-public class EmptyClusterInfoService extends AbstractComponent implements ClusterInfoService {
+public class EmptyClusterInfoService implements ClusterInfoService {
     public static final EmptyClusterInfoService INSTANCE = new EmptyClusterInfoService();
-
-    private EmptyClusterInfoService() {
-        super(Settings.EMPTY);
-    }
 
     @Override
     public ClusterInfo getClusterInfo() {

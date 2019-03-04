@@ -51,7 +51,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(IDX_NAME)
                 .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME)
                         .wrapLongitude(false))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -72,7 +72,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         global("global").subAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(searchResponse);
 
@@ -105,7 +105,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(IDX_NAME)
                 .addAggregation(geoBounds(aggName).field(MULTI_VALUED_FIELD_NAME)
                         .wrapLongitude(false))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -125,7 +125,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(UNMAPPED_IDX_NAME)
                 .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME)
                         .wrapLongitude(false))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -142,7 +142,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(IDX_NAME, UNMAPPED_IDX_NAME)
                 .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME)
                         .wrapLongitude(false))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -162,9 +162,9 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME)
                         .wrapLongitude(false))
-                .execute().actionGet();
+                .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
         GeoBounds geoBounds = searchResponse.getAggregations().get(aggName);
         assertThat(geoBounds, notNullValue());
         assertThat(geoBounds.getName(), equalTo(aggName));
@@ -178,7 +178,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(DATELINE_IDX_NAME)
                 .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME)
                         .wrapLongitude(false))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -202,7 +202,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
         GeoPoint geoValuesBottomRight = new GeoPoint(-24, -175);
         SearchResponse response = client().prepareSearch(DATELINE_IDX_NAME)
                 .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(true))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -224,7 +224,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
                 .addAggregation(terms("terms").field(NUMBER_FIELD_NAME).subAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME)
                         .wrapLongitude(false)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -249,7 +249,7 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
 
     public void testSingleValuedFieldWithZeroLon() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_ZERO_NAME)
-                .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false)).execute().actionGet();
+                .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false)).get();
 
         assertSearchResponse(response);
 

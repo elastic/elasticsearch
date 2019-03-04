@@ -53,17 +53,17 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
     public void testFilterInitialRecovery() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY,
+        AllocationDeciders allocationDeciders = new AllocationDeciders(
             Arrays.asList(filterAllocationDecider,
                 new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
-                new ReplicaAfterPrimaryActiveAllocationDecider(Settings.EMPTY)));
-        AllocationService service = new AllocationService(Settings.builder().build(), allocationDeciders,
+                new ReplicaAfterPrimaryActiveAllocationDecider()));
+        AllocationService service = new AllocationService(allocationDeciders,
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
         ClusterState state = createInitialClusterState(service, Settings.builder().put("index.routing.allocation.initial_recovery._id",
             "node2").build());
         RoutingTable routingTable = state.routingTable();
 
-        // we can initally only allocate on node2
+        // we can initially only allocate on node2
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).currentNodeId(), "node2");
         routingTable = service.applyFailedShard(state, routingTable.index("idx").shard(0).shards().get(0), randomBoolean()).routingTable();
@@ -111,7 +111,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
         // now remove the node of the other copy and fail the current
         DiscoveryNode node1 = state.nodes().resolveNode("node1");
-        state = service.deassociateDeadNodes(
+        state = service.disassociateDeadNodes(
             ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).remove("node1")).build(),
             true, "test");
         state = service.applyFailedShard(state, routingTable.index("idx").shard(0).primaryShard(), randomBoolean());

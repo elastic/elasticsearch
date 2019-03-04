@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.replication.TransportBroadcastReplicatio
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportService;
 
@@ -35,13 +34,15 @@ import java.util.List;
 /**
  * Flush Action.
  */
-public class TransportFlushAction extends TransportBroadcastReplicationAction<FlushRequest, FlushResponse, ShardFlushRequest, ReplicationResponse> {
+public class TransportFlushAction
+        extends TransportBroadcastReplicationAction<FlushRequest, FlushResponse, ShardFlushRequest, ReplicationResponse> {
 
     @Inject
-    public TransportFlushAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public TransportFlushAction(ClusterService clusterService, TransportService transportService,
                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                 TransportShardFlushAction replicatedFlushAction) {
-        super(FlushAction.NAME, FlushRequest::new, settings, clusterService, transportService, actionFilters, indexNameExpressionResolver, replicatedFlushAction);
+        super(FlushAction.NAME, FlushRequest::new, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+            replicatedFlushAction);
     }
 
     @Override

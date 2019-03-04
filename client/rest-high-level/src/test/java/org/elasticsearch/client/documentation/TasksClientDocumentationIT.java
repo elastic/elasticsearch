@@ -66,6 +66,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
+    @SuppressWarnings("unused")
     public void testListTasks() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -149,6 +150,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testCancelTasks() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -177,11 +179,16 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         List<TaskInfo> tasks = response.getTasks(); // <1>
         // end::cancel-tasks-response-tasks
 
+        // tag::cancel-tasks-response-calc
+        Map<String, List<TaskInfo>> perNodeTasks = response.getPerNodeTasks(); // <1>
+        List<TaskGroup> groups = response.getTaskGroups(); // <2>
+        // end::cancel-tasks-response-calc
+
 
         // tag::cancel-tasks-response-failures
         List<ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>
         List<TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>
-        // end::-tasks-response-failures
+        // end::cancel-tasks-response-failures
 
         assertThat(response.getNodeFailures(), equalTo(emptyList()));
         assertThat(response.getTaskFailures(), equalTo(emptyList()));

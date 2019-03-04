@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.support.Variables;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -36,7 +36,7 @@ abstract class AbstractCompareCondition implements ExecutableCondition {
     @Override
     public final Result execute(WatchExecutionContext ctx) {
         Map<String, Object> resolvedValues = new HashMap<>();
-        Map<String, Object> model = Variables.createCtxModel(ctx, ctx.payload());
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, ctx.payload());
         return doExecute(model, resolvedValues);
     }
 
@@ -47,8 +47,8 @@ abstract class AbstractCompareCondition implements ExecutableCondition {
             Matcher matcher = DATE_MATH_PATTERN.matcher((String) configuredValue);
             if (matcher.matches()) {
                 String dateMath = matcher.group(1);
-                configuredValue = WatcherDateTimeUtils.parseDateMath(dateMath, DateTimeZone.UTC, clock);
-                resolvedValues.put(dateMath, WatcherDateTimeUtils.formatDate((DateTime) configuredValue));
+                configuredValue = WatcherDateTimeUtils.parseDateMath(dateMath, ZoneOffset.UTC, clock);
+                resolvedValues.put(dateMath, WatcherDateTimeUtils.formatDate((ZonedDateTime) configuredValue));
             } else {
                 // checking if the given value is a path expression
                 matcher = PATH_PATTERN.matcher((String) configuredValue);

@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.precommit.ForbiddenApisCliTask
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -25,7 +25,7 @@ esplugin {
   hasClientJar = true
 }
 
-tasks.withType(ForbiddenApisCliTask) {
+tasks.withType(CheckForbiddenApis) {
   signatures += [
     "com.ibm.icu.text.Collator#getInstance() @ Don't use default locale, use getInstance(ULocale) instead"
   ]
@@ -39,3 +39,4 @@ dependencies {
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
 }
+

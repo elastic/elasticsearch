@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-filter]]
-=== Get Filters API
+=== Get filters API
 ++++
-<titleabbrev>Get Filters</titleabbrev>
+<titleabbrev>Get filters</titleabbrev>
 ++++
 
 Retrieves filters.
@@ -11,9 +11,9 @@ Retrieves filters.
 
 ==== Request
 
-`GET _xpack/ml/filters/<filter_id>` +
+`GET _ml/filters/<filter_id>` +
 
-`GET _xpack/ml/filters/`
+`GET _ml/filters/`
 
 
 ===== Description
@@ -60,7 +60,7 @@ filter:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/filters/safe_domains
+GET _ml/filters/safe_domains
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:ml_filter_safe_domains]

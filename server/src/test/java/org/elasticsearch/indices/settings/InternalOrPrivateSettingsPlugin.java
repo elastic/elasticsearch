@@ -64,14 +64,14 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
 
     public static class UpdateInternalOrPrivateAction extends Action<UpdateInternalOrPrivateAction.Response> {
 
-        static final UpdateInternalOrPrivateAction INSTANCE = new UpdateInternalOrPrivateAction();
+        public static final UpdateInternalOrPrivateAction INSTANCE = new UpdateInternalOrPrivateAction();
         private static final String NAME = "indices:admin/settings/update-internal-or-private-index";
 
         public UpdateInternalOrPrivateAction() {
             super(NAME);
         }
 
-        static class Request extends MasterNodeRequest<Request> {
+        public static class Request extends MasterNodeRequest<Request> {
 
             private String index;
             private String key;
@@ -81,7 +81,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
 
             }
 
-            Request(final String index, final String key, final String value) {
+            public Request(final String index, final String key, final String value) {
                 this.index = index;
                 this.key = key;
                 this.value = value;
@@ -126,14 +126,12 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
 
         @Inject
         public TransportUpdateInternalOrPrivateAction(
-                final Settings settings,
                 final TransportService transportService,
                 final ClusterService clusterService,
                 final ThreadPool threadPool,
                 final ActionFilters actionFilters,
                 final IndexNameExpressionResolver indexNameExpressionResolver) {
             super(
-                    settings,
                     UpdateInternalOrPrivateAction.NAME,
                     transportService,
                     clusterService,
@@ -168,6 +166,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                                     .put(currentState.metaData().index(request.index).getSettings())
                                     .put(request.key, request.value);
                     imdBuilder.settings(settingsBuilder);
+                    imdBuilder.settingsVersion(1 + imdBuilder.settingsVersion());
                     builder.put(imdBuilder.build(), true);
                     return ClusterState.builder(currentState).metaData(builder).build();
                 }

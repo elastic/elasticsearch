@@ -124,7 +124,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         forecastId = in.readString();
         recordCount = in.readLong();
         if (in.readBoolean()) {
-            messages = in.readList(StreamInput::readString);
+            messages = in.readStringList();
         } else {
             messages = null;
         }
@@ -147,7 +147,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         out.writeLong(recordCount);
         if (messages != null) {
             out.writeBoolean(true);
-            out.writeStringList(messages);
+            out.writeStringCollection(messages);
         } else {
             out.writeBoolean(false);
         }

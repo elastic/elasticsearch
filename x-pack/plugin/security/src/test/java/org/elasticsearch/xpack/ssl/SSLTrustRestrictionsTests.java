@@ -7,16 +7,17 @@ package org.elasticsearch.xpack.ssl;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.RestrictedTrustManager;
@@ -25,7 +26,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
@@ -51,7 +52,6 @@ import static org.hamcrest.Matchers.is;
 @TestLogging("org.elasticsearch.xpack.ssl.RestrictedTrustManager:DEBUG")
 public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
-    private static final int RESOURCE_RELOAD_MILLIS = 3;
     private static final TimeValue MAX_WAIT_RELOAD = TimeValue.timeValueSeconds(1);
 
     private static Path configPath;
@@ -102,9 +102,9 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         nodeSSL = Settings.builder()
                 .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.security.transport.ssl.verification_mode", "certificate")
-                .putList("xpack.ssl.certificate_authorities", ca.getCertPath().toString())
-                .put("xpack.ssl.key", trustedCert.getKeyPath())
-                .put("xpack.ssl.certificate", trustedCert.getCertPath())
+                .putList("xpack.security.transport.ssl.certificate_authorities", ca.getCertPath().toString())
+                .put("xpack.security.transport.ssl.key", trustedCert.getKeyPath())
+                .put("xpack.security.transport.ssl.certificate", trustedCert.getCertPath())
                 .build();
     }
 
@@ -122,15 +122,14 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
         Settings parentSettings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
-                .put(parentSettings.filter((s) -> s.startsWith("xpack.ssl.") == false))
+                .put(parentSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false))
                 .put(nodeSSL);
 
         restrictionsPath = configPath.resolve("trust_restrictions.yml");
         restrictionsTmpPath = configPath.resolve("trust_restrictions.tmp");
 
         writeRestrictions("*.trusted");
-        builder.put("xpack.ssl.trust_restrictions.path", restrictionsPath);
-        builder.put("resource.reload.interval.high", RESOURCE_RELOAD_MILLIS + "ms");
+        builder.put("xpack.security.transport.ssl.trust_restrictions.path", restrictionsPath);
 
         return builder.build();
     }
@@ -146,13 +145,14 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         } catch (IOException e) {
             throw new ElasticsearchException("failed to write restrictions", e);
         }
+        runResourceWatcher();
     }
 
     @Override
     protected Settings transportClientSettings() {
         Settings parentSettings = super.transportClientSettings();
         Settings.Builder builder = Settings.builder()
-                .put(parentSettings.filter((s) -> s.startsWith("xpack.ssl.") == false))
+                .put(parentSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false))
                 .put(nodeSSL);
         return builder.build();
     }
@@ -166,7 +166,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         writeRestrictions("*.trusted");
         try {
             tryConnect(trustedCert);
-        } catch (SSLHandshakeException | SocketException ex) {
+        } catch (SSLException | SocketException ex) {
             logger.warn(new ParameterizedMessage("unexpected handshake failure with certificate [{}] [{}]",
                     trustedCert.certificate.getSubjectDN(), trustedCert.certificate.getSubjectAlternativeNames()), ex);
             fail("handshake should have been successful, but failed with " + ex);
@@ -174,25 +174,21 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     public void testCertificateWithUntrustedNameFails() throws Exception {
-        // see https://github.com/elastic/elasticsearch/issues/29989
-        assumeTrue("test fails on JDK 11 currently", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         writeRestrictions("*.trusted");
         try {
             tryConnect(untrustedCert);
             fail("handshake should have failed, but was successful");
-        } catch (SSLHandshakeException | SocketException ex) {
+        } catch (SSLException | SocketException ex) {
             // expected
         }
     }
 
     public void testRestrictionsAreReloaded() throws Exception {
-        // see https://github.com/elastic/elasticsearch/issues/29989
-        assumeTrue("test fails on JDK 11 currently", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         writeRestrictions("*");
         assertBusy(() -> {
             try {
                 tryConnect(untrustedCert);
-            } catch (SSLHandshakeException | SocketException ex) {
+            } catch (SSLException | SocketException ex) {
                 fail("handshake should have been successful, but failed with " + ex);
             }
         }, MAX_WAIT_RELOAD.millis(), TimeUnit.MILLISECONDS);
@@ -202,24 +198,41 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             try {
                 tryConnect(untrustedCert);
                 fail("handshake should have failed, but was successful");
-            } catch (SSLHandshakeException | SocketException ex) {
+            } catch (SSLException | SocketException ex) {
                 // expected
             }
         }, MAX_WAIT_RELOAD.millis(), TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * Force the file watch to be updated.
+     * Ideally we'd just left the service do its thing, but that means waiting for 5sec
+     * We can drop the 5s down, but then we run into resource contention issues.
+     * This method just tells the {@link ResourceWatcherService} to run its check at a time that suits the tests. In all other respects
+     * it works just like normal - the usual file checks apply for detecting it as "changed", and only the previously configured files
+     * are checked.
+     */
+    private void runResourceWatcher() {
+        final InternalTestCluster cluster = internalCluster();
+        if (cluster.size() > 0) {
+            final ResourceWatcherService service = cluster.getInstance(ResourceWatcherService.class);
+            logger.info("Triggering a reload of watched resources");
+            service.notifyNow(ResourceWatcherService.Frequency.HIGH);
+        }
+    }
+
     private void tryConnect(CertificateInfo certificate) throws Exception {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.ssl.key", certificate.getKeyPath())
-                .put("xpack.ssl.certificate", certificate.getCertPath())
-                .putList("xpack.ssl.certificate_authorities", ca.getCertPath().toString())
-                .put("xpack.ssl.verification_mode", "certificate")
+                .put("xpack.security.transport.ssl.key", certificate.getKeyPath())
+                .put("xpack.security.transport.ssl.certificate", certificate.getCertPath())
+                .putList("xpack.security.transport.ssl.certificate_authorities", ca.getCertPath().toString())
+                .put("xpack.security.transport.ssl.verification_mode", "certificate")
                 .build();
 
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
-        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
+        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {

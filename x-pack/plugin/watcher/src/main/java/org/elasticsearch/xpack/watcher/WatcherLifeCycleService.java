@@ -15,11 +15,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
@@ -37,25 +33,15 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
-public class WatcherLifeCycleService extends AbstractComponent implements ClusterStateListener {
-
-    // this option configures watcher not to start, unless the cluster state contains information to start watcher
-    // if you start with an empty cluster, you can delay starting watcher until you call the API manually
-    // if you start with a cluster containing data, this setting might have no effect, once you called the API yourself
-    // this is merely for testing, to make sure that watcher only starts when manually called
-    public static final Setting<Boolean> SETTING_REQUIRE_MANUAL_START =
-            Setting.boolSetting("xpack.watcher.require_manual_start", false, Property.NodeScope);
+public class WatcherLifeCycleService implements ClusterStateListener {
 
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STARTED);
     private final AtomicReference<List<ShardRouting>> previousShardRoutings = new AtomicReference<>(Collections.emptyList());
-    private final boolean requireManualStart;
     private volatile boolean shutDown = false; // indicates that the node has been shutdown and we should never start watcher after this.
     private volatile WatcherService watcherService;
 
-    WatcherLifeCycleService(Settings settings, ClusterService clusterService, WatcherService watcherService) {
-        super(settings);
+    WatcherLifeCycleService(ClusterService clusterService, WatcherService watcherService) {
         this.watcherService = watcherService;
-        this.requireManualStart = SETTING_REQUIRE_MANUAL_START.get(settings);
         clusterService.addListener(this);
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will
         // happen because we're shutting down and an watch is scheduled.
@@ -91,19 +77,12 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             return;
         }
 
-        // if watcher should not be started immediately unless it is has been manually configured to do so
-        WatcherMetaData watcherMetaData = event.state().getMetaData().custom(WatcherMetaData.TYPE);
-        if (watcherMetaData == null && requireManualStart) {
-            clearAllocationIds();
-            return;
-        }
-
         if (Strings.isNullOrEmpty(event.state().nodes().getMasterNodeId())) {
             pauseExecution("no master node");
             return;
         }
 
-        if (event.state().getBlocks().hasGlobalBlock(ClusterBlockLevel.WRITE)) {
+        if (event.state().getBlocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE)) {
             pauseExecution("write level cluster block");
             return;
         }

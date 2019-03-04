@@ -109,7 +109,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
         this.expand = expand;
     }
 
-    public Boolean isExcludeInterim() {
+    public Boolean getExcludeInterim() {
         return excludeInterim;
     }
 
@@ -186,7 +186,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
         this.sort = sort;
     }
 
-    public Boolean isDescending() {
+    public Boolean getDescending() {
         return descending;
     }
 

@@ -1,0 +1,37 @@
+--
+:api: ccr-get-stats
+:request: CcrStatsRequest
+:response: CcrStatsResponse
+--
+
+[id="{upid}-{api}"]
+=== Get CCR Stats API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Get CCR Stats API allows you to get statistics about index following and auto following.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The request accepts no parameters.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ always includes index follow statistics of all follow indices and
+auto follow statistics.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The follow stats of active follower indices.
+<2> The auto follow stats of the cluster that has been queried.
+
+include::../execution.asciidoc[]
+
+

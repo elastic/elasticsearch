@@ -7,15 +7,16 @@
       bulk:
         refresh: true
         body:
-          - '{"index": {"_index": "test_index", "_type": "_doc", "_id": "1"}}'
+          - '{"index": {"_index": "test_index", "_id": "1"}}'
           - '{"f1": "1"}'
-          - '{"index": {"_index": "test_index", "_type": "_doc", "_id": "2"}}'
+          - '{"index": {"_index": "test_index", "_id": "2"}}'
           - '{"f1": "2"}'
-          - '{"index": {"_index": "test_index", "_type": "_doc", "_id": "3"}}'
+          - '{"index": {"_index": "test_index", "_id": "3"}}'
           - '{"f1": "3"}'
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index
         body:
           explain: true

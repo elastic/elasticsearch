@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.ml.job.process.normalizer.output.NormalizerResultHandler;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.util.concurrent.Future;
  * and in exactly the same order as the inputs.
  */
 public class Normalizer {
-    private static final Logger LOGGER = Loggers.getLogger(Normalizer.class);
+    private static final Logger LOGGER = LogManager.getLogger(Normalizer.class);
 
     private final String jobId;
     private final NormalizerProcessFactory processFactory;
@@ -190,23 +190,34 @@ public class Normalizer {
      * Encapsulate the logic for deciding whether a change to a normalized score
      * is "big".
      * <p>
-     * Current logic is that a big change is a change of at least 1 or more than
-     * than 50% of the higher of the two values.
+     * Current logic is that a change is considered big if any of the following criteria are met:
+     * <ul>
+     * <li>the change  would result in a change of colour in the UI
+     * (e.g. severity would be changed from WARNING to MINOR)</li>
+     * <li>the change is at least 1.5</li>
+     * <li>the change in values is greater than 67% of the higher of the two values.</li>
+     * </ul>
+     * These values have been chosen through a process of experimentation, in particular it was desired to reduce
+     * the number of updates written to the results index due to renormalization events for performance reasons
+     * while not changing the normalized scores greatly
      *
      * @param oldVal The old value of the normalized score
      * @param newVal The new value of the normalized score
      * @return true if the update is considered "big"
      */
     private static boolean isBigUpdate(double oldVal, double newVal) {
-        if (Math.abs(oldVal - newVal) >= 1.0) {
+        if ((int) (oldVal / 25.0) != (int) (newVal / 25.0)) {
+            return true;
+        }
+        if (Math.abs(oldVal - newVal) >= 1.5) {
             return true;
         }
         if (oldVal > newVal) {
-            if (oldVal * 0.5 > newVal) {
+            if (oldVal * 0.33 > newVal) {
                 return true;
             }
         } else {
-            if (newVal * 0.5 > oldVal) {
+            if (newVal * 0.33 > oldVal) {
                 return true;
             }
         }

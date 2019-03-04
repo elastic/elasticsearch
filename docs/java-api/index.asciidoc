@@ -27,7 +27,7 @@ The javadoc for the transport client can be found at {transport-client-javadoc}/
 == Maven Repository
 
 Elasticsearch is hosted on
-http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22elasticsearch%22[Maven
+http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
 Central].
 
 For example, you can define the latest version in your `pom.xml` file:
@@ -131,6 +131,7 @@ and add it as a dependency. As an example, we will use the `slf4j-simple` logger
 --------------------------------------------------
 
 :client-tests: {docdir}/../../server/src/test/java/org/elasticsearch/client/documentation
+:hlrc-tests: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client
 
 :client-reindex-tests: {docdir}/../../modules/reindex/src/test/java/org/elasticsearch/client/documentation
 

@@ -22,8 +22,6 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 
 /**
@@ -47,12 +45,7 @@ public interface ActionFilter {
      * filter chain. This base class should serve any action filter implementations that doesn't require
      * to apply async filtering logic.
      */
-    abstract class Simple extends AbstractComponent implements ActionFilter {
-
-        protected Simple(Settings settings) {
-            super(settings);
-        }
-
+    abstract class Simple implements ActionFilter {
         @Override
         public final <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request,
                 ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {

@@ -56,13 +56,13 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -76,7 +76,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singleton;
-import static org.elasticsearch.xpack.core.rollup.RollupField.COUNT_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -144,7 +143,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = new HashMap<>(1);
-        metadata.put(RollupField.ROLLUP_META + "." + COUNT_FIELD, "foo." + COUNT_FIELD);
+        metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
@@ -232,7 +231,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         MultiSearchResponse.Item missing = new MultiSearchResponse.Item(null, new IndexNotFoundException("foo"));
         Exception e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.verifyResponse(missing));
-        assertThat(e.getMessage(), equalTo("no such index"));
+        assertThat(e.getMessage(), equalTo("no such index [foo]"));
     }
 
     public void testTranslateRollup() {
@@ -243,7 +242,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = new HashMap<>(1);
-        metadata.put(RollupField.ROLLUP_META + "." + COUNT_FIELD, "foo." + COUNT_FIELD);
+        metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
@@ -288,7 +287,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         Exception e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.translateResponse(new MultiSearchResponse.Item[]{missing}, context));
-        assertThat(e.getMessage(), equalTo("no such index"));
+        assertThat(e.getMessage(), equalTo("no such index [foo]"));
     }
 
     public void testMissingFilter() {
@@ -368,7 +367,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = new HashMap<>(1);
-        metadata.put(RollupField.ROLLUP_META + "." + COUNT_FIELD, "foo." + COUNT_FIELD);
+        metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
@@ -1050,7 +1049,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms", ValueType.STRING)
                 .field("stringfield.terms." + RollupField.VALUE)
-                .subAggregation(new SumAggregationBuilder("terms." + COUNT_FIELD)
+                .subAggregation(new SumAggregationBuilder("terms." + RollupField.COUNT_FIELD)
                         .field("stringfield.terms." + RollupField.COUNT_FIELD));
 
         KeywordFieldMapper.Builder nrBuilder = new KeywordFieldMapper.Builder("terms");
@@ -1091,7 +1090,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms", ValueType.STRING)
             .field("stringfield.terms." + RollupField.VALUE)
-            .subAggregation(new SumAggregationBuilder("terms." + COUNT_FIELD)
+            .subAggregation(new SumAggregationBuilder("terms." + RollupField.COUNT_FIELD)
                 .field("stringfield.terms." + RollupField.COUNT_FIELD));
 
         KeywordFieldMapper.Builder nrBuilder = new KeywordFieldMapper.Builder("terms");
@@ -1139,7 +1138,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms", ValueType.LONG)
                 .field("longfield.terms." + RollupField.VALUE)
-                .subAggregation(new SumAggregationBuilder("terms." + COUNT_FIELD)
+                .subAggregation(new SumAggregationBuilder("terms." + RollupField.COUNT_FIELD)
                         .field("longfield.terms." + RollupField.COUNT_FIELD));
 
         NumberFieldMapper.Builder nrBuilder = new NumberFieldMapper.Builder("terms", NumberFieldMapper.NumberType.LONG);

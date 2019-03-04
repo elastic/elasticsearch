@@ -5,20 +5,19 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 
-public class DeleteAutoFollowPatternRequestTests extends AbstractStreamableTestCase<DeleteAutoFollowPatternAction.Request> {
+public class DeleteAutoFollowPatternRequestTests extends AbstractWireSerializingTestCase<DeleteAutoFollowPatternAction.Request> {
 
     @Override
-    protected DeleteAutoFollowPatternAction.Request createBlankInstance() {
-        return new DeleteAutoFollowPatternAction.Request();
+    protected Writeable.Reader<DeleteAutoFollowPatternAction.Request> instanceReader() {
+        return DeleteAutoFollowPatternAction.Request::new;
     }
 
     @Override
     protected DeleteAutoFollowPatternAction.Request createTestInstance() {
-        DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias(randomAlphaOfLength(4));
-        return request;
+        return new DeleteAutoFollowPatternAction.Request(randomAlphaOfLength(4));
     }
 }

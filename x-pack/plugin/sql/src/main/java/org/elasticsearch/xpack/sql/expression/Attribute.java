@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
@@ -39,25 +42,30 @@ public abstract class Attribute extends NamedExpression {
     private final String qualifier;
 
     // can the attr be null - typically used in JOINs
-    private final boolean nullable;
+    private final Nullability nullability;
 
-    public Attribute(Location location, String name, String qualifier, ExpressionId id) {
-        this(location, name, qualifier, true, id);
+    public Attribute(Source source, String name, String qualifier, ExpressionId id) {
+        this(source, name, qualifier, Nullability.TRUE, id);
     }
 
-    public Attribute(Location location, String name, String qualifier, boolean nullable, ExpressionId id) {
-        this(location, name, qualifier, nullable, id, false);
+    public Attribute(Source source, String name, String qualifier, Nullability nullability, ExpressionId id) {
+        this(source, name, qualifier, nullability, id, false);
     }
 
-    public Attribute(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
-        super(location, name, emptyList(), id, synthetic);
+    public Attribute(Source source, String name, String qualifier, Nullability nullability, ExpressionId id, boolean synthetic) {
+        super(source, name, emptyList(), id, synthetic);
         this.qualifier = qualifier;
-        this.nullable = nullable;
+        this.nullability = nullability;
     }
 
     @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        throw new SqlIllegalArgumentException("Encountered a bug - an attribute should never be scripted");
     }
 
     public String qualifier() {
@@ -69,8 +77,8 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
-    public boolean nullable() {
-        return nullable;
+    public Nullability nullable() {
+        return nullability;
     }
 
     @Override
@@ -78,19 +86,19 @@ public abstract class Attribute extends NamedExpression {
         return new AttributeSet(this);
     }
 
-    public Attribute withLocation(Location location) {
-        return Objects.equals(location(), location) ? this : clone(location, name(), qualifier(), nullable(), id(), synthetic());
+    public Attribute withLocation(Source source) {
+        return Objects.equals(source(), source) ? this : clone(source, name(), qualifier(), nullable(), id(), synthetic());
     }
 
     public Attribute withQualifier(String qualifier) {
-        return Objects.equals(qualifier(), qualifier) ? this : clone(location(), name(), qualifier, nullable(), id(), synthetic());
+        return Objects.equals(qualifier(), qualifier) ? this : clone(source(), name(), qualifier, nullable(), id(), synthetic());
     }
 
-    public Attribute withNullability(boolean nullable) {
-        return Objects.equals(nullable(), nullable) ? this : clone(location(), name(), qualifier(), nullable, id(), synthetic());
+    public Attribute withNullability(Nullability nullability) {
+        return Objects.equals(nullable(), nullability) ? this : clone(source(), name(), qualifier(), nullability, id(), synthetic());
     }
 
-    protected abstract Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id,
+    protected abstract Attribute clone(Source source, String name, String qualifier, Nullability nullability, ExpressionId id,
                                        boolean synthetic);
 
     @Override
@@ -104,13 +112,18 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
+    protected NodeInfo<? extends Expression> info() {
+        return null;
+    }
+
+    @Override
     public boolean semanticEquals(Expression other) {
         return other instanceof Attribute ? id().equals(((Attribute) other).id()) : false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), qualifier, nullable);
+        return Objects.hash(super.hashCode(), qualifier, nullability);
     }
 
     @Override
@@ -118,7 +131,7 @@ public abstract class Attribute extends NamedExpression {
         if (super.equals(obj)) {
             Attribute other = (Attribute) obj;
             return Objects.equals(qualifier, other.qualifier)
-                    && Objects.equals(nullable, other.nullable);
+                    && Objects.equals(nullability, other.nullability);
         }
 
         return false;

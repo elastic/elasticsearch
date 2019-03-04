@@ -1,8 +1,9 @@
 [role="xpack"]
+[testenv="basic"]
 [[rollup-get-rollup-index-caps]]
-=== Get Rollup Index Capabilities
+=== Get rollup index capabilities API
 ++++
-<titleabbrev>Get Rollup Index Caps</titleabbrev>
+<titleabbrev>Get rollup index caps</titleabbrev>
 ++++
 
 experimental[]
@@ -17,7 +18,7 @@ This API will allow you to determine:
 
 ==== Request
 
-`GET {index}/_xpack/rollup/data`
+`GET {index}/_rollup/data`
 
 //===== Description
 
@@ -43,7 +44,7 @@ will be a `sensor-2`, `sensor-3`, etc.  Let's create a Rollup job, which stores 
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/rollup/job/sensor
+PUT _rollup/job/sensor
 {
     "index_pattern": "sensor-*",
     "rollup_index": "sensor_rollup",
@@ -79,7 +80,7 @@ Index API:
 
 [source,js]
 --------------------------------------------------
-GET /sensor_rollup/_xpack/rollup/data
+GET /sensor_rollup/_rollup/data
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -152,7 +153,7 @@ Like other APIs that interact with indices, you can specify index patterns inste
 
 [source,js]
 --------------------------------------------------
-GET /*_rollup/_xpack/rollup/data
+GET /*_rollup/_rollup/data
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

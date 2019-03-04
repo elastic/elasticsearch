@@ -19,42 +19,35 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.RemoveDuplicatesTokenFilter;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.ReferringFilterFactory;
+import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
-public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory implements ReferringFilterFactory {
+public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private List<TokenFilterFactory> filters;
+    private static final DeprecationLogger DEPRECATION_LOGGER
+        = new DeprecationLogger(LogManager.getLogger(MultiplexerTokenFilterFactory.class));
+
     private List<String> filterNames;
     private final boolean preserveOriginal;
-
-    private static final TokenFilterFactory IDENTITY_FACTORY = new TokenFilterFactory() {
-        @Override
-        public String name() {
-            return "identity";
-        }
-
-        @Override
-        public TokenStream create(TokenStream tokenStream) {
-            return tokenStream;
-        }
-    };
 
     public MultiplexerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) throws IOException {
         super(indexSettings, name, settings);
@@ -64,31 +57,83 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory im
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        List<Function<TokenStream, TokenStream>> functions = new ArrayList<>();
-        for (TokenFilterFactory tff : filters) {
-            functions.add(tff::create);
-        }
-        return new RemoveDuplicatesTokenFilter(new MultiplexTokenFilter(tokenStream, functions));
+        throw new UnsupportedOperationException("TokenFilterFactory.getChainAwareTokenFilterFactory() must be called first");
     }
 
     @Override
-    public void setReferences(Map<String, TokenFilterFactory> factories) {
-        filters = new ArrayList<>();
+    public TokenFilterFactory getSynonymFilter() {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+            throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
+        }
+        else {
+            if (preserveOriginal) {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+                    + "] will not be usable to parse synonyms after v7.0");
+                return IDENTITY_FILTER;
+            }
+            throw new IllegalArgumentException("Token filter [" + name()
+                + "] cannot be used to parse synonyms unless [preserve_original] is [true]");
+        }
+    }
+
+    @Override
+    public TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
+                                                              List<TokenFilterFactory> previousTokenFilters,
+                                                              Function<String, TokenFilterFactory> allFilters) {
+        List<TokenFilterFactory> filters = new ArrayList<>();
         if (preserveOriginal) {
-            filters.add(IDENTITY_FACTORY);
+            filters.add(IDENTITY_FILTER);
         }
         for (String filter : filterNames) {
             String[] parts = Strings.tokenizeToStringArray(filter, ",");
             if (parts.length == 1) {
-                filters.add(resolveFilterFactory(factories, parts[0]));
+                TokenFilterFactory factory = resolveFilterFactory(allFilters, parts[0]);
+                factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, previousTokenFilters, allFilters);
+                filters.add(factory);
             } else {
+                List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
                 List<TokenFilterFactory> chain = new ArrayList<>();
                 for (String subfilter : parts) {
-                    chain.add(resolveFilterFactory(factories, subfilter));
+                    TokenFilterFactory factory = resolveFilterFactory(allFilters, subfilter);
+                    factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
+                    chain.add(factory);
+                    existingChain.add(factory);
                 }
                 filters.add(chainFilters(filter, chain));
             }
         }
+
+        return new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return MultiplexerTokenFilterFactory.this.name();
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                List<Function<TokenStream, TokenStream>> functions = new ArrayList<>();
+                for (TokenFilterFactory tff : filters) {
+                    functions.add(tff::create);
+                }
+                return new RemoveDuplicatesTokenFilter(new MultiplexTokenFilter(tokenStream, functions));
+            }
+
+            @Override
+            public TokenFilterFactory getSynonymFilter() {
+                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+                    throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
+                }
+                else {
+                    if (preserveOriginal) {
+                        DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
+                            + "] will not be usable to parse synonyms after v7.0");
+                        return IDENTITY_FILTER;
+                    }
+                    throw new IllegalArgumentException("Token filter [" + name()
+                        + "] cannot be used to parse synonyms unless [preserve_original] is [true]");
+                }
+            }
+        };
     }
 
     private TokenFilterFactory chainFilters(String name, List<TokenFilterFactory> filters) {
@@ -108,11 +153,12 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory im
         };
     }
 
-    private TokenFilterFactory resolveFilterFactory(Map<String, TokenFilterFactory> factories, String name) {
-        if (factories.containsKey(name) == false) {
+    private TokenFilterFactory resolveFilterFactory(Function<String, TokenFilterFactory> factories, String name) {
+        TokenFilterFactory factory = factories.apply(name);
+        if (factory == null) {
             throw new IllegalArgumentException("Multiplexing filter [" + name() + "] refers to undefined tokenfilter [" + name + "]");
         } else {
-            return factories.get(name);
+            return factory;
         }
     }
 

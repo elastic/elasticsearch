@@ -20,10 +20,10 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -43,12 +43,12 @@ import java.util.stream.IntStream;
  * A module that binds the provided settings to the {@link Settings} interface.
  */
 public class SettingsModule implements Module {
+    private static final Logger logger = LogManager.getLogger(SettingsModule.class);
 
     private final Settings settings;
     private final Set<String> settingsFilterPattern = new HashSet<>();
     private final Map<String, Setting<?>> nodeSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
-    private final Logger logger;
     private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
@@ -62,7 +62,6 @@ public class SettingsModule implements Module {
             List<Setting<?>> additionalSettings,
             List<String> settingsFilter,
             Set<SettingUpgrader<?>> settingUpgraders) {
-        logger = Loggers.getLogger(getClass(), settings);
         this.settings = settings;
         for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
             registerSetting(setting);
@@ -147,7 +146,7 @@ public class SettingsModule implements Module {
         }
         // by now we are fully configured, lets check node level settings for unregistered index settings
         clusterSettings.validate(settings, true);
-        this.settingsFilter = new SettingsFilter(settings, settingsFilterPattern);
+        this.settingsFilter = new SettingsFilter(settingsFilterPattern);
      }
 
     @Override

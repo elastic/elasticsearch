@@ -19,6 +19,7 @@
 package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -46,10 +47,10 @@ public class MembershipActionTests extends ESTestCase {
             .numberOfReplicas(1).build();
         metaBuilder.put(indexMetaData, false);
         MetaData metaData = metaBuilder.build();
-        MembershipAction.ensureIndexCompatibility(Version.CURRENT, metaData);
+        JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT, metaData);
 
         expectThrows(IllegalStateException.class, () ->
-        MembershipAction.ensureIndexCompatibility(VersionUtils.getPreviousVersion(Version.CURRENT),
+        JoinTaskExecutor.ensureIndexCompatibility(VersionUtils.getPreviousVersion(Version.CURRENT),
             metaData));
     }
 
@@ -64,7 +65,7 @@ public class MembershipActionTests extends ESTestCase {
         metaBuilder.put(indexMetaData, false);
         MetaData metaData = metaBuilder.build();
         expectThrows(IllegalStateException.class, () ->
-            MembershipAction.ensureIndexCompatibility(Version.CURRENT,
+            JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT,
                 metaData));
     }
 
@@ -77,13 +78,13 @@ public class MembershipActionTests extends ESTestCase {
 
         final Version maxNodeVersion = nodes.getMaxNodeVersion();
         final Version minNodeVersion = nodes.getMinNodeVersion();
-        if (maxNodeVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (maxNodeVersion.onOrAfter(Version.V_7_0_0)) {
             final Version tooLow = getPreviousVersion(maxNodeVersion.minimumCompatibilityVersion());
             expectThrows(IllegalStateException.class, () -> {
                 if (randomBoolean()) {
-                    MembershipAction.ensureNodesCompatibility(tooLow, nodes);
+                    JoinTaskExecutor.ensureNodesCompatibility(tooLow, nodes);
                 } else {
-                    MembershipAction.ensureNodesCompatibility(tooLow, minNodeVersion, maxNodeVersion);
+                    JoinTaskExecutor.ensureNodesCompatibility(tooLow, minNodeVersion, maxNodeVersion);
                 }
             });
         }
@@ -92,16 +93,16 @@ public class MembershipActionTests extends ESTestCase {
             Version tooHigh = incompatibleFutureVersion(minNodeVersion);
             expectThrows(IllegalStateException.class, () -> {
                 if (randomBoolean()) {
-                    MembershipAction.ensureNodesCompatibility(tooHigh, nodes);
+                    JoinTaskExecutor.ensureNodesCompatibility(tooHigh, nodes);
                 } else {
-                    MembershipAction.ensureNodesCompatibility(tooHigh, minNodeVersion, maxNodeVersion);
+                    JoinTaskExecutor.ensureNodesCompatibility(tooHigh, minNodeVersion, maxNodeVersion);
                 }
             });
         }
 
-        if (minNodeVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (minNodeVersion.onOrAfter(Version.V_7_0_0)) {
             Version oldMajor = Version.V_6_4_0.minimumCompatibilityVersion();
-            expectThrows(IllegalStateException.class, () -> MembershipAction.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
+            expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
         }
 
         final Version minGoodVersion = maxNodeVersion.major == minNodeVersion.major ?
@@ -111,9 +112,9 @@ public class MembershipActionTests extends ESTestCase {
         final Version justGood = randomVersionBetween(random(), minGoodVersion, maxCompatibleVersion(minNodeVersion));
 
         if (randomBoolean()) {
-            MembershipAction.ensureNodesCompatibility(justGood, nodes);
+            JoinTaskExecutor.ensureNodesCompatibility(justGood, nodes);
         } else {
-            MembershipAction.ensureNodesCompatibility(justGood, minNodeVersion, maxNodeVersion);
+            JoinTaskExecutor.ensureNodesCompatibility(justGood, minNodeVersion, maxNodeVersion);
         }
     }
 
@@ -133,7 +134,7 @@ public class MembershipActionTests extends ESTestCase {
             .numberOfReplicas(1).build();
         metaBuilder.put(indexMetaData, false);
         MetaData metaData = metaBuilder.build();
-            MembershipAction.ensureIndexCompatibility(Version.CURRENT,
+            JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT,
                 metaData);
     }
 }

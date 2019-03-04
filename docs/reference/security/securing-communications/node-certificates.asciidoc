@@ -12,14 +12,12 @@ Additionally, it is recommended that the certificates contain subject alternativ
 names (SAN) that correspond to the node's IP address and DNS name so that
 hostname verification can be performed.
 
-In order to simplify the process of generating certificates for the Elastic
-Stack, a command line tool, {ref}/certutil.html[`elasticsearch-certutil`] has been
-included with {xpack}. This tool takes care of generating a CA and signing
-certificates with the CA. `elasticsearch-certutil` can be used interactively or
-in a silent mode through the use of an input file. The `elasticsearch-certutil`
-tool also supports generation of certificate signing requests (CSR), so that a
-commercial- or organization-specific CA can be used to sign the certificates.
-For example:
+The {ref}/certutil.html[`elasticsearch-certutil`] command simplifies the process
+of generating certificates for the {stack}. It takes care of generating a CA and
+signing certificates with the CA. It can be used interactively or in a silent
+mode through the use of an input file. It also supports generation of
+certificate signing requests (CSR), so that a commercial- or
+organization-specific CA can be used to sign the certificates. For example:
 
 . Optional: Create a certificate authority for your {es} cluster.
 +

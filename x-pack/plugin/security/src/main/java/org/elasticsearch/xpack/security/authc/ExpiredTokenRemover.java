@@ -6,11 +6,12 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -32,18 +33,19 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * Responsible for cleaning the invalidated tokens from the invalidated tokens index.
+ * Responsible for cleaning the invalidated and expired tokens from the security index.
+ * The document gets deleted if it was created more than 24 hours which is the maximum
+ * lifetime of a refresh token
  */
 final class ExpiredTokenRemover extends AbstractRunnable {
+    private static final Logger logger = LogManager.getLogger(ExpiredTokenRemover.class);
 
     private final Client client;
     private final AtomicBoolean inProgress = new AtomicBoolean(false);
-    private final Logger logger;
     private final TimeValue timeout;
 
     ExpiredTokenRemover(Settings settings, Client client) {
         this.client = client;
-        this.logger = Loggers.getLogger(getClass(), settings);
         this.timeout = TokenService.DELETE_TIMEOUT.get(settings);
     }
 
@@ -57,10 +59,9 @@ final class ExpiredTokenRemover extends AbstractRunnable {
         final Instant now = Instant.now();
         expiredDbq
             .setQuery(QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termsQuery("doc_type", TokenService.INVALIDATED_TOKEN_DOC_TYPE, "token"))
-                        .filter(QueryBuilders.boolQuery()
-                                .should(QueryBuilders.rangeQuery("expiration_time").lte(now.toEpochMilli()))
-                                .should(QueryBuilders.rangeQuery("creation_time").lte(now.minus(24L, ChronoUnit.HOURS).toEpochMilli()))));
+                .filter(QueryBuilders.termsQuery("doc_type", "token"))
+                .filter(QueryBuilders.rangeQuery("creation_time").lte(now.minus(24L, ChronoUnit.HOURS).toEpochMilli())));
+        logger.trace(() -> new ParameterizedMessage("Removing old tokens: [{}]", Strings.toString(expiredDbq)));
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, expiredDbq,
                 ActionListener.wrap(r -> {
                     debugDbqResponse(r);

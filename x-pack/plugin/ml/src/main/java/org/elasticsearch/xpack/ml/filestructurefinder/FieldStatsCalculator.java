@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -152,18 +153,20 @@ public class FieldStatsCalculator {
 
     List<Map<String, Object>> findNumericTopHits(int numTopHits) {
         assert countsByNumericValue != null;
-        return findTopHits(numTopHits, countsByNumericValue, Comparator.comparing(Map.Entry<Double, Integer>::getKey));
+        return findTopHits(numTopHits, countsByNumericValue, Comparator.comparing(Map.Entry<Double, Integer>::getKey),
+            FieldStats::toIntegerIfInteger);
     }
 
     List<Map<String, Object>> findStringTopHits(int numTopHits) {
-        return findTopHits(numTopHits, countsByStringValue, Comparator.comparing(Map.Entry<String, Integer>::getKey));
+        return findTopHits(numTopHits, countsByStringValue, Comparator.comparing(Map.Entry<String, Integer>::getKey), s -> s);
     }
 
     /**
      * Order by descending count, with a secondary sort to ensure reproducibility of results.
      */
     private static <T> List<Map<String, Object>> findTopHits(int numTopHits, Map<T, Integer> countsByValue,
-                                                             Comparator<Map.Entry<T, Integer>> secondarySort) {
+                                                             Comparator<Map.Entry<T, Integer>> secondarySort,
+                                                             Function<T, Object> outputMapper) {
 
         List<Map.Entry<T, Integer>> sortedByCount = countsByValue.entrySet().stream()
             .sorted(Comparator.comparing(Map.Entry<T, Integer>::getValue, Comparator.reverseOrder()).thenComparing(secondarySort))
@@ -174,7 +177,7 @@ public class FieldStatsCalculator {
         for (Map.Entry<T, Integer> entry : sortedByCount) {
 
             Map<String, Object> topHit = new LinkedHashMap<>(3);
-            topHit.put("value", entry.getKey());
+            topHit.put("value", outputMapper.apply(entry.getKey()));
             topHit.put("count", entry.getValue());
             topHits.add(topHit);
         }

@@ -52,7 +52,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
     }
 
     private static PhysicalPlan planLater(LogicalPlan plan) {
-        return new UnplannedExec(plan.location(), plan);
+        return new UnplannedExec(plan.source(), plan);
     }
 
     private static class SimpleExecMapper extends MapExecRule<LogicalPlan> {
@@ -60,43 +60,43 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
         @Override
         protected PhysicalPlan map(LogicalPlan p) {
             if (p instanceof Command) {
-                return new CommandExec(p.location(), (Command) p);
+                return new CommandExec(p.source(), (Command) p);
             }
 
             if (p instanceof LocalRelation) {
-                return new LocalExec(p.location(), (LocalRelation) p);
+                return new LocalExec(p.source(), ((LocalRelation) p).executable());
             }
 
             if (p instanceof Project) {
                 Project pj = (Project) p;
-                return new ProjectExec(p.location(), map(pj.child()), pj.projections());
+                return new ProjectExec(p.source(), map(pj.child()), pj.projections());
             }
 
             if (p instanceof Filter) {
                 Filter fl = (Filter) p;
-                return new FilterExec(p.location(), map(fl.child()), fl.condition());
+                return new FilterExec(p.source(), map(fl.child()), fl.condition());
             }
 
             if (p instanceof OrderBy) {
                 OrderBy o = (OrderBy) p;
-                return new OrderExec(p.location(), map(o.child()), o.order());
+                return new OrderExec(p.source(), map(o.child()), o.order());
             }
 
             if (p instanceof Aggregate) {
                 Aggregate a = (Aggregate) p;
                 // analysis and optimizations have converted the grouping into actual attributes
-                return new AggregateExec(p.location(), map(a.child()), a.groupings(), a.aggregates());
+                return new AggregateExec(p.source(), map(a.child()), a.groupings(), a.aggregates());
             }
 
             if (p instanceof EsRelation) {
                 EsRelation c = (EsRelation) p;
                 List<Attribute> output = c.output();
-                return new EsQueryExec(p.location(), c.index().name(), output, new QueryContainer());
+                return new EsQueryExec(p.source(), c.index().name(), output, new QueryContainer());
             }
 
             if (p instanceof Limit) {
                 Limit l = (Limit) p;
-                return new LimitExec(p.location(), map(l.child()), l.limit());
+                return new LimitExec(p.source(), map(l.child()), l.limit());
             }
             // TODO: Translate With in a subplan
             if (p instanceof With) {

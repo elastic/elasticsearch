@@ -21,15 +21,25 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -41,7 +51,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.maxBucket;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.maxBucket;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -99,7 +109,7 @@ public class MaxBucketIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                         .extendedBounds(minRandomValue, maxRandomValue))
-                .addAggregation(maxBucket("max_bucket", "histo>_count")).execute().actionGet();
+                .addAggregation(maxBucket("max_bucket", "histo>_count")).get();
 
         assertSearchResponse(response);
 
@@ -142,7 +152,7 @@ public class MaxBucketIT extends ESIntegTestCase {
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(maxBucket("max_bucket", "histo>_count"))).execute().actionGet();
+                                .subAggregation(maxBucket("max_bucket", "histo>_count"))).get();
 
         assertSearchResponse(response);
 
@@ -189,7 +199,7 @@ public class MaxBucketIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(maxBucket("max_bucket", "terms>sum")).execute().actionGet();
+                .addAggregation(maxBucket("max_bucket", "terms>sum")).get();
 
         assertSearchResponse(response);
 
@@ -235,7 +245,7 @@ public class MaxBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(maxBucket("max_bucket", "histo>sum"))).execute().actionGet();
+                                .subAggregation(maxBucket("max_bucket", "histo>sum"))).get();
 
         assertSearchResponse(response);
 
@@ -291,7 +301,7 @@ public class MaxBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(maxBucket("max_bucket", "histo>sum"))).execute().actionGet();
+                                .subAggregation(maxBucket("max_bucket", "histo>sum"))).get();
 
         assertSearchResponse(response);
 
@@ -341,7 +351,7 @@ public class MaxBucketIT extends ESIntegTestCase {
                                 .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                 .subAggregation(maxBucket("max_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -390,7 +400,7 @@ public class MaxBucketIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").includeExclude(new IncludeExclude(null, "tag.*"))
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(maxBucket("max_bucket", "terms>sum")).execute().actionGet();
+                .addAggregation(maxBucket("max_bucket", "terms>sum")).get();
 
         assertSearchResponse(response);
 
@@ -418,7 +428,7 @@ public class MaxBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .extendedBounds(minRandomValue, maxRandomValue))
                                 .subAggregation(maxBucket("max_histo_bucket", "histo>_count")))
-                .addAggregation(maxBucket("max_terms_bucket", "terms>max_histo_bucket")).execute().actionGet();
+                .addAggregation(maxBucket("max_terms_bucket", "terms>max_histo_bucket")).get();
 
         assertSearchResponse(response);
 
@@ -474,5 +484,57 @@ public class MaxBucketIT extends ESIntegTestCase {
         assertThat(maxBucketValue.getName(), equalTo("max_terms_bucket"));
         assertThat(maxBucketValue.value(), equalTo(maxTermsValue));
         assertThat(maxBucketValue.keys(), equalTo(maxTermsKeys.toArray(new String[maxTermsKeys.size()])));
+    }
+
+    /**
+     * https://github.com/elastic/elasticsearch/issues/33514
+     *
+     * This bug manifests as the max_bucket agg ("peak") being added to the response twice, because
+     * the pipeline agg is run twice.  This makes invalid JSON and breaks conversion to maps.
+     * The bug was caused by an UnmappedTerms being the chosen as the first reduction target.  UnmappedTerms
+     * delegated reduction to the first non-unmapped agg, which would reduce and run pipeline aggs.  But then
+     * execution returns to the UnmappedTerms and _it_ runs pipelines as well, doubling up on the values.
+     *
+     * Applies to any pipeline agg, not just max.
+     */
+    public void testFieldIsntWrittenOutTwice() throws Exception {
+        // you need to add an additional index with no fields in order to trigger this (or potentially a shard)
+        // so that there is an UnmappedTerms in the list to reduce.
+        createIndex("foo_1");
+
+        XContentBuilder builder = jsonBuilder().startObject().startObject("properties")
+            .startObject("@timestamp").field("type", "date").endObject()
+            .startObject("license").startObject("properties")
+            .startObject("count").field("type", "long").endObject()
+            .startObject("partnumber").field("type", "text").startObject("fields").startObject("keyword")
+            .field("type", "keyword").field("ignore_above", 256)
+            .endObject().endObject().endObject()
+            .endObject().endObject().endObject().endObject();
+        assertAcked(client().admin().indices().prepareCreate("foo_2")
+            .addMapping("doc", builder).get());
+
+        XContentBuilder docBuilder = jsonBuilder().startObject()
+            .startObject("license").field("partnumber", "foobar").field("count", 2).endObject()
+            .field("@timestamp", "2018-07-08T08:07:00.599Z")
+            .endObject();
+
+        client().prepareIndex("foo_2", "doc").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        client().admin().indices().prepareRefresh();
+
+        TermsAggregationBuilder groupByLicenseAgg = AggregationBuilders.terms("group_by_license_partnumber")
+            .field("license.partnumber.keyword");
+        MaxBucketPipelineAggregationBuilder peakPipelineAggBuilder =
+            PipelineAggregatorBuilders.maxBucket("peak", "licenses_per_day>total_licenses");
+        SumAggregationBuilder sumAggBuilder = AggregationBuilders.sum("total_licenses").field("license.count");
+        DateHistogramAggregationBuilder licensePerDayBuilder =
+            AggregationBuilders.dateHistogram("licenses_per_day").field("@timestamp").dateHistogramInterval(DateHistogramInterval.DAY);
+        licensePerDayBuilder.subAggregation(sumAggBuilder);
+        groupByLicenseAgg.subAggregation(licensePerDayBuilder);
+        groupByLicenseAgg.subAggregation(peakPipelineAggBuilder);
+
+        SearchResponse response = client().prepareSearch("foo_*").setSize(0).addAggregation(groupByLicenseAgg).get();
+        BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, false);
+        XContentHelper.convertToMap(bytes, false, XContentType.JSON);
     }
 }

@@ -195,7 +195,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         } else {
             parentQuery = objectMapper.nestedTypeFilter();
         }
-        return new Nested(context.bitsetFilter(parentQuery), childQuery);
+        return new Nested(context.bitsetFilter(parentQuery), childQuery, nestedSort);
     }
 
     private static Query resolveNestedQuery(QueryShardContext context, NestedSortBuilder nestedSort, Query parentQuery) throws IOException {
@@ -226,9 +226,9 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
                 assert nestedFilter == Rewriteable.rewrite(nestedFilter, context) : "nested filter is not rewritten";
                 if (parentQuery == null) {
                     // this is for back-compat, original single level nested sorting never applied a nested type filter
-                    childQuery = nestedFilter.toFilter(context);
+                    childQuery = nestedFilter.toQuery(context);
                 } else {
-                    childQuery = Queries.filtered(nestedObjectMapper.nestedTypeFilter(), nestedFilter.toFilter(context));
+                    childQuery = Queries.filtered(nestedObjectMapper.nestedTypeFilter(), nestedFilter.toQuery(context));
                 }
             } else {
                 childQuery = nestedObjectMapper.nestedTypeFilter();

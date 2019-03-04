@@ -39,9 +39,10 @@ public interface FileStructureFinderFactory {
      * @param hasByteOrderMarker Did the sample have a byte order marker?  <code>null</code> means "not relevant".
      * @param overrides Stores structure decisions that have been made by the end user, and should
      *                  take precedence over anything the {@link FileStructureFinder} may decide.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return A {@link FileStructureFinder} object suitable for determining the structure of the supplied sample.
      * @throws Exception if something goes wrong during creation.
      */
     FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
-                                         FileStructureOverrides overrides) throws Exception;
+                                         FileStructureOverrides overrides, TimeoutChecker timeoutChecker) throws Exception;
 }

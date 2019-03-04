@@ -6,32 +6,23 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.tasks.BaseTasksRequest;
-import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.Objects;
 
-public class CcrStatsAction extends Action<CcrStatsAction.StatsResponses> {
+public class CcrStatsAction extends Action<CcrStatsAction.Response> {
 
     public static final String NAME = "cluster:monitor/ccr/stats";
-
     public static final CcrStatsAction INSTANCE = new CcrStatsAction();
 
     private CcrStatsAction() {
@@ -39,91 +30,22 @@ public class CcrStatsAction extends Action<CcrStatsAction.StatsResponses> {
     }
 
     @Override
-    public StatsResponses newResponse() {
-        return new StatsResponses();
+    public Response newResponse() {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
-    public static class StatsResponses extends BaseTasksResponse implements ToXContentObject {
-
-        private final List<StatsResponse> statsResponse;
-
-        public List<StatsResponse> getStatsResponses() {
-            return statsResponse;
-        }
-
-        public StatsResponses() {
-            this(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
-        }
-
-        public StatsResponses(
-                final List<TaskOperationFailure> taskFailures,
-                final List<? extends FailedNodeException> nodeFailures,
-                final List<StatsResponse> statsResponse) {
-            super(taskFailures, nodeFailures);
-            this.statsResponse = statsResponse;
-        }
-
-        @Override
-        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-            // sort by index name, then shard ID
-            final Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex = new TreeMap<>();
-            for (final StatsResponse statsResponse : statsResponse) {
-                taskResponsesByIndex.computeIfAbsent(
-                        statsResponse.status().followerIndex(),
-                        k -> new TreeMap<>()).put(statsResponse.status().getShardId(), statsResponse);
-            }
-            builder.startObject();
-            {
-                for (final Map.Entry<String, Map<Integer, StatsResponse>> index : taskResponsesByIndex.entrySet()) {
-                    builder.startArray(index.getKey());
-                    {
-                        for (final Map.Entry<Integer, StatsResponse> shard : index.getValue().entrySet()) {
-                            shard.getValue().status().toXContent(builder, params);
-                        }
-                    }
-                    builder.endArray();
-                }
-            }
-            builder.endObject();
-            return builder;
-        }
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
-    public static class StatsRequest extends BaseTasksRequest<StatsRequest> implements IndicesRequest {
+    public static class Request extends MasterNodeRequest<Request> {
 
-        private String[] indices;
-
-        @Override
-        public String[] indices() {
-            return indices;
+        public Request(StreamInput in) throws IOException {
+            super(in);
         }
 
-        public void setIndices(final String[] indices) {
-            this.indices = indices;
-        }
-
-        private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return indicesOptions;
-        }
-
-        public void setIndicesOptions(final IndicesOptions indicesOptions) {
-            this.indicesOptions = indicesOptions;
-        }
-
-        @Override
-        public boolean match(final Task task) {
-            /*
-             * This is a limitation of the current tasks API. When the transport action is executed, the tasks API invokes this match method
-             * to find the tasks on which to execute the task-level operation (see TransportTasksAction#nodeOperation and
-             * TransportTasksAction#processTasks). If we do the matching here, then we can not match index patterns. Therefore, we override
-             * TransportTasksAction#processTasks (see TransportCcrStatsAction#processTasks) and do the matching there. We should never see
-             * this method invoked and since we can not support matching a task on the basis of the request here, we throw that this
-             * operation is unsupported.
-             */
-            throw new UnsupportedOperationException();
+        public Request() {
         }
 
         @Override
@@ -132,42 +54,66 @@ public class CcrStatsAction extends Action<CcrStatsAction.StatsResponses> {
         }
 
         @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            indices = in.readStringArray();
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+        }
+    }
+
+    public static class Response extends ActionResponse implements ToXContentObject {
+
+        private final AutoFollowStats autoFollowStats;
+        private final FollowStatsAction.StatsResponses followStats;
+
+        public Response(AutoFollowStats autoFollowStats, FollowStatsAction.StatsResponses followStats) {
+            this.autoFollowStats = Objects.requireNonNull(autoFollowStats);
+            this.followStats = Objects.requireNonNull(followStats);
+        }
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            autoFollowStats = new AutoFollowStats(in);
+            followStats = new FollowStatsAction.StatsResponses(in);
+        }
+
+        public AutoFollowStats getAutoFollowStats() {
+            return autoFollowStats;
+        }
+
+        public FollowStatsAction.StatsResponses getFollowStats() {
+            return followStats;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringArray(indices);
-            indicesOptions.writeIndicesOptions(out);
-        }
-
-    }
-
-    public static class StatsResponse implements Writeable {
-
-        private final ShardFollowNodeTaskStatus status;
-
-        public ShardFollowNodeTaskStatus status() {
-            return status;
-        }
-
-        public StatsResponse(final ShardFollowNodeTaskStatus status) {
-            this.status = status;
-        }
-
-        public StatsResponse(final StreamInput in) throws IOException {
-            this.status = new ShardFollowNodeTaskStatus(in);
+            autoFollowStats.writeTo(out);
+            followStats.writeTo(out);
         }
 
         @Override
-        public void writeTo(final StreamOutput out) throws IOException {
-            status.writeTo(out);
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field("auto_follow_stats", autoFollowStats, params);
+                builder.field("follow_stats", followStats, params);
+            }
+            builder.endObject();
+            return builder;
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return Objects.equals(autoFollowStats, response.autoFollowStats) &&
+                    Objects.equals(followStats, response.followStats);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(autoFollowStats, followStats);
+        }
     }
 
 }

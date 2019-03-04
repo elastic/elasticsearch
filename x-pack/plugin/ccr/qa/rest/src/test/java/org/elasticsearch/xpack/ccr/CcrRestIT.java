@@ -10,10 +10,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
-import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.After;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -37,7 +37,7 @@ public class CcrRestIT extends ESClientYamlSuiteTestCase {
 
     @After
     public void cleanup() throws Exception {
-        XPackRestTestHelper.waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(ShardChangesAction.NAME));
+        ESRestTestCase.waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(ShardChangesAction.NAME));
     }
 
 }

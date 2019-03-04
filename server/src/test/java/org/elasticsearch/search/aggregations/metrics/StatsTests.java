@@ -23,7 +23,7 @@ public class StatsTests extends AbstractNumericMetricTestCase<StatsAggregationBu
 
     @Override
     protected StatsAggregationBuilder doCreateTestAggregatorFactory() {
-        return new StatsAggregationBuilder("foo");
+        return new StatsAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
     }
 
 }

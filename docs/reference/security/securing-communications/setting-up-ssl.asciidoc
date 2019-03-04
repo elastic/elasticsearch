@@ -1,12 +1,13 @@
 [[ssl-tls]]
-=== Setting Up TLS on a Cluster
+=== Setting Up TLS on a cluster
 
-{security} enables you to encrypt traffic to, from, and within your {es}
-cluster. Connections are secured using Transport Layer Security (TLS), which is
-commonly referred to as "SSL".
+The {stack} {security-features} enables you to encrypt traffic to, from, and
+within your {es} cluster. Connections are secured using Transport Layer Security
+(TLS), which is commonly referred to as "SSL".
 
 WARNING: Clusters that do not have encryption enabled send all data in plain text
-including passwords and will not be able to install a license that enables {security}.
+including passwords and will not be able to install a license that enables
+{security-features}.
 
 The following steps describe how to enable encryption across the various
 components of the Elastic Stack. You must perform each of the steps that are

@@ -33,19 +33,16 @@ public class VersionTests extends GradleUnitTestCase {
     public ExpectedException expectedEx = ExpectedException.none();
 
     public void testVersionParsing() {
-        assertVersionEquals("7.0.1", 7, 0, 1, "", false);
-        assertVersionEquals("7.0.1-alpha2", 7, 0, 1, "-alpha2", false);
-        assertVersionEquals("5.1.2-rc3", 5, 1, 2, "-rc3", false);
-        assertVersionEquals("6.1.2-SNAPSHOT", 6, 1, 2, "", true);
-        assertVersionEquals("6.1.2-beta1-SNAPSHOT", 6, 1, 2, "-beta1", true);
+        assertVersionEquals("7.0.1", 7, 0, 1);
+        assertVersionEquals("7.0.1-alpha2", 7, 0, 1);
+        assertVersionEquals("5.1.2-rc3", 5, 1, 2);
+        assertVersionEquals("6.1.2-SNAPSHOT", 6, 1, 2);
+        assertVersionEquals("6.1.2-beta1-SNAPSHOT", 6, 1, 2);
     }
 
     public void testCompareWithStringVersions() {
         assertTrue("1.10.20 is not interpreted as before 2.0.0",
             Version.fromString("1.10.20").before("2.0.0")
-        );
-        assertTrue("7.0.0-alpha1 is not interpreted as before 7.0.0-alpha2",
-            Version.fromString("7.0.0-alpha1").before("7.0.0-alpha2")
         );
         assertTrue("7.0.0-alpha1 should be equal to 7.0.0-alpha1",
             Version.fromString("7.0.0-alpha1").equals(Version.fromString("7.0.0-alpha1"))
@@ -53,7 +50,6 @@ public class VersionTests extends GradleUnitTestCase {
         assertTrue("7.0.0-SNAPSHOT should be equal to 7.0.0-SNAPSHOT",
             Version.fromString("7.0.0-SNAPSHOT").equals(Version.fromString("7.0.0-SNAPSHOT"))
         );
-        assertEquals(Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("5.2.1-SNAPSHOT"));
     }
 
     public void testCollections() {
@@ -78,62 +74,12 @@ public class VersionTests extends GradleUnitTestCase {
     }
 
     public void testToString() {
-        assertEquals("7.0.1", new Version(7, 0, 1, null, false).toString());
+        assertEquals("7.0.1", new Version(7, 0, 1).toString());
     }
 
     public void testCompareVersions() {
-        assertEquals(0, new Version(7, 0, 0, null, true).compareTo(
-            new Version(7, 0, 0, null, true)
-        ));
-        assertEquals(0, new Version(7, 0, 0, null, true).compareTo(
-            new Version(7, 0, 0, "", true)
-        ));
-
-        // snapshot is not taken into account TODO inconsistent with equals
-        assertEquals(
-            0,
-            new Version(7, 0, 0, "", false).compareTo(
-            new Version(7, 0, 0, null, true))
-        );
-        // without sufix is smaller than with TODO
-        assertOrder(
-            new Version(7, 0, 0, null, false),
-            new Version(7, 0, 0, "-alpha1", false)
-        );
-        // numbered sufix
-        assertOrder(
-            new Version(7, 0, 0, "-alpha1", false),
-            new Version(7, 0, 0, "-alpha2", false)
-        );
-        // ranked sufix
-        assertOrder(
-            new Version(7, 0, 0, "-alpha8", false),
-            new Version(7, 0, 0, "-rc1", false)
-        );
-        // ranked sufix
-        assertOrder(
-            new Version(7, 0, 0, "-alpha8", false),
-            new Version(7, 0, 0, "-beta1", false)
-        );
-        // ranked sufix
-        assertOrder(
-            new Version(7, 0, 0, "-beta8", false),
-            new Version(7, 0, 0, "-rc1", false)
-        );
-        // major takes precedence
-        assertOrder(
-            new Version(6, 10, 10, "-alpha8", true),
-            new Version(7, 0, 0, "-alpha2", false)
-        );
-        // then minor
-        assertOrder(
-            new Version(7, 0, 10, "-alpha8", true),
-            new Version(7, 1, 0, "-alpha2", false)
-        );
-        // then revision
-        assertOrder(
-            new Version(7, 1, 0, "-alpha8", true),
-            new Version(7, 1, 10, "-alpha2", false)
+        assertEquals(0,
+            new Version(7, 0, 0).compareTo(new Version(7, 0, 0))
         );
     }
 
@@ -149,33 +95,15 @@ public class VersionTests extends GradleUnitTestCase {
         Version.fromString("foo.bar.baz");
     }
 
-    public void testExceptionSuffixNumber() {
-        expectedEx.expect(IllegalArgumentException.class);
-        expectedEx.expectMessage("Invalid suffix");
-        new Version(7, 1, 1, "-alpha", true);
-    }
-
-    public void testExceptionSuffix() {
-        expectedEx.expect(IllegalArgumentException.class);
-        expectedEx.expectMessage("Suffix must contain one of:");
-        new Version(7, 1, 1, "foo1", true);
-    }
-
     private void assertOrder(Version smaller, Version bigger) {
         assertEquals(smaller + " should be smaller than " + bigger, -1, smaller.compareTo(bigger));
     }
 
-    private void assertVersionEquals(String stringVersion, int major, int minor, int revision, String sufix, boolean snapshot) {
+    private void assertVersionEquals(String stringVersion, int major, int minor, int revision) {
         Version version = Version.fromString(stringVersion);
         assertEquals(major, version.getMajor());
         assertEquals(minor, version.getMinor());
         assertEquals(revision, version.getRevision());
-        if (snapshot) {
-            assertTrue("Expected version to be a snapshot but it was not", version.isSnapshot());
-        } else {
-            assertFalse("Expected version not to be a snapshot but it was", version.isSnapshot());
-        }
-        assertEquals(sufix, version.getSuffix());
     }
 
 }

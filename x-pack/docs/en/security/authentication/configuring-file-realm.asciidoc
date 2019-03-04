@@ -25,10 +25,9 @@ explicitly configure a `file` realm.
 For more information about file realms, see 
 {xpack-ref}/file-realm.html[File-based user authentication].
 
-. (Optional) Add a realm configuration of type `file` to `elasticsearch.yml` 
-under the `xpack.security.authc.realms` namespace. At a minimum, you must set 
-the realm `type` to `file`. If you are configuring multiple realms, you should 
-also explicitly set the `order` attribute. 
+. (Optional) Add a realm configuration to `elasticsearch.yml` under the
+`xpack.security.authc.realms.file` namespace. At a minimum, you must set 
+the realm's `order` attribute.
 +
 --
 //See <<ref-users-settings>> for all of the options you can set for a `file` realm.
@@ -42,9 +41,9 @@ xpack:
   security:
     authc:
       realms:
-        file1:
-          type: file
-          order: 0
+        file:
+          file1:
+            order: 0
 ------------------------------------------------------------
 --
 
@@ -77,7 +76,8 @@ required changes.
 
 IMPORTANT:  As the administrator of the cluster, it is your responsibility to
             ensure the same users are defined on every node in the cluster.
-            {security} does not deliver any mechanism to guarantee this.
+            The {es} {security-features} do not deliver any mechanisms to
+            guarantee this.
             
 --
 
@@ -104,7 +104,7 @@ the same changes are made on every node in the cluster.
 . (Optional) Change how often the `users` and `users_roles` files are checked. 
 +
 --
-By default, {security} checks these files for changes every 5 seconds. You can
+By default, {es} checks these files for changes every 5 seconds. You can
 change this default behavior by changing the `resource.reload.interval.high` 
 setting in the `elasticsearch.yml` file (as this is a common setting in {es},
 changing its value may effect other schedules in the system).

@@ -35,7 +35,12 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
@@ -47,16 +52,15 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
 
     public static class Response extends BaseTasksResponse implements StatusToXContentObject, Writeable {
 
-        private boolean isUpdated;
+        private final boolean isUpdated;
 
         public Response() {
             super(null, null);
             this.isUpdated = true;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             isUpdated = in.readBoolean();
         }
 
@@ -109,7 +113,33 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
         private MlFilter filter;
         private boolean updateScheduledEvents = false;
 
-        public Request() {
+        public Request() {}
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
+            if (in.readBoolean()) {
+                detectorUpdates = in.readList(JobUpdate.DetectorUpdate::new);
+            }
+            if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+                filter = in.readOptionalWriteable(MlFilter::new);
+                updateScheduledEvents = in.readBoolean();
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalWriteable(modelPlotConfig);
+            boolean hasDetectorUpdates = detectorUpdates != null;
+            out.writeBoolean(hasDetectorUpdates);
+            if (hasDetectorUpdates) {
+                out.writeList(detectorUpdates);
+            }
+            if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
+                out.writeOptionalWriteable(filter);
+                out.writeBoolean(updateScheduledEvents);
+            }
         }
 
         public Request(String jobId, ModelPlotConfig modelPlotConfig, List<JobUpdate.DetectorUpdate> detectorUpdates, MlFilter filter,
@@ -135,34 +165,6 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
 
         public boolean isUpdateScheduledEvents() {
             return updateScheduledEvents;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
-            if (in.readBoolean()) {
-                detectorUpdates = in.readList(JobUpdate.DetectorUpdate::new);
-            }
-            if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-                filter = in.readOptionalWriteable(MlFilter::new);
-                updateScheduledEvents = in.readBoolean();
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalWriteable(modelPlotConfig);
-            boolean hasDetectorUpdates = detectorUpdates != null;
-            out.writeBoolean(hasDetectorUpdates);
-            if (hasDetectorUpdates) {
-                out.writeList(detectorUpdates);
-            }
-            if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-                out.writeOptionalWriteable(filter);
-                out.writeBoolean(updateScheduledEvents);
-            }
         }
 
         @Override

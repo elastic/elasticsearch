@@ -1,19 +1,27 @@
 ---
 "Missing document with catch":
 
+  - skip:
+      features: warnings
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
   - do:
       catch:   missing
       get_source:
         index: test_1
-        type:  test
         id:    1
 
 ---
 "Missing document with ignore":
 
+  - skip:
+      features: warnings
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
   - do:
       get_source:
         index:  test_1
-        type:   test
         id:     1
         ignore: 404

@@ -11,9 +11,9 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ConstantProcessor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
 
 public class LocateProcessorTests extends AbstractWireSerializingTestCase<LocateFunctionProcessor> {
@@ -41,31 +41,31 @@ public class LocateProcessorTests extends AbstractWireSerializingTestCase<Locate
     }
     
     public void testLocateFunctionWithValidInput() {
-        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(null)).makeProcessorDefinition().asProcessor().process(null));
-        assertEquals(7, new Locate(EMPTY, l("bar"), l("foobarbar"), l(5)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(null)).makePipe().asProcessor().process(null));
+        assertEquals(7, new Locate(EMPTY, l("bar"), l("foobarbar"), l(5)).makePipe().asProcessor().process(null));
     }
     
     public void testLocateFunctionWithEdgeCasesInputs() {
-        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(null)).makeProcessorDefinition().asProcessor().process(null));
-        assertNull(new Locate(EMPTY, l("bar"), l(null), l(3)).makeProcessorDefinition().asProcessor().process(null));
-        assertEquals(0, new Locate(EMPTY, l(null), l("foobarbar"), l(null)).makeProcessorDefinition().asProcessor().process(null));
-        assertEquals(0, new Locate(EMPTY, l(null), l("foobarbar"), l(null)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(null)).makePipe().asProcessor().process(null));
+        assertNull(new Locate(EMPTY, l("bar"), l(null), l(3)).makePipe().asProcessor().process(null));
+        assertEquals(0, new Locate(EMPTY, l(null), l("foobarbar"), l(null)).makePipe().asProcessor().process(null));
+        assertEquals(0, new Locate(EMPTY, l(null), l("foobarbar"), l(null)).makePipe().asProcessor().process(null));
 
-        assertEquals(1, new Locate(EMPTY, l("foo"), l("foobarbar"), l(null)).makeProcessorDefinition().asProcessor().process(null));
-        assertEquals(1, new Locate(EMPTY, l('o'), l('o'), l(null)).makeProcessorDefinition().asProcessor().process(null));
-        assertEquals(9, new Locate(EMPTY, l('r'), l("foobarbar"), l(9)).makeProcessorDefinition().asProcessor().process(null));
-        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(-3)).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(1, new Locate(EMPTY, l("foo"), l("foobarbar"), l(null)).makePipe().asProcessor().process(null));
+        assertEquals(1, new Locate(EMPTY, l('o'), l('o'), l(null)).makePipe().asProcessor().process(null));
+        assertEquals(9, new Locate(EMPTY, l('r'), l("foobarbar"), l(9)).makePipe().asProcessor().process(null));
+        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(-3)).makePipe().asProcessor().process(null));
     }
     
     public void testLocateFunctionValidatingInputs() {
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Locate(EMPTY, l(5), l("foobarbar"), l(3)).makeProcessorDefinition().asProcessor().process(null));
+                () -> new Locate(EMPTY, l(5), l("foobarbar"), l(3)).makePipe().asProcessor().process(null));
         assertEquals("A string/char is required; received [5]", siae.getMessage());
         siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Locate(EMPTY, l("foo"), l(1), l(3)).makeProcessorDefinition().asProcessor().process(null));
+                () -> new Locate(EMPTY, l("foo"), l(1), l(3)).makePipe().asProcessor().process(null));
         assertEquals("A string/char is required; received [1]", siae.getMessage());
         siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Locate(EMPTY, l("foobarbar"), l("bar"), l('c')).makeProcessorDefinition().asProcessor().process(null));
+                () -> new Locate(EMPTY, l("foobarbar"), l("bar"), l('c')).makePipe().asProcessor().process(null));
         assertEquals("A number is required; received [c]", siae.getMessage());
     }
 }

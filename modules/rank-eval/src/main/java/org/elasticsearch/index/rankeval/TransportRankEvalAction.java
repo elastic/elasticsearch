@@ -30,7 +30,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -73,10 +72,9 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     private final NamedXContentRegistry namedXContentRegistry;
 
     @Inject
-    public TransportRankEvalAction(Settings settings, ActionFilters actionFilters, Client client,
-                                   TransportService transportService, ScriptService scriptService,
-                                   NamedXContentRegistry namedXContentRegistry) {
-        super(settings, RankEvalAction.NAME, transportService, actionFilters,
+    public TransportRankEvalAction(ActionFilters actionFilters, Client client, TransportService transportService,
+                                   ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
+        super(RankEvalAction.NAME, transportService, actionFilters,
               (Writeable.Reader<RankEvalRequest>) RankEvalRequest::new);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
@@ -119,7 +117,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             }
 
             if (metric.forcedSearchSize().isPresent()) {
-                evaluationRequest.size(metric.forcedSearchSize().get());
+                evaluationRequest.size(metric.forcedSearchSize().getAsInt());
             }
 
             ratedRequestsInSearch.add(ratedRequest);

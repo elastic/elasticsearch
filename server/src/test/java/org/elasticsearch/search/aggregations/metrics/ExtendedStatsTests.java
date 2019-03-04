@@ -23,7 +23,7 @@ public class ExtendedStatsTests extends AbstractNumericMetricTestCase<ExtendedSt
 
     @Override
     protected ExtendedStatsAggregationBuilder doCreateTestAggregatorFactory() {
-        ExtendedStatsAggregationBuilder factory = new ExtendedStatsAggregationBuilder("foo");
+        ExtendedStatsAggregationBuilder factory = new ExtendedStatsAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             factory.sigma(randomDoubleBetween(0.0, 10.0, true));
         }

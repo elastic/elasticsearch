@@ -24,8 +24,10 @@ import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
@@ -342,9 +344,6 @@ public class VersionUtilsTests extends ESTestCase {
         assertEquals(releasedIndexCompatible, indexCompatible.released);
 
         List<String> unreleasedIndexCompatible = new ArrayList<>(VersionUtils.allUnreleasedVersions().stream()
-                /* Gradle skips the current version because being backwards compatible
-                 * with yourself is implied. Java lists the version because it is useful. */
-                .filter(v -> !Version.CURRENT.equals(v))
                 /* Java lists all versions from the 5.x series onwards, but we only want to consider
                  * ones that we're supposed to be compatible with. */
                 .filter(v -> v.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()))
@@ -372,9 +371,6 @@ public class VersionUtilsTests extends ESTestCase {
         assertEquals(releasedWireCompatible, wireCompatible.released);
 
         List<String> unreleasedWireCompatible = VersionUtils.allUnreleasedVersions().stream()
-                /* Gradle skips the current version because being backwards compatible
-                 * with yourself is implied. Java lists the version because it is useful. */
-                .filter(v -> !Version.CURRENT.equals(v))
                 .filter(v -> v.onOrAfter(minimumCompatibleVersion))
                 .map(Object::toString)
                 .collect(toList());
@@ -389,13 +385,19 @@ public class VersionUtilsTests extends ESTestCase {
         private final List<String> unreleased = new ArrayList<>();
 
         private VersionsFromProperty(String property) {
+            Set<String> allUnreleased = new HashSet<>(Arrays.asList(
+                System.getProperty("tests.gradle_unreleased_versions", "").split(",")
+            ));
+            if (allUnreleased.isEmpty()) {
+                fail("[tests.gradle_unreleased_versions] not set or empty. Gradle should set this before running.");
+            }
             String versions = System.getProperty(property);
-            assertNotNull("Couldn't find [" + property + "]. Gradle should set these before running the tests.", versions);
+            assertNotNull("Couldn't find [" + property + "]. Gradle should set this before running the tests.", versions);
             logger.info("Looked up versions [{}={}]", property, versions);
 
             for (String version : versions.split(",")) {
-                if (version.endsWith("-SNAPSHOT")) {
-                    unreleased.add(version.replace("-SNAPSHOT", ""));
+                if (allUnreleased.contains(version)) {
+                    unreleased.add(version);
                 } else {
                     released.add(version);
                 }

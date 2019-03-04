@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,19 +43,21 @@ import java.util.Objects;
  */
 public class CompositeAggregationCursor implements Cursor {
 
-    private final Logger log = Loggers.getLogger(getClass());
+    private final Logger log = LogManager.getLogger(getClass());
 
     public static final String NAME = "c";
 
     private final String[] indices;
     private final byte[] nextQuery;
     private final List<BucketExtractor> extractors;
+    private final BitSet mask;
     private final int limit;
 
-    CompositeAggregationCursor(byte[] next, List<BucketExtractor> exts, int remainingLimit, String... indices) {
+    CompositeAggregationCursor(byte[] next, List<BucketExtractor> exts, BitSet mask, int remainingLimit, String... indices) {
         this.indices = indices;
         this.nextQuery = next;
         this.extractors = exts;
+        this.mask = mask;
         this.limit = remainingLimit;
     }
 
@@ -64,6 +67,7 @@ public class CompositeAggregationCursor implements Cursor {
         limit = in.readVInt();
 
         extractors = in.readNamedWriteableList(BucketExtractor.class);
+        mask = BitSet.valueOf(in.readByteArray());
     }
 
     @Override
@@ -73,6 +77,7 @@ public class CompositeAggregationCursor implements Cursor {
         out.writeVInt(limit);
 
         out.writeNamedWriteableList(extractors);
+        out.writeByteArray(mask.toByteArray());
     }
 
     @Override
@@ -86,6 +91,10 @@ public class CompositeAggregationCursor implements Cursor {
 
     byte[] next() {
         return nextQuery;
+    }
+
+    BitSet mask() {
+        return mask;
     }
 
     List<BucketExtractor> extractors() {
@@ -125,7 +134,7 @@ public class CompositeAggregationCursor implements Cursor {
                     }
 
                     updateCompositeAfterKey(r, query);
-                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, r, limit, serializeQuery(query), indices);
+                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, mask, r, limit, serializeQuery(query), indices);
                     listener.onResponse(rowSet);
                 } catch (Exception ex) {
                     listener.onFailure(ex);
@@ -168,7 +177,7 @@ public class CompositeAggregationCursor implements Cursor {
         Map<String, Object> afterKey = composite.afterKey();
         // a null after-key means done
         if (afterKey != null) {
-            AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().get(0);
+            AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().iterator().next();
             // update after-key with the new value
             if (aggBuilder instanceof CompositeAggregationBuilder) {
                 CompositeAggregationBuilder comp = (CompositeAggregationBuilder) aggBuilder;

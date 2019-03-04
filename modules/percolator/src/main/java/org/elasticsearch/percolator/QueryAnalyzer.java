@@ -24,6 +24,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -38,7 +39,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanNotQuery;
@@ -489,43 +489,51 @@ final class QueryAnalyzer {
                     return subResult;
                 }
             }
-                        int msm =  0;
-                        boolean verified = true;
-                        boolean matchAllDocs = true;
-                        boolean hasDuplicateTerms = false;Set<QueryExtraction> extractions = new HashSet<>();
-                        Set<String> seenRangeFields = new HashSet<>();
-                        for (Result result : conjunctions) {
-                            // In case that there are duplicate query extractions we need to be careful with incrementing msm,
-                            // because that could lead to valid matches not becoming candidate matches:
-                            // query: (field:val1 AND field:val2) AND (field:val2 AND field:val3)
-                            // doc:   field: val1 val2 val3
-                            // So lets be protective and decrease the msm:
-                            int resultMsm = result.minimumShouldMatch;
-                            for (QueryExtraction queryExtraction : result.extractions) {
-                                if (queryExtraction.range != null) {
-                                    // In case of range queries each extraction does not simply increment the minimum_should_match
-                                    // for that percolator query like for a term based extraction, so that can lead to more false
-                                    // positives for percolator queries with range queries than term based queries.
-                                    // The is because the way number fields are extracted from the document to be percolated.
-                                    // Per field a single range is extracted and if a percolator query has two or more range queries
-                                    // on the same field, then the minimum should match can be higher than clauses in the CoveringQuery.
-                                    // Therefore right now the minimum should match is incremented once per number field when processing
-                                    // the percolator query at index time.
-                                    if (seenRangeFields.add(queryExtraction.range.fieldName)) {
-                                        resultMsm = 1;
-                                    } else {
-                                        resultMsm = 0;
-                                    }
-                                }
+            int msm = 0;
+            boolean verified = true;
+            boolean matchAllDocs = true;
+            boolean hasDuplicateTerms = false;
+            Set<QueryExtraction> extractions = new HashSet<>();
+            Set<String> seenRangeFields = new HashSet<>();
+            for (Result result : conjunctions) {
+                // In case that there are duplicate query extractions we need to be careful with
+                // incrementing msm,
+                // because that could lead to valid matches not becoming candidate matches:
+                // query: (field:val1 AND field:val2) AND (field:val2 AND field:val3)
+                // doc: field: val1 val2 val3
+                // So lets be protective and decrease the msm:
+                int resultMsm = result.minimumShouldMatch;
+                for (QueryExtraction queryExtraction : result.extractions) {
+                    if (queryExtraction.range != null) {
+                        // In case of range queries each extraction does not simply increment the
+                        // minimum_should_match
+                        // for that percolator query like for a term based extraction, so that can lead
+                        // to more false
+                        // positives for percolator queries with range queries than term based queries.
+                        // The is because the way number fields are extracted from the document to be
+                        // percolated.
+                        // Per field a single range is extracted and if a percolator query has two or
+                        // more range queries
+                        // on the same field, then the minimum should match can be higher than clauses
+                        // in the CoveringQuery.
+                        // Therefore right now the minimum should match is incremented once per number
+                        // field when processing
+                        // the percolator query at index time.
+                        if (seenRangeFields.add(queryExtraction.range.fieldName)) {
+                            resultMsm = 1;
+                        } else {
+                            resultMsm = 0;
+                        }
+                    }
 
-                                if (extractions.contains(queryExtraction)) {
+                    if (extractions.contains(queryExtraction)) {
 
-                                    resultMsm = 0;
-                                    verified = false;
-                                    break;
-                                }
-                            }
-                            msm += resultMsm;
+                        resultMsm = 0;
+                        verified = false;
+                        break;
+                    }
+                }
+                msm += resultMsm;
 
                 if (result.verified == false
                         // If some inner extractions are optional, the result can't be verified

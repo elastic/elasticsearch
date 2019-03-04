@@ -37,10 +37,20 @@ public class VerifyVersionConstantsIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         final ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final String elasticsearchVersionString = objectPath.evaluate("version.number").toString();
-        final Version elasticsearchVersion = Version.fromString(elasticsearchVersionString);
+        final Version elasticsearchVersion = Version.fromString(elasticsearchVersionString.replace("-SNAPSHOT", ""));
         final String luceneVersionString = objectPath.evaluate("version.lucene_version").toString();
         final org.apache.lucene.util.Version luceneVersion = org.apache.lucene.util.Version.parse(luceneVersionString);
         assertThat(elasticsearchVersion.luceneVersion, equalTo(luceneVersion));
     }
 
+    @Override
+    public boolean preserveClusterUponCompletion() {
+        /*
+         * We don't perform any writes to the cluster so there won't be anything
+         * to clean up. Also, our cleanup code is really only compatible with
+         * *write* compatible versions but this runs with *index* compatible
+         * versions.
+         */
+        return true;
+    }
 }

@@ -8,7 +8,7 @@ setup:
         wait_for_status: yellow
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "test_user"
         body:  >
           {
@@ -17,7 +17,7 @@ setup:
           }
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "app_manage"
         body:  >
             {
@@ -31,7 +31,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_privileges:
+      security.put_privileges:
         body:  >
             {
               "app-allow": {
@@ -42,7 +42,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_privileges:
+      security.put_privileges:
         body:  >
             {
               "app-deny": {
@@ -55,28 +55,28 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "test_user"
         ignore: 404
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "app_manage"
         ignore: 404
 
   - do:
-      xpack.security.delete_privileges:
+      security.delete_privileges:
         application: app
         name: read
         ignore: 404
 
   - do:
-      xpack.security.delete_privileges:
+      security.delete_privileges:
         application: app-allow
         name: read
         ignore: 404
 
   - do:
-      xpack.security.delete_privileges:
+      security.delete_privileges:
         application: app_deny
         name: read
         ignore: 404
@@ -86,7 +86,7 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.security.put_privileges:
+      security.put_privileges:
         body:  >
             {
               "app": {
@@ -101,7 +101,7 @@ teardown:
 "Test get application privileges when allowed":
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.security.get_privileges:
+      security.get_privileges:
         application: app-allow
         name: read
 
@@ -118,7 +118,7 @@ teardown:
 "Test put application privileges when not allowed":
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.security.put_privileges:
+      security.put_privileges:
           body:  >
               {
                 "app_deny": {
@@ -133,7 +133,7 @@ teardown:
 "Test get application privileges when not allowed":
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.security.get_privileges:
+      security.get_privileges:
         application: app_deny
         name: read
       catch: forbidden

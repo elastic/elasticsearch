@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.process.NativeController;
+import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessBuilderUtils;
-import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
+import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AnalysisLimitsWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.FieldConfigWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ModelPlotConfigWriter;
@@ -68,7 +68,6 @@ public class AutodetectBuilder {
     private static final String MODEL_PLOT_CONFIG_ARG = "--modelplotconfig=";
     private static final String FIELD_CONFIG_ARG = "--fieldconfig=";
     static final String LATENCY_ARG = "--latency=";
-    static final String RESULT_FINALIZATION_WINDOW_ARG = "--resultFinalizationWindow=";
     static final String MULTIVARIATE_BY_FIELDS_ARG = "--multivariateByFields";
     static final String PERSIST_INTERVAL_ARG = "--persistInterval=";
     static final String MAX_QUANTILE_INTERVAL_ARG = "--maxQuantileInterval=";
@@ -83,8 +82,9 @@ public class AutodetectBuilder {
     /**
      * The maximum number of anomaly records that will be written each bucket
      */
-    public static final Setting<Integer> MAX_ANOMALY_RECORDS_SETTING = Setting.intSetting("max.anomaly.records", DEFAULT_MAX_NUM_RECORDS,
-            Setting.Property.NodeScope);
+    // Though this setting is dynamic, it is only set when a new job is opened. So, already running jobs will not get the updated value.
+    public static final Setting<Integer> MAX_ANOMALY_RECORDS_SETTING_DYNAMIC = Setting.intSetting("xpack.ml.max_anomaly_records",
+            DEFAULT_MAX_NUM_RECORDS, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     /**
      * Config setting storing the flag that disables model persistence
@@ -194,15 +194,7 @@ public class AutodetectBuilder {
         if (analysisConfig != null) {
             addIfNotNull(analysisConfig.getBucketSpan(), BUCKET_SPAN_ARG, command);
             addIfNotNull(analysisConfig.getLatency(), LATENCY_ARG, command);
-            addIfNotNull(analysisConfig.getSummaryCountFieldName(),
-                    SUMMARY_COUNT_FIELD_ARG, command);
-            if (Boolean.TRUE.equals(analysisConfig.getOverlappingBuckets())) {
-                Long window = analysisConfig.getResultFinalizationWindow();
-                if (window == null) {
-                    window = AnalysisConfig.DEFAULT_RESULT_FINALIZATION_WINDOW;
-                }
-                command.add(RESULT_FINALIZATION_WINDOW_ARG + window);
-            }
+            addIfNotNull(analysisConfig.getSummaryCountFieldName(), SUMMARY_COUNT_FIELD_ARG, command);
             if (Boolean.TRUE.equals(analysisConfig.getMultivariateByFields())) {
                 command.add(MULTIVARIATE_BY_FIELDS_ARG);
             }
@@ -244,9 +236,8 @@ public class AutodetectBuilder {
         return command;
     }
 
-
     static String maxAnomalyRecordsArg(Settings settings) {
-        return "--maxAnomalyRecords=" + MAX_ANOMALY_RECORDS_SETTING.get(settings);
+        return "--maxAnomalyRecords=" + MAX_ANOMALY_RECORDS_SETTING_DYNAMIC.get(settings);
     }
 
     private static String getTimeFieldOrDefault(Job job) {

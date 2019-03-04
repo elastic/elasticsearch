@@ -9,18 +9,16 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.TimeZone;
 
 public class QuarterProcessor extends BaseDateTimeProcessor {
     
-    public QuarterProcessor(TimeZone timeZone) {
-        super(timeZone);
+    public QuarterProcessor(ZoneId zoneId) {
+        super(zoneId);
     }
     
     public QuarterProcessor(StreamInput in) throws IOException {
@@ -28,6 +26,7 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
     }
     
     public static final String NAME = "q";
+    private static final DateTimeFormatter QUARTER_FORMAT = DateTimeFormatter.ofPattern("q", Locale.ROOT);
 
     @Override
     public String getWriteableName() {
@@ -35,18 +34,21 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
     }
 
     @Override
-    public Object doProcess(long millis) {
-        return quarter(millis, timeZone().getID());
+    public Object doProcess(ZonedDateTime zdt) {
+        return quarter(zdt);
     }
     
-    public static Integer quarter(long millis, String tzId) {
-        ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId));
-        return Integer.valueOf(time.format(DateTimeFormatter.ofPattern(Quarter.QUARTER_FORMAT, Locale.ROOT)));
+    public static Integer quarter(ZonedDateTime dateTime, String tzId) {
+        return quarter(dateTime.withZoneSameInstant(ZoneId.of(tzId)));
+    }
+
+    static Integer quarter(ZonedDateTime zdt) {
+        return Integer.valueOf(zdt.format(QUARTER_FORMAT));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timeZone());
+        return Objects.hash(zoneId());
     }
 
     @Override
@@ -55,6 +57,6 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
             return false;
         }
         DateTimeProcessor other = (DateTimeProcessor) obj;
-        return Objects.equals(timeZone(), other.timeZone());
+        return Objects.equals(zoneId(), other.zoneId());
     }
 }

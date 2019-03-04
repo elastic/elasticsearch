@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -29,19 +28,19 @@ import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
-import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsAggregator;
 import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsCollector;
 import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsProcessor;
 import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsProvider;
+import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.HashSet;
 import java.util.List;
@@ -63,10 +62,9 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     private final JobManager jobManager;
 
     @Inject
-    public TransportGetOverallBucketsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                            ActionFilters actionFilters, ClusterService clusterService,
-                                            JobManager jobManager, Client client) {
-        super(settings, GetOverallBucketsAction.NAME, transportService, actionFilters,
+    public TransportGetOverallBucketsAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
+                                            ClusterService clusterService, JobManager jobManager, Client client) {
+        super(GetOverallBucketsAction.NAME, transportService, actionFilters,
             (Supplier<GetOverallBucketsAction.Request>) GetOverallBucketsAction.Request::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -77,21 +75,25 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     @Override
     protected void doExecute(Task task, GetOverallBucketsAction.Request request,
                              ActionListener<GetOverallBucketsAction.Response> listener) {
-        QueryPage<Job> jobsPage = jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), clusterService.state());
-        if (jobsPage.count() == 0) {
-            listener.onResponse(new GetOverallBucketsAction.Response());
-            return;
-        }
+        jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(
+                jobPage -> {
+                    if (jobPage.count() == 0) {
+                        listener.onResponse(new GetOverallBucketsAction.Response());
+                        return;
+                    }
 
-        // As computing and potentially aggregating overall buckets might take a while,
-        // we run in a different thread to avoid blocking the network thread.
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            try {
-                getOverallBuckets(request, jobsPage.results(), listener);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+                    // As computing and potentially aggregating overall buckets might take a while,
+                    // we run in a different thread to avoid blocking the network thread.
+                    threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                        try {
+                            getOverallBuckets(request, jobPage.results(), listener);
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
+                },
+                listener::onFailure
+        ));
     }
 
     private void getOverallBuckets(GetOverallBucketsAction.Request request, List<Job> jobs,
@@ -140,7 +142,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
         searchRequest.source().aggregation(AggregationBuilders.max(LATEST_TIME).field(Result.TIMESTAMP.getPreferredName()));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
-                    long totalHits = searchResponse.getHits().getTotalHits();
+                    long totalHits = searchResponse.getHits().getTotalHits().value;
                     if (totalHits > 0) {
                         Aggregations aggregations = searchResponse.getAggregations();
                         Min min = aggregations.get(EARLIEST_TIME);
@@ -259,6 +261,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
                 .start(startTime)
                 .end(endTime)
                 .build();
+        searchSourceBuilder.trackTotalHits(true);
 
         SearchRequest searchRequest = new SearchRequest(indices);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));

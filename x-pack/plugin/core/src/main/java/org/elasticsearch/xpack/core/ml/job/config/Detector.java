@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.writer.RecordWriter;
+import org.elasticsearch.xpack.core.ml.process.writer.RecordWriter;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
@@ -185,25 +185,6 @@ public class Detector implements ToXContentObject, Writeable {
     );
 
     /**
-     * The set of functions that must not be used with overlapping buckets
-     */
-    public static final EnumSet<DetectorFunction> NO_OVERLAPPING_BUCKETS_FUNCTIONS = EnumSet.of(
-            DetectorFunction.RARE,
-            DetectorFunction.FREQ_RARE
-    );
-
-    /**
-     * The set of functions that should not be used with overlapping buckets
-     * as they gain no benefit but have overhead
-     */
-    public static final EnumSet<DetectorFunction> OVERLAPPING_BUCKETS_FUNCTIONS_NOT_NEEDED = EnumSet.of(
-            DetectorFunction.MIN,
-            DetectorFunction.MAX,
-            DetectorFunction.TIME_OF_DAY,
-            DetectorFunction.TIME_OF_WEEK
-    );
-
-    /**
      * Functions that do not support rule conditions:
      * <ul>
      * <li>lat_long - because it is a multivariate feature
@@ -302,7 +283,7 @@ public class Detector implements ToXContentObject, Writeable {
         // negative means "unknown", which should only happen for a 5.4 job
         if (detectorIndex >= 0
                 // no point writing this to cluster state, as the indexes will get reassigned on reload anyway
-                && params.paramAsBoolean(ToXContentParams.FOR_CLUSTER_STATE, false) == false) {
+                && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
             builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         }
         builder.endObject();
@@ -385,7 +366,7 @@ public class Detector implements ToXContentObject, Writeable {
     }
 
     /**
-     * Excludes frequently-occuring metrics from the analysis;
+     * Excludes frequently-occurring metrics from the analysis;
      * can apply to 'by' field, 'over' field, or both
      *
      * @return the value that the user set

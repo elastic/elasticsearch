@@ -76,7 +76,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
      * Construct a {@linkplain TaskResult} for a task that completed successfully.
      */
     public TaskResult(TaskInfo task, ToXContent response) throws IOException {
-        this(true, task, null, toXContent(response));
+        this(true, task, null, XContentHelper.toXContent(response, Requests.INDEX_CONTENT_TYPE, true));
     }
 
     private TaskResult(boolean completed, TaskInfo task, @Nullable BytesReference error, @Nullable BytesReference result) {
@@ -220,16 +220,6 @@ public final class TaskResult implements Writeable, ToXContentObject {
          * differences so perfect for testing.
          */
         return Objects.hash(completed, task, getErrorAsMap(), getResponseAsMap());
-    }
-
-    private static BytesReference toXContent(ToXContent result) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
-            // Elasticsearch's Response object never emit starting or ending objects. Most other implementers of ToXContent do....
-            builder.startObject();
-            result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            return BytesReference.bytes(builder);
-        }
     }
 
     private static BytesReference toXContent(Exception error) throws IOException {

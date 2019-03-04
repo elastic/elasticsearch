@@ -85,7 +85,7 @@ public class MockNode extends Node {
             final Path configPath,
             final boolean forbidPrivateIndexSettings) {
         this(
-                InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath),
+                InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath, () -> "mock_ node"),
                 classpathPlugins,
                 forbidPrivateIndexSettings);
     }
@@ -176,7 +176,7 @@ public class MockNode extends Node {
     }
 
     @Override
-    protected void registerDerivedNodeNameWithLogger(String nodeName) {
-        // Nothing to do because test uses the thread name
+    protected void configureNodeAndClusterIdStateListener(ClusterService clusterService) {
+        //do not configure this in tests as this is causing SetOnce to throw exceptions when jvm is used for multiple tests
     }
 }

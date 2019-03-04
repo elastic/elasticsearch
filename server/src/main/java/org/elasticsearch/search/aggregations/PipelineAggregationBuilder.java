@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -68,8 +68,8 @@ public abstract class PipelineAggregationBuilder implements NamedWriteable, Base
      * Internal: Validates the state of this factory (makes sure the factory is properly
      * configured)
      */
-    protected abstract void validate(AggregatorFactory<?> parent, List<AggregationBuilder> factories,
-            List<PipelineAggregationBuilder> pipelineAggregatorFactories);
+    protected abstract void validate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggregationBuilders,
+            Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders);
 
     /**
      * Creates the pipeline aggregator

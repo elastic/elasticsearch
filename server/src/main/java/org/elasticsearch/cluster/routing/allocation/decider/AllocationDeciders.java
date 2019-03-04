@@ -19,11 +19,12 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -36,10 +37,11 @@ import static org.elasticsearch.cluster.routing.allocation.RoutingAllocation.Deb
  */
 public class AllocationDeciders extends AllocationDecider {
 
+    private static final Logger logger = LogManager.getLogger(AllocationDeciders.class);
+
     private final Collection<AllocationDecider> allocations;
 
-    public AllocationDeciders(Settings settings, Collection<AllocationDecider> allocations) {
-        super(settings);
+    public AllocationDeciders(Collection<AllocationDecider> allocations) {
         this.allocations = Collections.unmodifiableCollection(allocations);
     }
 
@@ -74,7 +76,8 @@ public class AllocationDeciders extends AllocationDecider {
             // short track if a NO is returned.
             if (decision == Decision.NO) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Can not allocate [{}] on node [{}] due to [{}]", shardRouting, node.node(), allocationDecider.getClass().getSimpleName());
+                    logger.trace("Can not allocate [{}] on node [{}] due to [{}]",
+                        shardRouting, node.node(), allocationDecider.getClass().getSimpleName());
                 }
                 // short circuit only if debugging is not enabled
                 if (!allocation.debugDecision()) {
@@ -106,7 +109,8 @@ public class AllocationDeciders extends AllocationDecider {
             // short track if a NO is returned.
             if (decision == Decision.NO) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Shard [{}] can not remain on node [{}] due to [{}]", shardRouting, node.nodeId(), allocationDecider.getClass().getSimpleName());
+                    logger.trace("Shard [{}] can not remain on node [{}] due to [{}]",
+                        shardRouting, node.nodeId(), allocationDecider.getClass().getSimpleName());
                 }
                 if (!allocation.debugDecision()) {
                     return decision;

@@ -37,7 +37,7 @@ dependencyLicenses {
   mapping from: /asm-.*/, to: 'asm'
 }
 
-test {
+unitTest {
   jvmArg '-XX:-OmitStackTraceInFastThrow'
 }
 

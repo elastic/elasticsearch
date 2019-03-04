@@ -13,15 +13,17 @@ import org.apache.kerby.kerberos.kerb.KrbException;
 import org.apache.kerby.kerberos.kerb.client.KrbConfig;
 import org.apache.kerby.kerberos.kerb.server.KdcConfigKey;
 import org.apache.kerby.kerberos.kerb.server.SimpleKdcServer;
-import org.apache.kerby.util.NetworkUtil;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,13 +33,15 @@ import java.security.PrivilegedExceptionAction;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
+import javax.net.ServerSocketFactory;
+
 /**
  * Utility wrapper around Apache {@link SimpleKdcServer} backed by Unboundid
  * {@link InMemoryDirectoryServer}.<br>
  * Starts in memory Ldap server and then uses it as backend for Kdc Server.
  */
 public class SimpleKdcLdapServer {
-    private static final Logger logger = Loggers.getLogger(SimpleKdcLdapServer.class);
+    private static final Logger logger = LogManager.getLogger(SimpleKdcLdapServer.class);
 
     private Path workDir = null;
     private SimpleKdcServer simpleKdc;
@@ -86,7 +90,9 @@ public class SimpleKdcLdapServer {
         AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {
             @Override
             public Void run() throws Exception {
-                init();
+                if (ESTestCase.awaitBusy(() -> init()) == false) {
+                    throw new IllegalStateException("could not initialize SimpleKdcLdapServer");
+                }
                 return null;
             }
         });
@@ -94,14 +100,33 @@ public class SimpleKdcLdapServer {
     }
 
     @SuppressForbidden(reason = "Uses Apache Kdc which requires usage of java.io.File in order to create a SimpleKdcServer")
-    private void init() throws Exception {
-        // start ldap server
-        createLdapServiceAndStart();
-        // create ldap backend conf
-        createLdapBackendConf();
-        // Kdc Server
-        simpleKdc = new SimpleKdcServer(this.workDir.toFile(), new KrbConfig());
-        prepareKdcServerAndStart();
+    private boolean init() {
+        boolean initialized = false;
+        try {
+            // start ldap server
+            createLdapServiceAndStart();
+            // create ldap backend conf
+            createLdapBackendConf();
+            // Kdc Server
+            simpleKdc = new SimpleKdcServer(this.workDir.toFile(), new KrbConfig());
+            prepareKdcServerAndStart();
+            initialized = true;
+        } catch (Exception e) {
+            if (simpleKdc != null) {
+                try {
+                    simpleKdc.stop();
+                } catch (KrbException krbException) {
+                    logger.debug("error occurred while cleaning up after init failure for SimpleKdcLdapServer");
+                }
+            }
+            if (ldapServer != null) {
+                ldapServer.shutDown(true);
+            }
+            ldapPort = 0;
+            kdcPort = 0;
+            initialized = false;
+        }
+        return initialized;
     }
 
     private void createLdapServiceAndStart() throws Exception {
@@ -127,14 +152,14 @@ public class SimpleKdcLdapServer {
         simpleKdc.setWorkDir(workDir.toFile());
         simpleKdc.setKdcHost(host);
         simpleKdc.setKdcRealm(realm);
-        if (kdcPort == 0) {
-            kdcPort = NetworkUtil.getServerPort();
-        }
         if (transport != null) {
-            if (transport.trim().equals("TCP")) {
+            if (kdcPort == 0) {
+                kdcPort = getServerPort(transport);
+            }
+            if (transport.trim().equalsIgnoreCase("TCP")) {
                 simpleKdc.setKdcTcpPort(kdcPort);
                 simpleKdc.setAllowUdp(false);
-            } else if (transport.trim().equals("UDP")) {
+            } else if (transport.trim().equalsIgnoreCase("UDP")) {
                 simpleKdc.setKdcUdpPort(kdcPort);
                 simpleKdc.setAllowTcp(false);
             } else {
@@ -221,4 +246,23 @@ public class SimpleKdcLdapServer {
         logger.info("SimpleKdcServer stoppped.");
     }
 
+    private static int getServerPort(String transport) {
+        if (transport != null && transport.trim().equalsIgnoreCase("TCP")) {
+            try (ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(0, 1,
+                    InetAddress.getByName("127.0.0.1"))) {
+                serverSocket.setReuseAddress(true);
+                return serverSocket.getLocalPort();
+            } catch (Exception ex) {
+                throw new RuntimeException("Failed to get a TCP server socket point");
+            }
+        } else if (transport != null && transport.trim().equalsIgnoreCase("UDP")) {
+            try (DatagramSocket socket = new DatagramSocket(0, InetAddress.getByName("127.0.0.1"))) {
+                socket.setReuseAddress(true);
+                return socket.getLocalPort();
+            } catch (Exception ex) {
+                throw new RuntimeException("Failed to get a UDP server socket point");
+            }
+        }
+        throw new IllegalArgumentException("Invalid transport: " + transport);
+    }
 }

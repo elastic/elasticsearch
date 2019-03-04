@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.shard.IndexShard;
@@ -43,14 +42,16 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction<UpgradeStatusRequest, UpgradeStatusResponse, ShardUpgradeStatus> {
+public class TransportUpgradeStatusAction
+    extends TransportBroadcastByNodeAction<UpgradeStatusRequest, UpgradeStatusResponse, ShardUpgradeStatus> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportUpgradeStatusAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                        IndicesService indicesService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, UpgradeStatusAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+    public TransportUpgradeStatusAction(ClusterService clusterService, TransportService transportService,
+                                        IndicesService indicesService, ActionFilters actionFilters,
+                                        IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(UpgradeStatusAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 UpgradeStatusRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
@@ -79,8 +80,11 @@ public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction
     }
 
     @Override
-    protected UpgradeStatusResponse newResponse(UpgradeStatusRequest request, int totalShards, int successfulShards, int failedShards, List<ShardUpgradeStatus> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
-        return new UpgradeStatusResponse(responses.toArray(new ShardUpgradeStatus[responses.size()]), totalShards, successfulShards, failedShards, shardFailures);
+    protected UpgradeStatusResponse newResponse(UpgradeStatusRequest request, int totalShards, int successfulShards, int failedShards,
+                                                List<ShardUpgradeStatus> responses,
+                                                List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
+        return new UpgradeStatusResponse(responses.toArray(new ShardUpgradeStatus[responses.size()]), totalShards, successfulShards,
+            failedShards, shardFailures);
     }
 
     @Override

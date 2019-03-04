@@ -14,15 +14,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
-import java.util.TimeZone;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -31,25 +30,30 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class SqlQueryRequest extends AbstractSqlQueryRequest {
     private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
-
-    public static final ParseField CURSOR = new ParseField("cursor");
-    public static final ParseField FILTER = new ParseField("filter");
+    static final ParseField COLUMNAR = new ParseField("columnar");
 
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
-        PARSER.declareObject(SqlQueryRequest::filter,
-            (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
+        PARSER.declareBoolean(SqlQueryRequest::columnar, COLUMNAR);
     }
 
     private String cursor = "";
+    /*
+     * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" parameter).
+     * See {@code SqlTranslateRequest.toXContent}
+     */
+    private Boolean columnar = Boolean.FALSE;
 
     public SqlQueryRequest() {
+        super();
     }
 
-    public SqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
-                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, String cursor) {
-        super(mode, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
+    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, ZoneId zoneId,
+                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, Boolean columnar,
+                           String cursor, RequestInfo requestInfo) {
+        super(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
         this.cursor = cursor;
+        this.columnar = columnar;
     }
 
     @Override
@@ -80,26 +84,44 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         this.cursor = cursor;
         return this;
     }
+    
+    /**
+     * Should format the values in a columnar fashion or not (default false).
+     * Depending on the format used (csv, tsv, txt, json etc) this setting will be taken into
+     * consideration or not, depending on whether it even makes sense for that specific format or not.
+     */
+    public Boolean columnar() {
+        return columnar;
+    }
+
+    public SqlQueryRequest columnar(boolean columnar) {
+        this.columnar = columnar;
+        return this;
+    }
 
     public SqlQueryRequest(StreamInput in) throws IOException {
         super(in);
         cursor = in.readString();
+        columnar = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(cursor);
+        out.writeOptionalBoolean(columnar);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), cursor);
+        return Objects.hash(super.hashCode(), cursor, columnar);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor);
+        return super.equals(obj) 
+                && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor)
+                && Objects.equals(columnar, ((SqlQueryRequest) obj).columnar);
     }
 
     @Override
@@ -110,14 +132,11 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
-        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(mode(), query(), params(), timeZone(), fetchSize(),
-            requestTimeout(), pageTimeout(), filter(), cursor()).toXContent(builder, params);
+        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(query(), params(), zoneId(), fetchSize(), requestTimeout(),
+            pageTimeout(), filter(), columnar(), cursor(), requestInfo()).toXContent(builder, params);
     }
 
-    public static SqlQueryRequest fromXContent(XContentParser parser, Mode mode) {
-        SqlQueryRequest request = PARSER.apply(parser, null);
-        request.mode(mode);
-        return request;
+    public static SqlQueryRequest fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
-
 }

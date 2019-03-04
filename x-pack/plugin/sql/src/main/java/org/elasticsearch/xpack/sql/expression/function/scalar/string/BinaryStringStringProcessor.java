@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor.BinaryStringStringOperation;
+import org.elasticsearch.xpack.sql.expression.gen.processor.FunctionalBinaryProcessor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
@@ -17,21 +17,10 @@ import java.util.function.BiFunction;
 /**
  * Processor class covering string manipulating functions that have two string parameters and a numeric result.
  */
-public class BinaryStringStringProcessor extends BinaryStringProcessor<BinaryStringStringOperation, String, Number> {
+public class BinaryStringStringProcessor extends FunctionalBinaryProcessor<String, String, Number, BinaryStringStringOperation> {
     
-    public static final String NAME = "ss";
-    
-    public BinaryStringStringProcessor(StreamInput in) throws IOException {
-        super(in, i -> i.readEnum(BinaryStringStringOperation.class));
-    }
-
-    public BinaryStringStringProcessor(Processor left, Processor right, BinaryStringStringOperation operation) {
-        super(left, right, operation);
-    }
-
     public enum BinaryStringStringOperation implements BiFunction<String, String, Number> {
         POSITION((sub,str) -> {
-            if (sub == null || str == null) return null;
             int pos = str.indexOf(sub);
             return pos < 0 ? 0 : pos+1;
         });
@@ -43,30 +32,22 @@ public class BinaryStringStringProcessor extends BinaryStringProcessor<BinaryStr
         private final BiFunction<String, String, Number> op;
         
         @Override
-        public Number apply(String stringExpLeft, String stringExpRight) {
-            return op.apply(stringExpLeft, stringExpRight);
+        public Number apply(String left, String right) {
+            if (left == null || right == null) {
+                return null;
+            }
+            return op.apply(left, right);
         }
     }
 
-    @Override
-    protected void doWrite(StreamOutput out) throws IOException {
-        out.writeEnum(operation());
+    public static final String NAME = "ss";
+    
+    public BinaryStringStringProcessor(StreamInput in) throws IOException {
+        super(in, i -> i.readEnum(BinaryStringStringOperation.class));
     }
 
-    @Override
-    protected Object doProcess(Object left, Object right) {
-        if (left == null || right == null) {
-            return null;
-        }
-        if (!(left instanceof String || left instanceof Character)) {
-            throw new SqlIllegalArgumentException("A string/char is required; received [{}]", left);
-        }
-        if (!(right instanceof String || right instanceof Character)) {
-            throw new SqlIllegalArgumentException("A string/char is required; received [{}]", right);
-        }
-
-        return operation().apply(left instanceof Character ? left.toString() : (String) left, 
-                right instanceof Character ? right.toString() : (String) right);
+    public BinaryStringStringProcessor(Processor left, Processor right, BinaryStringStringOperation operation) {
+        super(left, right, operation);
     }
 
     @Override
@@ -74,4 +55,15 @@ public class BinaryStringStringProcessor extends BinaryStringProcessor<BinaryStr
         return NAME;
     }
 
+    @Override
+    protected Object doProcess(Object left, Object right) {
+        if (!(left instanceof String || left instanceof Character)) {
+            throw new SqlIllegalArgumentException("A string/char is required; received [{}]", left);
+        }
+        if (!(right instanceof String || right instanceof Character)) {
+            throw new SqlIllegalArgumentException("A string/char is required; received [{}]", right);
+        }
+
+        return super.doProcess(left.toString(), right.toString());
+    }
 }

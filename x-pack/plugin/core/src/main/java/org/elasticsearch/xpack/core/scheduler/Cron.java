@@ -6,13 +6,12 @@
 package org.elasticsearch.xpack.core.scheduler;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -199,8 +198,8 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArg
  * @author Refactoring from CronTrigger to CronExpression by Aaron Craven
  */
 public class Cron implements ToXContentFragment {
-    protected static final TimeZone UTC = DateTimeZone.UTC.toTimeZone();
-    protected static final DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss");
+    protected static final TimeZone UTC = TimeZone.getTimeZone(ZoneOffset.UTC);
+    protected static final DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     private static final int SECOND = 0;
     private static final int MINUTE = 1;
@@ -254,7 +253,6 @@ public class Cron implements ToXContentFragment {
     private transient boolean lastdayOfMonth = false;
     private transient boolean nearestWeekday = false;
     private transient int lastdayOffset = 0;
-    private transient boolean expressionParsed = false;
 
     public static final int MAX_YEAR = Calendar.getInstance(UTC, Locale.ROOT).get(Calendar.YEAR) + 100;
 
@@ -802,7 +800,6 @@ public class Cron implements ToXContentFragment {
     ////////////////////////////////////////////////////////////////////////////
 
     private void buildExpression(String expression) {
-        expressionParsed = true;
 
         try {
 
@@ -1214,35 +1211,9 @@ public class Cron implements ToXContentFragment {
         return buf.toString();
     }
 
-    private static String expressionSetSummary(java.util.ArrayList<Integer> list) {
-
-        if (list.contains(NO_SPEC)) {
-            return "?";
-        }
-        if (list.contains(ALL_SPEC)) {
-            return "*";
-        }
-
-        StringBuilder buf = new StringBuilder();
-
-        Iterator<Integer> itr = list.iterator();
-        boolean first = true;
-        while (itr.hasNext()) {
-            Integer iVal = itr.next();
-            String val = iVal.toString();
-            if (!first) {
-                buf.append(",");
-            }
-            buf.append(val);
-            first = false;
-        }
-
-        return buf.toString();
-    }
-
     private static int skipWhiteSpace(int i, String s) {
         for (; i < s.length() && (s.charAt(i) == ' ' || s.charAt(i) == '\t'); i++) {
-            ;
+            // intentionally empty
         }
 
         return i;
@@ -1250,7 +1221,7 @@ public class Cron implements ToXContentFragment {
 
     private static int findNextWhiteSpace(int i, String s) {
         for (; i < s.length() && (s.charAt(i) != ' ' || s.charAt(i) != '\t'); i++) {
-            ;
+            // intentionally empty
         }
 
         return i;
@@ -1352,14 +1323,28 @@ public class Cron implements ToXContentFragment {
         int max = -1;
         if (stopAt < startAt) {
             switch (type) {
-                case       SECOND : max = 60; break;
-                case       MINUTE : max = 60; break;
-                case         HOUR : max = 24; break;
-                case        MONTH : max = 12; break;
-                case  DAY_OF_WEEK : max = 7;  break;
-                case DAY_OF_MONTH : max = 31; break;
-                case         YEAR : throw new IllegalArgumentException("Start year must be less than stop year");
-                default           : throw new IllegalArgumentException("Unexpected type encountered");
+                case SECOND:
+                    max = 60;
+                    break;
+                case MINUTE:
+                    max = 60;
+                    break;
+                case HOUR:
+                    max = 24;
+                    break;
+                case MONTH:
+                    max = 12;
+                    break;
+                case DAY_OF_WEEK:
+                    max = 7;
+                    break;
+                case DAY_OF_MONTH:
+                    max = 31;
+                    break;
+                case YEAR:
+                    throw new IllegalArgumentException("Start year must be less than stop year");
+                default:
+                    throw new IllegalArgumentException("Unexpected type encountered");
             }
             stopAt += max;
         }

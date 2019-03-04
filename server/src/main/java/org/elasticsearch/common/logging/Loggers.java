@@ -28,7 +28,6 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -58,41 +57,24 @@ public class Loggers {
      * Class and no extra prefixes.
      */
     public static Logger getLogger(String loggerName, ShardId shardId) {
-        return ESLoggerFactory.getLogger(formatPrefix(shardId.getIndexName(), Integer.toString(shardId.id())), loggerName);
+        String prefix = formatPrefix(shardId.getIndexName(), Integer.toString(shardId.id()));
+        return new PrefixLogger(LogManager.getLogger(loggerName), prefix);
     }
 
     public static Logger getLogger(Class<?> clazz, Index index, String... prefixes) {
-        return getLogger(clazz, Settings.EMPTY, asArrayList(Loggers.SPACE, index.getName(), prefixes).toArray(new String[0]));
+        return getLogger(clazz, asArrayList(Loggers.SPACE, index.getName(), prefixes).toArray(new String[0]));
     }
 
-    public static Logger getLogger(Class<?> clazz, Settings settings, String... prefixes) {
-        return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
+    public static Logger getLogger(Class<?> clazz, String... prefixes) {
+        return new PrefixLogger(LogManager.getLogger(clazz), formatPrefix(prefixes));
     }
 
     public static Logger getLogger(Logger parentLogger, String s) {
-        String prefix = null;
+        Logger inner = LogManager.getLogger(parentLogger.getName() + s);
         if (parentLogger instanceof PrefixLogger) {
-            prefix = ((PrefixLogger)parentLogger).prefix();
+            return new PrefixLogger(inner, ((PrefixLogger)parentLogger).prefix());
         }
-        return ESLoggerFactory.getLogger(prefix, parentLogger.getName() + s);
-    }
-
-    /**
-     * Get or build a logger.
-     * @deprecated Prefer {@link LogManager#getLogger}
-     */
-    @Deprecated
-    public static Logger getLogger(String s) {
-        return ESLoggerFactory.getLogger(s);
-    }
-
-    /**
-     * Get or build a logger.
-     * @deprecated Prefer {@link LogManager#getLogger}
-     */
-    @Deprecated
-    public static Logger getLogger(Class<?> clazz) {
-        return ESLoggerFactory.getLogger(clazz);
+        return inner;
     }
 
     private static String formatPrefix(String... prefixes) {

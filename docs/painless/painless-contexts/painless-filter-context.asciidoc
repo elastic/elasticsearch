@@ -24,3 +24,42 @@ query to include and exclude documents.
 *API*
 
 The standard <<painless-api-reference, Painless API>> is available.
+
+*Example*
+
+To run this example, first follow the steps in
+<<painless-context-examples, context examples>>.
+
+This script finds all unsold documents that cost less than $18.
+
+[source,Painless]
+----
+doc['sold'].value == false && doc['cost'].value < 18
+----
+
+Defining cost as a script parameter enables the cost to be configured
+in the script query request. For example, the following request finds
+all available theatre seats for evening performances that are under $18.
+
+[source,js]
+----
+GET evening/_search
+{
+    "query": {
+        "bool" : {
+            "filter" : {
+                "script" : {
+                    "script" : {
+                        "source" : "doc['sold'].value == false && doc['cost'].value < params.cost",
+                        "params" : {
+                            "cost" : 18
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+----
+// CONSOLE
+// TEST[skip: requires setup from other pages]

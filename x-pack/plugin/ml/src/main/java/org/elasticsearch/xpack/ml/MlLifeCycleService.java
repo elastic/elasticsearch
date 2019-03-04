@@ -6,32 +6,29 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
-import org.elasticsearch.xpack.ml.job.process.NativeController;
-import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
+import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.elasticsearch.xpack.ml.process.NativeController;
+import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.io.IOException;
 
-public class MlLifeCycleService extends AbstractComponent {
+public class MlLifeCycleService {
 
     private final Environment environment;
     private final DatafeedManager datafeedManager;
     private final AutodetectProcessManager autodetectProcessManager;
-
-    public MlLifeCycleService(Environment environment, ClusterService clusterService) {
-        this(environment, clusterService, null, null);
-    }
+    private final MlMemoryTracker memoryTracker;
 
     public MlLifeCycleService(Environment environment, ClusterService clusterService, DatafeedManager datafeedManager,
-                              AutodetectProcessManager autodetectProcessManager) {
-        super(environment.settings());
+                              AutodetectProcessManager autodetectProcessManager, MlMemoryTracker memoryTracker) {
         this.environment = environment;
         this.datafeedManager = datafeedManager;
         this.autodetectProcessManager = autodetectProcessManager;
+        this.memoryTracker = memoryTracker;
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void beforeStop() {
@@ -47,7 +44,7 @@ public class MlLifeCycleService extends AbstractComponent {
                 // datafeeds, so they get reallocated.  We have to do this first, otherwise the datafeeds
                 // could fail if they send data to a dead autodetect process.
                 if (datafeedManager != null) {
-                    datafeedManager.isolateAllDatafeedsOnThisNode();
+                    datafeedManager.isolateAllDatafeedsOnThisNodeBeforeShutdown();
                 }
                 NativeController nativeController = NativeControllerHolder.getNativeController(environment);
                 if (nativeController != null) {
@@ -60,6 +57,9 @@ public class MlLifeCycleService extends AbstractComponent {
             }
         } catch (IOException e) {
             // We're stopping anyway, so don't let this complicate the shutdown sequence
+        }
+        if (memoryTracker != null) {
+            memoryTracker.stop();
         }
     }
 }

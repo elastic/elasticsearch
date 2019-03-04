@@ -9,12 +9,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexInfo;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
@@ -39,9 +39,9 @@ public class SysTables extends Command {
     // flag indicating whether tables are reported as `TABLE` or `BASE TABLE`
     private final boolean legacyTableTypes;
 
-    public SysTables(Location location, LikePattern clusterPattern, String index, LikePattern pattern, EnumSet<IndexType> types,
+    public SysTables(Source source, LikePattern clusterPattern, String index, LikePattern pattern, EnumSet<IndexType> types,
             boolean legacyTableTypes) {
-        super(location);
+        super(source);
         this.clusterPattern = clusterPattern;
         this.index = index;
         this.pattern = pattern;

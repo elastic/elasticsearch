@@ -23,16 +23,14 @@
               index.number_of_shards: 2
               index.number_of_replicas: 0
             mappings:
-              test:
-                properties:
-                  count:
-                    type: text
+              properties:
+                count:
+                  type: text
 
     # index document
     - do:
         index:
           index: source
-          type:  test
           id:    "1"
           body:  { "count": "1" }
 
@@ -43,10 +41,9 @@
           body:
             index_patterns: targ*
             mappings:
-              test:
-                properties:
-                  count:
-                    type: integer
+              properties:
+                count:
+                  type: integer
 
     # make it read-only
     - do:
@@ -75,5 +72,3 @@
     - do:
         cluster.health:
           wait_for_status: green
-
-

@@ -20,10 +20,11 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelPromise;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.transport.TcpChannel;
@@ -34,12 +35,17 @@ import java.net.InetSocketAddress;
 public class Netty4TcpChannel implements TcpChannel {
 
     private final Channel channel;
+    private final boolean isServer;
     private final String profile;
+    private final CompletableContext<Void> connectContext;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
+    private final ChannelStats stats = new ChannelStats();
 
-    Netty4TcpChannel(Channel channel, String profile) {
+    Netty4TcpChannel(Channel channel, boolean isServer, String profile, @Nullable ChannelFuture connectFuture) {
         this.channel = channel;
+        this.isServer = isServer;
         this.profile = profile;
+        this.connectContext = new CompletableContext<>();
         this.channel.closeFuture().addListener(f -> {
             if (f.isSuccess()) {
                 closeContext.complete(null);
@@ -53,11 +59,30 @@ public class Netty4TcpChannel implements TcpChannel {
                 }
             }
         });
+
+        connectFuture.addListener(f -> {
+            if (f.isSuccess()) {
+                connectContext.complete(null);
+            } else {
+                Throwable cause = f.cause();
+                if (cause instanceof Error) {
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                    connectContext.completeExceptionally(new Exception(cause));
+                } else {
+                    connectContext.completeExceptionally((Exception) cause);
+                }
+            }
+        });
     }
 
     @Override
     public void close() {
         channel.close();
+    }
+
+    @Override
+    public boolean isServerChannel() {
+        return isServer;
     }
 
     @Override
@@ -71,8 +96,13 @@ public class Netty4TcpChannel implements TcpChannel {
     }
 
     @Override
-    public void setSoLinger(int value) {
-        channel.config().setOption(ChannelOption.SO_LINGER, value);
+    public void addConnectListener(ActionListener<Void> listener) {
+        connectContext.addListener(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
+    public ChannelStats getChannelStats() {
+        return stats;
     }
 
     @Override

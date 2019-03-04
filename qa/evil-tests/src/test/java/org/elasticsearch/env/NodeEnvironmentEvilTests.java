@@ -52,7 +52,7 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                     .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
             IOException ioException = expectThrows(IOException.class, () -> {
-                new NodeEnvironment(build, TestEnvironment.newEnvironment(build), nodeId -> {});
+                new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
             });
             assertTrue(ioException.getMessage(), ioException.getMessage().startsWith(path.toString()));
         }
@@ -72,7 +72,7 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
             IOException ioException = expectThrows(IOException.class, () -> {
-                new NodeEnvironment(build, TestEnvironment.newEnvironment(build), nodeId -> {});
+                new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
             });
             assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to test writes in data directory"));
         }
@@ -97,7 +97,7 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                 .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
             IOException ioException = expectThrows(IOException.class, () -> {
-                new NodeEnvironment(build, TestEnvironment.newEnvironment(build), nodeId -> {});
+                new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
             });
             assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to test writes in data directory"));
         }

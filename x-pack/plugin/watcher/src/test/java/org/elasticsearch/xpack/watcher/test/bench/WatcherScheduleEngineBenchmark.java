@@ -18,6 +18,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.Script;
@@ -94,12 +95,13 @@ public class WatcherScheduleEngineBenchmark {
 
 
         // First clean everything and index the watcher (but not via put alert api!)
-        try (Node node = new Node(Settings.builder().put(SETTINGS).put("node.data", false).build()) {
-                    @Override
-                    protected void registerDerivedNodeNameWithLogger(String nodeName) {
-                        // Nothing to do because test uses the thread name
-                    }
-                }.start()) {
+        try (Node node = new Node(InternalSettingsPreparer.prepareEnvironment(
+                    Settings.builder().put(SETTINGS).put("node.data", false).build(),
+                    emptyMap(),
+                    null,
+                    () -> {
+                        throw new IllegalArgumentException("settings must have [node.name]");
+                    })).start()) {
             try (Client client = node.client()) {
                 ClusterHealthResponse response = client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                 if (response.getNumberOfNodes() != 2 && response.getNumberOfDataNodes() != 1) {
@@ -120,7 +122,7 @@ public class WatcherScheduleEngineBenchmark {
                                             .condition(new ScriptCondition(new Script(
                                                     ScriptType.INLINE,
                                                     Script.DEFAULT_SCRIPT_LANG,
-                                                    "ctx.payload.hits.total > 0",
+                                                    "ctx.payload.hits.total.value > 0",
                                                     emptyMap())))
                                             .addAction("logging", ActionBuilders.loggingAction("test").setLevel(LoggingLevel.TRACE))
                                             .buildAsBytes(XContentType.JSON), XContentType.JSON

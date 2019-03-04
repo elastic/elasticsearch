@@ -13,8 +13,10 @@ public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardC
     @Override
     protected ShardChangesAction.Response createTestInstance() {
         final long mappingVersion = randomNonNegativeLong();
+        final long settingsVersion = randomNonNegativeLong();
         final long leaderGlobalCheckpoint = randomNonNegativeLong();
         final long leaderMaxSeqNo = randomLongBetween(leaderGlobalCheckpoint, Long.MAX_VALUE);
+        final long maxSeqNoOfUpdatesOrDeletes = randomLongBetween(-1, Long.MAX_VALUE);
         final int numOps = randomInt(8);
         final Translog.Operation[] operations = new Translog.Operation[numOps];
         for (int i = 0; i < numOps; i++) {
@@ -22,9 +24,12 @@ public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardC
         }
         return new ShardChangesAction.Response(
             mappingVersion,
+            settingsVersion,
             leaderGlobalCheckpoint,
             leaderMaxSeqNo,
-            operations
+            maxSeqNoOfUpdatesOrDeletes,
+            operations,
+            randomNonNegativeLong()
         );
     }
 

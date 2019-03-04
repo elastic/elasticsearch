@@ -39,21 +39,36 @@ import java.util.List;
 
 import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_BOOLEAN;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_CHAR_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_CHAR_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_DOUBLE_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_DOUBLE_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_INT_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_INT_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_BOOLEAN;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_BYTE_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_BYTE_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_CHARACTER_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_CHARACTER_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_DOUBLE_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_DOUBLE_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_FLOAT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_FLOAT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_INTEGER_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_INTEGER_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_LONG_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_LONG_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_SHORT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_SHORT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_BOOLEAN;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_BYTE_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_BYTE_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_CHAR_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_CHAR_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_DOUBLE_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_DOUBLE_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_FLOAT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_FLOAT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_INT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_INT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_LONG_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_LONG_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_SHORT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_SHORT_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
 import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
@@ -139,46 +154,64 @@ public final class MethodWriter extends GeneratorAdapter {
                 invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
             } else if (cast.originalType == String.class && cast.targetType == char.class) {
                 invokeStatic(UTILITY_TYPE, STRING_TO_CHAR);
+            } else if (cast.unboxOriginalType != null && cast.boxTargetType != null) {
+                unbox(getType(cast.unboxOriginalType));
+                writeCast(cast.unboxOriginalType, cast.boxTargetType);
+                box(getType(cast.boxTargetType));
             } else if (cast.unboxOriginalType != null) {
                 unbox(getType(cast.unboxOriginalType));
                 writeCast(cast.originalType, cast.targetType);
             } else if (cast.unboxTargetType != null) {
-                if (cast.originalType == def.class) {
-                    if (cast.explicitCast) {
-                        if      (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT);
-                        else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT);
-                        else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT);
-                        else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT);
-                        else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT);
-                        else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT);
-                        else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT);
-                        else {
-                            throw new IllegalStateException("Illegal tree structure.");
-                        }
-                    } else {
-                        if      (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT);
-                        else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT);
-                        else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT);
-                        else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT);
-                        else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT);
-                        else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT);
-                        else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT);
-                        else {
-                            throw new IllegalStateException("Illegal tree structure.");
-                        }
-                    }
-                } else {
-                    writeCast(cast.originalType, cast.targetType);
-                    unbox(getType(cast.unboxTargetType));
-                }
+                writeCast(cast.originalType, cast.targetType);
+                unbox(getType(cast.unboxTargetType));
             } else if (cast.boxOriginalType != null) {
                 box(getType(cast.boxOriginalType));
                 writeCast(cast.originalType, cast.targetType);
             } else if (cast.boxTargetType != null) {
                 writeCast(cast.originalType, cast.targetType);
                 box(getType(cast.boxTargetType));
+            } else if (cast.originalType == def.class) {
+                if (cast.explicitCast) {
+                    if      (cast.targetType == boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BOOLEAN);
+                    else if (cast.targetType == byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BYTE_EXPLICIT);
+                    else if (cast.targetType == short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_SHORT_EXPLICIT);
+                    else if (cast.targetType == char.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_CHAR_EXPLICIT);
+                    else if (cast.targetType == int.class)       invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_INT_EXPLICIT);
+                    else if (cast.targetType == long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_LONG_EXPLICIT);
+                    else if (cast.targetType == float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_FLOAT_EXPLICIT);
+                    else if (cast.targetType == double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_DOUBLE_EXPLICIT);
+                    else if (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BOOLEAN);
+                    else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BYTE_EXPLICIT);
+                    else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_SHORT_EXPLICIT);
+                    else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_CHARACTER_EXPLICIT);
+                    else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_INTEGER_EXPLICIT);
+                    else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_LONG_EXPLICIT);
+                    else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_EXPLICIT);
+                    else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_EXPLICIT);
+                    else {
+                        writeCast(cast.originalType, cast.targetType);
+                    }
+                } else {
+                    if      (cast.targetType == boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BOOLEAN);
+                    else if (cast.targetType == byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BYTE_IMPLICIT);
+                    else if (cast.targetType == short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_SHORT_IMPLICIT);
+                    else if (cast.targetType == char.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_CHAR_IMPLICIT);
+                    else if (cast.targetType == int.class)       invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_INT_IMPLICIT);
+                    else if (cast.targetType == long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_LONG_IMPLICIT);
+                    else if (cast.targetType == float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_FLOAT_IMPLICIT);
+                    else if (cast.targetType == double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_DOUBLE_IMPLICIT);
+                    else if (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BOOLEAN);
+                    else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BYTE_IMPLICIT);
+                    else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_SHORT_IMPLICIT);
+                    else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_CHARACTER_IMPLICIT);
+                    else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_INTEGER_IMPLICIT);
+                    else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_LONG_IMPLICIT);
+                    else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_IMPLICIT);
+                    else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_IMPLICIT);
+                    else {
+                        writeCast(cast.originalType, cast.targetType);
+                    }
+                }
             } else {
                 writeCast(cast.originalType, cast.targetType);
             }
@@ -347,17 +380,39 @@ public final class MethodWriter extends GeneratorAdapter {
         }
 
         switch (operation) {
-            case MUL:   math(GeneratorAdapter.MUL,  getType(clazz)); break;
-            case DIV:   math(GeneratorAdapter.DIV,  getType(clazz)); break;
-            case REM:   math(GeneratorAdapter.REM,  getType(clazz)); break;
-            case ADD:   math(GeneratorAdapter.ADD,  getType(clazz)); break;
-            case SUB:   math(GeneratorAdapter.SUB,  getType(clazz)); break;
-            case LSH:   math(GeneratorAdapter.SHL,  getType(clazz)); break;
-            case USH:   math(GeneratorAdapter.USHR, getType(clazz)); break;
-            case RSH:   math(GeneratorAdapter.SHR,  getType(clazz)); break;
-            case BWAND: math(GeneratorAdapter.AND,  getType(clazz)); break;
-            case XOR:   math(GeneratorAdapter.XOR,  getType(clazz)); break;
-            case BWOR:  math(GeneratorAdapter.OR,   getType(clazz)); break;
+            case MUL:
+                math(GeneratorAdapter.MUL, getType(clazz));
+                break;
+            case DIV:
+                math(GeneratorAdapter.DIV, getType(clazz));
+                break;
+            case REM:
+                math(GeneratorAdapter.REM, getType(clazz));
+                break;
+            case ADD:
+                math(GeneratorAdapter.ADD, getType(clazz));
+                break;
+            case SUB:
+                math(GeneratorAdapter.SUB, getType(clazz));
+                break;
+            case LSH:
+                math(GeneratorAdapter.SHL, getType(clazz));
+                break;
+            case USH:
+                math(GeneratorAdapter.USHR, getType(clazz));
+                break;
+            case RSH:
+                math(GeneratorAdapter.SHR, getType(clazz));
+                break;
+            case BWAND:
+                math(GeneratorAdapter.AND, getType(clazz));
+                break;
+            case XOR:
+                math(GeneratorAdapter.XOR, getType(clazz));
+                break;
+            case BWOR:
+                math(GeneratorAdapter.OR, getType(clazz));
+                break;
             default:
                 throw location.createError(new IllegalStateException("Illegal tree structure."));
         }

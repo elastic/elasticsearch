@@ -29,7 +29,8 @@ import java.util.Objects;
 public class DeleteJobRequest extends ActionRequest {
 
     private String jobId;
-    private boolean force;
+    private Boolean force;
+    private Boolean waitForCompletion;
 
     public DeleteJobRequest(String jobId) {
         this.jobId = Objects.requireNonNull(jobId, "[job_id] must not be null");
@@ -47,7 +48,7 @@ public class DeleteJobRequest extends ActionRequest {
         this.jobId = Objects.requireNonNull(jobId, "[job_id] must not be null");
     }
 
-    public boolean isForce() {
+    public Boolean getForce() {
         return force;
     }
 
@@ -57,8 +58,22 @@ public class DeleteJobRequest extends ActionRequest {
      *
      * @param force When {@code true} forcefully delete an opened job. Defaults to {@code false}
      */
-    public void setForce(boolean force) {
+    public void setForce(Boolean force) {
         this.force = force;
+    }
+
+    public Boolean getWaitForCompletion() {
+        return waitForCompletion;
+    }
+
+    /**
+     * Set whether this request should wait until the operation has completed before returning
+     * @param waitForCompletion When {@code true} the call will wait for the job deletion to complete.
+     *                          Otherwise, the deletion will be executed asynchronously and the response
+     *                          will contain the task id.
+     */
+    public void setWaitForCompletion(Boolean waitForCompletion) {
+        this.waitForCompletion = waitForCompletion;
     }
 
     @Override

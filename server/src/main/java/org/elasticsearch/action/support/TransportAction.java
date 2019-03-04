@@ -18,28 +18,30 @@
  */
 
 package org.elasticsearch.action.support;
-
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent {
+public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> {
 
     protected final String actionName;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
+    /**
+     * @deprecated declare your own logger.
+     */
+    @Deprecated
+    protected Logger logger = LogManager.getLogger(getClass());
 
-    protected TransportAction(Settings settings, String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-        super(settings);
+    protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.taskManager = taskManager;

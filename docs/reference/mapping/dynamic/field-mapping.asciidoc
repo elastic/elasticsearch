@@ -69,9 +69,7 @@ Dynamic date detection can be disabled by setting `date_detection` to `false`:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "date_detection": false
-    }
+    "date_detection": false
   }
 }
 
@@ -94,9 +92,7 @@ own <<mapping-date-format,date formats>>:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_date_formats": ["MM/dd/yyyy"]
-    }
+    "dynamic_date_formats": ["MM/dd/yyyy"]
   }
 }
 
@@ -122,9 +118,7 @@ correct solution is to map these fields explicitly, but numeric detection
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "numeric_detection": true
-    }
+    "numeric_detection": true
   }
 }
 

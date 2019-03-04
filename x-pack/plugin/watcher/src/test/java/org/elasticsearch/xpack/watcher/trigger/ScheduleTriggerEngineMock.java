@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.trigger;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
@@ -16,10 +15,10 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,13 +29,12 @@ import java.util.concurrent.ConcurrentMap;
  * jobCount.
  */
 public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
+    private static final Logger logger = LogManager.getLogger(ScheduleTriggerEngineMock.class);
 
-    private final Logger logger;
     private final ConcurrentMap<String, Watch> watches = new ConcurrentHashMap<>();
 
-    public ScheduleTriggerEngineMock(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
-        super(settings, scheduleRegistry, clock);
-        this.logger = Loggers.getLogger(ScheduleTriggerEngineMock.class, settings);
+    public ScheduleTriggerEngineMock(ScheduleRegistry scheduleRegistry, Clock clock) {
+        super(scheduleRegistry, clock);
     }
 
     @Override
@@ -86,7 +84,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
         }
 
         for (int i = 0; i < times; i++) {
-            DateTime now = new DateTime(clock.millis());
+            ZonedDateTime now = ZonedDateTime.now(clock);
             logger.debug("firing watch [{}] at [{}]", jobName, now);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(jobName, now, now);
             consumers.forEach(consumer -> consumer.accept(Collections.singletonList(event)));

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
-import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Settings;
 import org.junit.BeforeClass;
 
@@ -31,9 +31,9 @@ public class MultipleAdRealmIT extends AbstractAdLdapRealmTestCase {
                 .filter(config -> config.name().startsWith("AD"))
                 .collect(Collectors.toList());
         secondaryRealmConfig = randomFrom(configs);
-        ESLoggerFactory.getLogger("test")
-                .info("running test with secondary realm configuration [{}], with direct group to role mapping [{}]. Settings [{}]",
-                        secondaryRealmConfig, secondaryRealmConfig.mapGroupsAsRoles, secondaryRealmConfig.settings);
+        LogManager.getLogger(MultipleAdRealmIT.class).info(
+                "running test with secondary realm configuration [{}], with direct group to role mapping [{}]. Settings [{}]",
+                secondaryRealmConfig, secondaryRealmConfig.mapGroupsAsRoles, secondaryRealmConfig.settings);
 
         // It's easier to test 2 realms when using file based role mapping, and for the purposes of
         // this test, there's no need to test native mappings.
@@ -62,6 +62,7 @@ public class MultipleAdRealmIT extends AbstractAdLdapRealmTestCase {
      * Because one realm is using "common name" (cn) for login, and the other uses the "userid" (sAMAccountName) [see
      * {@link #setupSecondaryRealm()}], this is simply a matter of checking that we can authenticate with both identifiers.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     public void testCanAuthenticateAgainstBothRealms() throws IOException {
         assertAccessAllowed("Natasha Romanoff", "avengers");
         assertAccessAllowed("blackwidow", "avengers");

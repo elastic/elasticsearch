@@ -9,53 +9,18 @@ To guarantee that a user reads only their own documents, it makes sense to set u
 document level security. In this scenario, each document must have the username
 or role name associated with it, so that this information can be used by the
 role query for document level security. This is a situation where the
-`set_security_user` ingest processor can help.
+{ref}/ingest-node-set-security-user-processor.html[Set Security User Processor] ingest processor can help.
 
 NOTE: Document level security doesn't apply to write APIs. You must use unique
 ids for each user that uses the same index, otherwise they might overwrite other
 users' documents. The ingest processor just adds properties for the current
 authenticated user to the documents that are being indexed.
 
-The `set_security_user` processor attaches user-related details (such as
+The {ref}/ingest-node-set-security-user-processor.html[set security user processor] attaches user-related details (such as
 `username`,  `roles`, `email`, `full_name` and `metadata` ) from the current
 authenticated user to the current document by pre-processing the ingest. When
 you index data with an ingest pipeline, user details are automatically attached
-to the document. For example:
+to the document.
 
-[source,js]
---------------------------------------------------
-PUT shared-logs/log/1?pipeline=my_pipeline_id
-{
-  ...
-}
---------------------------------------------------
-// NOTCONSOLE
+For more information see {ref}/ingest.html[Ingest node] and {ref}/ingest-node-set-security-user-processor.html[Set security user processor].
 
-For more information about setting up a pipeline and other processors, see 
-{ref}/ingest.html[ingest node].
-
-[[set-security-user-options]]
-.Set Security User Options
-[options="header"]
-|======
-| Name          | Required  | Default                                                   | Description
-| `field`       | yes       | -                                                         | The field to store the user information into.
-| `properties`  | no        | [`username`, `roles`, `email`, `full_name`, `metadata`]   | Controls what user related properties are added to the `field`.
-|======
-
-The following example adds all user details for the current authenticated user
-to the `user` field for all documents that are processed by this pipeline:
-
-[source,js]
---------------------------------------------------
-{
-  "processors" : [
-    {
-      "set_security_user": {
-        "field": "user"
-      }
-    }
-  ]
-}
---------------------------------------------------
-// NOTCONSOLE

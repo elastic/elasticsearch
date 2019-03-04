@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.input.http;
 
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -31,12 +32,13 @@ import java.util.Map;
 import static org.elasticsearch.xpack.watcher.input.http.HttpInput.TYPE;
 
 public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Result> {
+    private static final Logger logger = LogManager.getLogger(ExecutableHttpInput.class);
 
     private final HttpClient client;
     private final TextTemplateEngine templateEngine;
 
-    public ExecutableHttpInput(HttpInput input, Logger logger, HttpClient client, TextTemplateEngine templateEngine) {
-        super(input, logger);
+    public ExecutableHttpInput(HttpInput input, HttpClient client, TextTemplateEngine templateEngine) {
+        super(input);
         this.client = client;
         this.templateEngine = templateEngine;
     }
@@ -44,7 +46,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
     public HttpInput.Result execute(WatchExecutionContext ctx, Payload payload) {
         HttpRequest request = null;
         try {
-            Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+            Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
             request = input.getRequest().render(templateEngine, model);
             return doExecute(ctx, request);
         } catch (Exception e) {

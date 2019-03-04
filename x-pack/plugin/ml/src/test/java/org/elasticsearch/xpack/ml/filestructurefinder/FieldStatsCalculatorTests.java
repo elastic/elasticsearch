@@ -73,16 +73,16 @@ public class FieldStatsCalculatorTests extends FileStructureTestCase {
 
         FieldStatsCalculator calculator = new FieldStatsCalculator();
 
-        calculator.accept(Arrays.asList("4", "4", "7", "4", "6", "5", "6", "5", "16", "4", "5"));
+        calculator.accept(Arrays.asList("4", "4", "7", "4", "6", "5.2", "6", "5.2", "16", "4", "5.2"));
 
         List<Map<String, Object>> topHits = calculator.findNumericTopHits(3);
 
         assertEquals(3, topHits.size());
-        assertEquals(4.0, topHits.get(0).get("value"));
+        assertEquals(4, topHits.get(0).get("value"));
         assertEquals(4, topHits.get(0).get("count"));
-        assertEquals(5.0, topHits.get(1).get("value"));
+        assertEquals(5.2, topHits.get(1).get("value"));
         assertEquals(3, topHits.get(1).get("count"));
-        assertEquals(6.0, topHits.get(2).get("value"));
+        assertEquals(6, topHits.get(2).get("value"));
         assertEquals(2, topHits.get(2).get("count"));
     }
 
@@ -124,25 +124,25 @@ public class FieldStatsCalculatorTests extends FileStructureTestCase {
 
         FieldStatsCalculator calculator = new FieldStatsCalculator();
 
-        calculator.accept(Arrays.asList("4", "4", "7", "4", "6", "5", "6", "5", "16", "4", "5"));
+        calculator.accept(Arrays.asList("4.5", "4.5", "7", "4.5", "6", "5", "6", "5", "25", "4.5", "5"));
 
         FieldStats stats = calculator.calculate(3);
 
         assertEquals(11L, stats.getCount());
         assertEquals(5, stats.getCardinality());
-        assertEquals(4.0, stats.getMinValue(), 1e-10);
-        assertEquals(16.0, stats.getMaxValue(), 1e-10);
-        assertEquals(6.0, stats.getMeanValue(), 1e-10);
+        assertEquals(4.5, stats.getMinValue(), 1e-10);
+        assertEquals(25.0, stats.getMaxValue(), 1e-10);
+        assertEquals(7.0, stats.getMeanValue(), 1e-10);
         assertEquals(5.0, stats.getMedianValue(), 1e-10);
 
         List<Map<String, Object>> topHits = stats.getTopHits();
 
         assertEquals(3, topHits.size());
-        assertEquals(4.0, topHits.get(0).get("value"));
+        assertEquals(4.5, topHits.get(0).get("value"));
         assertEquals(4, topHits.get(0).get("count"));
-        assertEquals(5.0, topHits.get(1).get("value"));
+        assertEquals(5, topHits.get(1).get("value"));
         assertEquals(3, topHits.get(1).get("count"));
-        assertEquals(6.0, topHits.get(2).get("value"));
+        assertEquals(6, topHits.get(2).get("value"));
         assertEquals(2, topHits.get(2).get("count"));
     }
 

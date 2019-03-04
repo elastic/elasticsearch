@@ -19,13 +19,13 @@
 
 package org.elasticsearch.common.util.iterable;
 
+import org.elasticsearch.test.ESTestCase;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-
-import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.object.HasToString.hasToString;
 
@@ -64,7 +64,7 @@ public class IterablesTests extends ESTestCase {
 
         Iterable<Integer> allInts = Iterables.flatten(list);
         int count = 0;
-        for(int x : allInts) {
+        for(@SuppressWarnings("unused") int x : allInts) {
             count++;
         }
         assertEquals(0, count);
@@ -73,14 +73,14 @@ public class IterablesTests extends ESTestCase {
 
         // changes to the outer list are not seen since flatten pre-caches outer list on init:
         count = 0;
-        for(int x : allInts) {
+        for(@SuppressWarnings("unused") int x : allInts) {
             count++;
         }
         assertEquals(0, count);
 
         // but changes to the original inner lists are seen:
         list.get(0).add(0);
-        for(int x : allInts) {
+        for(@SuppressWarnings("unused") int x : allInts) {
             count++;
         }
         assertEquals(1, count);

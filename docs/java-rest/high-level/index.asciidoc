@@ -1,4 +1,6 @@
-[[java-rest-high]]
+:mainid: java-rest-high
+
+[id="{mainid}"]
 = Java High Level REST Client
 
 [partintro]
@@ -23,6 +25,7 @@ the same response objects.
 --
 
 :doc-tests: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation
+:hlrc-tests: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client
 
 include::getting-started.asciidoc[]
 include::supported-apis.asciidoc[]
@@ -31,3 +34,4 @@ include::migration.asciidoc[]
 include::../license.asciidoc[]
 
 :doc-tests!:
+:mainid!:

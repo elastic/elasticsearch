@@ -41,8 +41,8 @@ public class TextLogFileStructureFinderFactory implements FileStructureFinderFac
 
     @Override
     public FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
-                                                FileStructureOverrides overrides) {
+                                                FileStructureOverrides overrides, TimeoutChecker timeoutChecker) {
         return TextLogFileStructureFinder.makeTextLogFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker,
-            overrides);
+            overrides, timeoutChecker);
     }
 }

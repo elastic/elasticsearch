@@ -15,9 +15,10 @@ import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -78,7 +79,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         return config;
     }
 
-    public static class CustomScriptPlugin extends MockScriptPlugin {
+    public static class CustomScriptPlugin extends WatcherMockScriptPlugin {
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
@@ -119,7 +120,6 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
-                        .condition(InternalAlwaysCondition.INSTANCE)
                         .transform(scriptTransform(script))
                         .addAction("_id", indexAction("output1", "type")))
                 .get();
@@ -129,13 +129,12 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
-                        .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("_id", scriptTransform(script), indexAction("output2", "type")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().trigger("_id1");
-        timeWarp().trigger("_id2");
+        executeWatch("_id1");
+        executeWatch("_id2");
         refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
@@ -144,17 +143,18 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
 
         SearchResponse response = client().prepareSearch("output1").get();
         assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
 
         response = client().prepareSearch("output2").get();
         assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
     }
 
+    @TestLogging("org.elasticsearch.xpack.watcher:DEBUG")
     public void testSearchTransform() throws Exception {
         createIndex("my-condition-index", "my-payload-index");
         ensureGreen("my-condition-index", "my-payload-index");
@@ -181,8 +181,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 ).get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().trigger("_id1");
-        timeWarp().trigger("_id2");
+        executeWatch("_id1");
+        executeWatch("_id2");
         refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
@@ -191,12 +191,12 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
 
         SearchResponse response = client().prepareSearch("output1").get();
         assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
 
         response = client().prepareSearch("output2").get();
         assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
     }
 
@@ -209,7 +209,6 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
-                        .condition(InternalAlwaysCondition.INSTANCE)
                         .transform(chainTransform(scriptTransform(script1), scriptTransform(script2)))
                         .addAction("_id", indexAction("output1", "type")))
                 .get();
@@ -219,14 +218,13 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
-                        .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("_id", chainTransform(scriptTransform(script1), scriptTransform(script2)),
                                 indexAction("output2", "type")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        timeWarp().trigger("_id1");
-        timeWarp().trigger("_id2");
+        executeWatch("_id1");
+        executeWatch("_id2");
         refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id1", 1, false);
@@ -235,14 +233,20 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
 
         SearchResponse response = client().prepareSearch("output1").get();
         assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
 
         response = client().prepareSearch("output2").get();
         assertNoFailures(response);
-        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
+    }
+
+    private void executeWatch(String watchId) {
+        watcherClient().prepareExecuteWatch(watchId)
+            .setRecordExecution(true)
+            .get();
     }
 }

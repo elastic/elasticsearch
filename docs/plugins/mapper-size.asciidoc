@@ -18,10 +18,8 @@ In order to enable the `_size` field, set the mapping as follows:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "_size": {
-        "enabled": true
-      }
+    "_size": {
+      "enabled": true
     }
   }
 }
@@ -34,12 +32,12 @@ and when sorting:
 [source,js]
 --------------------------
 # Example documents
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "text": "This is a document"
 }
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 {
   "text": "This is another document"
 }

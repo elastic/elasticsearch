@@ -6,24 +6,30 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.protocol.xpack.common.ProtocolUtils;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
-import static org.elasticsearch.license.PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT;
+public class PostStartBasicResponse extends AcknowledgedResponse implements StatusToXContentObject {
 
-class PostStartBasicResponse extends AcknowledgedResponse {
+    private static final ParseField BASIC_WAS_STARTED_FIELD = new ParseField("basic_was_started");
+    private static final ParseField ERROR_MESSAGE_FIELD = new ParseField("error_message");
+    private static final ParseField MESSAGE_FIELD = new ParseField("message");
 
     private Map<String, String[]> acknowledgeMessages;
     private String acknowledgeMessage;
 
-    enum Status {
+    public enum Status {
         GENERATED_BASIC(true, null, RestStatus.OK),
         ALREADY_USING_BASIC(false, "Operation failed: Current license is basic.", RestStatus.FORBIDDEN),
         NEED_ACKNOWLEDGEMENT(false, "Operation failed: Needs acknowledgement.", RestStatus.OK);
@@ -53,15 +59,15 @@ class PostStartBasicResponse extends AcknowledgedResponse {
 
     private Status status;
 
-    PostStartBasicResponse() {
+    public PostStartBasicResponse() {
     }
 
     PostStartBasicResponse(Status status) {
         this(status, Collections.emptyMap(), null);
     }
 
-    PostStartBasicResponse(Status status, Map<String, String[]> acknowledgeMessages, String acknowledgeMessage) {
-        super(status != NEED_ACKNOWLEDGEMENT);
+    public PostStartBasicResponse(Status status, Map<String, String[]> acknowledgeMessages, String acknowledgeMessage) {
+        super(status != Status.NEED_ACKNOWLEDGEMENT);
         this.status = status;
         this.acknowledgeMessages = acknowledgeMessages;
         this.acknowledgeMessage = acknowledgeMessage;
@@ -108,14 +114,14 @@ class PostStartBasicResponse extends AcknowledgedResponse {
     @Override
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
         if (status.isBasicStarted()) {
-            builder.field("basic_was_started", true);
+            builder.field(BASIC_WAS_STARTED_FIELD.getPreferredName(), true);
         } else {
-            builder.field("basic_was_started", false);
-            builder.field("error_message", status.getErrorMessage());
+            builder.field(BASIC_WAS_STARTED_FIELD.getPreferredName(), false);
+            builder.field(ERROR_MESSAGE_FIELD.getPreferredName(), status.getErrorMessage());
         }
         if (acknowledgeMessages.isEmpty() == false) {
             builder.startObject("acknowledge");
-            builder.field("message", acknowledgeMessage);
+            builder.field(MESSAGE_FIELD.getPreferredName(), acknowledgeMessage);
             for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
                 builder.startArray(entry.getKey());
                 for (String message : entry.getValue()) {
@@ -125,5 +131,27 @@ class PostStartBasicResponse extends AcknowledgedResponse {
             }
             builder.endObject();
         }
+    }
+
+    @Override
+    public RestStatus status() {
+        return status.restStatus;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+        PostStartBasicResponse that = (PostStartBasicResponse) o;
+
+        return status == that.status &&
+            ProtocolUtils.equals(acknowledgeMessages, that.acknowledgeMessages) &&
+            Objects.equals(acknowledgeMessage, that.acknowledgeMessage);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), status, ProtocolUtils.hashCode(acknowledgeMessages), acknowledgeMessage);
     }
 }

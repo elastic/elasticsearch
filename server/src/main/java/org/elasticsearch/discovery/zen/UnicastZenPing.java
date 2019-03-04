@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.zen;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -45,6 +45,8 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -90,13 +92,22 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-public class UnicastZenPing extends AbstractComponent implements ZenPing {
+public class UnicastZenPing implements ZenPing {
+
+    private static final Logger logger = LogManager.getLogger(UnicastZenPing.class);
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
-    public static final Setting<Integer> DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING =
-        Setting.intSetting("discovery.zen.ping.unicast.concurrent_connects", 10, 0, Property.NodeScope);
-    public static final Setting<TimeValue> DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT =
-        Setting.positiveTimeSetting("discovery.zen.ping.unicast.hosts.resolve_timeout", TimeValue.timeValueSeconds(5), Property.NodeScope);
+
+    public static final Setting<Integer> LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING =
+        Setting.intSetting("discovery.zen.ping.unicast.concurrent_connects", 10, 0, Property.NodeScope, Property.Deprecated);
+    public static final Setting<TimeValue> LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT =
+        Setting.positiveTimeSetting("discovery.zen.ping.unicast.hosts.resolve_timeout", TimeValue.timeValueSeconds(5),
+            Property.NodeScope, Property.Deprecated);
+
+    public static final Setting<Integer> DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING =
+        Setting.intSetting("discovery.seed_resolver.max_concurrent_resolvers", 10, 0, Property.NodeScope);
+    public static final Setting<TimeValue> DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("discovery.seed_resolver.timeout", TimeValue.timeValueSeconds(5), Property.NodeScope);
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -111,28 +122,29 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     // a list of temporal responses a node will return for a request (holds responses from other nodes)
     private final Queue<PingResponse> temporalResponses = ConcurrentCollections.newQueue();
 
-    private final UnicastHostsProvider hostsProvider;
+    private final SeedHostsProvider hostsProvider;
 
     protected final EsThreadPoolExecutor unicastZenPingExecutorService;
 
     private final TimeValue resolveTimeout;
 
+    private final String nodeName;
+
     private volatile boolean closed = false;
 
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
-                          UnicastHostsProvider unicastHostsProvider, PingContextProvider contextProvider) {
-        super(settings);
+                          SeedHostsProvider seedHostsProvider, PingContextProvider contextProvider) {
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        this.hostsProvider = unicastHostsProvider;
+        this.hostsProvider = seedHostsProvider;
         this.contextProvider = contextProvider;
 
-        final int concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
-
-        resolveTimeout = DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
+        final int concurrentConnects = getMaxConcurrentResolvers(settings);
+        resolveTimeout = getResolveTimeout(settings);
+        nodeName = Node.NODE_NAME_SETTING.get(settings);
         logger.debug(
-            "using concurrent_connects [{}], resolve_timeout [{}]",
+            "using max_concurrent_resolvers [{}], resolver timeout [{}]",
             concurrentConnects,
             resolveTimeout);
 
@@ -141,7 +153,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_connect]");
         unicastZenPingExecutorService = EsExecutors.newScaling(
-                nodeName() + "/" + "unicast_connect",
+                nodeName + "/" + "unicast_connect",
                 0,
                 concurrentConnects,
                 60,
@@ -227,7 +239,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         return Collections.unmodifiableList(transportAddresses);
     }
 
-    private UnicastHostsProvider.HostsResolver createHostsResolver() {
+    private SeedHostsProvider.HostsResolver createHostsResolver() {
         return (hosts, limitPortCounts) -> resolveHostsLists(unicastZenPingExecutorService, logger, hosts,
             limitPortCounts, transportService, resolveTimeout);
     }
@@ -273,7 +285,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                         final TimeValue scheduleDuration,
                         final TimeValue requestDuration) {
         final List<TransportAddress> seedAddresses = new ArrayList<>();
-        seedAddresses.addAll(hostsProvider.buildDynamicHosts(createHostsResolver()));
+        seedAddresses.addAll(hostsProvider.getSeedAddresses(createHostsResolver()));
         final DiscoveryNodes nodes = contextProvider.clusterState().nodes();
         // add all possible master nodes that were active in the last known cluster configuration
         for (ObjectCursor<DiscoveryNode> masterNode : nodes.getMasterNodes().values()) {
@@ -281,7 +293,8 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         }
 
         final ConnectionProfile connectionProfile =
-            ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, requestDuration, requestDuration);
+            ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, requestDuration, requestDuration,
+                TimeValue.MINUS_ONE, null);
         final PingingRound pingingRound = new PingingRound(pingingRoundIdGenerator.incrementAndGet(), seedAddresses, resultsConsumer,
             nodes.getLocalNode(), connectionProfile);
         activePingingRounds.put(pingingRound.id(), pingingRound);
@@ -299,9 +312,9 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             }
         };
         threadPool.generic().execute(pingSender);
-        threadPool.schedule(TimeValue.timeValueMillis(scheduleDuration.millis() / 3), ThreadPool.Names.GENERIC, pingSender);
-        threadPool.schedule(TimeValue.timeValueMillis(scheduleDuration.millis() / 3 * 2), ThreadPool.Names.GENERIC, pingSender);
-        threadPool.schedule(scheduleDuration, ThreadPool.Names.GENERIC, new AbstractRunnable() {
+        threadPool.schedule(pingSender, TimeValue.timeValueMillis(scheduleDuration.millis() / 3), ThreadPool.Names.GENERIC);
+        threadPool.schedule(pingSender, TimeValue.timeValueMillis(scheduleDuration.millis() / 3 * 2), ThreadPool.Names.GENERIC);
+        threadPool.schedule(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
                 finishPingingRound(pingingRound);
@@ -311,7 +324,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             public void onFailure(Exception e) {
                 logger.warn("unexpected error while finishing pinging round", e);
             }
-        });
+        }, scheduleDuration, ThreadPool.Names.GENERIC);
     }
 
     // for testing
@@ -552,8 +565,8 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         temporalResponses.add(request.pingResponse);
         // add to any ongoing pinging
         activePingingRounds.values().forEach(p -> p.addPingResponseToCollection(request.pingResponse));
-        threadPool.schedule(TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME,
-            () -> temporalResponses.remove(request.pingResponse));
+        threadPool.schedule(() -> temporalResponses.remove(request.pingResponse),
+            TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME);
 
         List<PingResponse> pingResponses = CollectionUtils.iterableAsArrayList(temporalResponses);
         pingResponses.add(createPingResponse(contextProvider.clusterState()));
@@ -582,19 +595,19 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     }
 
-    static class UnicastPingRequest extends TransportRequest {
+    public static class UnicastPingRequest extends TransportRequest {
 
-        final int id;
-        final TimeValue timeout;
-        final PingResponse pingResponse;
+        public final int id;
+        public final TimeValue timeout;
+        public final PingResponse pingResponse;
 
-        UnicastPingRequest(int id, TimeValue timeout, PingResponse pingResponse) {
+        public UnicastPingRequest(int id, TimeValue timeout, PingResponse pingResponse) {
             this.id = id;
             this.timeout = timeout;
             this.pingResponse = pingResponse;
         }
 
-        UnicastPingRequest(StreamInput in) throws IOException {
+        public UnicastPingRequest(StreamInput in) throws IOException {
             super(in);
             id = in.readInt();
             timeout = in.readTimeValue();
@@ -620,18 +633,18 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         return new PingResponse(discoNodes.getLocalNode(), discoNodes.getMasterNode(), clusterState);
     }
 
-    static class UnicastPingResponse extends TransportResponse {
+    public static class UnicastPingResponse extends TransportResponse {
 
         final int id;
 
-        final PingResponse[] pingResponses;
+        public final PingResponse[] pingResponses;
 
-        UnicastPingResponse(int id, PingResponse[] pingResponses) {
+        public UnicastPingResponse(int id, PingResponse[] pingResponses) {
             this.id = id;
             this.pingResponses = pingResponses;
         }
 
-        UnicastPingResponse(StreamInput in) throws IOException {
+        public UnicastPingResponse(StreamInput in) throws IOException {
             id = in.readInt();
             pingResponses = new PingResponse[in.readVInt()];
             for (int i = 0; i < pingResponses.length; i++) {
@@ -657,5 +670,29 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     protected Version getVersion() {
         return Version.CURRENT; // for tests
+    }
+
+    public static int getMaxConcurrentResolvers(Settings settings) {
+        if (LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.exists(settings)) {
+            if (DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING.exists(settings)) {
+                throw new IllegalArgumentException("it is forbidden to set both ["
+                    + DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING.getKey() + "] and ["
+                    + LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.getKey() + "]");
+            }
+            return LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
+        }
+        return DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING.get(settings);
+    }
+
+    public static TimeValue getResolveTimeout(Settings settings) {
+        if (LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.exists(settings)) {
+            if (DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.exists(settings)) {
+                throw new IllegalArgumentException("it is forbidden to set both ["
+                    + DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.getKey() + "] and ["
+                    + LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.getKey() + "]");
+            }
+            return LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
+        }
+        return DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.get(settings);
     }
 }

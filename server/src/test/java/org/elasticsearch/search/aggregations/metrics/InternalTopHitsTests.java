@@ -36,8 +36,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
-import org.elasticsearch.search.aggregations.metrics.ParsedTopHits;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -79,7 +77,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         int requestedSize = between(1, 40);
         int actualSize = between(0, requestedSize);
 
-        float maxScore = Float.MIN_VALUE;
+        float maxScore = Float.NEGATIVE_INFINITY;
         ScoreDoc[] scoreDocs = new ScoreDoc[actualSize];
         SearchHit[] hits = new SearchHit[actualSize];
         Set<Integer> usedDocIds = new HashSet<>();
@@ -103,7 +101,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             hits[i].score(score);
         }
         int totalHits = between(actualSize, 500000);
-        SearchHits searchHits = new SearchHits(hits, totalHits, maxScore);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
 
         TopDocs topDocs;
         Arrays.sort(scoreDocs, scoreDocComparator());
@@ -112,7 +110,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         } else {
             topDocs = new TopDocs(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), scoreDocs);
         }
-        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore);
+        // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
+        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore);
 
         return new InternalTopHits(name, from, requestedSize, topDocsAndMaxScore, searchHits, pipelineAggregators, metaData);
     }
@@ -125,7 +124,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         ParsedTopHits parsed = (ParsedTopHits) parsedAggregation;
         final SearchHits actualSearchHits = parsed.getHits();
 
-        assertEquals(expectedSearchHits.getTotalHits(), actualSearchHits.getTotalHits());
+        assertEquals(expectedSearchHits.getTotalHits().value, actualSearchHits.getTotalHits().value);
+        assertEquals(expectedSearchHits.getTotalHits().relation, actualSearchHits.getTotalHits().relation);
         assertEquals(expectedSearchHits.getMaxScore(), actualSearchHits.getMaxScore(), 0.0f);
 
         List<SearchHit> expectedHits = Arrays.asList(expectedSearchHits.getHits());
@@ -169,7 +169,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         case STRING_VAL:
             return new BytesRef(randomAlphaOfLength(5));
         default:
-            throw new UnsupportedOperationException("Unkown SortField.Type: " + type);
+            throw new UnsupportedOperationException("Unknown SortField.Type: " + type);
         }
     }
 
@@ -177,11 +177,15 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     protected void assertReduced(InternalTopHits reduced, List<InternalTopHits> inputs) {
         SearchHits actualHits = reduced.getHits();
         List<Tuple<ScoreDoc, SearchHit>> allHits = new ArrayList<>();
-        float maxScore = Float.MIN_VALUE;
+        float maxScore = Float.NEGATIVE_INFINITY;
         long totalHits = 0;
+        TotalHits.Relation relation = TotalHits.Relation.EQUAL_TO;
         for (int input = 0; input < inputs.size(); input++) {
             SearchHits internalHits = inputs.get(input).getHits();
-            totalHits += internalHits.getTotalHits();
+            totalHits += internalHits.getTotalHits().value;
+            if (internalHits.getTotalHits().relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+                relation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
+            }
             maxScore = max(maxScore, internalHits.getMaxScore());
             for (int i = 0; i < internalHits.getHits().length; i++) {
                 ScoreDoc doc = inputs.get(input).getTopDocs().topDocs.scoreDocs[i];
@@ -199,7 +203,9 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             expectedHitsHits[i] = allHits.get(i).v2();
         }
         // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
-        SearchHits expectedHits = new SearchHits(expectedHitsHits, totalHits, maxScore == Float.MIN_VALUE ? Float.NaN : maxScore);
+        SearchHits expectedHits = new SearchHits(expectedHitsHits, new TotalHits(totalHits, relation), maxScore == Float.NEGATIVE_INFINITY ?
+            Float.NaN :
+            maxScore);
         assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
     }
 
@@ -277,8 +283,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
                     topDocs.topDocs.totalHits.relation), topDocs.topDocs.scoreDocs), topDocs.maxScore + randomFloat());
             break;
         case 4:
-            searchHits = new SearchHits(searchHits.getHits(), searchHits.totalHits + between(1, 100),
-                    searchHits.getMaxScore() + randomFloat());
+            TotalHits totalHits = new TotalHits(searchHits.getTotalHits().value + between(1, 100), randomFrom(TotalHits.Relation.values()));
+            searchHits = new SearchHits(searchHits.getHits(), totalHits, searchHits.getMaxScore() + randomFloat());
             break;
         case 5:
             if (metaData == null) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.cache.request;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.metrics.CounterMetric;
 
 /**
@@ -44,11 +45,11 @@ public final class ShardRequestCache {
         missCount.inc();
     }
 
-    public void onCached(Accountable key, Accountable value) {
+    public void onCached(Accountable key, BytesReference value) {
         totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
     }
 
-    public void onRemoval(Accountable key, Accountable value, boolean evicted) {
+    public void onRemoval(Accountable key, BytesReference value, boolean evicted) {
         if (evicted) {
             evictionsMetric.inc();
         }

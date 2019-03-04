@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.settings.Settings;
 
 /**
  * An allocation strategy that only allows for a replica to be allocated when the primary is active.
@@ -30,10 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecider {
 
     private static final String NAME = "replica_after_primary_active";
-
-    public ReplicaAfterPrimaryActiveAllocationDecider(Settings settings) {
-        super(settings);
-    }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

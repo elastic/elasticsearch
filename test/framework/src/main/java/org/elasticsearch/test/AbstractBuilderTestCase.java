@@ -93,6 +93,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 
 public abstract class AbstractBuilderTestCase extends ESTestCase {
@@ -330,7 +331,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                         AbstractBuilderTestCase testCase,
                         boolean registerType) throws IOException {
             this.nowInMillis = nowInMillis;
-            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings);
+            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings, emptyMap(),
+                    null, () -> {
+                        throw new AssertionError("node.name must be set");
+                    });
             PluginsService pluginsService;
             pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
 

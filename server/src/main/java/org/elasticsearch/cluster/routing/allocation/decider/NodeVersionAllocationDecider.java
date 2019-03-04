@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.settings.Settings;
 
 /**
  * An allocation decider that prevents relocation or allocation from nodes
@@ -37,10 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 public class NodeVersionAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "node_version";
-
-    public NodeVersionAllocationDecider(Settings settings) {
-        super(settings);
-    }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

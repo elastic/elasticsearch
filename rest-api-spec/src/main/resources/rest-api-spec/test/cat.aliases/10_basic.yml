@@ -57,10 +57,9 @@
             index: test
             body:
                 mappings:
-                    type_1:
-                        properties:
-                            foo:
-                                type: text
+                    properties:
+                        foo:
+                            type: text
 
   - do:
         indices.put_alias:

@@ -15,7 +15,6 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -79,19 +78,19 @@ public class PkiRealm extends Realm implements CachingRealm {
     private DelegatedAuthorizationSupport delegatedRealms;
 
     public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, NativeRoleMappingStore nativeRoleMappingStore) {
-        this(config, new CompositeRoleMapper(PkiRealmSettings.TYPE, config, watcherService, nativeRoleMappingStore));
+        this(config, new CompositeRoleMapper(config, watcherService, nativeRoleMappingStore));
     }
 
     // pkg private for testing
     PkiRealm(RealmConfig config, UserRoleMapper roleMapper) {
-        super(PkiRealmSettings.TYPE, config);
+        super(config);
         this.trustManager = trustManagers(config);
-        this.principalPattern = PkiRealmSettings.USERNAME_PATTERN_SETTING.get(config.settings());
+        this.principalPattern = config.getSetting(PkiRealmSettings.USERNAME_PATTERN_SETTING);
         this.roleMapper = roleMapper;
         this.roleMapper.refreshRealmOnChange(this);
         this.cache = CacheBuilder.<BytesKey, User>builder()
-                .setExpireAfterWrite(PkiRealmSettings.CACHE_TTL_SETTING.get(config.settings()))
-                .setMaximumWeight(PkiRealmSettings.CACHE_MAX_USERS_SETTING.get(config.settings()))
+                .setExpireAfterWrite(config.getSetting(PkiRealmSettings.CACHE_TTL_SETTING))
+                .setMaximumWeight(config.getSetting(PkiRealmSettings.CACHE_MAX_USERS_SETTING))
                 .build();
         this.delegatedRealms = null;
     }
@@ -117,7 +116,7 @@ public class PkiRealm extends Realm implements CachingRealm {
     @Override
     public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
         assert delegatedRealms != null : "Realm has not been initialized correctly";
-        X509AuthenticationToken token = (X509AuthenticationToken)authToken;
+        X509AuthenticationToken token = (X509AuthenticationToken) authToken;
         try {
             final BytesKey fingerprint = computeFingerprint(token.credentials()[0]);
             User user = cache.get(fingerprint);
@@ -215,36 +214,43 @@ public class PkiRealm extends Realm implements CachingRealm {
         return true;
     }
 
-    static X509TrustManager trustManagers(RealmConfig realmConfig) {
-        final Settings settings = realmConfig.settings();
-        final Environment env = realmConfig.env();
-        List<String> certificateAuthorities = settings.getAsList(PkiRealmSettings.SSL_SETTINGS.caPaths.getKey(), null);
-        String truststorePath = PkiRealmSettings.SSL_SETTINGS.truststorePath.get(settings).orElse(null);
+    X509TrustManager trustManagers(RealmConfig realmConfig) {
+        final List<String> certificateAuthorities = realmConfig.hasSetting(PkiRealmSettings.CAPATH_SETTING) ?
+                realmConfig.getSetting(PkiRealmSettings.CAPATH_SETTING) : null;
+        String truststorePath = realmConfig.getSetting(PkiRealmSettings.TRUST_STORE_PATH).orElse(null);
         if (truststorePath == null && certificateAuthorities == null) {
             return null;
         } else if (truststorePath != null && certificateAuthorities != null) {
-            final String pathKey = RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.SSL_SETTINGS.truststorePath);
-            final String caKey = RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.SSL_SETTINGS.caPaths);
+            final String pathKey = RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.TRUST_STORE_PATH);
+            final String caKey = RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.CAPATH_SETTING);
             throw new IllegalArgumentException("[" + pathKey + "] and [" + caKey + "] cannot be used at the same time");
         } else if (truststorePath != null) {
-            return trustManagersFromTruststore(truststorePath, realmConfig);
+            final X509TrustManager trustManager = trustManagersFromTruststore(truststorePath, realmConfig);
+            if (trustManager.getAcceptedIssuers().length == 0) {
+                logger.warn("PKI Realm {} uses truststore {} which has no accepted certificate issuers", this, truststorePath);
+            }
+            return trustManager;
         }
-        return trustManagersFromCAs(settings, env);
+        final X509TrustManager trustManager = trustManagersFromCAs(certificateAuthorities, realmConfig.env());
+        if (trustManager.getAcceptedIssuers().length == 0) {
+            logger.warn("PKI Realm {} uses CAs {} with no accepted certificate issuers", this, certificateAuthorities);
+        }
+        return trustManager;
     }
 
     private static X509TrustManager trustManagersFromTruststore(String truststorePath, RealmConfig realmConfig) {
-        final Settings settings = realmConfig.settings();
-        if (PkiRealmSettings.SSL_SETTINGS.truststorePassword.exists(settings) == false
-                && PkiRealmSettings.SSL_SETTINGS.legacyTruststorePassword.exists(settings) == false) {
+        if (realmConfig.hasSetting(PkiRealmSettings.TRUST_STORE_PASSWORD) == false
+                && realmConfig.hasSetting(PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD) == false) {
             throw new IllegalArgumentException("Neither [" +
-                    RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.SSL_SETTINGS.truststorePassword) + "] or [" +
-                    RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.SSL_SETTINGS.legacyTruststorePassword) + "] is configured"
-            );
+                    RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.TRUST_STORE_PASSWORD) + "] or [" +
+                    RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD)
+                    + "] is configured");
         }
-        try (SecureString password = PkiRealmSettings.SSL_SETTINGS.truststorePassword.get(settings)) {
-            String trustStoreAlgorithm = PkiRealmSettings.SSL_SETTINGS.truststoreAlgorithm.get(settings);
-            String trustStoreType = SSLConfigurationSettings.getKeyStoreType(PkiRealmSettings.SSL_SETTINGS.truststoreType,
-                    settings, truststorePath);
+        try (SecureString password = realmConfig.getSetting(PkiRealmSettings.TRUST_STORE_PASSWORD)) {
+            String trustStoreAlgorithm = realmConfig.getSetting(PkiRealmSettings.TRUST_STORE_ALGORITHM);
+            String trustStoreType = SSLConfigurationSettings.getKeyStoreType(
+                    realmConfig.getConcreteSetting(PkiRealmSettings.TRUST_STORE_TYPE), realmConfig.settings(),
+                    truststorePath);
             try {
                 return CertParsingUtils.trustManager(truststorePath, trustStoreType, password.getChars(), trustStoreAlgorithm, realmConfig
                     .env());
@@ -254,8 +260,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         }
     }
 
-    private static X509TrustManager trustManagersFromCAs(Settings settings, Environment env) {
-        List<String> certificateAuthorities = settings.getAsList(PkiRealmSettings.SSL_SETTINGS.caPaths.getKey(), null);
+    private static X509TrustManager trustManagersFromCAs(List<String> certificateAuthorities, Environment env) {
         assert certificateAuthorities != null;
         try {
             Certificate[] certificates = CertParsingUtils.readCertificates(certificateAuthorities, env);

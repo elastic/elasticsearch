@@ -19,8 +19,8 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.lang.management.ManagementFactory;
 
@@ -41,7 +41,7 @@ class JvmPid {
         try {
             return Long.parseLong(name.split("@")[0]);
         } catch (final NumberFormatException e) {
-            Loggers.getLogger(JvmPid.class).debug(new ParameterizedMessage("failed parsing PID from [{}]", name), e);
+            LogManager.getLogger(JvmPid.class).debug(new ParameterizedMessage("failed parsing PID from [{}]", name), e);
             return -1;
         }
     }

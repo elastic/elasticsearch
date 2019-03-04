@@ -25,12 +25,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
+import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 
 /**
  * Factory for {@link DecimalDigitFilter}
  */
-public final class DecimalDigitFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+public final class DecimalDigitFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     DecimalDigitFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -41,8 +41,4 @@ public final class DecimalDigitFilterFactory extends AbstractTokenFilterFactory 
         return new DecimalDigitFilter(tokenStream);
     }
 
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
-    }
 }

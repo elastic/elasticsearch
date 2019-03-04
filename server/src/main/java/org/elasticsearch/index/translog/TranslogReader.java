@@ -129,7 +129,8 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
             throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "]");
         }
         if (position < getFirstOperationOffset()) {
-            throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" + getFirstOperationOffset() + "]");
+            throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" +
+                getFirstOperationOffset() + "]");
         }
         Channels.readFromFileChannelWithEofException(channel, position, buffer);
     }

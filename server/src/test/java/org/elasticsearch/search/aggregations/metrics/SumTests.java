@@ -23,7 +23,7 @@ public class SumTests extends AbstractNumericMetricTestCase<SumAggregationBuilde
 
     @Override
     protected SumAggregationBuilder doCreateTestAggregatorFactory() {
-        return new SumAggregationBuilder("foo");
+        return new SumAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
     }
 
 }

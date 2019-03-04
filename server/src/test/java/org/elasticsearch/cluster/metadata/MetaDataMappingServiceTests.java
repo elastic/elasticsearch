@@ -61,7 +61,7 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         // the task really was a mapping update
         assertThat(
                 indexService.mapperService().documentMapper("type").mappingSource(),
-                not(equalTo(result.resultingState.metaData().index("test").mapping("type").source())));
+                not(equalTo(result.resultingState.metaData().index("test").getMappings().get("type").source())));
         // since we never committed the cluster state update, the in-memory state is unchanged
         assertThat(indexService.mapperService().documentMapper("type").mappingSource(), equalTo(currentMapping));
     }

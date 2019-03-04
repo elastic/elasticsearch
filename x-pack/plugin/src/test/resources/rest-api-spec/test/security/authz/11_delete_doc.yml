@@ -8,7 +8,7 @@ setup:
           wait_for_status: yellow
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "mixed_role"
         body:  >
             {
@@ -21,7 +21,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "test_user"
         body:  >
           {
@@ -39,10 +39,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 
   - do:
       indices.create:
@@ -53,10 +52,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
   - do:
       indices.create:
         index: only_delete
@@ -66,10 +64,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 
   - do:
       indices.create:
@@ -80,45 +77,44 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 
   - do:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "only_read", "_type": "doc", "_id": "1"}}'
+            - '{"index": {"_index": "only_read", "_id": "1"}}'
             - '{"name": "doc1"}'
-            - '{"index": {"_index": "only_index", "_type": "doc", "_id": "2"}}'
+            - '{"index": {"_index": "only_index", "_id": "2"}}'
             - '{"name": "doc2"}'
-            - '{"index": {"_index": "only_delete", "_type": "doc", "_id": "3"}}'
+            - '{"index": {"_index": "only_delete", "_id": "3"}}'
             - '{"name": "doc3"}'
-            - '{"index": {"_index": "only_delete", "_type": "doc", "_id": "4"}}'
+            - '{"index": {"_index": "only_delete", "_id": "4"}}'
             - '{"name": "doc4"}'
-            - '{"index": {"_index": "only_delete", "_type": "doc", "_id": "5"}}'
+            - '{"index": {"_index": "only_delete", "_id": "5"}}'
             - '{"name": "doc5"}'
-            - '{"index": {"_index": "only_delete", "_type": "doc", "_id": "6"}}'
+            - '{"index": {"_index": "only_delete", "_id": "6"}}'
             - '{"name": "doc6"}'
-            - '{"index": {"_index": "only_delete", "_type": "doc", "_id": "7"}}'
+            - '{"index": {"_index": "only_delete", "_id": "7"}}'
             - '{"name": "doc7"}'
-            - '{"index": {"_index": "everything", "_type": "doc", "_id": "8"}}'
+            - '{"index": {"_index": "everything", "_id": "8"}}'
             - '{"name": "doc8"}'
-            - '{"index": {"_index": "everything", "_type": "doc", "_id": "9"}}'
+            - '{"index": {"_index": "everything", "_id": "9"}}'
             - '{"name": "doc9"}'
-            - '{"index": {"_index": "everything", "_type": "doc", "_id": "10"}}'
+            - '{"index": {"_index": "everything", "_id": "10"}}'
             - '{"name": "doc10"}'
 
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "test_user"
         ignore: 404
 
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "mixed_role"
         ignore: 404
 
@@ -127,12 +123,14 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_delete
         body: { "query": { "terms": { "_id":  [ "3", "4", "5" ] } } }
   - match: { hits.total: 3 }
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: everything
         body: { "query": { "terms": { "_id":  [ "8", "9", "10" ] } } }
   - match: { hits.total: 3 }
@@ -142,7 +140,6 @@ teardown:
       delete:
         refresh: true
         index: only_delete
-        type: doc
         id: 3
 
   - do:
@@ -150,7 +147,6 @@ teardown:
       delete:
         refresh: true
         index: everything
-        type: doc
         id: 8
 
   - do:
@@ -158,16 +154,16 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"delete": {"_index": "only_delete", "_type": "doc", "_id": "4"}}'
-            - '{"delete": {"_index": "everything" , "_type": "doc", "_id": "9"}}'
+            - '{"delete": {"_index": "only_delete", "_id": "4"}}'
+            - '{"delete": {"_index": "everything" , "_id": "9"}}'
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
         refresh: true
         body: # The rest test won't send streaming content unless it has multiple bodies, so we send the same delete twice
-            - '{"delete": {"_index": "only_delete", "_type": "doc", "_id": "5"}}'
-            - '{"delete": {"_index": "only_delete", "_type": "doc", "_id": "5"}}'
+            - '{"delete": {"_index": "only_delete", "_id": "5"}}'
+            - '{"delete": {"_index": "only_delete", "_id": "5"}}'
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
@@ -176,21 +172,21 @@ teardown:
         body: # The rest test won't send streaming content unless it has multiple bodies, so we send the same delete twice
           - delete:
               _index: everything
-              _type: doc
               _id: 10
           - delete:
               _index: everything
-              _type: doc
               _id: 10
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_delete
         body: { "query": { "terms": { "_id":  [ "3", "4", "5" ] } } }
   - match: { hits.total: 0 }
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: everything
         body: { "query": { "terms": { "_id":  [ "8", "9", "10" ] } } }
   - match: { hits.total: 0 }
@@ -203,7 +199,6 @@ teardown:
       delete:
         refresh: true
         index: only_read
-        type: doc
         id: 1
 
   - do:
@@ -212,7 +207,6 @@ teardown:
       delete:
         refresh: true
         index: only_index
-        type: doc
         id: 2
 
   - do:
@@ -220,8 +214,8 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"delete": {"_index": "only_read" , "_type": "doc", "_id": "1"}}'
-            - '{"delete": {"_index": "only_index", "_type": "doc", "_id": "2"}}'
+            - '{"delete": {"_index": "only_read" , "_id": "1"}}'
+            - '{"delete": {"_index": "only_index", "_id": "2"}}'
 
   - match: { errors: true }
   - match: { items.0.delete.status: 403 }
@@ -234,8 +228,8 @@ teardown:
       bulk:
         refresh: true
         body: # The rest test won't send streaming content unless it has multiple bodies, so we send the same delete twice
-            - '{"delete": {"_index": "only_read" , "_type": "doc", "_id": "1"}}'
-            - '{"delete": {"_index": "only_read" , "_type": "doc", "_id": "1"}}'
+            - '{"delete": {"_index": "only_read" , "_id": "1"}}'
+            - '{"delete": {"_index": "only_read" , "_id": "1"}}'
 
   - match: { errors: true }
   - match: { items.0.delete.status: 403 }
@@ -248,8 +242,8 @@ teardown:
       bulk:
         refresh: true
         body: # The rest test won't send streaming content unless it has multiple bodies, so we send the same delete twice
-            - '{"delete": {"_index": "only_index", "_type": "doc", "_id": "2"}}'
-            - '{"delete": {"_index": "only_index", "_type": "doc", "_id": "2"}}'
+            - '{"delete": {"_index": "only_index", "_id": "2"}}'
+            - '{"delete": {"_index": "only_index", "_id": "2"}}'
 
   - match: { errors: true }
   - match: { items.0.delete.status: 403 }
@@ -259,12 +253,14 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_read
 
   - match: { hits.total: 1 }
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_index
 
   - match: { hits.total: 1 }
@@ -276,8 +272,8 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"delete": {"_index": "only_read"  , "_type": "doc", "_id": "1"}}'
-            - '{"delete": {"_index": "only_delete", "_type": "doc", "_id": "6"}}'
+            - '{"delete": {"_index": "only_read"  , "_id": "1"}}'
+            - '{"delete": {"_index": "only_delete", "_id": "6"}}'
   - match: { errors: true }
   - match: { items.0.delete.status: 403 }
   - match: { items.0.delete.error.type: "security_exception" }
@@ -285,12 +281,14 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_read
         body: { "query": { "term": { "_id": "1" } } }
   - match: { hits.total: 1 }
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_delete
         body: { "query": { "term": { "_id": "6" } } }
   - match: { hits.total: 0 }
@@ -302,12 +300,12 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index" : {"_index": "only_delete", "_type": "doc", "_id": "11"}}'
+            - '{"index" : {"_index": "only_delete", "_id": "11"}}'
             - '{"name"  : "doc11"}'
-            - '{"delete": {"_index": "only_delete", "_type": "doc", "_id": "7"}}'
-            - '{"index" : {"_index": "only_index", "_type": "doc", "_id": "12"}}'
+            - '{"delete": {"_index": "only_delete", "_id": "7"}}'
+            - '{"index" : {"_index": "only_index", "_id": "12"}}'
             - '{"name"  : "doc12"}'
-            - '{"delete": {"_index": "only_index", "_type": "doc", "_id": "2"}}'
+            - '{"delete": {"_index": "only_index", "_id": "2"}}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
   - match: { items.0.index.error.type: "security_exception" }
@@ -318,6 +316,7 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_delete
         body: { "query": { "terms": { "_id":  [ "11", "7" ] } } }
         # 11 wasn't created, 7 was deleted
@@ -325,6 +324,7 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: only_index
         body: { "query": { "terms": { "_id":  [ "12", "2" ] } } }
         # 12 was created, 2 wasn't deleted

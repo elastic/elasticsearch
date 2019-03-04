@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.rollup;
 
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -226,6 +227,9 @@ public class RollupRequestTranslator {
             rolledDateHisto.offset(source.offset());
             if (source.extendedBounds() != null) {
                 rolledDateHisto.extendedBounds(source.extendedBounds());
+            }
+            if (Strings.isNullOrEmpty(source.format()) == false) {
+                rolledDateHisto.format(source.format());
             }
             rolledDateHisto.keyed(source.keyed());
             rolledDateHisto.minDocCount(source.minDocCount());

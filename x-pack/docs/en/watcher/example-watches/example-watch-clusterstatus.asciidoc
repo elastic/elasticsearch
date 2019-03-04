@@ -24,7 +24,7 @@ the following schedule runs every 10 seconds:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/cluster_health_watch
+PUT _watcher/watch/cluster_health_watch
 {
   "trigger" : {
     "schedule" : { "interval" : "10s" } <1>
@@ -52,7 +52,7 @@ To load the health status into your watch, you simply add an
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/cluster_health_watch
+PUT _watcher/watch/cluster_health_watch
 {
   "trigger" : {
     "schedule" : { "interval" : "10s" }
@@ -74,7 +74,7 @@ If you're using Security, then you'll also need to supply some authentication cr
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/cluster_health_watch
+PUT _watcher/watch/cluster_health_watch
 {
   "trigger" : {
     "schedule" : { "interval" : "10s" }
@@ -134,7 +134,7 @@ For example, you could add a condition to check to see if the status is RED.
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/cluster_health_watch
+PUT _watcher/watch/cluster_health_watch
 {
   "trigger" : {
     "schedule" : { "interval" : "10s" } <1>
@@ -191,7 +191,7 @@ when the status is RED.
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/cluster_health_watch
+PUT _watcher/watch/cluster_health_watch
 {
   "trigger" : {
     "schedule" : { "interval" : "10s" }
@@ -213,7 +213,7 @@ PUT _xpack/watcher/watch/cluster_health_watch
   "actions" : {
     "send_email" : {
       "email" : {
-        "to" : "<username>@<domainname>",
+        "to" : "username@example.org",
         "subject" : "Cluster Status Warning",
         "body" : "Cluster status is RED"
       }
@@ -280,7 +280,7 @@ To remove the watch, use the {ref}/watcher-api-delete-watch.html[DELETE watch AP
 
 [source,js]
 -------------------------------------------------------
-DELETE _xpack/watcher/watch/cluster_health_watch
+DELETE _watcher/watch/cluster_health_watch
 -------------------------------------------------------
 // CONSOLE
 // TEST[continued]

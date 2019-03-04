@@ -1,6 +1,9 @@
 # tests that the custom suggester plugin is installed
 ---
 "plugin loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 

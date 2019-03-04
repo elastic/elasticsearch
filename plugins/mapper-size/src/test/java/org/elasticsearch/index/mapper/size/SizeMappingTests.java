@@ -57,13 +57,13 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
                 .startObject()
                 .field("field", "value")
                 .endObject());
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON));
 
         boolean stored = false;
         boolean points = false;
         for (IndexableField field : doc.rootDoc().getFields("_size")) {
             stored |= field.fieldType().stored();
-            points |= field.fieldType().pointDimensionCount() > 0;
+            points |= field.fieldType().pointIndexDimensionCount() > 0;
         }
         assertTrue(stored);
         assertTrue(points);
@@ -78,7 +78,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
                 .startObject()
                 .field("field", "value")
                 .endObject());
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
@@ -92,7 +92,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
                 .startObject()
                 .field("field", "value")
                 .endObject());
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }

@@ -109,7 +109,7 @@ public class GetAliasesResponseTests extends AbstractXContentTestCase<GetAliases
                 "    \"root_cause\": [" +
                 "      {" +
                 "        \"type\": \"index_not_found_exception\"," +
-                "        \"reason\": \"no such index\"," +
+                "        \"reason\": \"no such index [index]\"," +
                 "        \"resource.type\": \"index_or_alias\"," +
                 "        \"resource.id\": \"index\"," +
                 "        \"index_uuid\": \"_na_\"," +
@@ -117,7 +117,7 @@ public class GetAliasesResponseTests extends AbstractXContentTestCase<GetAliases
                 "      }" +
                 "    ]," +
                 "    \"type\": \"index_not_found_exception\"," +
-                "    \"reason\": \"no such index\"," +
+                "    \"reason\": \"no such index [index]\"," +
                 "    \"resource.type\": \"index_or_alias\"," +
                 "    \"resource.id\": \"index\"," +
                 "    \"index_uuid\": \"_na_\"," +
@@ -131,7 +131,7 @@ public class GetAliasesResponseTests extends AbstractXContentTestCase<GetAliases
             assertThat(getAliasesResponse.getError(), nullValue());
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(getAliasesResponse.getException().getMessage(),
-                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]"));
         }
     }
 

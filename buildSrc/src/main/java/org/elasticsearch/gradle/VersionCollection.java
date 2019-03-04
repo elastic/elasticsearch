@@ -57,7 +57,7 @@ import static java.util.Collections.unmodifiableList;
  * <ul>
  * <li>the unreleased <b>major</b>, M+1.0.0 on the `master` branch</li>
  * <li>the unreleased <b>minor</b>,  M.N.0 on the `M.x` (x is literal) branch</li>
- * <li>the unreleased <b>bugfix</b>, M.N.c (c &gt; 0) on the `M.b` branch</li>
+ * <li>the unreleased <b>bugfix</b>, M.N.c (c &gt; 0) on the `M.N` branch</li>
  * <li>the unreleased <b>maintenance</b>, M-1.d.e ( d &gt; 0, e &gt; 0) on the `(M-1).d` branch</li>
  * </ul>
  * In addition to these, there will be a fifth one when a minor reaches feature freeze, we call this the <i>staged</i>
@@ -74,7 +74,7 @@ import static java.util.Collections.unmodifiableList;
  * We can reliably figure out which the unreleased versions are due to the convention of always adding the next unreleased
  * version number to server in all branches when a version is released.
  * E.x when M.N.c is released M.N.c+1 is added to the Version class mentioned above in all the following branches:
- *  `M.b`, `M.x` and `master` so we can reliably assume that the leafs of the version tree are unreleased.
+ *  `M.N`, `M.x` and `master` so we can reliably assume that the leafs of the version tree are unreleased.
  * This convention is enforced by checking the versions we consider to be unreleased against an
  * authoritative source (maven central).
  * We are then able to map the unreleased version to branches in git and Gradle projects that are capable of checking
@@ -93,12 +93,12 @@ public class VersionCollection {
     public class UnreleasedVersionInfo {
         public final Version version;
         public final String branch;
-        public final String gradleProjectName;
+        public final String gradleProjectPath;
 
-        UnreleasedVersionInfo(Version version, String branch, String gradleProjectName) {
+        UnreleasedVersionInfo(Version version, String branch, String gradleProjectPath) {
             this.version = version;
             this.branch = branch;
-            this.gradleProjectName = gradleProjectName;
+            this.gradleProjectPath = gradleProjectPath;
         }
     }
 
@@ -135,11 +135,8 @@ public class VersionCollection {
 
         Map<Version, UnreleasedVersionInfo> unreleased = new HashMap<>();
         for (Version unreleasedVersion : getUnreleased()) {
-            if (unreleasedVersion.equals(currentVersion)) {
-                continue;
-            }
             unreleased.put(unreleasedVersion,
-                new UnreleasedVersionInfo(unreleasedVersion, getBranchFor(unreleasedVersion), getGradleProjectNameFor(unreleasedVersion)));
+                new UnreleasedVersionInfo(unreleasedVersion, getBranchFor(unreleasedVersion), getGradleProjectPathFor(unreleasedVersion)));
         }
         this.unreleased = Collections.unmodifiableMap(unreleased);
     }
@@ -176,7 +173,7 @@ public class VersionCollection {
             .map(version -> new UnreleasedVersionInfo(
                     version,
                     getBranchFor(version),
-                    getGradleProjectNameFor(version)
+                    getGradleProjectPathFor(version)
                 )
             )
             .collect(Collectors.toList());
@@ -184,9 +181,11 @@ public class VersionCollection {
         collect.forEach(uvi -> consumer.accept(uvi));
     }
 
-    private String getGradleProjectNameFor(Version version) {
+    private String getGradleProjectPathFor(Version version) {
+        // We have Gradle projects set up to check out and build unreleased versions based on the our branching
+        // conventions described in this classes javadoc
         if (version.equals(currentVersion)) {
-            throw new IllegalArgumentException("The Gradle project to build " + version + " is the current build.");
+            return ":distribution";
         }
 
         Map<Integer, List<Version>> releasedMajorGroupedByMinor = getReleasedMajorGroupedByMinor();
@@ -197,31 +196,37 @@ public class VersionCollection {
                 .collect(Collectors.toList());
             if (unreleasedStagedOrMinor.size() > 2) {
                 if (unreleasedStagedOrMinor.get(unreleasedStagedOrMinor.size() - 2).equals(version)) {
-                    return "minor";
+                    return ":distribution:bwc:minor";
                 } else{
-                    return "staged";
+                    return ":distribution:bwc:staged";
                 }
             } else {
-                return "minor";
+                return ":distribution:bwc:minor";
             }
         } else {
             if (releasedMajorGroupedByMinor
                 .getOrDefault(version.getMinor(), emptyList())
                 .contains(version)) {
-                return "bugfix";
+                return ":distribution:bwc:bugfix";
             } else {
-                return "maintenance";
+                return ":distribution:bwc:maintenance";
             }
         }
     }
 
     private String getBranchFor(Version version) {
-        switch (getGradleProjectNameFor(version)) {
-            case "minor":
+        // based on the rules described in this classes javadoc, figure out the branch on which an unreleased version
+        // lives.
+        // We do this based on the Gradle project path because there's a direct correlation, so we dont have to duplicate
+        // the logic from there
+        switch (getGradleProjectPathFor(version)) {
+            case ":distribution":
+                return "master";
+            case ":distribution:bwc:minor":
                 return version.getMajor() + ".x";
-            case "staged":
-            case "maintenance":
-            case "bugfix":
+            case ":distribution:bwc:staged":
+            case ":distribution:bwc:maintenance":
+            case ":distribution:bwc:bugfix":
                 return version.getMajor() + "." + version.getMinor();
             default:
                 throw new IllegalStateException("Unexpected Gradle project name");
@@ -320,7 +325,6 @@ public class VersionCollection {
                 groupByMajor.get(currentVersion.getMajor() - 1).stream(),
                 groupByMajor.get(currentVersion.getMajor()).stream()
             )
-                .filter(version -> version.equals(currentVersion) == false)
                 .collect(Collectors.toList())
         );
     }
@@ -337,7 +341,6 @@ public class VersionCollection {
             wireCompat.add(prevMajors.get(i));
         }
         wireCompat.addAll(groupByMajor.get(currentVersion.getMajor()));
-        wireCompat.remove(currentVersion);
         wireCompat.sort(Version::compareTo);
 
         return unmodifiableList(wireCompat);

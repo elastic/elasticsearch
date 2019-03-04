@@ -324,7 +324,9 @@ public class IndexResolver {
                 // if the name wasn't added before
                 final InvalidMappedField invalidF = invalidField;
                 final FieldCapabilities fieldCapab = fieldCap;
-                if (!flattedMapping.containsKey(name)) {
+                
+                EsField esField = flattedMapping.get(name);
+                if (esField == null || (invalidF != null && (esField instanceof InvalidMappedField) == false)) {
                     createField(name, fieldCaps, hierarchicalMapping, flattedMapping, s -> {
                         return invalidF != null ? invalidF : createField(s, fieldCapab.getType(), emptyMap(), fieldCapab.isAggregatable());
                     });

@@ -635,10 +635,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
             if (itemResponses.isEmpty()) {
-                return ActionListener.wrap(
-                        response -> actionListener.onResponse(new BulkResponse(response.getItems(),
-                                response.getTook().getMillis(), ingestTookInMillis)),
-                        actionListener::onFailure);
+                return ActionListener.map(actionListener,
+                    response -> new BulkResponse(response.getItems(), response.getTook().getMillis(), ingestTookInMillis));
             } else {
                 return new IngestBulkResponseListener(ingestTookInMillis, originalSlots, itemResponses, actionListener);
             }

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
@@ -36,7 +36,7 @@ import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 
-public class MembershipActionTests extends ESTestCase {
+public class JoinTaskExecutorTests extends ESTestCase {
 
     public void testPreventJoinClusterWithNewerIndices() {
         Settings.builder().build();

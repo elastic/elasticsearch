@@ -57,7 +57,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class RecoveryIT extends AbstractRollingTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31291")
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";
         if (CLUSTER_TYPE == ClusterType.OLD) {
@@ -341,7 +340,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
 
         final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(Version.V_8_0_0)) {
+        if (indexVersionCreated.onOrAfter(Version.V_7_1_0)) {
             // index was created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -370,7 +369,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (minimumNodeVersion.onOrAfter(Version.V_8_0_0)) {
+        if (minimumNodeVersion.onOrAfter(Version.V_7_1_0)) {
             // index is created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);

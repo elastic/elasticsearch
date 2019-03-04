@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -28,8 +27,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -37,16 +34,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
@@ -54,6 +47,7 @@ import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAc
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.action.TransportDeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsAction;
 import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsStatsAction;
@@ -70,7 +64,6 @@ import org.elasticsearch.xpack.dataframe.rest.action.RestPreviewDataFrameTransfo
 import org.elasticsearch.xpack.dataframe.rest.action.RestPutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStopDataFrameTransformAction;
-import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformPersistentTasksExecutor;
 
 import java.io.IOException;
@@ -214,22 +207,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         return Collections.singletonList(new DataFrameTransformPersistentTasksExecutor(client, dataFrameTransformsConfigManager.get(),
             schedulerEngine.get(), threadPool));
     }
-
-    @Override
-    public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        if (enabled == false) {
-            return emptyList();
-        }
-        return  Arrays.asList(
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(DataFrameField.TASK_NAME),
-                        DataFrameTransform::fromXContent),
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DataFrameTransformState.NAME),
-                        DataFrameTransformState::fromXContent),
-                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameTransformState.NAME),
-                        DataFrameTransformState::fromXContent)
-                );
-    }
-
+    
     @Override
     public void close() {
         if (schedulerEngine.get() != null) {

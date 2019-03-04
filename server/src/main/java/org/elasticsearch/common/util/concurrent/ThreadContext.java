@@ -120,7 +120,7 @@ public final class ThreadContext implements Closeable, Writeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         threadLocal.close();
     }
 

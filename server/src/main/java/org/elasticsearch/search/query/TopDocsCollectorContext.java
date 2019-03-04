@@ -372,7 +372,10 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
                 if (fieldInfo != null) {
                     if (fieldInfo.getPointIndexDimensionCount() > 0) {
-                        count += PointValues.getDocCount(context.reader(), field);
+                        PointValues points = context.reader().getPointValues(field);
+                        if (points != null) {
+                            count += points.getDocCount();
+                        }
                     } else if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
                         Terms terms = context.reader().terms(field);
                         if (terms != null) {

@@ -56,7 +56,7 @@ setup:
 ---
 "hits.total as an object":
   - skip:
-      version: " - 7.0.99"
+      version: " - 7.99.99"
       reason: hits.total is rendered as an object in 7.0.0
 
   - do:

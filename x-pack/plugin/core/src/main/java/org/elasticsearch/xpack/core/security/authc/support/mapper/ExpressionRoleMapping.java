@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -15,20 +16,28 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 /**
  * A representation of a single role-mapping for use in NativeRoleMappingStore.
@@ -40,7 +49,7 @@ import java.util.function.BiConsumer;
  */
 public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
-    private static final ObjectParser<Builder, String> PARSER = new ObjectParser<>("role-mapping", Builder::new);
+    private static final ObjectParser<Builder, ExpressionParseContext> PARSER = new ObjectParser<>("role-mapping", Builder::new);
 
     /**
      * The Upgrade API added a 'type' field when converting from 5 to 6.
@@ -49,24 +58,32 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     private static final String UPGRADE_API_TYPE_FIELD = "type";
 
     static {
-        PARSER.declareStringArray(Builder::roles, Fields.ROLES);
-        PARSER.declareField(Builder::rules, ExpressionParser::parseObject, Fields.RULES, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField(Builder::metadata, XContentParser::map, Fields.METADATA, ObjectParser.ValueType.OBJECT);
+        PARSER.declareFieldArray(Builder::roles, (parser, ctx) -> MappedRole.parse(parser), Fields.ROLES, ValueType.OBJECT_ARRAY);
+        PARSER.declareFieldArray(Builder::roles, (parser, ctx) -> {
+                if (ctx.indexFormat) {
+                    return MappedRole.parse(parser);
+                }
+                throw new XContentParseException("Field " + Fields.ROLE_TEMPLATES + " is not allowed here");
+            },
+            Fields.ROLE_TEMPLATES, ValueType.OBJECT_ARRAY);
+        PARSER.declareField(Builder::rules, (parser, ctx) -> ExpressionParser.parseObject(parser, ctx.name), Fields.RULES,
+            ValueType.OBJECT);
+        PARSER.declareField(Builder::metadata, XContentParser::map, Fields.METADATA, ValueType.OBJECT);
         PARSER.declareBoolean(Builder::enabled, Fields.ENABLED);
         BiConsumer<Builder, String> ignored = (b, v) -> {
         };
         // skip the doc_type and type fields in case we're parsing directly from the index
         PARSER.declareString(ignored, new ParseField(NativeRoleMappingStoreField.DOC_TYPE_FIELD));
         PARSER.declareString(ignored, new ParseField(UPGRADE_API_TYPE_FIELD));
-        }
+    }
 
     private final String name;
     private final RoleMapperExpression expression;
-    private final List<String> roles;
+    private final List<MappedRole> roles;
     private final Map<String, Object> metadata;
     private final boolean enabled;
 
-    public ExpressionRoleMapping(String name, RoleMapperExpression expr, List<String> roles, Map<String, Object> metadata,
+    public ExpressionRoleMapping(String name, RoleMapperExpression expr, List<MappedRole> roles, Map<String, Object> metadata,
                                  boolean enabled) {
         this.name = name;
         this.expression = expr;
@@ -78,7 +95,11 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     public ExpressionRoleMapping(StreamInput in) throws IOException {
         this.name = in.readString();
         this.enabled = in.readBoolean();
-        this.roles = in.readStringList();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            this.roles = MappedRole.getStaticRoleList(in.readStringList());
+        } else {
+            this.roles = in.readNamedWriteableList(MappedRole.class);
+        }
         this.expression = ExpressionParser.readExpression(in);
         this.metadata = in.readMap();
     }
@@ -87,7 +108,11 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeBoolean(enabled);
-        out.writeStringCollection(roles);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeStringCollection(MappedRole.getStaticRoleNames(roles));
+        } else {
+            out.writeNamedWriteableList(roles);
+        }
         ExpressionParser.writeExpression(expression, out);
         out.writeMap(metadata);
     }
@@ -103,7 +128,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     /**
      * The expression that determines whether the roles in this mapping should be applied to any given user.
      * If the expression
-     * {@link RoleMapperExpression#match(org.elasticsearch.xpack.security.authc.support.mapper.expressiondsl.ExpressionModel) matches} a
+     * {@link RoleMapperExpression#match(ExpressionModel) matches} a
      * org.elasticsearch.xpack.security.authc.support.UserRoleMapper.UserData user, then the user should be assigned this mapping's
      * {@link #getRoles() roles}
      */
@@ -115,7 +140,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      * The list of {@link RoleDescriptor roles} (specified by name) that should be assigned to users
      * that match the {@link #getExpression() expression} in this mapping.
      */
-    public List<String> getRoles() {
+    public List<MappedRole> getRoles() {
         return Collections.unmodifiableList(roles);
     }
 
@@ -140,6 +165,28 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         return getClass().getSimpleName() + "<" + name + " ; " + roles + " = " + Strings.toString(expression) + ">";
     }
 
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        final ExpressionRoleMapping that = (ExpressionRoleMapping) o;
+        return this.enabled == that.enabled &&
+            Objects.equals(this.name, that.name) &&
+            Objects.equals(this.expression, that.expression) &&
+            Objects.equals(this.roles, that.roles) &&
+            Objects.equals(this.metadata, that.metadata);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, expression, roles, metadata, enabled);
+    }
+
     /**
      * Parse an {@link ExpressionRoleMapping} from the provided <em>XContent</em>
      */
@@ -148,16 +195,16 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         try (InputStream stream = source.streamInput();
              XContentParser parser = xContentType.xContent()
                 .createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return parse(name, parser);
+            return parse(name, parser, false);
         }
     }
 
     /**
      * Parse an {@link ExpressionRoleMapping} from the provided <em>XContent</em>
      */
-    public static ExpressionRoleMapping parse(String name, XContentParser parser) throws IOException {
+    public static ExpressionRoleMapping parse(String name, XContentParser parser, boolean fromIndex) throws IOException {
         try {
-            final Builder builder = PARSER.parse(parser, null);
+            final Builder builder = PARSER.parse(parser, new ExpressionParseContext(name, fromIndex));
             return builder.build(name);
         } catch (IllegalArgumentException | IllegalStateException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
@@ -166,30 +213,54 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
     /**
      * Converts this {@link ExpressionRoleMapping} into <em>XContent</em> that is compatible with
-     *  the format handled by {@link #parse(String, XContentParser)}.
+     *  the format handled by {@link #parse(String, BytesReference, XContentType)}.
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return toXContent(builder, params, false);
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeDocType) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean indexFormat) throws IOException {
         builder.startObject();
         builder.field(Fields.ENABLED.getPreferredName(), enabled);
-        builder.startArray(Fields.ROLES.getPreferredName());
-        for (String r : roles) {
-            builder.value(r);
+        // when storing in the index, we put template-names and fixed-names in different fields because they have different mapping types
+        if (indexFormat) {
+            builder.startArray(Fields.ROLES.getPreferredName());
+            for (MappedRole r : roles) {
+                if (r instanceof MappedRole.NamedRole) {
+                    builder.value(r);
+                }
+            }
+            builder.endArray();
+            builder.startArray(Fields.ROLE_TEMPLATES.getPreferredName());
+            for (MappedRole r : roles) {
+                if (r instanceof MappedRole.TemplateRole) {
+                    builder.value(r);
+                }
+            }
+            builder.endArray();
+        } else {
+            builder.startArray(Fields.ROLES.getPreferredName());
+            for (MappedRole r : roles) {
+                builder.value(r);
+            }
+            builder.endArray();
         }
-        builder.endArray();
         builder.field(Fields.RULES.getPreferredName());
         expression.toXContent(builder, params);
 
         builder.field(Fields.METADATA.getPreferredName(), metadata);
 
-        if (includeDocType) {
+        if (indexFormat) {
             builder.field(NativeRoleMappingStoreField.DOC_TYPE_FIELD, NativeRoleMappingStoreField.DOC_TYPE_ROLE_MAPPING);
         }
         return builder.endObject();
+    }
+
+    public Set<String> getRoleNames(ScriptService scriptService, ExpressionModel model) {
+        return this.roles.stream()
+            .flatMap(r -> r.getRoleNames(scriptService, model).stream())
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -197,7 +268,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      */
     private static class Builder {
         private RoleMapperExpression rules;
-        private List<String> roles;
+        private List<MappedRole> roles;
         private Map<String, Object> metadata = Collections.emptyMap();
         private Boolean enabled;
 
@@ -206,8 +277,12 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             return this;
         }
 
-        Builder roles(List<String> roles) {
-            this.roles = roles;
+        Builder roles(List<MappedRole> roles) {
+            if (this.roles == null) {
+                this.roles = new ArrayList<>(roles);
+            } else {
+                this.roles.addAll(roles);
+            }
             return this;
         }
 
@@ -237,11 +312,21 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         private IllegalStateException missingField(String id, ParseField field) {
             return new IllegalStateException("failed to parse role-mapping [" + id + "]. missing field [" + field + "]");
         }
+    }
 
+    static class ExpressionParseContext {
+        final String name;
+        final boolean indexFormat;
+
+        ExpressionParseContext(String name, boolean indexFormat) {
+            this.name = name;
+            this.indexFormat = indexFormat;
+        }
     }
 
     public interface Fields {
         ParseField ROLES = new ParseField("roles");
+        ParseField ROLE_TEMPLATES = new ParseField("role_templates");
         ParseField ENABLED = new ParseField("enabled");
         ParseField RULES = new ParseField("rules");
         ParseField METADATA = new ParseField("metadata");

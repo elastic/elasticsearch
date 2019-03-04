@@ -16,6 +16,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.MappedRole;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.junit.Before;
@@ -25,9 +26,10 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -72,7 +74,8 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         assertThat(mapping.getExpression(), is(expression));
         assertThat(mapping.isEnabled(), equalTo(true));
         assertThat(mapping.getName(), equalTo("anarchy"));
-        assertThat(mapping.getRoles(), containsInAnyOrder("superuser"));
+        assertThat(mapping.getRoles(), iterableWithSize(1));
+        assertThat(MappedRole.getStaticRoleNames(mapping.getRoles()), contains("superuser"));
         assertThat(mapping.getMetadata().size(), equalTo(1));
         assertThat(mapping.getMetadata().get("dumb"), equalTo(true));
     }
@@ -81,7 +84,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
                                        Map<String, Object> metadata) throws Exception {
         final PutRoleMappingRequest request = new PutRoleMappingRequest();
         request.setName(name);
-        request.setRoles(Arrays.asList(role));
+        request.setRoles(MappedRole.getStaticRoleList(Arrays.asList(role)));
         request.setRules(expression);
         request.setMetadata(metadata);
         request.setEnabled(true);

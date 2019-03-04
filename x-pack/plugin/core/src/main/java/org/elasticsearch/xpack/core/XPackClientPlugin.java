@@ -54,9 +54,9 @@ import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction;
@@ -160,6 +160,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.MappedRole;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AllExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AnyExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExceptExpression;
@@ -401,6 +402,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, FieldExpression.NAME, FieldExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, ExceptExpression.NAME, ExceptExpression::new),
+                // security : mapped-roles
+                new NamedWriteableRegistry.Entry(MappedRole.class, MappedRole.NamedRole.WRITEABLE_NAME, MappedRole.NamedRole::new),
+                new NamedWriteableRegistry.Entry(MappedRole.class, MappedRole.TemplateRole.WRITEABLE_NAME, MappedRole.TemplateRole::new),
                 // sql
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SQL, SqlFeatureSetUsage::new),
                 // watcher

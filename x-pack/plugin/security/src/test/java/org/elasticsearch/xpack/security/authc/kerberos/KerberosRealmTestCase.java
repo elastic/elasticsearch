@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -146,7 +147,8 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         when(mockClient.threadPool()).thenReturn(threadPool);
         when(mockClient.settings()).thenReturn(settings);
 
-        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, mockClient, mock(SecurityIndexManager.class));
+        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, mockClient, mock(SecurityIndexManager.class),
+            mock(ScriptService.class));
         final NativeRoleMappingStore roleMapper = spy(store);
 
         doAnswer(invocation -> {

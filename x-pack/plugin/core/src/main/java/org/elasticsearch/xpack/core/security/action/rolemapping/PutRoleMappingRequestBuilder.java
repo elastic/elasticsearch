@@ -5,17 +5,18 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Map;
-
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.MappedRole;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Map;
 
 /**
  * Builder for requests to add/update a role-mapping to the native store
@@ -49,7 +50,7 @@ public class PutRoleMappingRequestBuilder extends ActionRequestBuilder<PutRoleMa
     }
 
     public PutRoleMappingRequestBuilder roles(String... roles) {
-        request.setRoles(Arrays.asList(roles));
+        request.setRoles(MappedRole.getStaticRoleList(Arrays.asList(roles)));
         return this;
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * An expression that evaluates to <code>true</code> if a field (map element) matches
@@ -151,6 +152,22 @@ public final class FieldExpression implements RoleMapperExpression {
             return builder.value(value);
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final FieldValue that = (FieldValue) o;
+            return Objects.equals(this.value, that.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(value);
+        }
     }
 
 }

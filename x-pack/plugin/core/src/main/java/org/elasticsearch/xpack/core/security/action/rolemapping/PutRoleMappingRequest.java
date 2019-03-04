@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.MappedRole;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -34,7 +36,7 @@ public class PutRoleMappingRequest extends ActionRequest
 
     private String name = null;
     private boolean enabled = true;
-    private List<String> roles = Collections.emptyList();
+    private List<MappedRole> roles = Collections.emptyList();
     private RoleMapperExpression rules = null;
     private Map<String, Object> metadata = Collections.emptyMap();
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
@@ -80,11 +82,11 @@ public class PutRoleMappingRequest extends ActionRequest
         this.enabled = enabled;
     }
 
-    public List<String> getRoles() {
+    public List<MappedRole> getRoles() {
         return Collections.unmodifiableList(roles);
     }
 
-    public void setRoles(List<String> roles) {
+    public void setRoles(List<MappedRole> roles) {
         this.roles = new ArrayList<>(roles);
     }
 
@@ -125,7 +127,11 @@ public class PutRoleMappingRequest extends ActionRequest
         super.readFrom(in);
         this.name = in.readString();
         this.enabled = in.readBoolean();
-        this.roles = in.readStringList();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            this.roles = MappedRole.getStaticRoleList(in.readStringList());
+        } else {
+            this.roles = in.readNamedWriteableList(MappedRole.class);
+        }
         this.rules = ExpressionParser.readExpression(in);
         this.metadata = in.readMap();
         this.refreshPolicy = RefreshPolicy.readFrom(in);
@@ -136,7 +142,11 @@ public class PutRoleMappingRequest extends ActionRequest
         super.writeTo(out);
         out.writeString(name);
         out.writeBoolean(enabled);
-        out.writeStringCollection(roles);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeStringCollection(MappedRole.getStaticRoleNames(roles));
+        } else {
+             out.writeNamedWriteableList(roles);
+        }
         ExpressionParser.writeExpression(rules, out);
         out.writeMap(metadata);
         refreshPolicy.writeTo(out);

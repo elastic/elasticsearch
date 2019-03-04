@@ -370,7 +370,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         try {
-            return createComponents(client, threadPool, clusterService, resourceWatcherService);
+            return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService);
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
@@ -378,7 +378,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
     Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
-                                               ResourceWatcherService resourceWatcherService) throws Exception {
+                                        ResourceWatcherService resourceWatcherService, ScriptService scriptService) throws Exception {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -404,7 +404,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
-        final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get());
+        final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
+            scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore,
                 anonymousUser, securityIndex.get(), threadPool);

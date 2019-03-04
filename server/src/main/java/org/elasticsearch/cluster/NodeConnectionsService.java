@@ -51,7 +51,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
 
@@ -131,8 +130,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                     runnables.add(connectionTarget.connect(listener));
                 } else {
                     // known node, try and ensure it's connected but do not wait
-                    runnables.add(connectionTarget.connect(ActionListener.wrap(() -> {
-                    })));
+                    runnables.add(connectionTarget.connect(null));
                     runnables.add(() -> listener.onResponse(null));
                 }
             }
@@ -153,8 +151,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             }
 
             for (final DiscoveryNode discoveryNode : nodesToDisconnect) {
-                runnables.add(targetsByNode.get(discoveryNode).disconnect(ActionListener.wrap(() -> {
-                })));
+                runnables.add(targetsByNode.get(discoveryNode).disconnect());
             }
         }
         runnables.forEach(Runnable::run);
@@ -233,6 +230,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     }
 
     private enum ActivityType {
+        IDLE,
         CONNECTING,
         DISCONNECTING
     }
@@ -240,7 +238,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     /**
      * {@link ConnectionTarget} ensures that we are never concurrently connecting to and disconnecting from a node, and that we eventually
      * either connect to or disconnect from it according to whether {@link ConnectionTarget#connect(ActionListener)} or
-     * {@link ConnectionTarget#disconnect(ActionListener)} was called last.
+     * {@link ConnectionTarget#disconnect()} was called last.
      * <p>
      * Each {@link ConnectionTarget} is in one of these states:
      * <p>
@@ -256,8 +254,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
      * Additionally if the last step of the process was a disconnection then this target is removed from the current set of targets. Thus
      * if this {@link ConnectionTarget} is idle and in the current set of targets then it should be connected.
      * <p>
-     * All of the {@code listeners} are awaiting the completion of the same activity, which is either a connection or a disconnection.  If
-     * we are currently connecting and then {@link ConnectionTarget#disconnect(ActionListener)} is called then all connection listeners are
+     * All of the {@code listeners} are awaiting the completion of the same activityType, which is either a connection or a disconnection.  If
+     * we are currently connecting and then {@link ConnectionTarget#disconnect()} is called then all connection listeners are
      * immediately notified of failure; once the connecting process has finished a disconnection will be started. Similarly if we are
      * currently disconnecting and then {@link ConnectionTarget#connect(ActionListener)} is called then all disconnection listeners are
      * immediately notified of failure and a connection is started once the disconnection is complete.
@@ -266,10 +264,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         private final DiscoveryNode discoveryNode;
 
         private List<ActionListener<Void>> listeners = emptyList();
-
-        // if there are listeners then this indicates whether they're awaiting a connection or a disconnection
-        @Nullable // if there are no listeners
-        private ActivityType listenersWaitingFor = null;
+        private ActivityType activityType = ActivityType.IDLE; // indicates what any listeners are awaiting
 
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
 
@@ -325,67 +320,82 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             this.discoveryNode = discoveryNode;
         }
 
-        Runnable connect(ActionListener<Void> listener) {
+        Runnable connect(@Nullable ActionListener<Void> listener) {
             return addListenerAndStartActivity(listener, ActivityType.CONNECTING, connectActivity,
                 "disconnection cancelled by reconnection");
         }
 
-        Runnable disconnect(ActionListener<Void> listener) {
-            return addListenerAndStartActivity(listener, ActivityType.DISCONNECTING, disconnectActivity,
+        Runnable disconnect() {
+            return addListenerAndStartActivity(null, ActivityType.DISCONNECTING, disconnectActivity,
                 "connection cancelled by disconnection");
         }
 
-        Runnable ensureConnected(ActionListener<Void> listener) {
+        Runnable ensureConnected(@Nullable ActionListener<Void> listener) {
             assert Thread.holdsLock(mutex) : "mutex not held";
 
-            if (listeners.isEmpty()) {
+            if (activityType.equals(ActivityType.IDLE)) {
+                assert listeners.isEmpty() : listeners;
                 if (transportService.nodeConnected(discoveryNode)) {
                     return () -> listener.onResponse(null);
                 } else {
                     // target is disconnected, and we are currently idle, so start a connection process.
-                    listeners = singletonList(listener);
-                    listenersWaitingFor = ActivityType.CONNECTING;
+                    addListener(listener);
+                    activityType = ActivityType.CONNECTING;
                     return connectActivity;
                 }
             } else {
-                listeners = Stream.concat(listeners.stream(), Stream.of(listener)).collect(Collectors.toList());
+                addListener(listener);
                 return () -> {
                 };
             }
         }
 
-        private Runnable addListenerAndStartActivity(ActionListener<Void> listener, ActivityType activityType,
+        private void addListener(@Nullable ActionListener<Void> listener) {
+            assert Thread.holdsLock(mutex) : "mutex not held";
+            if (listener != null) {
+                listeners = Stream.concat(listeners.stream(), Stream.of(listener)).collect(Collectors.toList());
+            }
+        }
+
+        private List<ActionListener<Void>> drainListeners() {
+            assert Thread.holdsLock(mutex) : "mutex not held";
+            final List<ActionListener<Void>> drainedListeners = listeners;
+            listeners = emptyList();
+            return drainedListeners;
+        }
+
+        private Runnable addListenerAndStartActivity(@Nullable ActionListener<Void> listener, ActivityType newActivityType,
                                                      Runnable activity, String cancellationMessage) {
             assert Thread.holdsLock(mutex) : "mutex not held";
+            assert newActivityType.equals(ActivityType.IDLE) == false;
 
-            if (listeners.isEmpty()) {
-                assert listenersWaitingFor == null : listenersWaitingFor;
-                listeners = singletonList(listener);
-                listenersWaitingFor = activityType;
+            if (activityType.equals(ActivityType.IDLE)) {
+                assert listeners.isEmpty() : listeners;
+                addListener(listener);
+                activityType = newActivityType;
                 return activity;
             }
 
-            if (listenersWaitingFor.equals(activityType)) {
-                listeners = Stream.concat(listeners.stream(), Stream.of(listener)).collect(Collectors.toList());
+            if (activityType.equals(newActivityType)) {
+                addListener(listener);
                 return () -> {
                 };
             }
 
-            listenersWaitingFor = activityType;
-            final List<ActionListener<Void>> failingListeners = listeners;
-            listeners = singletonList(listener);
-            return () -> failingListeners.forEach(l -> l.onFailure(new ElasticsearchException(cancellationMessage)));
+            activityType = newActivityType;
+            final List<ActionListener<Void>> listeners = drainListeners();
+            addListener(listener);
+            return () -> listeners.forEach(l -> l.onFailure(new ElasticsearchException(cancellationMessage)));
         }
 
-        private void onCompletion(ActivityType activityType, @Nullable Exception e, Runnable oppositeActivity) {
+        private void onCompletion(ActivityType newActivityType, @Nullable Exception e, Runnable oppositeActivity) {
             assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
 
             final Runnable cleanup;
             synchronized (mutex) {
-                if (listenersWaitingFor.equals(activityType)) {
-                    final List<ActionListener<Void>> listeners = this.listeners;
-                    this.listeners = emptyList();
-                    listenersWaitingFor = null;
+                if (activityType.equals(newActivityType)) {
+                    final List<ActionListener<Void>> listeners = drainListeners();
+                    activityType = ActivityType.IDLE;
 
                     if (e == null) {
                         cleanup = () -> listeners.forEach(l -> l.onResponse(null));
@@ -393,7 +403,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                         cleanup = () -> listeners.forEach(l -> l.onFailure(e));
                     }
 
-                    if (activityType.equals(ActivityType.DISCONNECTING)) {
+                    if (newActivityType.equals(ActivityType.DISCONNECTING)) {
                         final ConnectionTarget removedTarget = targetsByNode.remove(discoveryNode);
                         assert removedTarget == this : removedTarget + " vs " + this;
                     }
@@ -406,7 +416,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         boolean isPendingDisconnection() {
             assert Thread.holdsLock(mutex) : "mutex not held";
-            return ActivityType.DISCONNECTING.equals(listenersWaitingFor);
+            return activityType.equals(ActivityType.DISCONNECTING);
         }
 
         @Override
@@ -414,8 +424,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             synchronized (mutex) {
                 return "ConnectionTarget{" +
                     "discoveryNode=" + discoveryNode +
+                    ", activityType=" + activityType +
                     ", listeners.size()=" + listeners.size() +
-                    ", listenersWaitingFor=" + listenersWaitingFor +
                     '}';
             }
         }

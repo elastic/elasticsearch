@@ -203,7 +203,7 @@ public class NativePrivilegeStore {
             final String name = privilege.getName();
             final XContentBuilder xContentBuilder = privilege.toXContent(jsonBuilder(), true);
             ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareIndex().setIndex(SECURITY_INDEX_NAME).setId(toDocId(privilege.getApplication(), name))
+                client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, toDocId(privilege.getApplication(), name))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(refreshPolicy)
                     .request(), listener, client::index);
@@ -234,9 +234,7 @@ public class NativePrivilegeStore {
                     }, listener::onFailure), names.size(), Collections.emptyList());
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                        client.prepareDelete()
-                            .setIndex(SECURITY_INDEX_NAME)
-                            .setId(toDocId(application, name))
+                        client.prepareDelete(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, toDocId(application, name))
                             .setRefreshPolicy(refreshPolicy)
                             .request(), groupListener, client::delete);
                 }

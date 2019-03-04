@@ -178,4 +178,23 @@ public class IntervalBuilderTests extends ESTestCase {
 
     }
 
+    public void testGraphTerminatesOnGap() throws IOException {
+        // term1 term2:2/term3 term4 [] term5
+        CannedTokenStream ts = new CannedTokenStream(
+            new Token("term1", 1, 2),
+            new Token("term2", 1, 2, 3, 2),
+            new Token("term3", 0, 2, 3),
+            new Token("term4", 2, 3),
+            new Token("term5", 2, 6, 7)
+        );
+
+        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), -1, true);
+        IntervalsSource expected = Intervals.ordered(
+            Intervals.term("term1"),
+            Intervals.or(Intervals.term("term2"), Intervals.phrase("term3", "term4")),
+            Intervals.extend(Intervals.term("term5"), 1, 0)
+        );
+        assertEquals(expected, source);
+    }
+
 }

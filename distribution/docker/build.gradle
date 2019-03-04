@@ -104,11 +104,22 @@ Closure createAndSetWritable = {location ->
   file.setWritable(true, false)
 }
 
+task copyKeystore(type: Sync) {
+  from project(':x-pack:plugin:core')
+          .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+  into "${buildDir}/certs"
+  doLast {
+    file("${buildDir}/certs").setReadable(true, false)
+    file("${buildDir}/certs/testnode.jks").setReadable(true, false)
+  }
+}
+
 preProcessFixture {
   dependsOn taskName("copy", true, "DockerContext")
   dependsOn taskName("copy", true, "Dockerfile")
   dependsOn taskName("copy", false, "DockerContext")
   dependsOn taskName("copy", false, "Dockerfile")
+  dependsOn copyKeystore
   doLast {
     // tests expect to have an empty repo
     project.delete("${buildDir}/repo")
@@ -145,20 +156,9 @@ task copyRestTests(type: Sync) {
 }
 processTestResources.dependsOn copyRestTests
 
-task copyKeystore(type: Sync) {
-  from project(':x-pack:plugin:core')
-          .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-  into "${buildDir}/certs"
-  doLast {
-    file("${buildDir}/certs").setReadable(true, false)
-    file("${buildDir}/certs/testnode.jks").setReadable(true, false)
-  }
-}
-
 task integTest(type: RandomizedTestingTask) {
   parallelism = '1'
   include '**/*IT.class'
-  dependsOn copyKeystore
   // FIXME: see why these tests fail
   systemProperty 'tests.rest.blacklist', [
           'watcher/execute_watch/60_http_input/HTTP input supports extracting of keys',

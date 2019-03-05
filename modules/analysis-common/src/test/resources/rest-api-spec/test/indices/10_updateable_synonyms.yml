@@ -14,13 +14,27 @@ setup:
                     type: synonym
                     synonyms: [ "quick,fast" ]
                     updateable: false
+                  syns_graph_updateable:
+                    type: synonym_graph
+                    synonyms: [ "quick,fast" ]
+                    updateable: true
+                  syns_graph_non_updateable:
+                    type: synonym
+                    synonyms: [ "quick,fast" ]
+                    updateable: false
                 analyzer:
                   syns_updateable_analyzer:
                     tokenizer: standard
                     filter: [ "syns_updateable" ]
+                  syns_graph_updateable_analyzer:
+                    tokenizer: standard
+                    filter: [ "syns_graph_updateable" ]
                   syns_non_updateable_analyzer:
                     tokenizer: standard
                     filter: [ "syns_non_updateable" ]
+                  syns_graph_non_updateable_analyzer:
+                    tokenizer: standard
+                    filter: [ "syns_graph_non_updateable" ]
 ---
 "Test using non-updateable analyzer at index time works":
 
@@ -93,6 +107,47 @@ setup:
               type:     text
               analyzer: standard
               search_analyzer: syns_updateable_analyzer
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   { "text1": "quick"}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { query: { match: { "text1" : "fast" }}}
+
+  - length:   { hits.hits: 1 }
+
+---
+"Test using updateable analyzer containing synonym_graph at index time throws error":
+
+  - do:
+      catch: /analyzer \[syns_graph_updateable_analyzer\] contains filters \[syns_graph_updateable\] that are only allowed at search time/
+      indices.put_mapping:
+        index: test
+        body:
+          properties:
+            text1:
+              type:     text
+              analyzer: syns_graph_updateable_analyzer
+
+---
+"Test using updateable analyzer containing synonym_graph as search_analyzer is okay":
+
+  - do:
+      indices.put_mapping:
+        index: test
+        body:
+          properties:
+            text1:
+              type:     text
+              analyzer: standard
+              search_analyzer: syns_graph_updateable_analyzer
 
   - do:
       index:

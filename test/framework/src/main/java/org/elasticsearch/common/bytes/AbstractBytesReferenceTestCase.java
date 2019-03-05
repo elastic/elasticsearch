@@ -659,7 +659,9 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     public void testGetInt() throws IOException {
         final int count = randomIntBetween(1, 10);
         final BytesReference bytesReference = newBytesReference(count * Integer.BYTES);
-        final IntBuffer intBuffer = ByteBuffer.wrap(bytesReference.toBytesRef().bytes).order(ByteOrder.BIG_ENDIAN).asIntBuffer();
+        final BytesRef bytesRef = bytesReference.toBytesRef();
+        final IntBuffer intBuffer =
+            ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length).order(ByteOrder.BIG_ENDIAN).asIntBuffer();
         for (int i = 0; i < count; ++i) {
             assertEquals(intBuffer.get(i), bytesReference.getInt(i * Integer.BYTES));
         }

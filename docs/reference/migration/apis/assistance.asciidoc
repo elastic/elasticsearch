@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[migration-api-assistance]]
-=== Migration Assistance API
+=== Migration assistance API
+++++
+<titleabbrev>Migration assistance</titleabbrev>
+++++
 
 The Migration Assistance API analyzes existing indices in the cluster and
 returns the information about indices that require some changes before the
@@ -10,9 +13,9 @@ cluster can be upgraded to the next major version.
 [float]
 ==== Request
 
-`GET /_xpack/migration/assistance` +
+`GET /_migration/assistance` +
 
-`GET /_xpack/migration/assistance/<index_name>`
+`GET /_migration/assistance/<index_name>`
 
 //==== Description
 
@@ -31,16 +34,16 @@ cluster can be upgraded to the next major version.
 ==== Examples
 
 To see a list of indices that needs to be upgraded or reindexed, submit a GET
-request to the `/_xpack/migration/assistance` endpoint:
+request to the `/_migration/assistance` endpoint:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/migration/assistance
+GET /_migration/assistance
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:cannot create an old index in docs test]
 
-A successful call returns a list of indices that need to updated or reindexed:
+A successful call returns a list of indices that need to be updated or reindexed:
 
 [source,js]
 --------------------------------------------------
@@ -64,16 +67,16 @@ A successful call returns a list of indices that need to updated or reindexed:
 // NOTCONSOLE
 
 To check a particular index or set of indices, specify this index name or mask
-as the last part of the `/_xpack/migration/assistance/index_name` endpoint:
+as the last part of the `/_migration/assistance/index_name` endpoint:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/migration/assistance/my_*
+GET /_migration/assistance/my_*
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:cannot create an old index in docs test]
 
-A successful call returns a list of indices that needs to updated or reindexed
+A successful call returns a list of indices that needs to be updated or reindexed
 and match the index specified on the endpoint:
 
 [source,js]

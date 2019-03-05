@@ -42,15 +42,16 @@ import java.util.Map;
 public class IndexFieldDataService extends AbstractIndexComponent implements Closeable {
     public static final String FIELDDATA_CACHE_VALUE_NODE = "node";
     public static final String FIELDDATA_CACHE_KEY = "index.fielddata.cache";
-    public static final Setting<String> INDEX_FIELDDATA_CACHE_KEY = new Setting<>(FIELDDATA_CACHE_KEY, (s) -> FIELDDATA_CACHE_VALUE_NODE, (s) -> {
-        switch (s) {
-            case "node":
-            case "none":
-                return s;
-            default:
-                throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,none]");
-        }
-    }, Property.IndexScope);
+    public static final Setting<String> INDEX_FIELDDATA_CACHE_KEY =
+        new Setting<>(FIELDDATA_CACHE_KEY, (s) -> FIELDDATA_CACHE_VALUE_NODE, (s) -> {
+            switch (s) {
+                case "node":
+                case "none":
+                    return s;
+                default:
+                    throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,none]");
+            }
+        }, Property.IndexScope);
 
     private final CircuitBreakerService circuitBreakerService;
 

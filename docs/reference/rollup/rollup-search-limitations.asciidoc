@@ -21,6 +21,7 @@ follows:
 or using `_all`, is not permitted
 - Multiple non-rollup indices may be specified
 - Only one rollup index may be specified.  If more than one are supplied an exception will be thrown
+- Index patterns may be used, but if they match more than one rollup index an exception will be thrown.
 
 This limitation is driven by the logic that decides which jobs are the "best" for any given query.  If you have ten jobs stored in a single
 index, which cover the source data with varying degrees of completeness and different intervals, the query needs to determine which set

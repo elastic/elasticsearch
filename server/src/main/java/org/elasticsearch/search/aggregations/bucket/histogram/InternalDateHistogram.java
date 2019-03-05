@@ -20,9 +20,9 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -34,10 +34,10 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -112,7 +112,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         @Override
         public Object getKey() {
-            return new DateTime(key, DateTimeZone.UTC);
+            return Instant.ofEpochMilli(key).atZone(ZoneOffset.UTC);
         }
 
         @Override
@@ -185,13 +185,13 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         }
 
         EmptyBucketInfo(StreamInput in) throws IOException {
-            rounding = Rounding.Streams.read(in);
+            rounding = Rounding.read(in);
             subAggregations = InternalAggregations.readAggregations(in);
             bounds = in.readOptionalWriteable(ExtendedBounds::new);
         }
 
         void writeTo(StreamOutput out) throws IOException {
-            Rounding.Streams.write(rounding, out);
+            rounding.writeTo(out);
             subAggregations.writeTo(out);
             out.writeOptionalWriteable(bounds);
         }
@@ -219,7 +219,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     private final boolean keyed;
     private final long minDocCount;
     private final long offset;
-    private final EmptyBucketInfo emptyBucketInfo;
+    final EmptyBucketInfo emptyBucketInfo;
 
     InternalDateHistogram(String name, List<Bucket> buckets, BucketOrder order, long minDocCount, long offset,
             EmptyBucketInfo emptyBucketInfo,
@@ -444,26 +444,22 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
-
-        // adding empty buckets if needed
-        if (minDocCount == 0) {
-            addEmptyBuckets(reducedBuckets, reduceContext);
+        if (reduceContext.isFinalReduce()) {
+            if (minDocCount == 0) {
+                addEmptyBuckets(reducedBuckets, reduceContext);
+            }
+            if (InternalOrder.isKeyDesc(order)) {
+                // we just need to reverse here...
+                List<Bucket> reverse = new ArrayList<>(reducedBuckets);
+                Collections.reverse(reverse);
+                reducedBuckets = reverse;
+            } else if (InternalOrder.isKeyAsc(order) == false){
+                // nothing to do when sorting by key ascending, as data is already sorted since shards return
+                // sorted buckets and the merge-sort performed by reduceBuckets maintains order.
+                // otherwise, sorted by compound order or sub-aggregation, we need to fall back to a costly n*log(n) sort
+                CollectionUtil.introSort(reducedBuckets, order.comparator(null));
+            }
         }
-
-        if (InternalOrder.isKeyAsc(order) || reduceContext.isFinalReduce() == false) {
-            // nothing to do, data are already sorted since shards return
-            // sorted buckets and the merge-sort performed by reduceBuckets
-            // maintains order
-        } else if (InternalOrder.isKeyDesc(order)) {
-            // we just need to reverse here...
-            List<Bucket> reverse = new ArrayList<>(reducedBuckets);
-            Collections.reverse(reverse);
-            reducedBuckets = reverse;
-        } else {
-            // sorted by compound order or sub-aggregation, need to fall back to a costly n*log(n) sort
-            CollectionUtil.introSort(reducedBuckets, order.comparator(null));
-        }
-
         return new InternalDateHistogram(getName(), reducedBuckets, order, minDocCount, offset, emptyBucketInfo,
                 format, keyed, pipelineAggregators(), getMetaData());
     }

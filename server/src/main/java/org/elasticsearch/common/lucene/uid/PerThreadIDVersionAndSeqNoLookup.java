@@ -33,9 +33,11 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqN
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 
 /** Utility class to do efficient primary-key (only 1 doc contains the
@@ -94,7 +96,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * using the same cache key. Otherwise we'd have to disable caching
      * entirely for these readers.
      */
-    public DocIdAndVersion lookupVersion(BytesRef id, LeafReaderContext context)
+    public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context)
         throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
@@ -108,7 +110,28 @@ final class PerThreadIDVersionAndSeqNoLookup {
             if (versions.advanceExact(docID) == false) {
                 throw new IllegalArgumentException("Document [" + docID + "] misses the [" + VersionFieldMapper.NAME + "] field");
             }
-            return new DocIdAndVersion(docID, versions.longValue(), context.reader(), context.docBase);
+            final long seqNo;
+            final long term;
+            if (loadSeqNo) {
+                NumericDocValues seqNos = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                // remove the null check in 7.0 once we can't read indices with no seq#
+                if (seqNos != null && seqNos.advanceExact(docID)) {
+                    seqNo = seqNos.longValue();
+                } else {
+                    seqNo =  UNASSIGNED_SEQ_NO;
+                }
+                NumericDocValues terms = context.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                if (terms != null && terms.advanceExact(docID)) {
+                    term = terms.longValue();
+                } else {
+                    term = UNASSIGNED_PRIMARY_TERM;
+                }
+
+            } else {
+                seqNo = UNASSIGNED_SEQ_NO;
+                term = UNASSIGNED_PRIMARY_TERM;
+            }
+            return new DocIdAndVersion(docID, versions.longValue(), seqNo, term, context.reader(), context.docBase);
         } else {
             return null;
         }
@@ -140,16 +163,37 @@ final class PerThreadIDVersionAndSeqNoLookup {
     DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id, context.reader().getLiveDocs());
-        if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-            NumericDocValues seqNos = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-            long seqNo;
-            if (seqNos != null && seqNos.advanceExact(docID)) {
-                seqNo = seqNos.longValue();
-            } else {
-                seqNo =  SequenceNumbers.UNASSIGNED_SEQ_NO;
+        // termsEnum can possibly be null here if this leaf contains only no-ops.
+        if (termsEnum != null && termsEnum.seekExact(id)) {
+            docsEnum = termsEnum.postings(docsEnum, 0);
+            final Bits liveDocs = context.reader().getLiveDocs();
+            DocIdAndSeqNo result = null;
+            int docID = docsEnum.nextDoc();
+            if (docID != DocIdSetIterator.NO_MORE_DOCS) {
+                final NumericDocValues seqNoDV = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                for (; docID != DocIdSetIterator.NO_MORE_DOCS; docID = docsEnum.nextDoc()) {
+                    final long seqNo;
+                    // remove the null check in 7.0 once we can't read indices with no seq#
+                    if (seqNoDV != null && seqNoDV.advanceExact(docID)) {
+                        seqNo = seqNoDV.longValue();
+                    } else {
+                        seqNo = UNASSIGNED_SEQ_NO;
+                    }
+                    final boolean isLive = (liveDocs == null || liveDocs.get(docID));
+                    if (isLive) {
+                        // The live document must always be the latest copy, thus we can early terminate here.
+                        // If a nested docs is live, we return the first doc which doesn't have term (only the last doc has term).
+                        // This should not be an issue since we no longer use primary term as tier breaker when comparing operations.
+                        assert result == null || result.seqNo <= seqNo :
+                            "the live doc does not have the highest seq_no; live_seq_no=" + seqNo + " < deleted_seq_no=" + result.seqNo;
+                        return new DocIdAndSeqNo(docID, seqNo, context, isLive);
+                    }
+                    if (result == null || result.seqNo < seqNo) {
+                        result = new DocIdAndSeqNo(docID, seqNo, context, isLive);
+                    }
+                }
             }
-            return new DocIdAndSeqNo(docID, seqNo, context);
+            return result;
         } else {
             return null;
         }

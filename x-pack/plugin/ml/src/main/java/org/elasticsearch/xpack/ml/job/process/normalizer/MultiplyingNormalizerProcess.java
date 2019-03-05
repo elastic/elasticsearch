@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -17,6 +16,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.output.NormalizerResult
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.time.ZonedDateTime;
 
 /**
  * Normalizer process that doesn't use native code.
@@ -27,16 +27,14 @@ import java.io.PipedOutputStream;
  * - It can be used to produce results in testing that do not vary based on changes to the real normalization algorithms
  */
 public class MultiplyingNormalizerProcess implements NormalizerProcess {
-    private static final Logger LOGGER = Loggers.getLogger(MultiplyingNormalizerProcess.class);
+    private static final Logger LOGGER = LogManager.getLogger(MultiplyingNormalizerProcess.class);
 
-    private final Settings settings;
     private final double factor;
     private final PipedInputStream processOutStream;
     private XContentBuilder builder;
     private boolean shouldIgnoreHeader;
 
-    public MultiplyingNormalizerProcess(Settings settings, double factor) {
-        this.settings = settings;
+    public MultiplyingNormalizerProcess(double factor) {
         this.factor = factor;
         processOutStream = new PipedInputStream();
         try {
@@ -47,6 +45,11 @@ public class MultiplyingNormalizerProcess implements NormalizerProcess {
             LOGGER.error("Could not set up no-op pipe", e);
         }
         shouldIgnoreHeader = true;
+    }
+
+    @Override
+    public boolean isReady() {
+        return true;
     }
 
     @Override
@@ -77,18 +80,43 @@ public class MultiplyingNormalizerProcess implements NormalizerProcess {
     }
 
     @Override
-    public void close() throws IOException {
+    public void persistState() {
+        // Nothing to do
+    }
+
+    @Override
+    public void flushStream() {
+        // Nothing to do
+    }
+
+    @Override
+    public void kill() {
+        // Nothing to do
+    }
+
+    @Override
+    public ZonedDateTime getProcessStartTime() {
+        return null;
+    }
+
+    @Override
+    public void close() {
         builder.close();
     }
 
     @Override
     public NormalizerResultHandler createNormalizedResultsHandler() {
-        return new NormalizerResultHandler(settings, processOutStream);
+        return new NormalizerResultHandler(processOutStream);
     }
 
     @Override
     public boolean isProcessAlive() {
         // Sanity check: make sure the process hasn't terminated already
+        return true;
+    }
+
+    @Override
+    public boolean isProcessAliveAfterWaiting() {
         return true;
     }
 

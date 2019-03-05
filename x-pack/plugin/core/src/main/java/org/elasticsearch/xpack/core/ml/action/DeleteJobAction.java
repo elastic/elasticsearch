@@ -42,6 +42,11 @@ public class DeleteJobAction extends Action<AcknowledgedResponse> {
         private String jobId;
         private boolean force;
 
+        /**
+         * Should this task store its result?
+         */
+        private boolean shouldStoreResult;
+
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
@@ -62,6 +67,18 @@ public class DeleteJobAction extends Action<AcknowledgedResponse> {
 
         public void setForce(boolean force) {
             this.force = force;
+        }
+
+        /**
+         * Should this task store its result after it has finished?
+         */
+        public void setShouldStoreResult(boolean shouldStoreResult) {
+            this.shouldStoreResult = shouldStoreResult;
+        }
+
+        @Override
+        public boolean getShouldStoreResult() {
+            return shouldStoreResult;
         }
 
         @Override

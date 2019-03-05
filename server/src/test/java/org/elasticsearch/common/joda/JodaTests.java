@@ -19,35 +19,51 @@
 
 package org.elasticsearch.common.joda;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormatter;
+
+import java.time.ZoneOffset;
+
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 
 public class JodaTests extends ESTestCase {
 
-
     public void testBasicTTimePattern() {
-        FormatDateTimeFormatter formatter1 = Joda.forPattern("basic_t_time");
-        assertEquals(formatter1.format(), "basic_t_time");
-        DateTimeFormatter parser1 = formatter1.parser();
+        DateFormatter formatter1 = Joda.forPattern("basic_t_time");
+        assertEquals(formatter1.pattern(), "basic_t_time");
+        assertEquals(formatter1.zone(), ZoneOffset.UTC);
 
-        assertEquals(parser1.getZone(), DateTimeZone.UTC);
-
-        FormatDateTimeFormatter formatter2 = Joda.forPattern("basicTTime");
-        assertEquals(formatter2.format(), "basicTTime");
-        DateTimeFormatter parser2 = formatter2.parser();
-
-        assertEquals(parser2.getZone(), DateTimeZone.UTC);
+        DateFormatter formatter2 = Joda.forPattern("basicTTime");
+        assertEquals(formatter2.pattern(), "basicTTime");
+        assertEquals(formatter2.zone(), ZoneOffset.UTC);
 
         DateTime dt = new DateTime(2004, 6, 9, 10, 20, 30, 40, DateTimeZone.UTC);
-        assertEquals("T102030.040Z", parser1.print(dt));
-        assertEquals("T102030.040Z", parser2.print(dt));
+        assertEquals("T102030.040Z", formatter1.formatJoda(dt));
+        assertEquals("T102030.040Z", formatter1.formatJoda(dt));
 
         expectThrows(IllegalArgumentException.class, () -> Joda.forPattern("basic_t_Time"));
         expectThrows(IllegalArgumentException.class, () -> Joda.forPattern("basic_T_Time"));
         expectThrows(IllegalArgumentException.class, () -> Joda.forPattern("basic_T_time"));
     }
 
+    public void testEqualsAndHashcode() {
+        String format = randomFrom("yyyy/MM/dd HH:mm:ss", "basic_t_time");
+        JodaDateFormatter first = Joda.forPattern(format);
+        JodaDateFormatter second = Joda.forPattern(format);
+        JodaDateFormatter third = Joda.forPattern(" HH:mm:ss, yyyy/MM/dd");
+
+        assertThat(first, is(second));
+        assertThat(second, is(first));
+        assertThat(first, is(not(third)));
+        assertThat(second, is(not(third)));
+
+        assertThat(first.hashCode(), is(second.hashCode()));
+        assertThat(second.hashCode(), is(first.hashCode()));
+        assertThat(first.hashCode(), is(not(third.hashCode())));
+        assertThat(second.hashCode(), is(not(third.hashCode())));
+    }
 }

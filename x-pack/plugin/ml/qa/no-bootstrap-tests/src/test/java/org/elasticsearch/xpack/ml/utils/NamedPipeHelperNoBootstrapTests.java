@@ -321,6 +321,9 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
             OutputStream os = NAMED_PIPE_HELPER.openNamedPipeOutputStream(pipeName, Duration.ofSeconds(10));
             assertNotNull(os);
 
+            // In some rare cases writer can close before the reader has had a chance
+            // to read what is written. On Windows this can cause ConnectNamedPipe to
+            // error with ERROR_NO_DATA
             try (OutputStreamWriter writer = new OutputStreamWriter(os, StandardCharsets.UTF_8)) {
                 writer.write(GOODBYE_WORLD);
                 writer.write('\n');

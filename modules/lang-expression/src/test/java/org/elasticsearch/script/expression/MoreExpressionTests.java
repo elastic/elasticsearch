@@ -53,7 +53,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketScript;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -90,7 +90,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         ensureGreen("test");
         client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse rsp = buildRequest("doc['foo'] + 1").get();
-        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(1, rsp.getHits().getTotalHits().value);
         assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
     }
 
@@ -100,7 +100,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse rsp = buildRequest("doc['foo'] + abs(1)").get();
         assertSearchResponse(rsp);
-        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(1, rsp.getHits().getTotalHits().value);
         assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
     }
 
@@ -109,7 +109,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         ensureGreen("test");
         client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse rsp = buildRequest("doc['foo'].value + 1").get();
-        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(1, rsp.getHits().getTotalHits().value);
         assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
     }
 
@@ -120,14 +120,15 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye"),
                 client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
                 client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
-        ScoreFunctionBuilder<?> score = ScoreFunctionBuilders.scriptFunction(new Script(ScriptType.INLINE, "expression", "1 / _score", Collections.emptyMap()));
+        ScoreFunctionBuilder<?> score = ScoreFunctionBuilders.scriptFunction(
+                new Script(ScriptType.INLINE, "expression", "1 / _score", Collections.emptyMap()));
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode(CombineFunction.REPLACE));
         req.setSearchType(SearchType.DFS_QUERY_THEN_FETCH); // make sure DF is consistent
         SearchResponse rsp = req.get();
         assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits());
+        assertEquals(3, hits.getTotalHits().value);
         assertEquals("1", hits.getAt(0).getId());
         assertEquals("3", hits.getAt(1).getId());
         assertEquals("2", hits.getAt(2).getId());
@@ -140,22 +141,22 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 client().prepareIndex("test", "doc", "1").setSource("date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
                 client().prepareIndex("test", "doc", "2").setSource("date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
         SearchResponse rsp = buildRequest("doc['date0'].getSeconds() - doc['date0'].getMinutes()").get();
-        assertEquals(2, rsp.getHits().getTotalHits());
+        assertEquals(2, rsp.getHits().getTotalHits().value);
         SearchHits hits = rsp.getHits();
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(-11.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date0'].getHourOfDay() + doc['date1'].getDayOfMonth()").get();
-        assertEquals(2, rsp.getHits().getTotalHits());
+        assertEquals(2, rsp.getHits().getTotalHits().value);
         hits = rsp.getHits();
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(24.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date1'].getMonth() + 1").get();
-        assertEquals(2, rsp.getHits().getTotalHits());
+        assertEquals(2, rsp.getHits().getTotalHits().value);
         hits = rsp.getHits();
         assertEquals(9.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(10.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date1'].getYear()").get();
-        assertEquals(2, rsp.getHits().getTotalHits());
+        assertEquals(2, rsp.getHits().getTotalHits().value);
         hits = rsp.getHits();
         assertEquals(1985.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(1983.0, hits.getAt(1).field("foo").getValue(), 0.0D);
@@ -168,29 +169,32 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 client().prepareIndex("test", "doc", "1").setSource("date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
                 client().prepareIndex("test", "doc", "2").setSource("date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
         SearchResponse rsp = buildRequest("doc['date0'].date.secondOfMinute - doc['date0'].date.minuteOfHour").get();
-        assertEquals(2, rsp.getHits().getTotalHits());
+        assertEquals(2, rsp.getHits().getTotalHits().value);
         SearchHits hits = rsp.getHits();
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(-11.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date0'].date.getHourOfDay() + doc['date1'].date.dayOfMonth").get();
-        assertEquals(2, rsp.getHits().getTotalHits());
+        assertEquals(2, rsp.getHits().getTotalHits().value);
         hits = rsp.getHits();
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(24.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date1'].date.monthOfYear + 1").get();
-        assertEquals(2, rsp.getHits().getTotalHits());
+        assertEquals(2, rsp.getHits().getTotalHits().value);
         hits = rsp.getHits();
         assertEquals(10.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(11.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date1'].date.year").get();
-        assertEquals(2, rsp.getHits().getTotalHits());
+        assertEquals(2, rsp.getHits().getTotalHits().value);
         hits = rsp.getHits();
         assertEquals(1985.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(1983.0, hits.getAt(1).field("foo").getValue(), 0.0D);
     }
 
     public void testMultiValueMethods() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double0", "type=double", "double1", "type=double", "double2", "type=double"));
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc",
+                "double0", "type=double",
+                "double1", "type=double",
+                "double2", "type=double"));
         ensureGreen("test");
 
         Map<String, Object> doc1 = new HashMap<>();
@@ -215,7 +219,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         SearchResponse rsp = buildRequest("doc['double0'].count() + doc['double1'].count()").get();
         assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits());
+        assertEquals(3, hits.getTotalHits().value);
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(2.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -223,7 +227,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         rsp = buildRequest("doc['double0'].sum()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits());
+        assertEquals(3, hits.getTotalHits().value);
         assertEquals(7.5, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(6.0, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -231,7 +235,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         rsp = buildRequest("doc['double0'].avg() + doc['double1'].avg()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits());
+        assertEquals(3, hits.getTotalHits().value);
         assertEquals(4.3, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(8.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(5.5, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -239,7 +243,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         rsp = buildRequest("doc['double0'].median()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits());
+        assertEquals(3, hits.getTotalHits().value);
         assertEquals(1.5, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(1.25, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -247,7 +251,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         rsp = buildRequest("doc['double0'].min()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits());
+        assertEquals(3, hits.getTotalHits().value);
         assertEquals(1.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(-1.5, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -255,7 +259,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         rsp = buildRequest("doc['double0'].max()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits());
+        assertEquals(3, hits.getTotalHits().value);
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -263,7 +267,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         rsp = buildRequest("doc['double0'].sum()/doc['double0'].count()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits());
+        assertEquals(3, hits.getTotalHits().value);
         assertEquals(2.5, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(1.5, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -272,7 +276,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         rsp = buildRequest("doc['double2'].count()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits());
+        assertEquals(3, hits.getTotalHits().value);
         assertEquals(1.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(0.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(0.0, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -281,7 +285,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         rsp = buildRequest("doc['double2'].empty ? 5.0 : 2.0").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits());
+        assertEquals(3, hits.getTotalHits().value);
         assertEquals(2.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -311,7 +315,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         SearchResponse rsp = buildRequest("doc['x'] + 1").get();
         ElasticsearchAssertions.assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
-        assertEquals(2, rsp.getHits().getTotalHits());
+        assertEquals(2, rsp.getHits().getTotalHits().value);
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(1.0, hits.getAt(1).field("foo").getValue(), 0.0D);
     }
@@ -342,7 +346,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         String script = "doc['x'] * a + b + ((c + doc['x']) > 5000000009 ? 1 : 0)";
         SearchResponse rsp = buildRequest(script, "a", 2, "b", 3.5, "c", 5000000000L).get();
         SearchHits hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits());
+        assertEquals(3, hits.getTotalHits().value);
         assertEquals(24.5, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(9.5, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(13.5, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -452,7 +456,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 );
 
         SearchResponse rsp = req.get();
-        assertEquals(3, rsp.getHits().getTotalHits());
+        assertEquals(3, rsp.getHits().getTotalHits().value);
 
         Stats stats = rsp.getAggregations().get("int_agg");
         assertEquals(39.0, stats.getMax(), 0.0001);
@@ -583,22 +587,22 @@ public class MoreExpressionTests extends ESIntegTestCase {
         // access .lat
         SearchResponse rsp = buildRequest("doc['location'].lat").get();
         assertSearchResponse(rsp);
-        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(1, rsp.getHits().getTotalHits().value);
         assertEquals(61.5240, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
         // access .lon
         rsp = buildRequest("doc['location'].lon").get();
         assertSearchResponse(rsp);
-        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(1, rsp.getHits().getTotalHits().value);
         assertEquals(105.3188, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
         // access .empty
         rsp = buildRequest("doc['location'].empty ? 1 : 0").get();
         assertSearchResponse(rsp);
-        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(1, rsp.getHits().getTotalHits().value);
         assertEquals(0, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
         // call haversin
         rsp = buildRequest("haversin(38.9072, 77.0369, doc['location'].lat, doc['location'].lon)").get();
         assertSearchResponse(rsp);
-        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(1, rsp.getHits().getTotalHits().value);
         assertEquals(3170D, rsp.getHits().getAt(0).field("foo").getValue(), 50D);
     }
 
@@ -615,14 +619,14 @@ public class MoreExpressionTests extends ESIntegTestCase {
         // access .value
         SearchResponse rsp = buildRequest("doc['vip'].value").get();
         assertSearchResponse(rsp);
-        assertEquals(3, rsp.getHits().getTotalHits());
+        assertEquals(3, rsp.getHits().getTotalHits().value);
         assertEquals(1.0D, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
         assertEquals(0.0D, rsp.getHits().getAt(1).field("foo").getValue(), 1.0D);
         assertEquals(0.0D, rsp.getHits().getAt(2).field("foo").getValue(), 1.0D);
         // access .empty
         rsp = buildRequest("doc['vip'].empty ? 1 : 0").get();
         assertSearchResponse(rsp);
-        assertEquals(3, rsp.getHits().getTotalHits());
+        assertEquals(3, rsp.getHits().getTotalHits().value);
         assertEquals(0.0D, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
         assertEquals(0.0D, rsp.getHits().getAt(1).field("foo").getValue(), 1.0D);
         assertEquals(1.0D, rsp.getHits().getAt(2).field("foo").getValue(), 1.0D);
@@ -630,7 +634,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         // vip's have a 50% discount
         rsp = buildRequest("doc['vip'] ? doc['price']/2 : doc['price']").get();
         assertSearchResponse(rsp);
-        assertEquals(3, rsp.getHits().getTotalHits());
+        assertEquals(3, rsp.getHits().getTotalHits().value);
         assertEquals(0.5D, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
         assertEquals(2.0D, rsp.getHits().getAt(1).field("foo").getValue(), 1.0D);
         assertEquals(2.0D, rsp.getHits().getAt(2).field("foo").getValue(), 1.0D);
@@ -647,7 +651,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         builder.setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.scriptQuery(script)));
         SearchResponse rsp = builder.get();
         assertSearchResponse(rsp);
-        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(1, rsp.getHits().getTotalHits().value);
         assertEquals(1.0D, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
     }
 }

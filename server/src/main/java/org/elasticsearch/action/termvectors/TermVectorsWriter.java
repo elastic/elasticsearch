@@ -141,10 +141,12 @@ final class TermVectorsWriter {
             numFieldsWritten++;
         }
         response.setTermVectorsField(output);
-        response.setHeader(writeHeader(numFieldsWritten, flags.contains(Flag.TermStatistics), flags.contains(Flag.FieldStatistics), hasScores));
+        response.setHeader(writeHeader(numFieldsWritten, flags.contains(Flag.TermStatistics),
+            flags.contains(Flag.FieldStatistics), hasScores));
     }
 
-    private BytesReference writeHeader(int numFieldsWritten, boolean getTermStatistics, boolean getFieldStatistics, boolean scores) throws IOException {
+    private BytesReference writeHeader(int numFieldsWritten, boolean getTermStatistics,
+                                       boolean getFieldStatistics, boolean scores) throws IOException {
         // now, write the information about offset of the terms in the
         // termVectors field
         BytesStreamOutput header = new BytesStreamOutput();

@@ -2,7 +2,7 @@
 "Put job on the old cluster and post some data":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: old-cluster-job
         body:  >
           {
@@ -23,11 +23,11 @@
   - match: { job_id: old-cluster-job }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: old-cluster-job
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: old-cluster-job
         body:
           - airline: AAL
@@ -41,11 +41,11 @@
   - match: { processed_record_count: 2 }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: old-cluster-job
 
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: old-cluster-job
   - match: { count: 1 }
 
@@ -59,7 +59,7 @@
 ---
 "Put job on the old cluster with the default model memory limit and post some data":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: no-model-memory-limit-job
         body:  >
           {
@@ -75,11 +75,11 @@
   - match: { job_id: no-model-memory-limit-job }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: no-model-memory-limit-job
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: no-model-memory-limit-job
         body:
           - sourcetype: post-data-job
@@ -95,11 +95,11 @@
   - match: { processed_record_count: 5 }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: no-model-memory-limit-job
 
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: no-model-memory-limit-job
   - match: { count: 201 }
 
@@ -113,7 +113,7 @@
 ---
 "Put job with empty strings in the configuration":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: old-cluster-job-empty-fields
         body:  >
           {
@@ -141,7 +141,7 @@
       reason:   "Rules were replaced by custom_rules on 6.4.0"
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: job-with-old-rules
         body:  >
           {
@@ -178,7 +178,7 @@
       reason:   "Rules replaced by custom_rules on 6.4.0"
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: job-with-old-rules
         body:  >
           {
@@ -196,7 +196,7 @@
 ---
 "Test function shortcut expansion":
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: old-cluster-function-shortcut-expansion
         body:  >
           {

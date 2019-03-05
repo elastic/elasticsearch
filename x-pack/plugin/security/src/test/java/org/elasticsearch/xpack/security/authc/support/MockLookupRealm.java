@@ -22,7 +22,7 @@ public class MockLookupRealm extends Realm {
     private final Map<String, User> lookup;
 
     public MockLookupRealm(RealmConfig config) {
-        super("mock", config);
+        super(config);
         lookup = new HashMap<>();
     }
 

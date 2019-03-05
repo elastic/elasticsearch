@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isExact;
 
 public class Order extends Expression {
 
@@ -20,23 +21,34 @@ public class Order extends Expression {
         ASC, DESC
     }
 
+    public enum NullsPosition {
+        FIRST, LAST;
+    }
+
     private final Expression child;
     private final OrderDirection direction;
+    private final NullsPosition nulls;
 
-    public Order(Location location, Expression child, OrderDirection direction) {
-        super(location, singletonList(child));
+    public Order(Source source, Expression child, OrderDirection direction, NullsPosition nulls) {
+        super(source, singletonList(child));
         this.child = child;
         this.direction = direction;
+        this.nulls = nulls == null ? (direction == OrderDirection.DESC ? NullsPosition.FIRST : NullsPosition.LAST) : nulls;
     }
 
     @Override
     protected NodeInfo<Order> info() {
-        return NodeInfo.create(this, Order::new, child, direction);
+        return NodeInfo.create(this, Order::new, child, direction, nulls);
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullability nullable() {
+        return Nullability.FALSE;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return isExact(child, "ORDER BY cannot be applied to field of data type [{}]: {}");
     }
 
     @Override
@@ -49,7 +61,7 @@ public class Order extends Expression {
         if (newChildren.size() != 1) {
             throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
         }
-        return new Order(location(), newChildren.get(0), direction);
+        return new Order(source(), newChildren.get(0), direction, nulls);
     }
 
     public Expression child() {
@@ -60,6 +72,10 @@ public class Order extends Expression {
         return direction;
     }
 
+    public NullsPosition nullsPosition() {
+        return nulls;
+    }
+
     @Override
     public boolean foldable() {
         return false;
@@ -67,7 +83,7 @@ public class Order extends Expression {
 
     @Override
     public int hashCode() {
-        return Objects.hash(child, direction);
+        return Objects.hash(child, direction, nulls);
     }
 
     @Override
@@ -82,6 +98,7 @@ public class Order extends Expression {
 
         Order other = (Order) obj;
         return Objects.equals(direction, other.direction)
+                && Objects.equals(nulls, other.nulls)
                 && Objects.equals(child, other.child);
     }
 }

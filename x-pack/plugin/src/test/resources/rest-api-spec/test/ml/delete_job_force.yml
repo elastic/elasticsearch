@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: force-delete-job
         body:  >
           {
@@ -17,13 +19,13 @@ setup:
 ---
 "Test force delete a closed job":
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         force: true
         job_id: force-delete-job
   - match: { acknowledged: true }
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "_all"
   - match: { count: 0 }
 
@@ -31,17 +33,17 @@ setup:
 "Test force delete an open job":
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: force-delete-job
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         force: true
         job_id: force-delete-job
   - match: { acknowledged: true }
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: "_all"
   - match: { count: 0 }
 
@@ -50,7 +52,7 @@ setup:
 
   - do:
       catch: /resource_not_found_exception/
-      xpack.ml.delete_job:
+      ml.delete_job:
         force: true
         job_id: inexistent-job
 
@@ -58,17 +60,16 @@ setup:
 "Test force delete job that is referred by a datafeed":
 
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: force-delete-job-datafeed
         body:  >
           {
             "job_id":"force-delete-job",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
   - match: { datafeed_id: force-delete-job-datafeed }
 
   - do:
       catch: /Cannot delete job \[force-delete-job\] because datafeed \[force-delete-job-datafeed\] refers to it/
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: force-delete-job

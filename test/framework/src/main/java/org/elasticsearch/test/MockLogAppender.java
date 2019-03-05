@@ -112,7 +112,7 @@ public class MockLogAppender extends AbstractAppender {
 
         @Override
         public void assertMatched() {
-            assertThat(name, saw, equalTo(false));
+            assertThat("expected to see " + name + " but did not", saw, equalTo(false));
         }
     }
 
@@ -124,7 +124,7 @@ public class MockLogAppender extends AbstractAppender {
 
         @Override
         public void assertMatched() {
-            assertThat(name, saw, equalTo(true));
+            assertThat("expected to see " + name + " but did not", saw, equalTo(true));
         }
     }
 

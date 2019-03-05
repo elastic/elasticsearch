@@ -43,12 +43,14 @@ import java.util.Set;
 
 public class RestClusterGetSettingsAction extends BaseRestHandler {
 
+    private final Settings settings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
 
     public RestClusterGetSettingsAction(Settings settings, RestController controller, ClusterSettings clusterSettings,
             SettingsFilter settingsFilter) {
         super(settings);
+        this.settings = settings;
         this.clusterSettings = clusterSettings;
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
         this.settingsFilter = settingsFilter;

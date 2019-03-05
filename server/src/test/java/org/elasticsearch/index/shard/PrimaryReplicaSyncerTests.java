@@ -28,7 +28,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -38,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.io.IOException;
@@ -68,14 +73,15 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                 assertThat(parentTask, instanceOf(PrimaryReplicaSyncer.ResyncTask.class));
                 listener.onResponse(new ResyncReplicationResponse());
             };
-        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(Settings.EMPTY, taskManager, syncAction);
+        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(taskManager, syncAction);
         syncer.setChunkSize(new ByteSizeValue(randomIntBetween(1, 10)));
 
         int numDocs = randomInt(10);
         for (int i = 0; i < numDocs; i++) {
             // Index doc but not advance local checkpoint.
             shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                SourceToParse.source(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                new SourceToParse(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
                 randomBoolean() ? IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP : randomNonNegativeLong(), true);
         }
 
@@ -109,16 +115,10 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             assertThat(resyncRequest.getMaxSeenAutoIdTimestampOnPrimary(), equalTo(shard.getMaxSeenAutoIdTimestamp()));
         }
         if (syncNeeded && globalCheckPoint < numDocs - 1) {
-            if (shard.indexSettings.isSoftDeleteEnabled()) {
-                assertThat(resyncTask.getSkippedOperations(), equalTo(0));
-                assertThat(resyncTask.getResyncedOperations(), equalTo(resyncTask.getTotalOperations()));
-                assertThat(resyncTask.getTotalOperations(), equalTo(Math.toIntExact(numDocs - 1 - globalCheckPoint)));
-            } else {
-                int skippedOps = Math.toIntExact(globalCheckPoint + 1); // everything up to global checkpoint included
-                assertThat(resyncTask.getSkippedOperations(), equalTo(skippedOps));
-                assertThat(resyncTask.getResyncedOperations(), equalTo(numDocs - skippedOps));
-                assertThat(resyncTask.getTotalOperations(), equalTo(globalCheckPoint == numDocs - 1 ? 0 : numDocs));
-            }
+            int skippedOps = Math.toIntExact(globalCheckPoint + 1); // everything up to global checkpoint included
+            assertThat(resyncTask.getSkippedOperations(), equalTo(skippedOps));
+            assertThat(resyncTask.getResyncedOperations(), equalTo(numDocs - skippedOps));
+            assertThat(resyncTask.getTotalOperations(), equalTo(globalCheckPoint == numDocs - 1 ? 0 : numDocs));
         } else {
             assertThat(resyncTask.getSkippedOperations(), equalTo(0));
             assertThat(resyncTask.getResyncedOperations(), equalTo(0));
@@ -136,7 +136,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                 syncActionCalled.set(true);
                 threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
             };
-        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(Settings.EMPTY,
+        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), syncAction);
         syncer.setChunkSize(new ByteSizeValue(1)); // every document is sent off separately
 
@@ -144,8 +144,8 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         for (int i = 0; i < numDocs; i++) {
             // Index doc but not advance local checkpoint.
             shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                SourceToParse.source(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                new SourceToParse(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         }
 
         String allocationId = shard.routingEntry().allocationId().getId();
@@ -194,6 +194,19 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         final ByteBufferStreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytesRef().bytes));
         PrimaryReplicaSyncer.ResyncTask.Status serializedStatus = new PrimaryReplicaSyncer.ResyncTask.Status(in);
         assertEquals(status, serializedStatus);
+    }
+
+    public void testStatusSerializationAsNamedWriteable() throws IOException {
+        PrimaryReplicaSyncer.ResyncTask.Status status = new PrimaryReplicaSyncer.ResyncTask.Status(randomAlphaOfLength(10),
+            randomIntBetween(0, 1000), randomIntBetween(0, 1000), randomIntBetween(0, 1000));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeNamedWriteable(status);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(
+                new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytesRef().bytes)),
+                new NamedWriteableRegistry(NetworkModule.getNamedWriteables()))) {
+                assertThat(in.readNamedWriteable(Task.Status.class), equalTo(status));
+            }
+        }
     }
 
     public void testStatusEquals() throws IOException {

@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class EnvelopeBuilder extends ShapeBuilder<Rectangle, EnvelopeBuilder> {
+public class EnvelopeBuilder extends ShapeBuilder<Rectangle, org.elasticsearch.geo.geometry.Rectangle, EnvelopeBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE;
 
@@ -108,8 +108,13 @@ public class EnvelopeBuilder extends ShapeBuilder<Rectangle, EnvelopeBuilder> {
     }
 
     @Override
-    public Rectangle build() {
+    public Rectangle buildS4J() {
         return SPATIAL_CONTEXT.makeRectangle(topLeft.x, bottomRight.x, bottomRight.y, topLeft.y);
+    }
+
+    @Override
+    public org.elasticsearch.geo.geometry.Rectangle buildGeometry() {
+        return new org.elasticsearch.geo.geometry.Rectangle(bottomRight.y, topLeft.y, topLeft.x, bottomRight.x);
     }
 
     @Override

@@ -204,26 +204,6 @@ public interface XContentParser extends Closeable {
 
     boolean booleanValue() throws IOException;
 
-    // TODO #22298: Remove this method and replace all call sites with #isBooleanValue()
-    /**
-     * returns true if the current value is boolean in nature.
-     * values that are considered booleans:
-     * - boolean value (true/false)
-     * - numeric integers (=0 is considered as false, !=0 is true)
-     * - one of the following strings: "true","false","on","off","yes","no","1","0"
-     *
-     * @deprecated Just present for providing backwards compatibility. Use {@link #isBooleanValue()} instead.
-     */
-    @Deprecated
-    boolean isBooleanValueLenient() throws IOException;
-
-    // TODO #22298: Remove this method and replace all call sites with #booleanValue()
-    /**
-     * @deprecated Just present for providing backwards compatibility. Use {@link #booleanValue()} instead.
-     */
-    @Deprecated
-    boolean booleanValueLenient() throws IOException;
-
     /**
      * Reads a plain binary value that was written via one of the following methods:
      *

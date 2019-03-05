@@ -19,6 +19,13 @@
 package org.elasticsearch.common.logging;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.simple.SimpleLoggerContext;
+import org.apache.logging.log4j.simple.SimpleLoggerContextFactory;
+import org.apache.logging.log4j.spi.ExtendedLogger;
+import org.apache.logging.log4j.spi.LoggerContext;
+import org.apache.logging.log4j.spi.LoggerContextFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -26,14 +33,21 @@ import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.hamcrest.core.IsSame;
 
 import java.io.IOException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.Permissions;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
-import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
@@ -41,6 +55,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.core.Is.is;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests {@link DeprecationLogger}
@@ -49,7 +67,7 @@ public class DeprecationLoggerTests extends ESTestCase {
 
     private static final RegexMatcher warningValueMatcher = matches(WARNING_HEADER_PATTERN.pattern());
 
-    private final DeprecationLogger logger = new DeprecationLogger(Loggers.getLogger(getClass()));
+    private final DeprecationLogger logger = new DeprecationLogger(LogManager.getLogger(getClass()));
 
     @Override
     protected boolean enableWarningsCheck() {
@@ -298,6 +316,49 @@ public class DeprecationLoggerTests extends ESTestCase {
             }
             // assert that the size of all warning headers is less or equal to 1Kb
             assertTrue(warningHeadersSize <= 1024);
+        }
+    }
+
+    public void testLogPermissions() {
+        AtomicBoolean supplierCalled = new AtomicBoolean(false);
+
+        // mocking the logger used inside DeprecationLogger requires heavy hacking...
+        Logger parentLogger = mock(Logger.class);
+        when(parentLogger.getName()).thenReturn("logger");
+        ExtendedLogger mockLogger = mock(ExtendedLogger.class);
+        doAnswer(invocationOnMock -> {
+            supplierCalled.set(true);
+            createTempDir(); // trigger file permission, like rolling logs would
+            return null;
+        }).when(mockLogger).warn("foo", new Object[] {"bar"});
+        final LoggerContext context = new SimpleLoggerContext() {
+            @Override
+            public ExtendedLogger getLogger(String name) {
+                return mockLogger;
+            }
+        };
+
+        final LoggerContextFactory originalFactory = LogManager.getFactory();
+        try {
+            LogManager.setFactory(new SimpleLoggerContextFactory() {
+                @Override
+                public LoggerContext getContext(String fqcn, ClassLoader loader, Object externalContext, boolean currentContext,
+                                                URI configLocation, String name) {
+                    return context;
+                }
+            });
+            DeprecationLogger deprecationLogger = new DeprecationLogger(parentLogger);
+
+            AccessControlContext noPermissionsAcc = new AccessControlContext(
+                new ProtectionDomain[]{new ProtectionDomain(null, new Permissions())}
+            );
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                deprecationLogger.deprecated("foo", "bar");
+                return null;
+            }, noPermissionsAcc);
+            assertThat("supplier called", supplierCalled.get(), is(true));
+        } finally {
+            LogManager.setFactory(originalFactory);
         }
     }
 

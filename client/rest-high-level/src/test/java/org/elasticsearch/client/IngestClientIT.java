@@ -78,6 +78,16 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
         assertEquals(expectedConfig.getConfigAsMap(), response.pipelines().get(0).getConfigAsMap());
     }
 
+    public void testGetNonexistentPipeline() throws IOException {
+        String id = "nonexistent_pipeline_id";
+
+        GetPipelineRequest request = new GetPipelineRequest(id);
+
+        GetPipelineResponse response =
+            execute(request, highLevelClient().ingest()::getPipeline, highLevelClient().ingest()::getPipelineAsync);
+        assertFalse(response.isFound());
+    }
+
     public void testDeletePipeline() throws IOException {
         String id = "some_pipeline_id";
         {
@@ -120,7 +130,6 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
             {
                 builder.startObject()
                     .field("_index", "index")
-                    .field("_type", "doc")
                     .field("_id", "doc_" + 1)
                     .startObject("_source").field("foo", "rab_" + 1).field("rank", rankValue).endObject()
                     .endObject();

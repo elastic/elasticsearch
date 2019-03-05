@@ -22,15 +22,12 @@ package org.elasticsearch.packaging.test;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Archives;
+import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
-import org.junit.Before;
-import org.junit.BeforeClass;
-
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Installation;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -40,7 +37,6 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
-import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
@@ -54,13 +50,10 @@ import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.isEmptyString;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
-import static org.junit.Assume.assumeTrue;
 
 /**
  * Tests that apply to the archive distributions (tar, zip). To add a case for a distribution, subclass and
@@ -68,22 +61,6 @@ import static org.junit.Assume.assumeTrue;
  */
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
 public abstract class ArchiveTestCase extends PackagingTestCase {
-
-    private static Installation installation;
-
-    /** The {@link Distribution} that should be tested in this case */
-    protected abstract Distribution distribution();
-
-    @BeforeClass
-    public static void cleanup() {
-        installation = null;
-        cleanEverything();
-    }
-
-    @Before
-    public void onlyCompatibleDistributions() {
-        assumeTrue("only compatible distributions", distribution().packaging.compatible);
-    }
 
     public void test10Install() {
         installation = installArchive(distribution());
@@ -125,7 +102,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             );
 
             assertThat(runResult.exitCode, is(1));
-            assertThat(runResult.stderr, containsString("could not find java; set JAVA_HOME or ensure java is in PATH"));
+            assertThat(runResult.stderr, containsString("could not find java; set JAVA_HOME"));
         });
 
         Platforms.onLinux(() -> {
@@ -135,7 +112,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 sh.run("chmod -x '" + javaPath + "'");
                 final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString());
                 assertThat(runResult.exitCode, is(1));
-                assertThat(runResult.stdout, containsString("could not find java; set JAVA_HOME or ensure java is in PATH"));
+                assertThat(runResult.stderr, containsString("could not find java; set JAVA_HOME"));
             } finally {
                 sh.run("chmod +x '" + javaPath + "'");
             }
@@ -309,23 +286,25 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         final Shell sh = new Shell();
 
-        if (distribution().equals(Distribution.DEFAULT_TAR) || distribution().equals(Distribution.DEFAULT_ZIP)) {
+        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
             assertTrue(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
-            Platforms.onLinux(() -> {
-                final Result result = sh.run(bin.elasticsearchCertutil + " help");
+            final Platforms.PlatformAction action = () -> {
+                Result result = sh.run(bin.elasticsearchCertutil + " --help");
                 assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
-            });
 
-            Platforms.onWindows(() -> {
-                final Result result = sh.run(bin.elasticsearchCertutil + " help");
-                assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
-            });
-        } else if (distribution().equals(Distribution.OSS_TAR) || distribution().equals(Distribution.OSS_ZIP)) {
+                // Ensure that the exit code from the java command is passed back up through the shell script
+                result = sh.runIgnoreExitCode(bin.elasticsearchCertutil + " invalid-command");
+                assertThat(result.exitCode, is(not(0)));
+                assertThat(result.stdout, containsString("Unknown command [invalid-command]"));
+            };
+            Platforms.onLinux(action);
+            Platforms.onWindows(action);
+        } else if (distribution().equals(Distribution.OSS_LINUX) || distribution().equals(Distribution.OSS_WINDOWS)) {
             assertFalse(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
         }
     }
 
-    public void test100RepairIndexCliPackaging() {
+    public void test100ElasticsearchShardCliPackaging() {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
@@ -336,7 +315,25 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
         };
 
-        if (distribution().equals(Distribution.DEFAULT_TAR) || distribution().equals(Distribution.DEFAULT_ZIP)) {
+        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
+            Platforms.onLinux(action);
+            Platforms.onWindows(action);
+        }
+    }
+
+    public void test110ElasticsearchNodeCliPackaging() {
+        assumeThat(installation, is(notNullValue()));
+
+        final Installation.Executables bin = installation.executables();
+        final Shell sh = new Shell();
+
+        Platforms.PlatformAction action = () -> {
+            final Result result = sh.run(bin.elasticsearchNode + " -h");
+            assertThat(result.stdout,
+                    containsString("A CLI tool to unsafely recover a cluster after the permanent loss of too many master-eligible nodes"));
+        };
+
+        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
             Platforms.onLinux(action);
             Platforms.onWindows(action);
         }

@@ -20,7 +20,6 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -28,14 +27,13 @@ import org.elasticsearch.transport.TransportService;
 /**
  * A generic proxy that will execute the given action against a specific node.
  */
-public class TransportActionNodeProxy<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent {
+public class TransportActionNodeProxy<Request extends ActionRequest, Response extends ActionResponse> {
 
     private final TransportService transportService;
     private final Action<Response> action;
     private final TransportRequestOptions transportOptions;
 
     public TransportActionNodeProxy(Settings settings, Action<Response> action, TransportService transportService) {
-        super(settings);
         this.action = action;
         this.transportService = transportService;
         this.transportOptions = action.transportOptions(settings);
@@ -48,6 +46,6 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
             return;
         }
         transportService.sendRequest(node, action.name(), request, transportOptions,
-            new ActionListenerResponseHandler<>(listener, action::newResponse));
+            new ActionListenerResponseHandler<>(listener, action.getResponseReader()));
     }
 }

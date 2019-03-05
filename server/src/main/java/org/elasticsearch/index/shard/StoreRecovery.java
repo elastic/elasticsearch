@@ -99,7 +99,8 @@ final class StoreRecovery {
         return false;
     }
 
-    boolean recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer, final IndexShard indexShard, final List<LocalShardSnapshot> shards) throws IOException {
+    boolean recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer,
+                                        final IndexShard indexShard, final List<LocalShardSnapshot> shards) throws IOException {
         if (canRecover(indexShard)) {
             RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
             assert recoveryType == RecoverySource.Type.LOCAL_SHARDS: "expected local shards recovery type: " + recoveryType;
@@ -135,7 +136,8 @@ final class StoreRecovery {
                     internalRecoverPrimary(indexShard);
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.
-                    indexShard.getEngine().forceMerge(false, -1, false, false, false);
+                    indexShard.getEngine().forceMerge(false, -1, false,
+                        false, false);
                 } catch (IOException ex) {
                     throw new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", ex);
                 }
@@ -149,11 +151,8 @@ final class StoreRecovery {
             final long maxSeqNo, final long maxUnsafeAutoIdTimestamp, IndexMetaData indexMetaData, int shardId, boolean split,
             boolean hasNested) throws IOException {
 
-        // clean target directory (if previous recovery attempt failed) and create a fresh segment file with the proper lucene version
-        Lucene.cleanLuceneIndex(target);
         assert sources.length > 0;
         final int luceneIndexCreatedVersionMajor = Lucene.readSegmentInfos(sources[0]).getIndexCreatedVersionMajor();
-        new SegmentInfos(luceneIndexCreatedVersionMajor).commit(target);
 
         final Directory hardLinkOrCopyTarget = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
 
@@ -164,7 +163,8 @@ final class StoreRecovery {
             // later once we stared it up otherwise we would need to wait for it here
             // we also don't specify a codec here and merges should use the engines for this index
             .setMergePolicy(NoMergePolicy.INSTANCE)
-            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+            .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
+            .setIndexCreatedVersionMajor(luceneIndexCreatedVersionMajor);
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
         }
@@ -319,7 +319,8 @@ final class StoreRecovery {
             // to call post recovery.
             final IndexShardState shardState = indexShard.state();
             final RecoveryState recoveryState = indexShard.recoveryState();
-            assert shardState != IndexShardState.CREATED && shardState != IndexShardState.RECOVERING : "recovery process of " + shardId + " didn't get to post_recovery. shardState [" + shardState + "]";
+            assert shardState != IndexShardState.CREATED && shardState != IndexShardState.RECOVERING :
+                "recovery process of " + shardId + " didn't get to post_recovery. shardState [" + shardState + "]";
 
             if (logger.isTraceEnabled()) {
                 RecoveryState.Index index = recoveryState.getIndex();
@@ -331,11 +332,13 @@ final class StoreRecovery {
                         .append(new ByteSizeValue(index.recoveredBytes())).append("]\n");
                 sb.append("             : reusing_files   [").append(index.reusedFileCount()).append("] with total_size [")
                         .append(new ByteSizeValue(index.reusedBytes())).append("]\n");
-                sb.append("    verify_index    : took [").append(TimeValue.timeValueMillis(recoveryState.getVerifyIndex().time())).append("], check_index [")
-                        .append(timeValueMillis(recoveryState.getVerifyIndex().checkIndexTime())).append("]\n");
+                sb.append("    verify_index    : took [")
+                    .append(TimeValue.timeValueMillis(recoveryState.getVerifyIndex().time())).append("], check_index [")
+                    .append(timeValueMillis(recoveryState.getVerifyIndex().checkIndexTime())).append("]\n");
                 sb.append("    translog : number_of_operations [").append(recoveryState.getTranslog().recoveredOperations())
                         .append("], took [").append(TimeValue.timeValueMillis(recoveryState.getTranslog().time())).append("]");
-                logger.trace("recovery completed from [shard_store], took [{}]\n{}", timeValueMillis(recoveryState.getTimer().time()), sb);
+                logger.trace("recovery completed from [shard_store], took [{}]\n{}",
+                    timeValueMillis(recoveryState.getTimer().time()), sb);
             } else if (logger.isDebugEnabled()) {
                 logger.debug("recovery completed from [shard_store], took [{}]", timeValueMillis(recoveryState.getTimer().time()));
             }
@@ -423,15 +426,16 @@ final class StoreRecovery {
             // set up new Lucene commit and translog if necessary
             if (recoverySource.shouldBootstrapNewHistoryUUID()) {
                 if (createEmptyStore) {
-                    store.createEmpty(); // also bootstraps a new history
+                    store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion); // also bootstraps a new history
                 } else {
                     store.bootstrapNewHistory();
                 }
             }
             if (recoverySource.getType() != RecoverySource.Type.EXISTING_STORE) {
-                final long maxSeqNo = Long.parseLong(store.readLastCommittedSegmentsInfo().userData.get(SequenceNumbers.MAX_SEQ_NO));
+                final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+                final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
                 final String translogUUID = Translog.createEmptyTranslog(
-                    indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId, indexShard.getPendingPrimaryTerm());
+                    indexShard.shardPath().resolveTranslog(), localCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
                 store.associateIndexWithNewTranslog(translogUUID);
             }
             indexShard.openEngineAndRecoverFromTranslog();
@@ -444,5 +448,4 @@ final class StoreRecovery {
             store.decRef();
         }
     }
-
 }

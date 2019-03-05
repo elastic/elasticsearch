@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-event-resource]]
-=== Scheduled Event Resources
+=== Scheduled event resources
 
 An events resource has the following properties:
 

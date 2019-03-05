@@ -33,12 +33,14 @@ import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCh
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Provides a single entry point into dealing with all standard XPack security {@link Realm realms}.
@@ -72,6 +74,10 @@ public final class InternalRealms {
         return ReservedRealm.TYPE.equals(type);
     }
 
+    static Collection<String> getConfigurableRealmsTypes() {
+        return Collections.unmodifiableSet(XPACK_TYPES);
+    }
+
     /**
      * Determines whether <code>type</code> is an internal realm-type that is provided by x-pack,
      * excluding the {@link ReservedRealm} and realms that have extensive interaction with
@@ -98,9 +104,9 @@ public final class InternalRealms {
             securityIndex.addIndexStateListener(nativeRealm::onSecurityIndexStateChange);
             return nativeRealm;
         });
-        map.put(LdapRealmSettings.AD_TYPE, config -> new LdapRealm(LdapRealmSettings.AD_TYPE, config, sslService,
+        map.put(LdapRealmSettings.AD_TYPE, config -> new LdapRealm(config, sslService,
                 resourceWatcherService, nativeRoleMappingStore, threadPool));
-        map.put(LdapRealmSettings.LDAP_TYPE, config -> new LdapRealm(LdapRealmSettings.LDAP_TYPE, config,
+        map.put(LdapRealmSettings.LDAP_TYPE, config -> new LdapRealm(config,
                 sslService, resourceWatcherService, nativeRoleMappingStore, threadPool));
         map.put(PkiRealmSettings.TYPE, config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore));
         map.put(SamlRealmSettings.TYPE, config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore));
@@ -112,20 +118,14 @@ public final class InternalRealms {
     }
 
     public static List<BootstrapCheck> getBootstrapChecks(final Settings globalSettings, final Environment env) {
-        final List<BootstrapCheck> checks = new ArrayList<>();
-        final Map<String, Settings> settingsByRealm = RealmSettings.getRealmSettings(globalSettings);
-        settingsByRealm.forEach((name, settings) -> {
-            final RealmConfig realmConfig = new RealmConfig(name, settings, globalSettings, env, null);
-            switch (realmConfig.type()) {
-                case LdapRealmSettings.AD_TYPE:
-                case LdapRealmSettings.LDAP_TYPE:
-                case PkiRealmSettings.TYPE:
-                    final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(realmConfig);
-                    if (check != null) {
-                        checks.add(check);
-                    }
-            }
-        });
+        final Set<String> realmTypes = Sets.newHashSet(LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE);
+        final List<BootstrapCheck> checks = RealmSettings.getRealmSettings(globalSettings)
+            .keySet().stream()
+            .filter(id -> realmTypes.contains(id.getType()))
+            .map(id -> new RealmConfig(id, globalSettings, env, null))
+            .map(RoleMappingFileBootstrapCheck::create)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
         return checks;
     }
 }

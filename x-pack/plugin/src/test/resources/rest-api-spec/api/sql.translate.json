@@ -1,0 +1,16 @@
+{
+    "sql.translate": {
+      "documentation": "Translate SQL into Elasticsearch queries",
+      "methods": [ "POST", "GET" ],
+      "url": {
+        "path": "/_sql/translate",
+        "paths": [ "/_sql/translate" ],
+        "parts": {},
+        "params": {}
+      },
+      "body": {
+        "description" : "Specify the query in the `query` element.",
+        "required" : true
+      }
+    }
+  }

@@ -32,11 +32,9 @@ import java.util.List;
 
 public class SlackAccount {
 
-
-    public static final String URL_SETTING = "url";
     public static final String MESSAGE_DEFAULTS_SETTING = "message_defaults";
 
-    private static final Setting<SecureString> SECURE_URL_SETTING = SecureSetting.secureString("secure_" + URL_SETTING, null);
+    private static final Setting<SecureString> SECURE_URL_SETTING = SecureSetting.secureString("secure_url", null);
 
     final String name;
     final URI url;
@@ -44,9 +42,9 @@ public class SlackAccount {
     final Logger logger;
     final SlackMessageDefaults messageDefaults;
 
-    public SlackAccount(String name, Settings settings, Settings defaultSettings, HttpClient httpClient, Logger logger) {
+    public SlackAccount(String name, Settings settings, HttpClient httpClient, Logger logger) {
         this.name = name;
-        this.url = url(name, settings, defaultSettings);
+        this.url = url(name, settings);
         this.messageDefaults = new SlackMessageDefaults(settings.getAsSettings(MESSAGE_DEFAULTS_SETTING));
         this.httpClient = httpClient;
         this.logger = logger;
@@ -120,21 +118,17 @@ public class SlackAccount {
         }
     }
 
-    static URI url(String name, Settings settings, Settings defaultSettings) {
-        String url = settings.get(URL_SETTING, defaultSettings.get(URL_SETTING, null));
-        if (url == null) {
-            SecureString secureStringUrl = SECURE_URL_SETTING.get(settings);
-            if (secureStringUrl != null && secureStringUrl.length() > 0) {
-                url = secureStringUrl.toString();
-            }
-        }
-        if (url == null) {
-            throw new SettingsException("invalid slack [" + name + "] account settings. missing required [" + URL_SETTING + "] setting");
+    static URI url(String name, Settings settings) {
+        SecureString secureStringUrl = SECURE_URL_SETTING.get(settings);
+        if (secureStringUrl == null || secureStringUrl.length() < 1) {
+            throw new SettingsException(
+                    "invalid slack [" + name + "] account settings. missing required [" + SECURE_URL_SETTING.getKey() + "] setting");
         }
         try {
-            return new URI(url);
+            return new URI(secureStringUrl.toString());
         } catch (URISyntaxException e) {
-            throw new SettingsException("invalid slack [" + name + "] account settings. invalid [" + URL_SETTING + "] setting", e);
+            throw new SettingsException(
+                    "invalid slack [" + name + "] account settings. invalid [" + SECURE_URL_SETTING.getKey() + "] setting", e);
         }
     }
 }

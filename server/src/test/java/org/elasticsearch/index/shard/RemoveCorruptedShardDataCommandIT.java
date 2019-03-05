@@ -98,7 +98,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
     @Override
@@ -252,7 +252,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     public void testCorruptTranslogTruncation() throws Exception {
-        internalCluster().startNodes(2, Settings.EMPTY);
+        internalCluster().startNodes(2);
 
         final String node1 = internalCluster().getNodeNames()[0];
         final String node2 = internalCluster().getNodeNames()[1];
@@ -293,11 +293,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         indexRandom(false, false, false, Arrays.asList(builders));
         Set<Path> translogDirs = getDirs(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
 
-        // that's only for 6.x branch for bwc with elasticsearch-translog
-        final boolean translogOnly = randomBoolean();
-        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand(translogOnly);
-        final MockTerminal terminal = new MockTerminal();
-        final OptionParser parser = command.getParser();
+        RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
+        MockTerminal terminal = new MockTerminal();
+        OptionParser parser = command.getParser();
 
         if (randomBoolean() && numDocsToTruncate > 0) {
             // flush the replica, so it will have more docs than what the primary will have
@@ -430,10 +428,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     public void testCorruptTranslogTruncationOfReplica() throws Exception {
-        internalCluster().startNodes(2, Settings.EMPTY);
+        internalCluster().startMasterOnlyNode();
 
-        final String node1 = internalCluster().getNodeNames()[0];
-        final String node2 = internalCluster().getNodeNames()[1];
+        final String node1 = internalCluster().startDataOnlyNode();
+        final String node2 = internalCluster().startDataOnlyNode();
         logger.info("--> nodes name: {}, {}", node1, node2);
 
         final String indexName = "test";
@@ -475,12 +473,11 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
         final Set<Path> translogDirs = getDirs(node2, shardId, ShardPath.TRANSLOG_FOLDER_NAME);
 
-        // stop the cluster nodes. we don't use full restart so the node start up order will be the same
-        // and shard roles will be maintained
+        // stop data nodes. After the restart the 1st node will be primary and the 2nd node will be replica
         internalCluster().stopRandomDataNode();
         internalCluster().stopRandomDataNode();
 
-        // Corrupt the translog file(s)
+        // Corrupt the translog file(s) on the replica
         logger.info("--> corrupting translog");
         TestTranslog.corruptRandomTranslogFile(logger, random(), translogDirs);
 
@@ -612,7 +609,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         return getDirs(nodeId, shardId, dirSuffix);
     }
 
-    private Set<Path> getDirs(String nodeId, ShardId shardId, String dirSuffix) {
+    public static Set<Path> getDirs(String nodeId, ShardId shardId, String dirSuffix) {
         final NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
         final Set<Path> translogDirs = new TreeSet<>();
         final NodeStats nodeStats = nodeStatses.getNodes().get(0);

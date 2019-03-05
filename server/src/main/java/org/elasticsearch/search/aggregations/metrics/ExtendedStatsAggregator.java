@@ -202,7 +202,8 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     private double variance(long owningBucketOrd) {
         double sum = sums.get(owningBucketOrd);
         long count = counts.get(owningBucketOrd);
-        return (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / count;
+        double variance = (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / count;
+        return variance < 0  ? 0 : variance;
     }
 
     @Override

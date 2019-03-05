@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,8 +50,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
-public abstract class TransportBroadcastAction<Request extends BroadcastRequest<Request>, Response extends BroadcastResponse, ShardRequest extends BroadcastShardRequest, ShardResponse extends BroadcastShardResponse>
-        extends HandledTransportAction<Request, Response> {
+public abstract class TransportBroadcastAction<
+            Request extends BroadcastRequest<Request>,
+            Response extends BroadcastResponse,
+            ShardRequest extends BroadcastShardRequest,
+            ShardResponse extends BroadcastShardResponse
+        > extends HandledTransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
@@ -60,10 +64,11 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
     final String transportShardAction;
     private final String shardExecutor;
 
-    protected TransportBroadcastAction(Settings settings, String actionName, ClusterService clusterService,
-                                       TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       Supplier<Request> request, Supplier<ShardRequest> shardRequest, String shardExecutor) {
-        super(settings, actionName, transportService, actionFilters, request);
+    protected TransportBroadcastAction(String actionName, ClusterService clusterService,
+                                       TransportService transportService, ActionFilters actionFilters,
+                                       IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                       Supplier<ShardRequest> shardRequest, String shardExecutor) {
+        super(actionName, transportService, actionFilters, request);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -171,26 +176,29 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
                         // no node connected, act as failure
                         onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
                     } else {
-                        transportService.sendRequest(node, transportShardAction, shardRequest, new TransportResponseHandler<ShardResponse>() {
-                            @Override
-                            public ShardResponse newInstance() {
-                                return newShardResponse();
-                            }
+                        transportService.sendRequest(node, transportShardAction, shardRequest,
+                            new TransportResponseHandler<ShardResponse>() {
+                                @Override
+                                public ShardResponse read(StreamInput in) throws IOException {
+                                    ShardResponse response = newShardResponse();
+                                    response.readFrom(in);
+                                    return response;
+                                }
 
-                            @Override
-                            public String executor() {
-                                return ThreadPool.Names.SAME;
-                            }
+                                @Override
+                                public String executor() {
+                                    return ThreadPool.Names.SAME;
+                                }
 
-                            @Override
-                            public void handleResponse(ShardResponse response) {
-                                onOperation(shard, shardIndex, response);
-                            }
+                                @Override
+                                public void handleResponse(ShardResponse response) {
+                                    onOperation(shard, shardIndex, response);
+                                }
 
-                            @Override
-                            public void handleException(TransportException e) {
-                                onOperation(shard, shardIt, shardIndex, e);
-                            }
+                                @Override
+                                public void handleException(TransportException e) {
+                                    onOperation(shard, shardIt, shardIndex, e);
+                                }
                         });
                     }
                 } catch (Exception e) {

@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: update-model-snapshot
         body:  >
           {
@@ -21,7 +23,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-update-model-snapshot
-        type:   doc
         id:     "update-model-snapshot_model_snapshot_snapshot-1"
         body: >
           {
@@ -37,7 +38,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-state
-        type:   doc
         id:     "update-model-snapshot_model_state_1#1"
         body:  >
           {
@@ -48,7 +48,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-state
-        type:   doc
         id:     "update-model-snapshot_model_state_1#2"
         body:  >
           {
@@ -59,7 +58,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-state
-        type:   doc
         id:     "update-model-snapshot_model_state_1#3"
         body:  >
           {
@@ -71,7 +69,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-update-model-snapshot
-        type:   doc
         id:     "update-model-snapshot_model_snapshot_snapshot-2"
         body: >
           {
@@ -88,7 +85,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-state
-        type:   doc
         id:     "update-model-snapshot_model_state_2#1"
         body:  >
           {
@@ -99,7 +95,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-state
-        type:   doc
         id:     "update-model-snapshot_model_state_2#2"
         body:  >
           {
@@ -114,7 +109,7 @@ setup:
 ---
 "Test with valid description":
   - do:
-      xpack.ml.get_model_snapshots:
+      ml.get_model_snapshots:
         job_id: "update-model-snapshot"
         snapshot_id: "snapshot-1"
 
@@ -122,7 +117,7 @@ setup:
   - is_false: model_snapshots.0.description
 
   - do:
-      xpack.ml.update_model_snapshot:
+      ml.update_model_snapshot:
         job_id: "update-model-snapshot"
         snapshot_id: "snapshot-1"
         body: >
@@ -135,7 +130,7 @@ setup:
   - match: { model.description: "new_description" }
 
   - do:
-      xpack.ml.get_model_snapshots:
+      ml.get_model_snapshots:
         job_id: "update-model-snapshot"
         snapshot_id: "snapshot-1"
 
@@ -147,7 +142,7 @@ setup:
 ---
 "Test duplicate descriptions are allowed":
   - do:
-      xpack.ml.update_model_snapshot:
+      ml.update_model_snapshot:
         job_id: "update-model-snapshot"
         snapshot_id: "snapshot-1"
         body: >
@@ -156,7 +151,7 @@ setup:
           }
 
   - do:
-      xpack.ml.get_model_snapshots:
+      ml.get_model_snapshots:
         job_id: "update-model-snapshot"
 
   - match: { count: 2 }
@@ -167,7 +162,7 @@ setup:
 ---
 "Test with retain":
   - do:
-      xpack.ml.update_model_snapshot:
+      ml.update_model_snapshot:
         job_id: "update-model-snapshot"
         snapshot_id: "snapshot-1"
         body: >
@@ -179,7 +174,7 @@ setup:
   - match: { model.retain: true }
 
   - do:
-      xpack.ml.update_model_snapshot:
+      ml.update_model_snapshot:
         job_id: "update-model-snapshot"
         snapshot_id: "snapshot-2"
         body: >
@@ -194,7 +189,7 @@ setup:
 ---
 "Test with all fields":
   - do:
-      xpack.ml.update_model_snapshot:
+      ml.update_model_snapshot:
         job_id: "update-model-snapshot"
         snapshot_id: "snapshot-1"
         body: >
@@ -211,7 +206,7 @@ setup:
 "Test with unknown job id":
   - do:
       catch: missing
-      xpack.ml.update_model_snapshot:
+      ml.update_model_snapshot:
         job_id: "non-existent-job"
         snapshot_id: "san"
         body: >
@@ -224,7 +219,7 @@ setup:
 "Test with unknown snapshot id":
   - do:
       catch: missing
-      xpack.ml.update_model_snapshot:
+      ml.update_model_snapshot:
         job_id: "update-model-snapshot"
         snapshot_id: "snapshot-9999"
         body: >

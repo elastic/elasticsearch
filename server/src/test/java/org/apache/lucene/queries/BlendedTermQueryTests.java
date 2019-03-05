@@ -41,7 +41,6 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -125,9 +124,9 @@ public class BlendedTermQueryTests extends ESTestCase {
         for (int j = 0; j < iters; j++) {
             String[] fields = new String[1 + random().nextInt(10)];
             for (int i = 0; i < fields.length; i++) {
-                fields[i] = TestUtil.randomRealisticUnicodeString(random(), 1, 10);
+                fields[i] = randomRealisticUnicodeOfLengthBetween(1, 10);
             }
-            String term = TestUtil.randomRealisticUnicodeString(random(), 1, 10);
+            String term = randomRealisticUnicodeOfLengthBetween(1, 10);
             Term[] terms = toTerms(fields, term);
             float tieBreaker = random().nextFloat();
             BlendedTermQuery query = BlendedTermQuery.dismaxBlendedQuery(terms, tieBreaker);
@@ -159,7 +158,7 @@ public class BlendedTermQueryTests extends ESTestCase {
         Set<Term> terms = new HashSet<>();
         int num = scaledRandomIntBetween(1, 10);
         for (int i = 0; i < num; i++) {
-            terms.add(new Term(TestUtil.randomRealisticUnicodeString(random(), 1, 10), TestUtil.randomRealisticUnicodeString(random(), 1, 10)));
+            terms.add(new Term(randomRealisticUnicodeOfLengthBetween(1, 10), randomRealisticUnicodeOfLengthBetween(1, 10)));
         }
 
         BlendedTermQuery blendedTermQuery = BlendedTermQuery.dismaxBlendedQuery(terms.toArray(new Term[0]), random().nextFloat());

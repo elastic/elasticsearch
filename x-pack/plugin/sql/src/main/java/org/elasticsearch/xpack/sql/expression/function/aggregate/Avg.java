@@ -5,20 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
+
+import java.util.List;
 
 /**
  * Find the arithmatic mean of a field.
  */
 public class Avg extends NumericAggregate implements EnclosedAgg {
 
-    public Avg(Location location, Expression field) {
-        super(location, field);
+    public Avg(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -31,7 +31,7 @@ public class Avg extends NumericAggregate implements EnclosedAgg {
         if (newChildren.size() != 1) {
             throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
         }
-        return new Avg(location(), newChildren.get(0));
+        return new Avg(source(), newChildren.get(0));
     }
 
     @Override
@@ -41,6 +41,6 @@ public class Avg extends NumericAggregate implements EnclosedAgg {
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        return DataType.DOUBLE;
     }
 }

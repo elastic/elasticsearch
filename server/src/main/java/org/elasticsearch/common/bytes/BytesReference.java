@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.bytes;
 
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStream;
@@ -38,7 +37,7 @@ import java.util.function.ToIntBiFunction;
 /**
  * A reference to bytes.
  */
-public abstract class BytesReference implements Accountable, Comparable<BytesReference>, ToXContentFragment {
+public abstract class BytesReference implements Comparable<BytesReference>, ToXContentFragment {
 
     private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
 
@@ -70,6 +69,11 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
      * Slice the bytes from the {@code from} index up to {@code length}.
      */
     public abstract BytesReference slice(int from, int length);
+
+    /**
+     * The amount of memory used by this BytesReference
+     */
+    public abstract long ramBytesUsed();
 
     /**
      * A stream input of the bytes.
@@ -191,17 +195,24 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
      * Returns BytesReference composed of the provided ByteBuffers.
      */
     public static BytesReference fromByteBuffers(ByteBuffer[] buffers) {
-        ByteBufferReference[] references = new ByteBufferReference[buffers.length];
-        for (int i = 0; i < references.length; ++i) {
-            references[i] = new ByteBufferReference(buffers[i]);
-        }
+        int bufferCount = buffers.length;
+        if (bufferCount == 0) {
+            return BytesArray.EMPTY;
+        } else if (bufferCount == 1) {
+            return new ByteBufferReference(buffers[0]);
+        } else {
+            ByteBufferReference[] references = new ByteBufferReference[bufferCount];
+            for (int i = 0; i < bufferCount; ++i) {
+                references[i] = new ByteBufferReference(buffers[i]);
+            }
 
-        return new CompositeBytesReference(references);
+            return new CompositeBytesReference(references);
+        }
     }
 
     @Override
     public int compareTo(final BytesReference other) {
-        return compareIterators(this, other, (a, b) -> a.compareTo(b));
+        return compareIterators(this, other, BytesRef::compareTo);
     }
 
     /**

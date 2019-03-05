@@ -3,11 +3,10 @@
 
  - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
+      reason: types are required in requests before 7.0.0
 
  - do:
       index:
-          include_type_name: false
           index:  test_1
           id:     1
           body:   { foo: bar }
@@ -15,7 +14,6 @@
 
  - do:
       index:
-          include_type_name: false
           index:  test_1
           id:     1
           body:   { foo: bar }
@@ -23,7 +21,6 @@
 
  - do:
       get:
-          include_type_name: false
           index:  test_1
           id:     1
           version: 2
@@ -32,14 +29,12 @@
  - do:
       catch:      conflict
       get:
-          include_type_name: false
           index:  test_1
           id:     1
           version: 1
 
  - do:
       get:
-          include_type_name: false
           index:  test_1
           id:     1
           version: 2
@@ -49,7 +44,6 @@
  - do:
       catch:      conflict
       get:
-          include_type_name: false
           index:  test_1
           id:     1
           version: 10
@@ -58,7 +52,6 @@
  - do:
       catch:      conflict
       get:
-          include_type_name: false
           index:  test_1
           id:     1
           version: 1
@@ -66,7 +59,6 @@
 
  - do:
       get:
-          include_type_name: false
           index:  test_1
           id:     1
           version: 2
@@ -76,7 +68,6 @@
  - do:
       catch:      conflict
       get:
-          include_type_name: false
           index:  test_1
           id:     1
           version: 10
@@ -85,7 +76,6 @@
  - do:
       catch:      conflict
       get:
-          include_type_name: false
           index:  test_1
           id:     1
           version: 1

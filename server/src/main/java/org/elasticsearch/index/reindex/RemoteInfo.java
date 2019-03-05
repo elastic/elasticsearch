@@ -209,7 +209,6 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         }
         builder.field("socket_timeout", socketTimeout.getStringRep());
         builder.field("connect_timeout", connectTimeout.getStringRep());
-        builder.field("query", query);
         builder.endObject();
         return builder;
     }

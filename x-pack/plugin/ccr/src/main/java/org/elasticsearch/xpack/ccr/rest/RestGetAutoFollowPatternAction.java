@@ -21,7 +21,7 @@ public class RestGetAutoFollowPatternAction extends BaseRestHandler {
 
     public RestGetAutoFollowPatternAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_ccr/auto_follow/{leader_cluster_alias}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_ccr/auto_follow/{name}", this);
         controller.registerHandler(RestRequest.Method.GET, "/_ccr/auto_follow", this);
     }
 
@@ -33,7 +33,7 @@ public class RestGetAutoFollowPatternAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request = new Request();
-        request.setLeaderClusterAlias(restRequest.param("leader_cluster_alias"));
+        request.setName(restRequest.param("name"));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

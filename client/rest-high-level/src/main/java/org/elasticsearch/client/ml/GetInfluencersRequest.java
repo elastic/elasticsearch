@@ -77,7 +77,7 @@ public class GetInfluencersRequest extends ActionRequest implements ToXContentOb
         return jobId;
     }
 
-    public Boolean isExcludeInterim() {
+    public Boolean getExcludeInterim() {
         return excludeInterim;
     }
 
@@ -154,7 +154,7 @@ public class GetInfluencersRequest extends ActionRequest implements ToXContentOb
         this.sort = sort;
     }
 
-    public Boolean isDescending() {
+    public Boolean getDescending() {
         return descending;
     }
 

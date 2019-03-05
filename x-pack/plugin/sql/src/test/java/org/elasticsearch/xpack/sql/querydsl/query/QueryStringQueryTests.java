@@ -6,11 +6,12 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Collections;
 
@@ -34,17 +35,17 @@ public class QueryStringQueryTests extends ESTestCase {
     }
 
     private static QueryStringQueryBuilder getBuilder(String options) {
-        final Location location = new Location(1, 1);
-        final StringQueryPredicate mmqp = new StringQueryPredicate(location, "eggplant", options);
-        final QueryStringQuery mmq = new QueryStringQuery(location, "eggplant", Collections.singletonMap("foo", 1.0f), mmqp);
+        final Source source = new Source(1, 1, StringUtils.EMPTY);
+        final StringQueryPredicate mmqp = new StringQueryPredicate(source, "eggplant", options);
+        final QueryStringQuery mmq = new QueryStringQuery(source, "eggplant", Collections.singletonMap("foo", 1.0f), mmqp);
         return (QueryStringQueryBuilder) mmq.asBuilder();
     }
 
 
     public void testToString() {
-        final Location location = new Location(1, 1);
-        final StringQueryPredicate mmqp = new StringQueryPredicate(location, "eggplant", "");
-        final QueryStringQuery mmq = new QueryStringQuery(location, "eggplant", Collections.singletonMap("foo", 1.0f), mmqp);
+        final Source source = new Source(1, 1, StringUtils.EMPTY);
+        final StringQueryPredicate mmqp = new StringQueryPredicate(source, "eggplant", "");
+        final QueryStringQuery mmq = new QueryStringQuery(source, "eggplant", Collections.singletonMap("foo", 1.0f), mmqp);
         assertEquals("QueryStringQuery@1:2[{foo=1.0}:eggplant]", mmq.toString());
     }
 }

@@ -25,12 +25,13 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Optional;
+import java.util.OptionalInt;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
@@ -38,24 +39,24 @@ import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 public class RatedSearchHitTests extends ESTestCase {
 
     public static RatedSearchHit randomRatedSearchHit() {
-        Optional<Integer> rating = randomBoolean() ? Optional.empty()
-                : Optional.of(randomIntBetween(0, 5));
+        OptionalInt rating = randomBoolean() ? OptionalInt.empty()
+                : OptionalInt.of(randomIntBetween(0, 5));
         SearchHit searchHit = new SearchHit(randomIntBetween(0, 10), randomAlphaOfLength(10),
-                new Text(randomAlphaOfLength(10)), Collections.emptyMap());
+                new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
         RatedSearchHit ratedSearchHit = new RatedSearchHit(searchHit, rating);
         return ratedSearchHit;
     }
 
     private static RatedSearchHit mutateTestItem(RatedSearchHit original) {
-        Optional<Integer> rating = original.getRating();
+        OptionalInt rating = original.getRating();
         SearchHit hit = original.getSearchHit();
         switch (randomIntBetween(0, 1)) {
         case 0:
-            rating = rating.isPresent() ? Optional.of(rating.get() + 1) : Optional.of(randomInt(5));
+            rating = rating.isPresent() ? OptionalInt.of(rating.getAsInt() + 1) : OptionalInt.of(randomInt(5));
             break;
         case 1:
             hit = new SearchHit(hit.docId(), hit.getId() + randomAlphaOfLength(10),
-                    new Text(hit.getType()), Collections.emptyMap());
+                    new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
             break;
         default:
             throw new IllegalStateException("The test should only allow two parameters mutated");

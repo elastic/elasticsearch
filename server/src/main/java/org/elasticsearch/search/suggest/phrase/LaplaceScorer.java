@@ -29,8 +29,8 @@ final class LaplaceScorer extends WordScorer {
     private double alpha;
 
     LaplaceScorer(IndexReader reader, Terms terms, String field,
-            double realWordLikelyhood, BytesRef separator, double alpha) throws IOException {
-        super(reader, terms, field, realWordLikelyhood, separator);
+            double realWordLikelihood, BytesRef separator, double alpha) throws IOException {
+        super(reader, terms, field, realWordLikelihood, separator);
         this.alpha = alpha;
     }
 
@@ -46,7 +46,7 @@ final class LaplaceScorer extends WordScorer {
     @Override
     protected double scoreBigram(Candidate word, Candidate w_1) throws IOException {
         join(separator, spare, w_1.term, word.term);
-        return (alpha + frequency(spare.get())) / (w_1.frequency + alpha * numTerms);
+        return (alpha + frequency(spare.get())) / (w_1.termStats.totalTermFreq + alpha * numTerms);
     }
 
     @Override

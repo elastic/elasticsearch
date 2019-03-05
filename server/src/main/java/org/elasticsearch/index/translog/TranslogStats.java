@@ -85,12 +85,12 @@ public class TranslogStats implements Streamable, ToXContentFragment {
         return numberOfOperations;
     }
 
-    /** the size of the generations in the translog that weren't yet to comitted to lucene */
+    /** the size of the generations in the translog that weren't yet to committed to lucene */
     public long getUncommittedSizeInBytes() {
         return uncommittedSizeInBytes;
     }
 
-    /** the number of operations in generations of the translog that weren't yet to comitted to lucene */
+    /** the number of operations in generations of the translog that weren't yet to committed to lucene */
     public int getUncommittedOperations() {
         return uncommittedOperations;
     }

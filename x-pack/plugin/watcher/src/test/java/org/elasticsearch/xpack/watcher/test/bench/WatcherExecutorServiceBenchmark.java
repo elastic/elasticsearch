@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.MockNode;
@@ -28,6 +28,7 @@ import java.time.Clock;
 import java.util.Arrays;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
@@ -48,7 +49,7 @@ public class WatcherExecutorServiceBenchmark {
             .put("cluster.name", "bench")
             .put("network.host", "localhost")
             .put("script.disable_dynamic", false)
-            .put("discovery.zen.ping.unicast.hosts", "localhost")
+            .put(DISCOVERY_SEED_HOSTS_SETTING.getKey(), "localhost")
             .put("http.cors.enabled", true)
             .put("cluster.routing.allocation.disk.threshold_enabled", false)
 //                .put("recycler.page.limit.heap", "60%")
@@ -84,7 +85,7 @@ public class WatcherExecutorServiceBenchmark {
                         .condition(new ScriptCondition(new Script(
                                 ScriptType.INLINE,
                                 Script.DEFAULT_SCRIPT_LANG,
-                                "ctx.payload.hits.total > 0",
+                                "ctx.payload.hits.total.value > 0",
                                 emptyMap()))).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();
@@ -126,7 +127,7 @@ public class WatcherExecutorServiceBenchmark {
                 PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(searchInput(templateRequest(new SearchSourceBuilder(), "test"))
-                                .extractKeys("hits.total"))
+                                .extractKeys("hits.total.value"))
                         .condition(new ScriptCondition(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 == 1", emptyMap())))
                         .addAction("_id", indexAction("index", "type")).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
@@ -207,12 +208,12 @@ public class WatcherExecutorServiceBenchmark {
 
         public BenchmarkWatcher(Settings settings) {
             super(settings);
-            Loggers.getLogger(BenchmarkWatcher.class, settings).info("using watcher benchmark plugin");
+            LogManager.getLogger(BenchmarkWatcher.class).info("using watcher benchmark plugin");
         }
 
         @Override
         protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
-            return new ScheduleTriggerEngineMock(settings, scheduleRegistry, clock);
+            return new ScheduleTriggerEngineMock(scheduleRegistry, clock);
         }
     }
 }

@@ -30,6 +30,13 @@ import java.io.IOException;
  */
 public abstract class ActionResponse extends TransportResponse {
 
+    public ActionResponse() {
+    }
+
+    public ActionResponse(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

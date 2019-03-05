@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -35,38 +36,37 @@ import static org.hamcrest.Matchers.is;
 public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
 
     private static final String DATA_INDEX = "log-data";
-    private static final String DATA_TYPE = "log";
 
     private long nowMillis;
 
     @Before
     public void setUpData() {
         client().admin().indices().prepareCreate(DATA_INDEX)
-                .addMapping(DATA_TYPE, "time", "type=date,format=epoch_millis",
+                .addMapping(SINGLE_MAPPING_NAME, "time", "type=date,format=epoch_millis",
                         "msg", "type=text")
                 .get();
 
         nowMillis = System.currentTimeMillis();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        IndexRequest indexRequest = new IndexRequest(DATA_INDEX, DATA_TYPE);
+        IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
         indexRequest.source("time", nowMillis - TimeValue.timeValueHours(2).millis(),
                 "msg", "Node 1 started");
         bulkRequestBuilder.add(indexRequest);
-        indexRequest = new IndexRequest(DATA_INDEX, DATA_TYPE);
+        indexRequest = new IndexRequest(DATA_INDEX);
         indexRequest.source("time", nowMillis - TimeValue.timeValueHours(2).millis() + 1,
                 "msg", "Failed to shutdown [error org.aaaa.bbbb.Cccc line 54 caused " +
                         "by foo exception]");
         bulkRequestBuilder.add(indexRequest);
-        indexRequest = new IndexRequest(DATA_INDEX, DATA_TYPE);
+        indexRequest = new IndexRequest(DATA_INDEX);
         indexRequest.source("time", nowMillis - TimeValue.timeValueHours(1).millis(),
                 "msg", "Node 2 started");
         bulkRequestBuilder.add(indexRequest);
-        indexRequest = new IndexRequest(DATA_INDEX, DATA_TYPE);
+        indexRequest = new IndexRequest(DATA_INDEX);
         indexRequest.source("time", nowMillis - TimeValue.timeValueHours(1).millis() + 1,
                 "msg", "Failed to shutdown [error but this time completely different]");
         bulkRequestBuilder.add(indexRequest);
-        indexRequest = new IndexRequest(DATA_INDEX, DATA_TYPE);
+        indexRequest = new IndexRequest(DATA_INDEX);
         indexRequest.source("time", nowMillis, "msg", "Node 3 started");
         bulkRequestBuilder.add(indexRequest);
 
@@ -92,7 +92,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
         datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
-        datafeedConfig.setTypes(Collections.singletonList(DATA_TYPE));
         DatafeedConfig datafeed = datafeedConfig.build();
         registerDatafeed(datafeed);
         putDatafeed(datafeed);
@@ -138,7 +137,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
         datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
-        datafeedConfig.setTypes(Collections.singletonList(DATA_TYPE));
         DatafeedConfig datafeed = datafeedConfig.build();
         registerDatafeed(datafeed);
         putDatafeed(datafeed);
@@ -204,7 +202,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         flushJob(jobId, false);
 
         long duration = System.currentTimeMillis() - startTime;
-        Loggers.getLogger(CategorizationIT.class).info("Performance test with tokenization in " +
+        LogManager.getLogger(CategorizationIT.class).info("Performance test with tokenization in " +
                 (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA ? "Java" : "C++") + " took " + duration + "ms");
     }
 

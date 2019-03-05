@@ -29,6 +29,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /** Loads and creates a {@link Whitelist} from one to many text files. */
@@ -392,7 +393,7 @@ public final class WhitelistLoader {
 
         ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>)resource::getClassLoader);
 
-        return new Whitelist(loader, whitelistClasses, whitelistStatics, whitelistClassBindings);
+        return new Whitelist(loader, whitelistClasses, whitelistStatics, whitelistClassBindings, Collections.emptyList());
     }
 
     private WhitelistLoader() {}

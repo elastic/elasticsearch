@@ -11,7 +11,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.*;
 BulkRequestBuilder bulkRequest = client.prepareBulk();
 
 // either use client#prepare, or use Requests# to directly build index/delete requests
-bulkRequest.add(client.prepareIndex("twitter", "tweet", "1")
+bulkRequest.add(client.prepareIndex("twitter", "_doc", "1")
         .setSource(jsonBuilder()
                     .startObject()
                         .field("user", "kimchy")
@@ -21,7 +21,7 @@ bulkRequest.add(client.prepareIndex("twitter", "tweet", "1")
                   )
         );
 
-bulkRequest.add(client.prepareIndex("twitter", "tweet", "2")
+bulkRequest.add(client.prepareIndex("twitter", "_doc", "2")
         .setSource(jsonBuilder()
                     .startObject()
                         .field("user", "kimchy")
@@ -109,8 +109,8 @@ Then you can simply add your requests to the `BulkProcessor`:
 
 [source,java]
 --------------------------------------------------
-bulkProcessor.add(new IndexRequest("twitter", "tweet", "1").source(/* your doc here */));
-bulkProcessor.add(new DeleteRequest("twitter", "tweet", "2"));
+bulkProcessor.add(new IndexRequest("twitter", "_doc", "1").source(/* your doc here */));
+bulkProcessor.add(new DeleteRequest("twitter", "_doc", "2"));
 --------------------------------------------------
 
 [[java-docs-bulk-processor-close]]
@@ -165,3 +165,26 @@ client.admin().indices().prepareRefresh().get();
 client.prepareSearch().get();
 --------------------------------------------------
 
+
+[[java-docs-bulk-global-parameters]]
+==== Global Parameters
+
+Global parameters can be specified on the BulkRequest as well as BulkProcessor, similar to the REST API. These global
+ parameters serve as defaults and can be overridden by local parameters specified on each sub request. Some parameters
+ have to be set before any sub request is added - index, type - and you have to specify them during  BulkRequest or
+ BulkProcessor creation. Some are optional - pipeline, routing - and can be specified at any point before the bulk is sent.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{hlrc-tests}/BulkProcessorIT.java[bulk-processor-mix-parameters]
+--------------------------------------------------
+<1> global parameters from the BulkRequest will be applied on a sub request
+<2> local pipeline parameter on a sub request will override global parameters from BulkRequest
+
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{hlrc-tests}/BulkRequestWithGlobalParametersIT.java[bulk-request-mix-pipeline]
+--------------------------------------------------
+<1> local pipeline parameter on a sub request will override global pipeline from the BulkRequest
+<2> global parameter from the BulkRequest will be applied on a sub request

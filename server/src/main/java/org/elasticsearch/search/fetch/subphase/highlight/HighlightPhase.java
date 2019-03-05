@@ -20,9 +20,7 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -35,11 +33,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
+public class HighlightPhase implements FetchSubPhase {
     private final Map<String, Highlighter> highlighters;
 
-    public HighlightPhase(Settings settings, Map<String, Highlighter> highlighters) {
-        super(settings);
+    public HighlightPhase(Map<String, Highlighter> highlighters) {
         this.highlighters = highlighters;
     }
 

@@ -28,10 +28,9 @@ For example:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-indices-types]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-indices]
 --------------------------------------------------
 <1> Restricts the request to an index
-<2> Limits the request to a type
 
 [[java-rest-high-multi-search-sync]]
 ==== Synchronous Execution

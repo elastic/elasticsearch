@@ -6,40 +6,34 @@
 package org.elasticsearch.xpack.sql.expression.predicate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 /**
  * Operator is a specialized binary predicate where both sides have the compatible types
  * (it's up to the analyzer to do any conversion if needed).
  */
-public abstract class BinaryOperator extends BinaryPredicate {
+public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U, R>> extends BinaryPredicate<T, U, R, F> {
 
-    public interface Negateable {
-        BinaryOperator negate();
+    protected BinaryOperator(Source source, Expression left, Expression right, F function) {
+        super(source, left, right, function);
     }
 
-    protected BinaryOperator(Location location, Expression left, Expression right, String symbol) {
-        super(location, left, right, symbol);
-    }
+    protected abstract TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal);
 
-    protected abstract TypeResolution resolveInputType(DataType inputType);
-
-    public abstract BinaryOperator swapLeftAndRight();
+    public abstract BinaryOperator<T, U, R, F> swapLeftAndRight();
 
     @Override
     protected TypeResolution resolveType() {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
-        DataType l = left().dataType();
-        DataType r = right().dataType();
 
-        TypeResolution resolution = resolveInputType(l);
-
-        if (resolution == TypeResolution.TYPE_RESOLVED) {
-            return resolveInputType(r);
+        TypeResolution resolution = resolveInputType(left(), ParamOrdinal.FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
         }
-        return resolution;
+        return resolveInputType(right(), ParamOrdinal.SECOND);
     }
 }

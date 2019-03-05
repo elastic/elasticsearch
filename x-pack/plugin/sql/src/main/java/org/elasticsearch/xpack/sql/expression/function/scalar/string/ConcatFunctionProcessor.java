@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.processor.BinaryProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -27,14 +28,26 @@ public class ConcatFunctionProcessor extends BinaryProcessor {
     }
 
     @Override
-    protected Object doProcess(Object source1, Object source2) {
-        return doProcessInScripts(source1, source2);
+    public Object process(Object input) {
+        Object l = left().process(input);
+        checkParameter(l);
+        Object r = right().process(input);
+        checkParameter(r);
+        return doProcess(l, r);
     }
-    
+
+    @Override
+    protected Object doProcess(Object left, Object right) {
+        return process(left, right);
+    }
+
     /**
      * Used in Painless scripting
      */
-    public static Object doProcessInScripts(Object source1, Object source2) {
+    public static Object process(Object source1, Object source2) {
+        if (source1 == null && source2 == null) {
+            return StringUtils.EMPTY;
+        }
         if (source1 == null) {
             return source2;
         }

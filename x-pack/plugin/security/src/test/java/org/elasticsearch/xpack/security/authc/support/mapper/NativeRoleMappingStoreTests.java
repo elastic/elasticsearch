@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
@@ -46,6 +47,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class NativeRoleMappingStoreTests extends ESTestCase {
+    private final String concreteSecurityIndexName = randomFrom(
+        RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
 
     public void testResolveRoles() throws Exception {
         // Does match DN
@@ -84,8 +87,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             }
         };
 
-        final RealmConfig realm = new RealmConfig("ldap1", Settings.EMPTY, Settings.EMPTY, mock(Environment.class),
-                new ThreadContext(Settings.EMPTY));
+        final RealmConfig realm = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ldap1"), Settings.EMPTY,
+                mock(Environment.class), new ThreadContext(Settings.EMPTY));
 
         final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
         final UserRoleMapper.UserData user = new UserRoleMapper.UserData("sasquatch",
@@ -124,7 +127,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
     }
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
-        return new SecurityIndexManager.State(true, true, true, true, null, indexStatus);
+        return new SecurityIndexManager.State(true, true, true, true, null, concreteSecurityIndexName, indexStatus);
     }
 
     public void testCacheClearOnIndexHealthChange() {
@@ -169,13 +172,13 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numInvalidation);
 
         store.onSecurityIndexStateChange(
-            new SecurityIndexManager.State(true, false, true, true, null, null),
-            new SecurityIndexManager.State(true, true, true, true, null, null));
+            new SecurityIndexManager.State(true, false, true, true, null, concreteSecurityIndexName, null),
+            new SecurityIndexManager.State(true, true, true, true, null, concreteSecurityIndexName, null));
         assertEquals(1, numInvalidation.get());
 
         store.onSecurityIndexStateChange(
-            new SecurityIndexManager.State(true, true, true, true, null, null),
-            new SecurityIndexManager.State(true, false, true, true, null, null));
+            new SecurityIndexManager.State(true, true, true, true, null, concreteSecurityIndexName, null),
+            new SecurityIndexManager.State(true, false, true, true, null, concreteSecurityIndexName, null));
         assertEquals(2, numInvalidation.get());
     }
 
@@ -197,8 +200,9 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         }).when(client).execute(eq(ClearRealmCacheAction.INSTANCE), any(ClearRealmCacheRequest.class), any(ActionListener.class));
 
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final RealmConfig realmConfig = new RealmConfig(getTestName(), Settings.EMPTY, settings, env, threadContext);
-        final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm("test", realmConfig, threadPool) {
+        final RealmConfig realmConfig = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", getTestName()),
+                settings, env, threadContext);
+        final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm(realmConfig, threadPool) {
             @Override
             protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
                 listener.onResponse(AuthenticationResult.notHandled());

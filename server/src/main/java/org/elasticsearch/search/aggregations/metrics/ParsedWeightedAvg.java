@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-class ParsedWeightedAvg extends ParsedSingleValueNumericMetricsAggregation implements WeightedAvg {
+public class ParsedWeightedAvg extends ParsedSingleValueNumericMetricsAggregation implements WeightedAvg {
 
     @Override
     public double getValue() {

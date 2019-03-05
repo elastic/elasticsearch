@@ -5,17 +5,23 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap.support;
 
+import com.unboundid.ldap.sdk.Attribute;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import com.unboundid.ldap.sdk.Attribute;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -30,7 +36,15 @@ public class LdapMetaDataResolverTests extends ESTestCase {
     private LdapMetaDataResolver resolver;
 
     public void testParseSettings() throws Exception {
-        resolver = new LdapMetaDataResolver(Settings.builder().putList("metadata", "cn", "uid").build(), false);
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(LdapRealmSettings.LDAP_TYPE, "my_ldap");
+        final Settings settings = Settings.builder()
+                .put("path.home", createTempDir())
+                .putList(RealmSettings.getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING),
+                        "cn", "uid")
+                .build();
+        RealmConfig config = new RealmConfig(realmId,
+                settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
+        resolver = new LdapMetaDataResolver(config, false);
         assertThat(resolver.attributeNames(), arrayContaining("cn", "uid"));
     }
 
@@ -40,7 +54,7 @@ public class LdapMetaDataResolverTests extends ESTestCase {
                 new Attribute("cn", "Clint Barton"),
                 new Attribute("uid", "hawkeye"),
                 new Attribute("email", "clint.barton@shield.gov"),
-                new Attribute("memberOf", "cn=staff,ou=groups,dc=exmaple,dc=com", "cn=admin,ou=groups,dc=exmaple,dc=com")
+                new Attribute("memberOf", "cn=staff,ou=groups,dc=example,dc=com", "cn=admin,ou=groups,dc=example,dc=com")
         );
         final Map<String, Object> map = resolve(attributes);
         assertThat(map.size(), equalTo(2));

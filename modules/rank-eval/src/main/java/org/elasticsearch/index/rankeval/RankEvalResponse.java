@@ -42,8 +42,8 @@ import java.util.stream.Collectors;
 
 /**
  * Returns the results for a {@link RankEvalRequest}.<br>
- * The repsonse contains a detailed section for each evaluation query in the request and
- * possible failures that happened when executin individual queries.
+ * The response contains a detailed section for each evaluation query in the request and
+ * possible failures that happened when execution individual queries.
  **/
 public class RankEvalResponse extends ActionResponse implements ToXContentObject {
 

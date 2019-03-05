@@ -19,15 +19,14 @@ public class TestsSSLService extends SSLService {
         super(settings, environment);
     }
 
-    @Override
-    public SSLContext sslContext() {
-        return super.sslContext();
-    }
-
     /**
      * Allows to get alternative ssl context, like for the http client
      */
     public SSLContext sslContext(Settings settings) {
         return sslContextHolder(super.sslConfiguration(settings)).sslContext();
+    }
+
+    public SSLContext sslContext(String context) {
+        return sslContextHolder(super.getSSLConfiguration(context)).sslContext();
     }
 }

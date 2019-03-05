@@ -1,19 +1,52 @@
-[[java-rest-high-security-put-user]]
+--
+:api: put-user
+:request: PutUserRequest
+:response: PutUserResponse
+--
+
+[id="{upid}-{api}"]
 === Put User API
 
-[[java-rest-high-security-put-user-execution]]
-==== Execution
+[id="{upid}-{api}-request"]
+==== Put User Request Request
 
-Creating and updating a user can be performed using the `security().putUser()`
-method:
+The +{request}+ class is used to create or update a user in the Native Realm.
+There are 3 different factory methods for creating a request.
+
+===== Create or Update User with a Password
+
+If you wish to create a new user (or update an existing user) and directly specifying the user's new password, use the
+`withPassword` method as shown below:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[put-user-execute]
+include-tagged::{doc-tests-file}[{api}-password-request]
 --------------------------------------------------
 
-[[java-rest-high-security-put-user-response]]
-==== Response
+===== Create or Update User with a Hashed Password
+
+If you wish to create a new user (or update an existing user) and perform password hashing on the client,
+then use the `withPasswordHash` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-hash-request]
+
+--------------------------------------------------
+===== Update a User without changing their password
+
+If you wish to update an existing user, and do not wish to change the user's password,
+then use the `updateUserProperties` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-update-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Put User Response
 
 The returned `PutUserResponse` contains a single field, `created`. This field
 serves as an indication if a user was created or if an existing entry was updated.
@@ -23,30 +56,3 @@ serves as an indication if a user was created or if an existing entry was update
 include-tagged::{doc-tests}/SecurityDocumentationIT.java[put-user-response]
 --------------------------------------------------
 <1> `created` is a boolean indicating whether the user was created or updated
-
-[[java-rest-high-security-put-user-async]]
-==== Asynchronous Execution
-
-This request can be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[put-user-execute-async]
---------------------------------------------------
-<1> The `PutUserRequest` to execute and the `ActionListener` to use when
-the execution completes.
-
-The asynchronous method does not block and returns immediately. Once the request
-has completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for a `PutUserResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[put-user-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument.
-<2> Called in case of failure. The raised exception is provided as an argument.

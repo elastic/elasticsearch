@@ -3,11 +3,10 @@
 
   - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
+      reason: types are required in requests before 7.0.0
 
   - do:
       bulk:
-        include_type_name: false
         refresh: true
         body:
           - index:
@@ -32,11 +31,10 @@
 
   - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
+      reason: types are required in requests before 7.0.0
 
   - do:
       bulk:
-        include_type_name: false
         refresh: true
         body:
           - index:
@@ -68,14 +66,14 @@
 
   - skip:
       version: " - 6.99.99"
-      reason:  include_type_name was introduced in 7.0.0
+      features: headers
+      reason: types are required in requests before 7.0.0
 
   - do:
       catch: /Malformed action\/metadata line \[3\], expected FIELD_NAME but found \[END_OBJECT\]/
       headers:
         Content-Type: application/json
       bulk:
-        include_type_name: false
         body: |
            {"index": {"_index": "test_index", "_id": "test_id"}}
            {"f1": "v1", "f2": 42}

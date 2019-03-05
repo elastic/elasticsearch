@@ -110,7 +110,7 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
                     .prepareSearch("test")
                     .get();
             SearchResponse searchResponse2 = client().prepareSearch("alias" + roleI).get();
-            assertThat(searchResponse1.getHits().getTotalHits(), equalTo(searchResponse2.getHits().getTotalHits()));
+            assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(searchResponse2.getHits().getTotalHits().value));
             for (int hitI = 0; hitI < searchResponse1.getHits().getHits().length; hitI++) {
                 assertThat(searchResponse1.getHits().getAt(hitI).getId(), equalTo(searchResponse2.getHits().getAt(hitI).getId()));
             }

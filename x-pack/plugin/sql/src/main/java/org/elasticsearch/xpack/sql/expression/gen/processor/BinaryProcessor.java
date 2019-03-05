@@ -35,7 +35,26 @@ public abstract class BinaryProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
-        return doProcess(left.process(input), right.process(input));
+        Object l = left.process(input);
+        if (l == null) {
+            return null;
+        }
+        checkParameter(l);
+
+        Object r = right.process(input);
+        if (r == null) {
+            return null;
+        }
+        checkParameter(r);
+
+        return doProcess(l, r);
+    }
+
+    /**
+     * Checks the parameter (typically for its type) if the value is not null.
+     */
+    protected void checkParameter(Object param) {
+        //no-op
     }
 
     protected Processor left() {

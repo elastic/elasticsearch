@@ -58,7 +58,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
     public void startWebservice() throws Exception {
         Settings settings = getInstanceFromMaster(Settings.class);
         TestsSSLService sslService = new TestsSSLService(settings, getInstanceFromMaster(Environment.class));
-        webServer = new MockWebServer(sslService.sslContext(settings.getByPrefix("xpack.http.ssl.")), false);
+        webServer = new MockWebServer(sslService.sslContext("xpack.http.ssl"), false);
         webServer.start();
     }
 

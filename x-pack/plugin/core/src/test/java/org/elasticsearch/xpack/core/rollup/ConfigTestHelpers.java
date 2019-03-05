@@ -28,7 +28,7 @@ import java.util.stream.IntStream;
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static com.carrotsearch.randomizedtesting.generators.RandomPicks.randomFrom;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLengthBetween;
-import static org.elasticsearch.test.ESTestCase.randomDateTimeZone;
+import static org.elasticsearch.test.ESTestCase.randomZone;
 
 public class ConfigTestHelpers {
 
@@ -71,7 +71,7 @@ public class ConfigTestHelpers {
         final String field = randomField(random);
         final DateHistogramInterval interval = randomInterval();
         final DateHistogramInterval delay = random.nextBoolean() ? randomInterval() : null;
-        final String timezone = random.nextBoolean() ? randomDateTimeZone().toString() : null;
+        String timezone = random.nextBoolean() ? randomZone().getId() : null;
         return new DateHistogramGroupConfig(field, interval, delay, timezone);
     }
 

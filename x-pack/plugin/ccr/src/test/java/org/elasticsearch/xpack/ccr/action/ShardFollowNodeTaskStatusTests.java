@@ -36,6 +36,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
         return new ShardFollowNodeTaskStatus(
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
                 randomInt(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
@@ -55,13 +56,18 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 randomReadExceptions(),
-                randomLong());
+                randomLong(),
+                randomBoolean() ? new ElasticsearchException("fatal error") : null);
     }
 
     @Override
     protected void assertEqualInstances(final ShardFollowNodeTaskStatus expectedInstance, final ShardFollowNodeTaskStatus newInstance) {
         assertNotSame(expectedInstance, newInstance);
+        assertThat(newInstance.getRemoteCluster(), equalTo(expectedInstance.getRemoteCluster()));
         assertThat(newInstance.leaderIndex(), equalTo(expectedInstance.leaderIndex()));
         assertThat(newInstance.followerIndex(), equalTo(expectedInstance.followerIndex()));
         assertThat(newInstance.getShardId(), equalTo(expectedInstance.getShardId()));
@@ -69,23 +75,24 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
         assertThat(newInstance.leaderMaxSeqNo(), equalTo(expectedInstance.leaderMaxSeqNo()));
         assertThat(newInstance.followerGlobalCheckpoint(), equalTo(expectedInstance.followerGlobalCheckpoint()));
         assertThat(newInstance.lastRequestedSeqNo(), equalTo(expectedInstance.lastRequestedSeqNo()));
-        assertThat(newInstance.numberOfConcurrentReads(), equalTo(expectedInstance.numberOfConcurrentReads()));
-        assertThat(newInstance.numberOfConcurrentWrites(), equalTo(expectedInstance.numberOfConcurrentWrites()));
-        assertThat(newInstance.numberOfQueuedWrites(), equalTo(expectedInstance.numberOfQueuedWrites()));
-        assertThat(newInstance.mappingVersion(), equalTo(expectedInstance.mappingVersion()));
-        assertThat(newInstance.totalFetchTimeMillis(), equalTo(expectedInstance.totalFetchTimeMillis()));
-        assertThat(newInstance.numberOfSuccessfulFetches(), equalTo(expectedInstance.numberOfSuccessfulFetches()));
-        assertThat(newInstance.numberOfFailedFetches(), equalTo(expectedInstance.numberOfFailedFetches()));
-        assertThat(newInstance.operationsReceived(), equalTo(expectedInstance.operationsReceived()));
-        assertThat(newInstance.totalTransferredBytes(), equalTo(expectedInstance.totalTransferredBytes()));
-        assertThat(newInstance.totalIndexTimeMillis(), equalTo(expectedInstance.totalIndexTimeMillis()));
-        assertThat(newInstance.numberOfSuccessfulBulkOperations(), equalTo(expectedInstance.numberOfSuccessfulBulkOperations()));
-        assertThat(newInstance.numberOfFailedBulkOperations(), equalTo(expectedInstance.numberOfFailedBulkOperations()));
-        assertThat(newInstance.numberOfOperationsIndexed(), equalTo(expectedInstance.numberOfOperationsIndexed()));
-        assertThat(newInstance.fetchExceptions().size(), equalTo(expectedInstance.fetchExceptions().size()));
-        assertThat(newInstance.fetchExceptions().keySet(), equalTo(expectedInstance.fetchExceptions().keySet()));
-        for (final Map.Entry<Long, Tuple<Integer, ElasticsearchException>> entry : newInstance.fetchExceptions().entrySet()) {
-            final Tuple<Integer, ElasticsearchException> expectedTuple = expectedInstance.fetchExceptions().get(entry.getKey());
+        assertThat(newInstance.outstandingReadRequests(), equalTo(expectedInstance.outstandingReadRequests()));
+        assertThat(newInstance.outstandingWriteRequests(), equalTo(expectedInstance.outstandingWriteRequests()));
+        assertThat(newInstance.writeBufferOperationCount(), equalTo(expectedInstance.writeBufferOperationCount()));
+        assertThat(newInstance.followerMappingVersion(), equalTo(expectedInstance.followerMappingVersion()));
+        assertThat(newInstance.followerSettingsVersion(), equalTo(expectedInstance.followerSettingsVersion()));
+        assertThat(newInstance.totalReadTimeMillis(), equalTo(expectedInstance.totalReadTimeMillis()));
+        assertThat(newInstance.successfulReadRequests(), equalTo(expectedInstance.successfulReadRequests()));
+        assertThat(newInstance.failedReadRequests(), equalTo(expectedInstance.failedReadRequests()));
+        assertThat(newInstance.operationsReads(), equalTo(expectedInstance.operationsReads()));
+        assertThat(newInstance.bytesRead(), equalTo(expectedInstance.bytesRead()));
+        assertThat(newInstance.totalWriteTimeMillis(), equalTo(expectedInstance.totalWriteTimeMillis()));
+        assertThat(newInstance.successfulWriteRequests(), equalTo(expectedInstance.successfulWriteRequests()));
+        assertThat(newInstance.failedWriteRequests(), equalTo(expectedInstance.failedWriteRequests()));
+        assertThat(newInstance.operationWritten(), equalTo(expectedInstance.operationWritten()));
+        assertThat(newInstance.readExceptions().size(), equalTo(expectedInstance.readExceptions().size()));
+        assertThat(newInstance.readExceptions().keySet(), equalTo(expectedInstance.readExceptions().keySet()));
+        for (final Map.Entry<Long, Tuple<Integer, ElasticsearchException>> entry : newInstance.readExceptions().entrySet()) {
+            final Tuple<Integer, ElasticsearchException> expectedTuple = expectedInstance.readExceptions().get(entry.getKey());
             assertThat(entry.getValue().v1(), equalTo(expectedTuple.v1()));
             // x-content loses the exception
             final ElasticsearchException expected = expectedTuple.v2();
@@ -96,7 +103,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
                     anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class)));
             assertThat(entry.getValue().v2().getCause().getMessage(), containsString(expected.getCause().getMessage()));
         }
-        assertThat(newInstance.timeSinceLastFetchMillis(), equalTo(expectedInstance.timeSinceLastFetchMillis()));
+        assertThat(newInstance.timeSinceLastReadMillis(), equalTo(expectedInstance.timeSinceLastReadMillis()));
     }
 
     @Override

@@ -22,8 +22,6 @@ package org.elasticsearch.transport.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import io.netty.util.NettyRuntime;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
@@ -34,7 +32,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -110,9 +107,14 @@ public class Netty4Utils {
                 while ((slice = iterator.next()) != null) {
                     buffers.add(Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
                 }
-                final CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
-                composite.addComponents(true, buffers);
-                return composite;
+
+                if (buffers.size() == 1) {
+                    return buffers.get(0);
+                } else {
+                    CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
+                    composite.addComponents(true, buffers);
+                    return composite;
+                }
             } catch (IOException ex) {
                 throw new AssertionError("no IO happens here", ex);
             }
@@ -133,27 +135,4 @@ public class Netty4Utils {
         return new ByteBufBytesReference(buffer, size);
     }
 
-    public static void closeChannels(final Collection<Channel> channels) throws IOException {
-        IOException closingExceptions = null;
-        final List<ChannelFuture> futures = new ArrayList<>();
-        for (final Channel channel : channels) {
-            try {
-                if (channel != null && channel.isOpen()) {
-                    futures.add(channel.close());
-                }
-            } catch (Exception e) {
-                if (closingExceptions == null) {
-                    closingExceptions = new IOException("failed to close channels");
-                }
-                closingExceptions.addSuppressed(e);
-            }
-        }
-        for (final ChannelFuture future : futures) {
-            future.awaitUninterruptibly();
-        }
-
-        if (closingExceptions != null) {
-            throw closingExceptions;
-        }
-    }
 }

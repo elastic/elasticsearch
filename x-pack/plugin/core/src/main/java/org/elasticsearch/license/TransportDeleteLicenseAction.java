@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -27,10 +26,10 @@ public class TransportDeleteLicenseAction extends TransportMasterNodeAction<Dele
     private final LicenseService licenseService;
 
     @Inject
-    public TransportDeleteLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportDeleteLicenseAction(TransportService transportService, ClusterService clusterService,
                                         LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(DeleteLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, DeleteLicenseRequest::new);
         this.licenseService = licenseService;
     }

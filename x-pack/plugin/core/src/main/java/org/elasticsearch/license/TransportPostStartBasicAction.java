@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -23,10 +22,10 @@ public class TransportPostStartBasicAction extends TransportMasterNodeAction<Pos
     private final LicenseService licenseService;
 
     @Inject
-    public TransportPostStartBasicAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportPostStartBasicAction(TransportService transportService, ClusterService clusterService,
                                          LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PostStartBasicAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(PostStartBasicAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, PostStartBasicRequest::new);
         this.licenseService = licenseService;
     }

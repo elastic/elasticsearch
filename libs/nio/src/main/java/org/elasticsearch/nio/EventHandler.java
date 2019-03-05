@@ -150,11 +150,11 @@ public class EventHandler {
     }
 
     /**
-     * This method is called when a listener attached to a channel operation throws an exception.
+     * This method is called when a task or listener attached to a channel operation throws an exception.
      *
      * @param exception that occurred
      */
-    protected void listenerException(Exception exception) {
+    protected void taskException(Exception exception) {
         exceptionHandler.accept(exception);
     }
 

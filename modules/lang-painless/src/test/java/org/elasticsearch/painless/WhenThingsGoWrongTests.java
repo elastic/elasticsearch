@@ -24,7 +24,6 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.script.ScriptException;
 
 import java.lang.invoke.WrongMethodTypeException;
-import java.util.Arrays;
 import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
@@ -198,21 +197,6 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         });
         assertTrue(expected.getMessage().contains(
                    "The maximum number of statements that can be executed in a loop has been reached."));
-    }
-
-    public void testSourceLimits() {
-        final char[] tooManyChars = new char[Compiler.MAXIMUM_SOURCE_LENGTH + 1];
-        Arrays.fill(tooManyChars, '0');
-
-        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, false, () -> {
-            exec(new String(tooManyChars));
-        });
-        assertTrue(expected.getMessage().contains("Scripts may be no longer than"));
-
-        final char[] exactlyAtLimit = new char[Compiler.MAXIMUM_SOURCE_LENGTH];
-        Arrays.fill(exactlyAtLimit, '0');
-        // ok
-        assertEquals(0, exec(new String(exactlyAtLimit)));
     }
 
     public void testIllegalDynamicMethod() {

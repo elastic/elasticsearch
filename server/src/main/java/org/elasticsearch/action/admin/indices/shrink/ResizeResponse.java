@@ -38,7 +38,7 @@ public final class ResizeResponse extends CreateIndexResponse {
     ResizeResponse() {
     }
 
-    ResizeResponse(boolean acknowledged, boolean shardsAcknowledged, String index) {
+    public ResizeResponse(boolean acknowledged, boolean shardsAcknowledged, String index) {
         super(acknowledged, shardsAcknowledged, index);
     }
 

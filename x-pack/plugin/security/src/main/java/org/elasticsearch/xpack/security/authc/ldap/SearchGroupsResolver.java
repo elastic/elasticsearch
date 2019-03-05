@@ -14,8 +14,8 @@ import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
@@ -26,11 +26,11 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.isNullOrEmpty;
+import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.createFilter;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.search;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
-import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
 
 /**
  * Resolves the groups for a user by executing a search with a filter usually that contains a group
@@ -44,16 +44,14 @@ class SearchGroupsResolver implements GroupsResolver {
     private final LdapSearchScope scope;
     private final boolean ignoreReferralErrors;
 
-    SearchGroupsResolver(Settings settings) {
-        if (SearchGroupsResolverSettings.BASE_DN.exists(settings)) {
-            baseDn = SearchGroupsResolverSettings.BASE_DN.get(settings);
-        } else {
+    SearchGroupsResolver(RealmConfig config) {
+        baseDn = config.getSetting(SearchGroupsResolverSettings.BASE_DN, () -> {
             throw new IllegalArgumentException("base_dn must be specified");
-        }
-        filter = SearchGroupsResolverSettings.FILTER.get(settings);
-        userAttribute = SearchGroupsResolverSettings.USER_ATTRIBUTE.get(settings);
-        scope = SearchGroupsResolverSettings.SCOPE.get(settings);
-        this.ignoreReferralErrors = IGNORE_REFERRAL_ERRORS_SETTING.get(settings);
+        });
+        filter = config.getSetting(SearchGroupsResolverSettings.FILTER);
+        userAttribute = config.getSetting(SearchGroupsResolverSettings.USER_ATTRIBUTE);
+        scope = config.getSetting(SearchGroupsResolverSettings.SCOPE);
+        ignoreReferralErrors = config.getSetting(IGNORE_REFERRAL_ERRORS_SETTING);
     }
 
     @Override

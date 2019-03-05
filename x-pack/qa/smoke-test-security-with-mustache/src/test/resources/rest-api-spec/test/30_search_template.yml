@@ -8,7 +8,7 @@ setup:
         wait_for_status: yellow
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "inline_template_user"
         body:  >
             {
@@ -17,7 +17,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "role"
         body:  >
             {
@@ -32,7 +32,6 @@ setup:
   - do:
       index:
         index: foobar
-        type: type
         id: 1
         body:
           title: "contains some words"
@@ -40,7 +39,6 @@ setup:
   - do:
       index:
         index: unauthorized_index
-        type: type
         id: 2
         body:
           title: "contains some words too"
@@ -51,7 +49,7 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "inline_template_user"
         ignore: 404
 
@@ -61,6 +59,7 @@ teardown:
       headers:
         Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       search_template:
+        rest_total_hits_as_int: true
         index: foobar
         body:
           source:
@@ -79,6 +78,7 @@ teardown:
       headers:
         Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       search_template:
+        rest_total_hits_as_int: true
         body:
           source:
             query:
@@ -96,6 +96,7 @@ teardown:
       headers:
         Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       search_template:
+        rest_total_hits_as_int: true
         index: foo*
         body:
           source:
@@ -114,6 +115,7 @@ teardown:
       headers:
         Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       search_template:
+        rest_total_hits_as_int: true
         index: unauthorized*
         body:
           source:
@@ -132,6 +134,7 @@ teardown:
       headers:
         Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       msearch_template:
+        rest_total_hits_as_int: true
         body:
           - index: foobar
           - source:

@@ -6,18 +6,21 @@
 package org.elasticsearch.xpack.core.security.authc.ldap;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
 import java.util.Collections;
 import java.util.Set;
 import java.util.function.Function;
 
 public final class UserAttributeGroupsResolverSettings {
-    public static final Setting<String> ATTRIBUTE = new Setting<>("user_group_attribute", "memberOf",
-            Function.identity(), Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<String> ATTRIBUTE = Setting.affixKeySetting(
+            RealmSettings.realmSettingPrefix(LdapRealmSettings.LDAP_TYPE), "user_group_attribute",
+            key -> new Setting<>(key, "memberOf", Function.identity(), Setting.Property.NodeScope));
 
-    private UserAttributeGroupsResolverSettings() {}
+    private UserAttributeGroupsResolverSettings() {
+    }
 
-    public static Set<Setting<?>> getSettings() {
+    public static Set<Setting.AffixSetting<?>> getSettings() {
         return Collections.singleton(ATTRIBUTE);
     }
 }

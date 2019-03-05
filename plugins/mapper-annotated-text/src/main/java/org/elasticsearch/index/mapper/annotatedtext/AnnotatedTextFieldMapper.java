@@ -20,27 +20,24 @@
 package org.elasticsearch.index.mapper.annotatedtext;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.Analyzer.TokenStreamComponents;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
-import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
-import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -69,20 +66,21 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
 /** A {@link FieldMapper} for full-text fields with annotation markup e.g.
- * 
+ *
  *    "New mayor is [John Smith](type=person&amp;value=John%20Smith) "
- * 
+ *
  * A special Analyzer wraps the default choice of analyzer in order
  * to strip the text field of annotation markup and inject the related
  * entity annotation tokens as supplementary tokens at the relevant points
  * in the token stream.
- * This code is largely a copy of TextFieldMapper which is less than ideal - 
+ * This code is largely a copy of TextFieldMapper which is less than ideal -
  * my attempts to subclass TextFieldMapper failed but we can revisit this.
  **/
 public class AnnotatedTextFieldMapper extends FieldMapper {
@@ -100,7 +98,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder, AnnotatedTextFieldMapper> {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
-        
+
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
@@ -118,7 +116,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             this.positionIncrementGap = positionIncrementGap;
             return this;
         }
-        
+
         @Override
         public Builder docValues(boolean docValues) {
             if (docValues) {
@@ -141,8 +139,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(), positionIncrementGap));
                 fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
             } else {
-                //Using the analyzer's default BUT need to do the same thing AnalysisRegistry.processAnalyzerFactory 
-                // does to splice in new default of posIncGap=100 by wrapping the analyzer                
+                //Using the analyzer's default BUT need to do the same thing AnalysisRegistry.processAnalyzerFactory
+                // does to splice in new default of posIncGap=100 by wrapping the analyzer
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
                     int overrideInc = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
                     fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(), overrideInc));
@@ -162,7 +160,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         public Mapper.Builder<AnnotatedTextFieldMapper.Builder, AnnotatedTextFieldMapper> parse(
                 String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AnnotatedTextFieldMapper.Builder builder = new AnnotatedTextFieldMapper.Builder(fieldName);
-            
+
             builder.fieldType().setIndexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
             builder.fieldType().setSearchAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchAnalyzer());
             builder.fieldType().setSearchQuoteAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchQuoteAnalyzer());
@@ -181,7 +179,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    
+
     /**
      * Parses markdown-like syntax into plain text and AnnotationTokens with offsets for
      * annotations found in texts
@@ -190,32 +188,32 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         public final String textPlusMarkup;
         public final String textMinusMarkup;
         List<AnnotationToken> annotations;
-        
+
         // Format is markdown-like syntax for URLs eg:
         //   "New mayor is [John Smith](type=person&value=John%20Smith) "
-        static Pattern markdownPattern = Pattern.compile("\\[([^\\]\\[]*)\\]\\(([^\\)\\(]*)\\)");  
-        
+        static Pattern markdownPattern = Pattern.compile("\\[([^\\]\\[]*)\\]\\(([^\\)\\(]*)\\)");
+
         public static AnnotatedText parse (String textPlusMarkup) {
             List<AnnotationToken> annotations =new ArrayList<>();
-            Matcher m = markdownPattern.matcher(textPlusMarkup);                
+            Matcher m = markdownPattern.matcher(textPlusMarkup);
             int lastPos = 0;
             StringBuilder sb = new StringBuilder();
             while(m.find()){
                 if(m.start() > lastPos){
                     sb.append(textPlusMarkup.substring(lastPos, m.start()));
                 }
-                
+
                 int startOffset = sb.length();
                 int endOffset = sb.length() + m.group(1).length();
                 sb.append(m.group(1));
                 lastPos = m.end();
-                
+
                 String[] pairs = m.group(2).split("&");
                 String value = null;
                 for (String pair : pairs) {
                     String[] kv = pair.split("=");
                     try {
-                        if(kv.length == 2){               
+                        if(kv.length == 2){
                             throw new ElasticsearchParseException("key=value pairs are not supported in annotations");
                         }
                         if(kv.length == 1) {
@@ -230,9 +228,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                         }
                     } catch (UnsupportedEncodingException uee){
                         throw new ElasticsearchParseException("Unsupported encoding parsing annotated text", uee);
-                    }                        
-                }                      
-            }   
+                    }
+                }
+            }
             if(lastPos < textPlusMarkup.length()){
                 sb.append(textPlusMarkup.substring(lastPos));
             }
@@ -242,13 +240,13 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         protected AnnotatedText(String textMinusMarkup, String textPlusMarkup, List<AnnotationToken> annotations) {
             this.textMinusMarkup = textMinusMarkup;
             this.textPlusMarkup = textPlusMarkup;
-            this.annotations = annotations;    
+            this.annotations = annotations;
         }
-        
+
         public static final class AnnotationToken {
             public final int offset;
             public final int endOffset;
-            
+
             public final String value;
             public AnnotationToken(int offset, int endOffset, String value) {
                 this.offset = offset;
@@ -259,12 +257,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             public String toString() {
                return value +" ("+offset+" - "+endOffset+")";
             }
-            
+
             public boolean intersects(int start, int end) {
                 return (start <= offset && end >= offset) || (start <= endOffset && end >= endOffset)
                         || (start >= offset && end <= endOffset);
             }
-            
+
             @Override
             public int hashCode() {
                 final int prime = 31;
@@ -274,7 +272,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 result = prime * result + Objects.hashCode(value);
                 return result;
             }
-            
+
             @Override
             public boolean equals(Object obj) {
                 if (this == obj)
@@ -287,16 +285,16 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 return Objects.equals(endOffset, other.endOffset) && Objects.equals(offset, other.offset)
                         && Objects.equals(value, other.value);
             }
-            
+
         }
-        
+
         @Override
         public String toString() {
            StringBuilder sb = new StringBuilder();
            sb.append(textMinusMarkup);
            sb.append("\n");
            annotations.forEach(a -> {
-               sb.append(a); 
+               sb.append(a);
                sb.append("\n");
            });
            return sb.toString();
@@ -308,10 +306,10 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         public AnnotationToken getAnnotation(int index) {
             return annotations.get(index);
-        }   
+        }
     }
-    
-    // A utility class for use with highlighters where the content being highlighted 
+
+    // A utility class for use with highlighters where the content being highlighted
     // needs plain text format for highlighting but marked-up format for token discovery.
     // The class takes markedup format field values and returns plain text versions.
     // When asked to tokenize plain-text versions by the highlighter it tokenizes the
@@ -330,7 +328,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 annotations[i] = AnnotatedText.parse(markedUpFieldValues[i]);
             }
         }
-        
+
         public String []  getPlainTextValuesForHighlighter(){
             String [] result = new String[annotations.length];
             for (int i = 0; i < annotations.length; i++) {
@@ -338,127 +336,75 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             }
             return result;
         }
-        
+
         public AnnotationToken[] getIntersectingAnnotations(int start, int end) {
             List<AnnotationToken> intersectingAnnotations = new ArrayList<>();
             int fieldValueOffset =0;
             for (AnnotatedText fieldValueAnnotations : this.annotations) {
                 //This is called from a highlighter where all of the field values are concatenated
-                // so each annotation offset will need to be adjusted so that it takes into account 
+                // so each annotation offset will need to be adjusted so that it takes into account
                 // the previous values AND the MULTIVAL delimiter
                 for (AnnotationToken token : fieldValueAnnotations.annotations) {
                     if(token.intersects(start - fieldValueOffset , end - fieldValueOffset)) {
-                        intersectingAnnotations.add(new AnnotationToken(token.offset + fieldValueOffset, 
+                        intersectingAnnotations.add(new AnnotationToken(token.offset + fieldValueOffset,
                                 token.endOffset + fieldValueOffset, token.value));
                     }
-                } 
+                }
                 //add 1 for the fieldvalue separator character
                 fieldValueOffset +=fieldValueAnnotations.textMinusMarkup.length() +1;
             }
             return intersectingAnnotations.toArray(new AnnotationToken[intersectingAnnotations.size()]);
-        }        
-        
+        }
+
         @Override
         public Analyzer getWrappedAnalyzer(String fieldName) {
           return delegate;
-        }   
-        
+        }
+
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-            if(components instanceof AnnotatedHighlighterTokenStreamComponents){
-                // already wrapped.
-                return components;
-            }
             AnnotationsInjector injector = new AnnotationsInjector(components.getTokenStream());
-            return new AnnotatedHighlighterTokenStreamComponents(components.getTokenizer(), injector, this.annotations);
-        }        
+            AtomicInteger readerNum = new AtomicInteger(0);
+            return new TokenStreamComponents(r -> {
+                String plainText = readToString(r);
+                AnnotatedText at = this.annotations[readerNum.getAndIncrement()];
+                assert at.textMinusMarkup.equals(plainText);
+                injector.setAnnotations(at);
+                components.getSource().accept(new StringReader(at.textMinusMarkup));
+            }, injector);
+        }
     }
-    private static final class AnnotatedHighlighterTokenStreamComponents extends TokenStreamComponents{
 
-        private AnnotationsInjector annotationsInjector;
-        private AnnotatedText[] annotations;
-        int readerNum = 0;
-
-        AnnotatedHighlighterTokenStreamComponents(Tokenizer source, AnnotationsInjector annotationsFilter,
-                AnnotatedText[] annotations) {
-            super(source, annotationsFilter);
-            this.annotationsInjector = annotationsFilter;
-            this.annotations = annotations;            
-        }
-
-        @Override
-        protected void setReader(Reader reader) {
-            String plainText = readToString(reader);
-            AnnotatedText at = this.annotations[readerNum++];
-            assert at.textMinusMarkup.equals(plainText);
-            // This code is reliant on the behaviour of highlighter logic - it 
-            // takes plain text multi-value fields and then calls the same analyzer 
-            // for each field value in turn. This class has cached the annotations
-            // associated with each plain-text value and are arranged in the same order
-            annotationsInjector.setAnnotations(at);
-            super.setReader(new StringReader(at.textMinusMarkup));  
-        }
-               
-    }    
-    
-    
     public static final class AnnotationAnalyzerWrapper extends AnalyzerWrapper {
-        
 
         private final Analyzer delegate;
 
-        public AnnotationAnalyzerWrapper (Analyzer delegate) {
+        public AnnotationAnalyzerWrapper(Analyzer delegate) {
           super(delegate.getReuseStrategy());
           this.delegate = delegate;
         }
 
-        /**
-         * Wraps {@link StandardAnalyzer}. 
-         */
-        public AnnotationAnalyzerWrapper() {
-          this(new StandardAnalyzer());
-        }
-        
-
         @Override
         public Analyzer getWrappedAnalyzer(String fieldName) {
           return delegate;
-        }     
+        }
 
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-            if(components instanceof AnnotatedTokenStreamComponents){
-                // already wrapped.
+            if (components.getTokenStream() instanceof AnnotationsInjector) {
+                // already wrapped
                 return components;
             }
             AnnotationsInjector injector = new AnnotationsInjector(components.getTokenStream());
-            return new AnnotatedTokenStreamComponents(components.getTokenizer(), injector);
-        }
-      }
-    
-    
-    //This Analyzer is not "wrappable" because of a limitation in Lucene https://issues.apache.org/jira/browse/LUCENE-8352    
-    private static final class AnnotatedTokenStreamComponents extends TokenStreamComponents{
-        private AnnotationsInjector annotationsInjector;
-
-        AnnotatedTokenStreamComponents(Tokenizer source, AnnotationsInjector annotationsInjector) {
-            super(source, annotationsInjector);
-            this.annotationsInjector = annotationsInjector;
-        }
-
-        @Override
-        protected void setReader(Reader reader) {
-            // Sneaky code to change the content downstream components will parse.
-            // Replace the marked-up content Reader with a plain text Reader and prime the 
-            // annotations injector with the AnnotatedTokens that need to be injected 
-            // as plain-text parsing progresses.
-            AnnotatedText annotations = AnnotatedText.parse(readToString(reader));
-            annotationsInjector.setAnnotations(annotations);
-            super.setReader(new StringReader(annotations.textMinusMarkup));
+            return new TokenStreamComponents(r -> {
+                AnnotatedText annotations = AnnotatedText.parse(readToString(r));
+                injector.setAnnotations(annotations);
+                components.getSource().accept(new StringReader(annotations.textMinusMarkup));
+            }, injector);
         }
     }
-    
-    static String readToString(Reader reader) {       
+
+    static String readToString(Reader reader) {
         char[] arr = new char[8 * 1024];
         StringBuilder buffer = new StringBuilder();
         int numCharsRead;
@@ -467,15 +413,15 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 buffer.append(arr, 0, numCharsRead);
             }
             reader.close();
-            return buffer.toString();            
+            return buffer.toString();
         } catch (IOException e) {
             throw new UncheckedIOException("IO Error reading field content", e);
         }
-    }         
+    }
 
-    
+
     public static final class AnnotationsInjector extends TokenFilter {
-        
+
         private AnnotatedText annotatedText;
         AnnotatedText.AnnotationToken nextAnnotationForInjection = null;
         private int currentAnnotationIndex = 0;
@@ -502,8 +448,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
               nextAnnotationForInjection = null;
           }
         }
-        
-        
+
+
 
         @Override
         public void reset() throws IOException {
@@ -512,7 +458,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             inputExhausted = false;
             super.reset();
         }
-        
+
         // Abstracts if we are pulling from some pre-cached buffer of
         // text tokens or directly from the wrapped TokenStream
         private boolean internalNextToken() throws IOException{
@@ -524,7 +470,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                     pendingStates.clear();
                 }
                 return true;
-            }       
+            }
             if(inputExhausted) {
                 return false;
             }
@@ -579,28 +525,28 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             posLenAtt.setPositionLength(annotationPosLen);
             textOffsetAtt.setOffset(nextAnnotationForInjection.offset, nextAnnotationForInjection.endOffset);
             setType(nextAnnotationForInjection);
-            
+
             // We may have multiple annotations at this location - stack them up
             final int annotationOffset = nextAnnotationForInjection.offset;
             final AnnotatedText.AnnotationToken firstAnnotationAtThisPos = nextAnnotationForInjection;
             while (nextAnnotationForInjection != null && nextAnnotationForInjection.offset == annotationOffset) {
 
-                
+
                 setType(nextAnnotationForInjection);
                 termAtt.resizeBuffer(nextAnnotationForInjection.value.length());
                 termAtt.copyBuffer(nextAnnotationForInjection.value.toCharArray(), 0, nextAnnotationForInjection.value.length());
-                
+
                 if (nextAnnotationForInjection == firstAnnotationAtThisPos) {
                     posAtt.setPositionIncrement(firstSpannedTextPosInc);
                     //Put at the head of the queue of tokens to be emitted
-                    pendingStates.add(0, captureState());                
+                    pendingStates.add(0, captureState());
                 } else {
-                    posAtt.setPositionIncrement(0);                    
+                    posAtt.setPositionIncrement(0);
                     //Put after the head of the queue of tokens to be emitted
-                    pendingStates.add(1, captureState());                
+                    pendingStates.add(1, captureState());
                 }
-                
-                
+
+
                 // Flag the inject annotation as null to prevent re-injection.
                 currentAnnotationIndex++;
                 if (currentAnnotationIndex < annotatedText.numAnnotations()) {
@@ -614,7 +560,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
 
       }
-  
+
 
     public static final class AnnotatedTextFieldType extends StringFieldType {
 
@@ -625,7 +571,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         protected AnnotatedTextFieldType(AnnotatedTextFieldType ref) {
             super(ref);
         }
-        
+
         @Override
         public void setIndexAnalyzer(NamedAnalyzer delegate) {
             if(delegate.analyzer() instanceof AnnotationAnalyzerWrapper){
@@ -655,70 +601,34 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 return new NormsFieldExistsQuery(name());
             }
         }
-        
+
         @Override
-        public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
-            PhraseQuery.Builder builder = new PhraseQuery.Builder();
-            builder.setSlop(slop);
-
-            TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
-            PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
-            int position = -1;
-
-            stream.reset();
-            while (stream.incrementToken()) {
-                if (enablePosIncrements) {
-                    position += posIncrAtt.getPositionIncrement();
-                }
-                else {
-                    position += 1;
-                }
-                builder.add(new Term(field, termAtt.getBytesRef()), position);
-            }
-
-            return builder.build();
+        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+            SpanMultiTermQueryWrapper<?> spanMulti =
+                new SpanMultiTermQueryWrapper<>(new PrefixQuery(new Term(name(), indexedValueForSearch(value))));
+            spanMulti.setRewriteMethod(method);
+            return spanMulti;
         }
-        
+
         @Override
-        public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+            return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
+        }
 
-            MultiPhraseQuery.Builder mpqb = new MultiPhraseQuery.Builder();
-            mpqb.setSlop(slop);
+        @Override
+        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+            return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
+        }
 
-            TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
-
-            PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
-            int position = -1;
-
-            List<Term> multiTerms = new ArrayList<>();
-            stream.reset();
-            while (stream.incrementToken()) {
-                int positionIncrement = posIncrAtt.getPositionIncrement();
-
-                if (positionIncrement > 0 && multiTerms.size() > 0) {
-                    if (enablePositionIncrements) {
-                        mpqb.add(multiTerms.toArray(new Term[0]), position);
-                    } else {
-                        mpqb.add(multiTerms.toArray(new Term[0]));
-                    }
-                    multiTerms.clear();
-                }
-                position += positionIncrement;
-                multiTerms.add(new Term(field, termAtt.getBytesRef()));
-            }
-
-            if (enablePositionIncrements) {
-                mpqb.add(multiTerms.toArray(new Term[0]), position);
-            } else {
-                mpqb.add(multiTerms.toArray(new Term[0]));
-            }
-            return mpqb.build();
-        }        
+        @Override
+        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+            return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions);
+        }
     }
-    
+
     private int positionIncrementGap;
     protected AnnotatedTextFieldMapper(String simpleName, AnnotatedTextFieldType fieldType, MappedFieldType defaultFieldType,
-                                int positionIncrementGap, 
+                                int positionIncrementGap,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();
@@ -774,6 +684,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         if (includeDefaults || positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
             builder.field("position_increment_gap", positionIncrementGap);
-        }        
+        }
     }
 }

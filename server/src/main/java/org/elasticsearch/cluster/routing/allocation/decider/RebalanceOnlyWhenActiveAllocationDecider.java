@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.settings.Settings;
 
 /**
  * Only allow rebalancing when all shards are active within the shard replication group.
@@ -29,10 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "rebalance_only_when_active";
-
-    public RebalanceOnlyWhenActiveAllocationDecider(Settings settings) {
-        super(settings);
-    }
 
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {

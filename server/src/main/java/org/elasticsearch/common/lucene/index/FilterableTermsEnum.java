@@ -23,6 +23,7 @@ import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -32,6 +33,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -61,7 +63,8 @@ public class FilterableTermsEnum extends TermsEnum {
         }
     }
 
-    static final String UNSUPPORTED_MESSAGE = "This TermsEnum only supports #seekExact(BytesRef) as well as #docFreq() and #totalTermFreq()";
+    static final String UNSUPPORTED_MESSAGE =
+            "This TermsEnum only supports #seekExact(BytesRef) as well as #docFreq() and #totalTermFreq()";
     protected static final int NOT_FOUND = -1;
     private final Holder[] enums;
     protected int currentDocFreq = 0;
@@ -123,6 +126,11 @@ public class FilterableTermsEnum extends TermsEnum {
     @Override
     public BytesRef term() throws IOException {
         return current;
+    }
+
+    @Override
+    public AttributeSource attributes() {
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 
     @Override
@@ -191,6 +199,16 @@ public class FilterableTermsEnum extends TermsEnum {
 
     @Override
     public void seekExact(long ord) throws IOException {
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
+    }
+
+    @Override
+    public void seekExact(BytesRef term, TermState state) throws IOException {
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
+    }
+
+    @Override
+    public TermState termState() throws IOException {
         throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 

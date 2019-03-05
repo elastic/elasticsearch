@@ -16,11 +16,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
-import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.util.Collections;
@@ -133,7 +130,7 @@ public class ScriptTransformTests extends ESTestCase {
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
+        ExecutableScriptTransform transform = new ScriptTransformFactory(service).parseExecutable("_id", parser);
         Script script = new Script(type, type == ScriptType.STORED ? null : "_lang", "_script", singletonMap("key", "value"));
         assertThat(transform.transform().getScript(), equalTo(script));
     }
@@ -144,7 +141,7 @@ public class ScriptTransformTests extends ESTestCase {
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
+        ExecutableScriptTransform transform = new ScriptTransformFactory(service).parseExecutable("_id", parser);
         assertEquals(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "_script", emptyMap()), transform.transform().getScript());
     }
 
@@ -155,7 +152,7 @@ public class ScriptTransformTests extends ESTestCase {
                 Collections.emptyList(), "whatever", "whatever");
         when(scriptService.compile(anyObject(), eq(WatcherTransformScript.CONTEXT))).thenThrow(scriptException);
 
-        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), scriptService);
+        ScriptTransformFactory transformFactory = new ScriptTransformFactory(scriptService);
 
         XContentBuilder builder = jsonBuilder().startObject()
                 .field(scriptTypeField(randomFrom(ScriptType.values())), "whatever")
@@ -170,7 +167,7 @@ public class ScriptTransformTests extends ESTestCase {
     }
 
     public void testScriptConditionParserBadLang() throws Exception {
-        ScriptTransformFactory transformFactory = new ScriptTransformFactory(Settings.builder().build(), createScriptService());
+        ScriptTransformFactory transformFactory = new ScriptTransformFactory(createScriptService());
         String script = "return true";
         XContentBuilder builder = jsonBuilder().startObject()
                 .field(scriptTypeField(ScriptType.INLINE), script)
@@ -184,23 +181,6 @@ public class ScriptTransformTests extends ESTestCase {
         ScriptTransform scriptCondition = transformFactory.parseTransform("_watch", parser);
         Exception e = expectThrows(IllegalArgumentException.class, () -> transformFactory.createExecutable(scriptCondition));
         assertThat(e.getMessage(), containsString("script_lang not supported [not_a_valid_lang]"));
-    }
-
-    public void testParamsCtxDeprecated() throws Exception {
-        WatchExecutionContext watcherContext = mock(WatchExecutionContext.class);
-        when(watcherContext.id()).thenReturn(mock(Wid.class));
-        when(watcherContext.watch()).thenReturn(mock(Watch.class));
-        when(watcherContext.triggerEvent()).thenReturn(mock(TriggerEvent.class));
-        Payload payload = mock(Payload.class);
-        WatcherTransformScript watcherScript = new WatcherTransformScript(Collections.emptyMap(), watcherContext, payload) {
-            @Override
-            public Object execute() {
-                return getParams().get("ctx");
-            }
-        };
-        assertThat(watcherScript.execute(), is(watcherScript.getCtx()));
-        assertWarnings("Accessing variable [ctx] via [params.ctx] from within a watcher_transform script " +
-            "is deprecated in favor of directly accessing [ctx].");
     }
 
     static String scriptTypeField(ScriptType type) {

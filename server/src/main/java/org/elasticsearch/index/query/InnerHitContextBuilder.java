@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
@@ -78,6 +78,7 @@ public abstract class InnerHitContextBuilder {
         innerHitsContext.size(innerHitBuilder.getSize());
         innerHitsContext.explain(innerHitBuilder.isExplain());
         innerHitsContext.version(innerHitBuilder.isVersion());
+        innerHitsContext.seqNoAndPrimaryTerm(innerHitBuilder.isSeqNoAndPrimaryTerm());
         innerHitsContext.trackScores(innerHitBuilder.isTrackScores());
         if (innerHitBuilder.getStoredFieldsContext() != null) {
             innerHitsContext.storedFieldsContext(innerHitBuilder.getStoredFieldsContext());
@@ -88,10 +89,10 @@ public abstract class InnerHitContextBuilder {
         if (innerHitBuilder.getScriptFields() != null) {
             for (SearchSourceBuilder.ScriptField field : innerHitBuilder.getScriptFields()) {
                 QueryShardContext innerContext = innerHitsContext.getQueryShardContext();
-                SearchScript.Factory factory = innerContext.getScriptService().compile(field.script(), SearchScript.CONTEXT);
-                SearchScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), innerHitsContext.lookup());
+                FieldScript.Factory factory = innerContext.getScriptService().compile(field.script(), FieldScript.CONTEXT);
+                FieldScript.LeafFactory fieldScript = factory.newFactory(field.script().getParams(), innerHitsContext.lookup());
                 innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
-                    field.fieldName(), searchScript, field.ignoreFailure()));
+                    field.fieldName(), fieldScript, field.ignoreFailure()));
             }
         }
         if (innerHitBuilder.getFetchSourceContext() != null) {

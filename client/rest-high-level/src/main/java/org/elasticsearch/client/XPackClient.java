@@ -20,10 +20,10 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.protocol.xpack.XPackInfoResponse;
-import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.protocol.xpack.XPackUsageResponse;
+import org.elasticsearch.client.xpack.XPackInfoRequest;
+import org.elasticsearch.client.xpack.XPackInfoResponse;
+import org.elasticsearch.client.xpack.XPackUsageRequest;
+import org.elasticsearch.client.xpack.XPackUsageResponse;
 
 import java.io.IOException;
 

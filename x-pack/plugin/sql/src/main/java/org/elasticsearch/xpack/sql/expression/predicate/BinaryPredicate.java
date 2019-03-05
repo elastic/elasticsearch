@@ -6,33 +6,40 @@
 package org.elasticsearch.xpack.sql.expression.predicate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Objects;
 
 /**
  * Binary operator. Operators act as _special_ functions in that they have a symbol
- * instead of a name and do not use parathensis.
+ * instead of a name and do not use parentheses.
  * Further more they are not registered as the rest of the functions as are implicit
  * to the language.
  */
-public abstract class BinaryPredicate extends BinaryScalarFunction {
+public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, U, R>> extends BinaryScalarFunction {
 
-    private final String symbol;
-    private final String name;
+    private final F function;
 
-    protected BinaryPredicate(Location location, Expression left, Expression right, String symbol) {
-        super(location, left, right);
-        this.name = name(left, right, symbol);
-        this.symbol = symbol;
+    protected BinaryPredicate(Source source, Expression left, Expression right, F function) {
+        super(source, left, right);
+        this.function = function;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public R fold() {
+        return function().apply((T) left().fold(), (U) right().fold());
+    }
+
+    @Override
+    protected String scriptMethodName() {
+        return function.scriptMethodName();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(left(), right());
+        return Objects.hash(left(), right(), function.symbol());
     }
 
     @Override
@@ -47,38 +54,18 @@ public abstract class BinaryPredicate extends BinaryScalarFunction {
             return false;
         }
 
-        BinaryPredicate other = (BinaryPredicate) obj;
+        BinaryPredicate<?, ?, ?, ?> other = (BinaryPredicate<?, ?, ?, ?>) obj;
 
-        return Objects.equals(symbol, other.symbol)
+        return Objects.equals(symbol(), other.symbol())
                 && Objects.equals(left(), other.left())
                 && Objects.equals(right(), other.right());
     }
 
-    private static String name(Expression left, Expression right, String symbol) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(Expressions.name(left));
-        if (!(left instanceof Literal)) {
-            sb.insert(0, "(");
-            sb.append(")");
-        }
-        sb.append(" ");
-        sb.append(symbol);
-        sb.append(" ");
-        int pos = sb.length();
-        sb.append(Expressions.name(right));
-        if (!(right instanceof Literal)) {
-            sb.insert(pos, "(");
-            sb.append(")");
-        }
-        return sb.toString();
+    public String symbol() {
+        return function.symbol();
     }
 
-    @Override
-    public String name() {
-        return name;
-    }
-
-    public final String symbol() {
-        return symbol;
+    public F function() {
+        return function;
     }
 }

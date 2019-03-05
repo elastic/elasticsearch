@@ -80,7 +80,6 @@ public class EnableAllocationDecider extends AllocationDecider {
     private volatile Allocation enableAllocation;
 
     public EnableAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         this.enableAllocation = CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.get(settings);
         this.enableRebalance = CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING, this::setEnableAllocation);

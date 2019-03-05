@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.sql.expression.predicate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
@@ -40,11 +42,11 @@ public abstract class Predicates {
     }
 
     public static Expression combineOr(List<Expression> exps) {
-        return combine(exps, (l, r) -> new Or(l.location(), l, r));
+        return combine(exps, (l, r) -> new Or(l.source(), l, r));
     }
 
     public static Expression combineAnd(List<Expression> exps) {
-        return combine(exps, (l, r) -> new And(l.location(), l, r));
+        return combine(exps, (l, r) -> new And(l.source(), l, r));
     }
 
     /**

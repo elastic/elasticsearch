@@ -47,7 +47,9 @@ public class PeriodThrottler implements Throttler {
         if (status.lastSuccessfulExecution() == null) {
             return Result.NO;
         }
-        TimeValue timeElapsed = TimeValue.timeValueMillis(clock.millis() - status.lastSuccessfulExecution().timestamp().getMillis());
+        long now = clock.millis();
+        long executionTime = status.lastSuccessfulExecution().timestamp().toInstant().toEpochMilli();
+        TimeValue timeElapsed = TimeValue.timeValueMillis(now - executionTime);
         if (timeElapsed.getMillis() <= period.getMillis()) {
             return Result.throttle(PERIOD, "throttling interval is set to [{}] but time elapsed since last execution is [{}]",
                     period, timeElapsed);

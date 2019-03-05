@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
@@ -19,11 +19,11 @@ public class InsertFunctionPipe extends Pipe {
 
     private final Pipe source, start, length, replacement;
 
-    public InsertFunctionPipe(Location location, Expression expression, 
-            Pipe source, Pipe start, 
+    public InsertFunctionPipe(Source source, Expression expression,
+            Pipe src, Pipe start,
             Pipe length, Pipe replacement) {
-        super(location, expression, Arrays.asList(source, start, length, replacement));
-        this.source = source;
+        super(source, expression, Arrays.asList(src, start, length, replacement));
+        this.source = src;
         this.start = start;
         this.length = length;
         this.replacement = replacement;
@@ -43,9 +43,9 @@ public class InsertFunctionPipe extends Pipe {
         Pipe newStart = start.resolveAttributes(resolver);
         Pipe newLength = length.resolveAttributes(resolver);
         Pipe newReplacement = replacement.resolveAttributes(resolver);
-        if (newSource == source 
-                && newStart == start 
-                && newLength == length 
+        if (newSource == source
+                && newStart == start
+                && newLength == length
                 && newReplacement == replacement) {
             return this;
         }
@@ -54,8 +54,8 @@ public class InsertFunctionPipe extends Pipe {
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return source.supportedByAggsOnlyQuery() 
-                && start.supportedByAggsOnlyQuery() 
+        return source.supportedByAggsOnlyQuery()
+                && start.supportedByAggsOnlyQuery()
                 && length.supportedByAggsOnlyQuery()
                 && replacement.supportedByAggsOnlyQuery();
     }
@@ -65,11 +65,11 @@ public class InsertFunctionPipe extends Pipe {
         return source.resolved() && start.resolved() && length.resolved() && replacement.resolved();
     }
     
-    protected Pipe replaceChildren(Pipe newSource, 
-            Pipe newStart, 
+    protected Pipe replaceChildren(Pipe newSource,
+            Pipe newStart,
             Pipe newLength,
             Pipe newReplacement) {
-        return new InsertFunctionPipe(location(), expression(), newSource, newStart, newLength, newReplacement);
+        return new InsertFunctionPipe(source(), expression(), newSource, newStart, newLength, newReplacement);
     }
 
     @Override
@@ -90,7 +90,7 @@ public class InsertFunctionPipe extends Pipe {
         return new InsertFunctionProcessor(source.asProcessor(), start.asProcessor(), length.asProcessor(), replacement.asProcessor());
     }
     
-    public Pipe source() {
+    public Pipe src() {
         return source;
     }
     

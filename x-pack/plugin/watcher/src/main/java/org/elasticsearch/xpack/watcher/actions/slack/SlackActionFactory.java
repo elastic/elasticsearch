@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.slack;
 
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
@@ -18,8 +17,8 @@ public class SlackActionFactory extends ActionFactory {
     private final TextTemplateEngine templateEngine;
     private final SlackService slackService;
 
-    public SlackActionFactory(Settings settings, TextTemplateEngine templateEngine, SlackService slackService) {
-        super(Loggers.getLogger(ExecutableSlackAction.class, settings));
+    public SlackActionFactory(TextTemplateEngine templateEngine, SlackService slackService) {
+        super(LogManager.getLogger(ExecutableSlackAction.class));
         this.templateEngine = templateEngine;
         this.slackService = slackService;
     }

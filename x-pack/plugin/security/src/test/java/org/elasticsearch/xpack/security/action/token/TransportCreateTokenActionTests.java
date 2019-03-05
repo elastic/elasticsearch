@@ -148,7 +148,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
         authentication.writeToContext(threadPool.getThreadContext());
 
-        final TransportCreateTokenAction action = new TransportCreateTokenAction(SETTINGS, threadPool,
+        final TransportCreateTokenAction action = new TransportCreateTokenAction(threadPool,
             mock(TransportService.class), new ActionFilters(Collections.emptySet()), tokenService,
             authenticationService);
         final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
@@ -172,7 +172,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
         authentication.writeToContext(threadPool.getThreadContext());
 
-        final TransportCreateTokenAction action = new TransportCreateTokenAction(SETTINGS, threadPool,
+        final TransportCreateTokenAction action = new TransportCreateTokenAction(threadPool,
             mock(TransportService.class), new ActionFilters(Collections.emptySet()), tokenService,
             authenticationService);
         final CreateTokenRequest createTokenRequest = new CreateTokenRequest();

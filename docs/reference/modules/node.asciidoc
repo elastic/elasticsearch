@@ -19,7 +19,7 @@ purpose:
 <<master-node,Master-eligible node>>::
 
 A node that has `node.master` set to `true` (default), which makes it eligible
-to be <<modules-discovery-zen,elected as the _master_ node>>, which controls
+to be <<modules-discovery,elected as the _master_ node>>, which controls
 the cluster.
 
 <<data-node,Data node>>::
@@ -69,7 +69,7 @@ and deciding which shards to allocate to which nodes. It is important for
 cluster health to have a stable master node.
 
 Any master-eligible node (all nodes by default) may be elected to become the
-master node by the <<modules-discovery-zen,master election process>>.
+master node by the <<modules-discovery,master election process>>.
 
 IMPORTANT: Master nodes must have access to the `data/` directory (just like
 `data` nodes) as this is where the cluster state is persisted between node restarts.
@@ -104,74 +104,6 @@ ifdef::include-xpack[]
 NOTE: These settings apply only when {xpack} is not installed. To create a
 dedicated master-eligible node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
 endif::include-xpack[]
-
-
-[float]
-[[split-brain]]
-==== Avoiding split brain with `minimum_master_nodes`
-
-To prevent data loss, it is vital to configure the
-`discovery.zen.minimum_master_nodes` setting (which defaults to `1`) so that
-each master-eligible node knows the _minimum number of master-eligible nodes_
-that must be visible in order to form a cluster.
-
-To explain, imagine that you have a cluster consisting of two master-eligible
-nodes. A network failure breaks communication between these two nodes.  Each
-node sees one master-eligible node... itself. With `minimum_master_nodes` set
-to the default of `1`,  this is sufficient to form a cluster. Each node elects
-itself as the new master (thinking that the other master-eligible node has
-died) and the result is two clusters, or a _split brain_.  These two nodes
-will never rejoin until one node is restarted.  Any data that has been written
-to the restarted node will be lost.
-
-Now imagine that you have a cluster with three master-eligible nodes, and
-`minimum_master_nodes` set to `2`.  If a network split separates one node from
-the other two nodes, the side with one node cannot see enough master-eligible
-nodes and will realise that it cannot elect itself as master.  The side with
-two nodes will elect a new master (if needed) and continue functioning
-correctly.  As soon as the network split is resolved, the single node will
-rejoin the cluster and start serving requests again.
-
-This setting should be set to a _quorum_ of master-eligible nodes:
-
-  (master_eligible_nodes / 2) + 1
-
-In other words, if there are three master-eligible nodes, then minimum master
-nodes should be set to `(3 / 2) + 1` or `2`:
-
-[source,yaml]
-----------------------------
-discovery.zen.minimum_master_nodes: 2 <1>
-----------------------------
-<1> Defaults to `1`.
-
-To be able to remain available when one of the master-eligible nodes fails,
-clusters should have at least three master-eligible nodes, with
-`minimum_master_nodes` set accordingly. A <<rolling-upgrades,rolling upgrade>>,
-performed without any downtime, also requires at least three master-eligible
-nodes to avoid the possibility of data loss if a network split occurs while the
-upgrade is in progress.
-
-This setting can also be changed dynamically on a live cluster with the
-<<cluster-update-settings,cluster update settings API>>:
-
-[source,js]
-----------------------------
-PUT _cluster/settings
-{
-  "transient": {
-    "discovery.zen.minimum_master_nodes": 2
-  }
-}
-----------------------------
-// CONSOLE
-// TEST[catch:/cannot set discovery.zen.minimum_master_nodes to more than the current master nodes/]
-
-TIP: An advantage of splitting the master and data roles between dedicated
-nodes is that you can have just three master-eligible nodes and set
-`minimum_master_nodes` to `2`. You never have to change this setting, no
-matter how many dedicated data nodes you add to the cluster.
-
 
 [float]
 [[data-node]]

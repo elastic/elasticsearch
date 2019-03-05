@@ -47,7 +47,7 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
             Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
 
         PutStoredScriptRequest request =
-            new PutStoredScriptRequest(id, "search", new BytesArray("{}"), XContentType.JSON, scriptSource);
+            new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
 
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest("calculate-score");
@@ -66,7 +66,7 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
                 Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
 
         PutStoredScriptRequest request =
-            new PutStoredScriptRequest(id, "search", new BytesArray("{}"), XContentType.JSON, scriptSource);
+            new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
 
         DeleteStoredScriptRequest deleteRequest = new DeleteStoredScriptRequest(id);
@@ -89,7 +89,7 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
                 Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
 
         PutStoredScriptRequest request =
-            new PutStoredScriptRequest(id, "search", new BytesArray("{}"), XContentType.JSON, scriptSource);
+            new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
 
         Map<String, Object> script = getAsMap("/_scripts/" + id);

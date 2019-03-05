@@ -97,6 +97,14 @@ public class JodaCompatibleZonedDateTimeTests extends ESTestCase {
         assertDeprecation(assertions, "Use of the joda time method [" + oldMethod + "] is deprecated. Use [" + newMethod + "] instead.");
     }
 
+    public void testEquals() {
+        assertThat(javaTime, equalTo(javaTime));
+    }
+
+    public void testToString() {
+        assertThat(javaTime.toString(), equalTo(jodaTime.toString()));
+    }
+
     public void testDayOfMonth() {
         assertThat(javaTime.getDayOfMonth(), equalTo(jodaTime.getDayOfMonth()));
     }
@@ -142,6 +150,10 @@ public class JodaCompatibleZonedDateTimeTests extends ESTestCase {
 
     public void testYear() {
         assertThat(javaTime.getYear(), equalTo(jodaTime.getYear()));
+    }
+
+    public void testZone() {
+        assertThat(javaTime.getZone().getId(), equalTo(jodaTime.getZone().getID()));
     }
 
     public void testMillis() {
@@ -236,5 +248,34 @@ public class JodaCompatibleZonedDateTimeTests extends ESTestCase {
 
     public void testDayOfWeekEnum() {
         assertThat(javaTime.getDayOfWeekEnum(), equalTo(DayOfWeek.of(jodaTime.getDayOfWeek())));
+    }
+
+    public void testToStringWithLocaleAndZeroOffset() {
+        JodaCompatibleZonedDateTime dt = new JodaCompatibleZonedDateTime(Instant.EPOCH, ZoneOffset.ofTotalSeconds(0));
+        assertMethodDeprecation(() -> dt.toString("yyyy-MM-dd hh:mm", Locale.ROOT), "toString(String,Locale)", "a DateTimeFormatter");
+    }
+
+    public void testToStringAndZeroOffset() {
+        JodaCompatibleZonedDateTime dt = new JodaCompatibleZonedDateTime(Instant.EPOCH, ZoneOffset.ofTotalSeconds(0));
+        assertMethodDeprecation(() -> dt.toString("yyyy-MM-dd hh:mm"), "toString(String)", "a DateTimeFormatter");
+    }
+
+    public void testIsEqual() {
+        assertTrue(javaTime.isEqual(javaTime));
+    }
+
+    public void testIsAfter() {
+        long millis = randomLongBetween(0, Integer.MAX_VALUE / 2);
+        JodaCompatibleZonedDateTime beforeTime = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), ZoneOffset.ofHours(-7));
+        millis = randomLongBetween(millis + 1, Integer.MAX_VALUE);
+        JodaCompatibleZonedDateTime afterTime = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), ZoneOffset.ofHours(-7));
+        assertTrue(afterTime.isAfter(beforeTime));
+    }
+    public void testIsBefore() {
+        long millis = randomLongBetween(0, Integer.MAX_VALUE / 2);
+        JodaCompatibleZonedDateTime beforeTime = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), ZoneOffset.ofHours(-7));
+        millis = randomLongBetween(millis + 1, Integer.MAX_VALUE);
+        JodaCompatibleZonedDateTime afterTime = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), ZoneOffset.ofHours(-7));
+        assertTrue(beforeTime.isBefore(afterTime));
     }
 }

@@ -21,20 +21,18 @@ The following snippet shows a simple jira action definition:
     "jira" : {
       "account" : "integration-account", <1>
       "fields" : {
-        "issue" : {
           "project" : {
             "key": "PROJ" <2>
           },
           "issuetype" : {
             "name": "Bug" <3>
           },
-          "summary" : "Encountered {{ctx.payload.hits.total}} errors in the last 5 minutes", <4>
-          "description" : "Encountered {{ctx.payload.hits.total}} errors in the last 5 minutes (facepalm)", <5>
+          "summary" : "Encountered {{ctx.payload.hits.total.value}} errors in the last 5 minutes", <4>
+          "description" : "Encountered {{ctx.payload.hits.total.value}} errors in the last 5 minutes (facepalm)", <5>
           "labels" : ["auto"], <6>
           "priority" : {
             "name" : "High" <7>
           }
-        }
       }
     }
   }

@@ -521,7 +521,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             deleteAllPolicies();
         }
 
-        assert inProgressSnapshots.isEmpty() : "Found in progress snapshots [" + inProgressSnapshots +"].";
+        assertTrue("Found in progress snapshots [" + inProgressSnapshots + "].", inProgressSnapshots.isEmpty());
     }
 
     /**

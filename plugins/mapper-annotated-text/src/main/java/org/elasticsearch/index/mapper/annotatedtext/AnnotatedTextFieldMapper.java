@@ -318,8 +318,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     // When asked to tokenize plain-text versions by the highlighter it tokenizes the
     // original markup form in order to inject annotations.
     public static final class AnnotatedHighlighterAnalyzer extends AnalyzerWrapper {
-        private Analyzer delegate;
-        private HitContext hitContext;
+        private final Analyzer delegate;
+        private final HitContext hitContext;
         public AnnotatedHighlighterAnalyzer(Analyzer delegate, HitContext hitContext){
             super(delegate.getReuseStrategy());
             this.delegate = delegate;

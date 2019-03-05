@@ -298,14 +298,14 @@ public class WatcherService {
                 .source(new SearchSourceBuilder()
                     .size(scrollSize)
                     .sort(SortBuilders.fieldSort("_doc"))
-                    .version(true));
+                    .seqNoAndPrimaryTerm(true));
             response = client.search(searchRequest).actionGet(defaultSearchTimeout);
 
             if (response.getTotalShards() != response.getSuccessfulShards()) {
                 throw new ElasticsearchException("Partial response while loading watches");
             }
 
-            if (response.getHits().getTotalHits() == 0) {
+            if (response.getHits().getTotalHits().value == 0) {
                 return Collections.emptyList();
             }
 
@@ -341,8 +341,7 @@ public class WatcherService {
                     }
 
                     try {
-                        Watch watch = parser.parse(id, true, hit.getSourceRef(), XContentType.JSON);
-                        watch.version(hit.getVersion());
+                        Watch watch = parser.parse(id, true, hit.getSourceRef(), XContentType.JSON, hit.getSeqNo(), hit.getPrimaryTerm());
                         if (watch.status().state().isActive()) {
                             watches.add(watch);
                         }

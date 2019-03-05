@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.plugin.noop.action.search;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -47,10 +48,10 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         listener.onResponse(new SearchResponse(new InternalSearchResponse(
             new SearchHits(
-                new SearchHit[0], 0L, 0.0f),
+                new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
             new InternalAggregations(Collections.emptyList()),
             new Suggest(Collections.emptyList()),
-            new SearchProfileShardResults(Collections.emptyMap()), false, false, 1), "", 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY));
+            new SearchProfileShardResults(Collections.emptyMap()), false, false, 1),
+            "", 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY));
     }
 }

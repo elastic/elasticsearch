@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-get-job]]
-=== Get Rollup Jobs API
+=== Get rollup jobs API
 ++++
-<titleabbrev>Get Job</titleabbrev>
+<titleabbrev>Get job</titleabbrev>
 ++++
 
 experimental[]

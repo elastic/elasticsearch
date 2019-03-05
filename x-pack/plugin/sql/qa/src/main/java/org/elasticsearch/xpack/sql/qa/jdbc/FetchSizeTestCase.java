@@ -30,16 +30,12 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("mappings");
         {
-            createIndex.startObject("doc");
+            createIndex.startObject("properties");
             {
+                createIndex.startObject("nested").field("type", "nested");
                 createIndex.startObject("properties");
-                {
-                    createIndex.startObject("nested").field("type", "nested");
-                    createIndex.startObject("properties");
-                    createIndex.startObject("inner_field").field("type", "integer").endObject();
-                    createIndex.endObject();
-                    createIndex.endObject();
-                }
+                createIndex.startObject("inner_field").field("type", "integer").endObject();
+                createIndex.endObject();
                 createIndex.endObject();
             }
             createIndex.endObject();
@@ -48,7 +44,7 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
         request.setJsonEntity(Strings.toString(createIndex));
         client().performRequest(request);
         
-        request = new Request("PUT", "/test/doc/_bulk");
+        request = new Request("PUT", "/test/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         StringBuilder bulkLine;

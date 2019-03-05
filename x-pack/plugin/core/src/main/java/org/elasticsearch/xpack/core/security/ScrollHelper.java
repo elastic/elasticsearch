@@ -67,12 +67,12 @@ public final class ScrollHelper {
                             }
                         }
 
-                        if (results.size() > resp.getHits().getTotalHits()) {
+                        if (results.size() > resp.getHits().getTotalHits().value) {
                             clearScroll.accept(lastResponse);
                             listener.onFailure(new IllegalStateException("scrolling returned more hits [" + results.size()
-                                    + "] than expected [" + resp.getHits().getTotalHits() + "] so bailing out to prevent unbounded "
+                                    + "] than expected [" + resp.getHits().getTotalHits().value + "] so bailing out to prevent unbounded "
                                     + "memory consumption."));
-                        } else if (results.size() == resp.getHits().getTotalHits()) {
+                        } else if (results.size() == resp.getHits().getTotalHits().value) {
                             clearScroll.accept(resp);
                             // Finally, return the list of the entity
                             listener.onResponse(Collections.unmodifiableList(results));

@@ -28,7 +28,7 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
     private RequestInfo requestInfo;
 
     protected AbstractSqlRequest() {
-
+        this.requestInfo = new RequestInfo(Mode.PLAIN);
     }
 
     protected AbstractSqlRequest(RequestInfo requestInfo) {

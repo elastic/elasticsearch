@@ -20,22 +20,17 @@
 package org.elasticsearch.client.security.user.privileges;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -47,104 +42,46 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * This also encapsulates field and document level security privileges. These
  * allow to control what fields or documents are readable or queryable.
  */
-public final class IndicesPrivileges implements ToXContentObject {
-
-    public static final ParseField NAMES = new ParseField("names");
-    public static final ParseField PRIVILEGES = new ParseField("privileges");
-    public static final ParseField FIELD_PERMISSIONS = new ParseField("field_security");
-    public static final ParseField GRANT_FIELDS = new ParseField("grant");
-    public static final ParseField EXCEPT_FIELDS = new ParseField("except");
-    public static final ParseField QUERY = new ParseField("query");
+public final class IndicesPrivileges extends AbstractIndicesPrivileges implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<IndicesPrivileges, Void> PARSER =
         new ConstructingObjectParser<>("indices_privileges", false, constructorObjects -> {
-                int i = 0;
-                final Collection<String> indices = (Collection<String>) constructorObjects[i++];
-                final Collection<String> privileges = (Collection<String>) constructorObjects[i++];
-                final Tuple<Collection<String>, Collection<String>> fields =
-                        (Tuple<Collection<String>, Collection<String>>) constructorObjects[i++];
-                final Collection<String> grantFields = fields != null ? fields.v1() : null;
-                final Collection<String> exceptFields = fields != null ? fields.v2() : null;
-                final String query = (String) constructorObjects[i];
-                return new IndicesPrivileges(indices, privileges, grantFields, exceptFields, query);
-            });
+            int i = 0;
+            final Collection<String> indices = (Collection<String>) constructorObjects[i++];
+            final Collection<String> privileges = (Collection<String>) constructorObjects[i++];
+            final boolean allowRestrictedIndices = (Boolean) constructorObjects[i++];
+            final FieldSecurity fields = (FieldSecurity) constructorObjects[i++];
+            final String query = (String) constructorObjects[i];
+            return new IndicesPrivileges(indices, privileges, allowRestrictedIndices, fields, query);
+        });
 
     static {
-        @SuppressWarnings("unchecked")
-        final ConstructingObjectParser<Tuple<Collection<String>, Collection<String>>, Void> fls_parser =
-                new ConstructingObjectParser<>( "field_level_parser", false, constructorObjects -> {
-                        int i = 0;
-                        final Collection<String> grantFields = (Collection<String>) constructorObjects[i++];
-                        final Collection<String> exceptFields = (Collection<String>) constructorObjects[i];
-                        return new Tuple<>(grantFields, exceptFields);
-                    });
-        fls_parser.declareStringArray(optionalConstructorArg(), GRANT_FIELDS);
-        fls_parser.declareStringArray(optionalConstructorArg(), EXCEPT_FIELDS);
-
         PARSER.declareStringArray(constructorArg(), NAMES);
         PARSER.declareStringArray(constructorArg(), PRIVILEGES);
-        PARSER.declareObject(optionalConstructorArg(), fls_parser, FIELD_PERMISSIONS);
+        PARSER.declareBoolean(constructorArg(), ALLOW_RESTRICTED_INDICES);
+        PARSER.declareObject(optionalConstructorArg(), FieldSecurity::parse, FIELD_PERMISSIONS);
         PARSER.declareStringOrNull(optionalConstructorArg(), QUERY);
     }
 
-    private final Set<String> indices;
-    private final Set<String> privileges;
-    // null or singleton '*' means all fields are granted, empty means no fields are granted
-    private final @Nullable Set<String> grantedFields;
-    // null or empty means no fields are denied
-    private final @Nullable Set<String> deniedFields;
+    private final FieldSecurity fieldSecurity;
     // missing query means all documents, i.e. no restrictions
     private final @Nullable String query;
 
-    private IndicesPrivileges(Collection<String> indices, Collection<String> privileges, @Nullable Collection<String> grantedFields,
-            @Nullable Collection<String> deniedFields, @Nullable String query) {
-        if (null == indices || indices.isEmpty()) {
-            throw new IllegalArgumentException("indices privileges must refer to at least one index name or index name pattern");
-        }
-        if (null == privileges || privileges.isEmpty()) {
-            throw new IllegalArgumentException("indices privileges must define at least one privilege");
-        }
-        this.indices = Collections.unmodifiableSet(new HashSet<>(indices));
-        this.privileges = Collections.unmodifiableSet(new HashSet<>(privileges));
-        // unspecified granted fields means no restriction
-        this.grantedFields = grantedFields == null ? null : Collections.unmodifiableSet(new HashSet<>(grantedFields));
-        // unspecified denied fields means no restriction
-        this.deniedFields = deniedFields == null ? null : Collections.unmodifiableSet(new HashSet<>(deniedFields));
+    private IndicesPrivileges(Collection<String> indices, Collection<String> privileges, boolean allowRestrictedIndices,
+                              @Nullable FieldSecurity fieldSecurity, @Nullable String query) {
+        super(indices, privileges, allowRestrictedIndices);
+        this.fieldSecurity = fieldSecurity;
         this.query = query;
     }
 
     /**
-     * The indices names covered by the privileges.
+     * The combination of the {@link FieldSecurity#getGrantedFields() granted} and
+     * {@link FieldSecurity#getDeniedFields() denied} document fields.
+     * May be null, in which case no field level security is applicable, and all the document's fields are granted access to.
      */
-    public Set<String> getIndices() {
-        return this.indices;
-    }
-
-    /**
-     * The privileges acting over indices. There is a canonical predefined set of
-     * such privileges, but the {@code String} datatype allows for flexibility in defining
-     * finer grained privileges.
-     */
-    public Set<String> getPrivileges() {
-        return this.privileges;
-    }
-
-    /**
-     * The document fields that can be read or queried. Can be null, in this case
-     * all the document's fields are granted access to. Can also be empty, in which
-     * case no fields are granted access to.
-     */
-    public @Nullable Set<String> getGrantedFields() {
-        return this.grantedFields;
-    }
-
-    /**
-     * The document fields that cannot be accessed or queried. Can be null or empty,
-     * in which case no fields are denied.
-     */
-    public @Nullable Set<String> getDeniedFields() {
-        return this.deniedFields;
+    public FieldSecurity getFieldSecurity() {
+        return fieldSecurity;
     }
 
     /**
@@ -159,6 +96,7 @@ public final class IndicesPrivileges implements ToXContentObject {
      * If {@code true} some documents might not be visible. Only the documents
      * matching {@code query} will be readable.
      */
+    @Override
     public boolean isUsingDocumentLevelSecurity() {
         return query != null;
     }
@@ -166,20 +104,9 @@ public final class IndicesPrivileges implements ToXContentObject {
     /**
      * If {@code true} some document fields might not be visible.
      */
+    @Override
     public boolean isUsingFieldLevelSecurity() {
-        return limitsGrantedFields() || hasDeniedFields();
-    }
-
-    private boolean hasDeniedFields() {
-        return deniedFields != null && false == deniedFields.isEmpty();
-    }
-
-    private boolean limitsGrantedFields() {
-        // we treat just '*' as no FLS since that's what the UI defaults to
-        if (grantedFields == null || (grantedFields.size() == 1 && grantedFields.iterator().next().equals("*"))) {
-            return false;
-        }
-        return true;
+        return fieldSecurity != null && fieldSecurity.isUsingFieldLevelSecurity();
     }
 
     @Override
@@ -192,15 +119,15 @@ public final class IndicesPrivileges implements ToXContentObject {
         }
         IndicesPrivileges that = (IndicesPrivileges) o;
         return indices.equals(that.indices)
-                && privileges.equals(that.privileges)
-                && Objects.equals(grantedFields, that.grantedFields)
-                && Objects.equals(deniedFields, that.deniedFields)
-                && Objects.equals(query, that.query);
+            && privileges.equals(that.privileges)
+            && allowRestrictedIndices == that.allowRestrictedIndices
+            && Objects.equals(this.fieldSecurity, that.fieldSecurity)
+            && Objects.equals(query, that.query);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indices, privileges, grantedFields, deniedFields, query);
+        return Objects.hash(indices, privileges, allowRestrictedIndices, fieldSecurity, query);
     }
 
     @Override
@@ -217,15 +144,9 @@ public final class IndicesPrivileges implements ToXContentObject {
         builder.startObject();
         builder.field(NAMES.getPreferredName(), indices);
         builder.field(PRIVILEGES.getPreferredName(), privileges);
-        if (isUsingFieldLevelSecurity()) {
-            builder.startObject(FIELD_PERMISSIONS.getPreferredName());
-            if (grantedFields != null) {
-                builder.field(GRANT_FIELDS.getPreferredName(), grantedFields);
-            }
-            if (hasDeniedFields()) {
-                builder.field(EXCEPT_FIELDS.getPreferredName(), deniedFields);
-            }
-            builder.endObject();
+        builder.field(ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
+        if (fieldSecurity != null) {
+            builder.field(FIELD_PERMISSIONS.getPreferredName(), fieldSecurity, params);
         }
         if (isUsingDocumentLevelSecurity()) {
             builder.field("query", query);
@@ -243,11 +164,17 @@ public final class IndicesPrivileges implements ToXContentObject {
 
     public static final class Builder {
 
-        private @Nullable Collection<String> indices = null;
-        private @Nullable Collection<String> privileges = null;
-        private @Nullable Collection<String> grantedFields = null;
-        private @Nullable Collection<String> deniedFields = null;
-        private @Nullable String query = null;
+        private @Nullable
+        Collection<String> indices = null;
+        private @Nullable
+        Collection<String> privileges = null;
+        private @Nullable
+        Collection<String> grantedFields = null;
+        private @Nullable
+        Collection<String> deniedFields = null;
+        private @Nullable
+        String query = null;
+        boolean allowRestrictedIndices = false;
 
         public Builder() {
         }
@@ -255,7 +182,7 @@ public final class IndicesPrivileges implements ToXContentObject {
         public Builder indices(String... indices) {
             return indices(Arrays.asList(Objects.requireNonNull(indices, "indices required")));
         }
-        
+
         public Builder indices(Collection<String> indices) {
             this.indices = Objects.requireNonNull(indices, "indices required");
             return this;
@@ -301,8 +228,19 @@ public final class IndicesPrivileges implements ToXContentObject {
             return this;
         }
 
+        public Builder allowRestrictedIndices(boolean allow) {
+            this.allowRestrictedIndices = allow;
+            return this;
+        }
+
         public IndicesPrivileges build() {
-            return new IndicesPrivileges(indices, privileges, grantedFields, deniedFields, query);
+            final FieldSecurity fieldSecurity;
+            if (grantedFields == null && deniedFields == null) {
+                fieldSecurity = null;
+            } else {
+                fieldSecurity = new FieldSecurity(grantedFields, deniedFields);
+            }
+            return new IndicesPrivileges(indices, privileges, allowRestrictedIndices, fieldSecurity, query);
         }
     }
 

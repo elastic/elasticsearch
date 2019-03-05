@@ -65,7 +65,6 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         return this;
     }
 
-
     /**
      * Returns the amount of search requests specified in this multi search requests are allowed to be ran concurrently.
      */

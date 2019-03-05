@@ -291,7 +291,6 @@ public class TasksIT extends ESIntegTestCase {
         }
     }
 
-
     public void testTransportBulkTasks() {
         registerTaskManageListeners(BulkAction.NAME);  // main task
         registerTaskManageListeners(BulkAction.NAME + "[s]");  // shard task
@@ -299,6 +298,8 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManageListeners(BulkAction.NAME + "[s][r]");  // shard task on replica
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
+        // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
+        client().admin().indices().preparePutMapping("test").setType("doc").setSource("foo", "type=keyword").get();
         client().prepareBulk().add(client().prepareIndex("test", "doc", "test_id")
             .setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 
@@ -757,13 +758,13 @@ public class TasksIT extends ESIntegTestCase {
             .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.getAction())))
             .get();
 
-        assertEquals(1L, searchResponse.getHits().getTotalHits());
+        assertEquals(1L, searchResponse.getHits().getTotalHits().value);
 
         searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX).setTypes(TaskResultsService.TASK_TYPE)
                 .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.node", taskInfo.getTaskId().getNodeId())))
                 .get();
 
-        assertEquals(1L, searchResponse.getHits().getTotalHits());
+        assertEquals(1L, searchResponse.getHits().getTotalHits().value);
 
         GetTaskResponse getResponse = expectFinishedTask(taskId);
         assertEquals(result, getResponse.getTask().getResponseAsMap());

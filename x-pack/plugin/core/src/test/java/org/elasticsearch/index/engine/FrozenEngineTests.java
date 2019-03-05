@@ -7,6 +7,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TopDocs;
@@ -116,16 +117,18 @@ public class FrozenEngineTests extends EngineTestCase {
                 listener.reset();
                 try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
                     Engine.Searcher searcher = frozenEngine.acquireSearcher("test");
-                    SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean());
+                    SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                     assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
                     FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).release();
                     assertEquals(1, listener.afterRefresh.get());
-                    segmentsStats = frozenEngine.segmentsStats(randomBoolean());
+                    segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                     assertEquals(0, segmentsStats.getCount());
+                    segmentsStats = frozenEngine.segmentsStats(randomBoolean(), true);
+                    assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
                     assertEquals(1, listener.afterRefresh.get());
                     assertFalse(frozenEngine.isReaderOpen());
                     FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).reset();
-                    segmentsStats = frozenEngine.segmentsStats(randomBoolean());
+                    segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                     assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
                     searcher.close();
                 }
@@ -138,16 +141,17 @@ public class FrozenEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             CountingRefreshListener listener = new CountingRefreshListener();
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, listener, null,
-                globalCheckpoint::get, new HierarchyCircuitBreakerService(defaultSettings.getSettings(),
+            EngineConfig config = config(defaultSettings, store, createTempDir(),
+                NoMergePolicy.INSTANCE, // we don't merge we want no background merges to happen to ensure we have consistent breaker stats
+                null, listener, null, globalCheckpoint::get, new HierarchyCircuitBreakerService(defaultSettings.getSettings(),
                     new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
             CircuitBreaker breaker = config.getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING);
             long expectedUse;
             try (InternalEngine engine = createEngine(config)) {
                 addDocuments(globalCheckpoint, engine);
-                engine.refresh("test"); // pull the reader
+                engine.flush(false, true); // first flush to make sure we have a commit that we open in the frozen engine blow.
+                engine.refresh("test"); // pull the reader to account for RAM in the breaker.
                 expectedUse = breaker.getUsed();
-                engine.flushAndClose();
             }
             assertTrue(expectedUse > 0);
             assertEquals(0, breaker.getUsed());
@@ -174,7 +178,7 @@ public class FrozenEngineTests extends EngineTestCase {
             numDocsAdded++;
             ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
             engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
-                System.nanoTime(), -1, false));
+                System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
             if (rarely()) {
                 engine.flush();
             }

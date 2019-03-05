@@ -7,66 +7,47 @@ package org.elasticsearch.xpack.sql.expression.predicate.regex;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.gen.processor.BinaryProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.predicate.PredicateBiFunction;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
-public class RegexProcessor extends BinaryProcessor {
+public class RegexProcessor implements Processor {
     
-    public static class RegexOperation implements PredicateBiFunction<String, String, Boolean> {
+    public static class RegexOperation {
 
-        public static final RegexOperation INSTANCE = new RegexOperation();
+        public static Boolean match(Object value, Pattern pattern) {
+            if (pattern == null) {
+                return Boolean.TRUE;
+            }
 
-        @Override
-        public String name() {
-            return symbol();
-        }
-
-        @Override
-        public String symbol() {
-            return "REGEX";
-        }
-
-        @Override
-        public Boolean doApply(String value, String pattern) {
-            return match(value, pattern);
-        }
-
-        public static Boolean match(Object value, Object pattern) {
-            if (value == null || pattern == null) {
+            if (value == null) {
                 return null;
             }
 
-            Pattern p = Pattern.compile(pattern.toString());
-            return p.matcher(value.toString()).matches();
+            return pattern.matcher(value.toString()).matches();
+        }
+
+        public static Boolean match(Object value, String pattern) {
+            if (pattern == null) {
+                return Boolean.TRUE;
+            }
+
+            if (value == null) {
+                return null;
+            }
+
+            return Pattern.compile(pattern).matcher(value.toString()).matches();
         }
     }
 
     public static final String NAME = "rgx";
 
-    public RegexProcessor(Processor value, Processor pattern) {
-        super(value, pattern);
-    }
+    private Pattern pattern;
 
-    public RegexProcessor(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    @Override
-    protected Boolean doProcess(Object value, Object pattern) {
-        return RegexOperation.match(value, pattern);
-    }
-
-    @Override
-    protected void checkParameter(Object param) {
-        if (!(param instanceof String || param instanceof Character)) {
-            throw new SqlIllegalArgumentException("A string/char is required; received [{}]", param);
-        }
+    public RegexProcessor(String pattern) {
+        this.pattern = pattern != null ? Pattern.compile(pattern) : null;
     }
 
     @Override
@@ -74,12 +55,23 @@ public class RegexProcessor extends BinaryProcessor {
         return NAME;
     }
 
+    public RegexProcessor(StreamInput in) throws IOException {
+        this(in.readOptionalString());
+    }
+
     @Override
-    protected void doWrite(StreamOutput out) throws IOException {}
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(pattern != null ? pattern.toString() : null);
+    }
+
+    @Override
+    public Object process(Object input) {
+        return RegexOperation.match(input, pattern);
+    }
 
     @Override
     public int hashCode() {
-        return Objects.hash(left(), right());
+        return Objects.hash(pattern);
     }
 
     @Override
@@ -93,6 +85,6 @@ public class RegexProcessor extends BinaryProcessor {
         }
 
         RegexProcessor other = (RegexProcessor) obj;
-        return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
+        return Objects.equals(pattern, other.pattern);
     }
 }

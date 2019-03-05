@@ -29,7 +29,7 @@ The following is a list of the events that can be generated:
 | `run_as_denied`                   | | | Logged when an authenticated user attempts to <<run-as-privilege, run as>>
                                           another user action they do not have the necessary
                                           <<security-reference, privilege>> to do so.
-| `tampered_request`                | | | Logged when {security} detects that the request has
+| `tampered_request`                | | | Logged when the {security-features} detect that the request has
                                           been tampered with. Typically relates to `search/scroll`
                                           requests when the scroll ID is believed to have been
                                           tampered with.
@@ -48,7 +48,7 @@ The following is a list of the events that can be generated:
 In 6.5.0, there is a new <<audit-log-output, `logfile` audit output>> format.
 This format also brings in a few changes for audit event attributes.
 
-The new format is output to the `<clustername>_audit.log` file.
+The new format is output to the `<clustername>_audit.json` file.
 The audit entries are formatted as flat JSON documents (that is to say, no
 nested objects), one per line. Hence, the attribute names are JSON keys and they
 follow a dotted name syntax. Any attributes that lack a value (`null`) are not
@@ -94,6 +94,16 @@ descriptions for the format that you are using.
                         the request associated with this event. This header can
                         be used freely by the client to mark API calls, as it has
                         no semantics in Elasticsearch.
+`x_forwarded_for` ::    The verbatim value of the `X-Forwarded-For` HTTP request
+                        header (if present) of the request associated with the
+                        audit event. This header is commonly added by proxies
+                        when they forward requests and the value is the address
+                        of the proxied client. When a request crosses multiple
+                        proxies the header is a comma delimited list with the
+                        last value being the address of the second to last
+                        proxy server (the address of the last proxy server is
+                        designated by the `origin.address` field).
+
 
 ==== Audit event attributes of the REST event type
 
@@ -108,6 +118,9 @@ common ones):
                         This is URL encoded.
 `url.query`       ::    The query part of the URL (after "?", if present) of the
                         REST request associated with this event. This is URL encoded.
+`request.method`  ::    The HTTP method of the REST request associated with this
+                        event. It is one of GET, POST, PUT, DELETE, OPTIONS,
+                        HEAD, PATCH, TRACE and CONNECT.
 `request.body`    ::    The full content of the REST request associated with this
                         event, if enabled. This contains the query body. The body
                         is escaped according to the JSON RFC 4627.
@@ -197,8 +210,7 @@ that have been previously described:
 === Audit event attributes for the deprecated formats
 
 The following table shows the common attributes that can be associated with
-every event, when it is output to the `<clustername>_access.log` file or to the
-<<audit-index, index>>.
+every event, when it is output to the `<clustername>_access.log` file.
 
 .Common attributes
 [cols="2,7",options="header"]
@@ -216,10 +228,8 @@ every event, when it is output to the `<clustername>_access.log` file or to the
                         `run_as_denied`, `run_as_granted`.
 |======
 
-For an event in the <<audit-log-output,audit log file output>>, these are
-positional attributes, which are printed at the beginning of each log line and
-are not adjoined by the attribute name. As a matter of course, the names are
-present for each attribute when the event is forwarded to the <<audit-index, index audit output>>.
+These are positional attributes, which are printed at the beginning of each log line and
+are not adjoined by the attribute name.
 
 The attribute `origin_address` is also common to every audit event. It is always
 named, that is, it is not positional. It denotes the source IP address of the

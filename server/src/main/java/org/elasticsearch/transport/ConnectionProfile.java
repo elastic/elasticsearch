@@ -73,16 +73,16 @@ public final class ConnectionProfile {
      * @return the connection profile
      */
     public static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
-        int connectionsPerNodeRecovery = TransportService.CONNECTIONS_PER_NODE_RECOVERY.get(settings);
-        int connectionsPerNodeBulk = TransportService.CONNECTIONS_PER_NODE_BULK.get(settings);
-        int connectionsPerNodeReg = TransportService.CONNECTIONS_PER_NODE_REG.get(settings);
-        int connectionsPerNodeState = TransportService.CONNECTIONS_PER_NODE_STATE.get(settings);
-        int connectionsPerNodePing = TransportService.CONNECTIONS_PER_NODE_PING.get(settings);
+        int connectionsPerNodeRecovery = TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.get(settings);
+        int connectionsPerNodeBulk = TransportSettings.CONNECTIONS_PER_NODE_BULK.get(settings);
+        int connectionsPerNodeReg = TransportSettings.CONNECTIONS_PER_NODE_REG.get(settings);
+        int connectionsPerNodeState = TransportSettings.CONNECTIONS_PER_NODE_STATE.get(settings);
+        int connectionsPerNodePing = TransportSettings.CONNECTIONS_PER_NODE_PING.get(settings);
         Builder builder = new Builder();
-        builder.setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
-        builder.setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
-        builder.setPingInterval(TcpTransport.PING_SCHEDULE.get(settings));
-        builder.setCompressionEnabled(Transport.TRANSPORT_TCP_COMPRESS.get(settings));
+        builder.setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings));
+        builder.setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings));
+        builder.setPingInterval(TransportSettings.PING_SCHEDULE.get(settings));
+        builder.setCompressionEnabled(TransportSettings.TRANSPORT_COMPRESS.get(settings));
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
         // if we are not master eligible we don't need a dedicated channel to publish the state
@@ -99,23 +99,6 @@ public final class ConnectionProfile {
      */
     public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType) {
         return buildSingleChannelProfile(channelType, null, null, null, null);
-    }
-
-    /**
-     * Builds a connection profile that is dedicated to a single channel type. Allows passing compression
-     * settings.
-     */
-    public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, boolean compressionEnabled) {
-        return buildSingleChannelProfile(channelType, null, null, null, compressionEnabled);
-    }
-
-    /**
-     * Builds a connection profile that is dedicated to a single channel type. Allows passing connection and
-     * handshake timeouts.
-     */
-    public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, @Nullable TimeValue connectTimeout,
-                                                              @Nullable TimeValue handshakeTimeout) {
-        return buildSingleChannelProfile(channelType, connectTimeout, handshakeTimeout, null, null);
     }
 
     /**

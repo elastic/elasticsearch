@@ -16,7 +16,6 @@ import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
@@ -29,14 +28,15 @@ import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.transport.nio.NioTcpServerChannel;
 import org.elasticsearch.transport.nio.NioTransport;
 import org.elasticsearch.transport.nio.TcpReadWriteHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper;
-import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -75,19 +75,18 @@ public class SecurityNioTransport extends NioTransport {
     private final boolean sslEnabled;
 
     public SecurityNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
-                                BigArrays bigArrays, PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
+                                PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                                 CircuitBreakerService circuitBreakerService, @Nullable final IPFilter authenticator,
-                                SSLService sslService) {
-        super(settings, version, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
+                                SSLService sslService, NioGroupFactory groupFactory) {
+        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
+            groupFactory);
         this.authenticator = authenticator;
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         if (sslEnabled) {
             final SSLConfiguration transportConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
-            Map<String, SSLConfiguration> profileConfiguration = SecurityNetty4Transport.getTransportProfileConfigurations(settings,
-                sslService, transportConfiguration);
+            Map<String, SSLConfiguration> profileConfiguration = ProfileConfigurations.get(settings, sslService, transportConfiguration);
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
-
         } else {
             profileConfiguration = Collections.emptyMap();
         }
@@ -215,7 +214,7 @@ public class SecurityNioTransport extends NioTransport {
 
         protected SSLEngine createSSLEngine(SocketChannel channel) throws IOException {
             SSLEngine sslEngine;
-            SSLConfiguration defaultConfig = profileConfiguration.get(TcpTransport.DEFAULT_PROFILE);
+            SSLConfiguration defaultConfig = profileConfiguration.get(TransportSettings.DEFAULT_PROFILE);
             SSLConfiguration sslConfig = profileConfiguration.getOrDefault(profileName, defaultConfig);
             boolean hostnameVerificationEnabled = sslConfig.verificationMode().isHostnameVerificationEnabled();
             if (hostnameVerificationEnabled) {
@@ -234,7 +233,7 @@ public class SecurityNioTransport extends NioTransport {
         private final SNIHostName serverName;
 
         private SecurityClientTcpChannelFactory(RawChannelFactory rawChannelFactory, SNIHostName serverName) {
-            super(rawChannelFactory, TcpTransport.DEFAULT_PROFILE, true);
+            super(rawChannelFactory, TransportSettings.DEFAULT_PROFILE, true);
             this.serverName = serverName;
         }
 

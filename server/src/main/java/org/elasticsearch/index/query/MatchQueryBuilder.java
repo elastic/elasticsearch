@@ -307,15 +307,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     /**
      * Sets whether format based failures will be ignored.
-     * @deprecated use #lenient() instead
-     */
-    @Deprecated
-    public MatchQueryBuilder setLenient(boolean lenient) {
-        return lenient(lenient);
-    }
-
-    /**
-     * Sets whether format based failures will be ignored.
      */
     public MatchQueryBuilder lenient(boolean lenient) {
         this.lenient = lenient;

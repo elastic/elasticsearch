@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-delete-job]]
-=== Delete Job API
+=== Delete job API
 ++++
-<titleabbrev>Delete Job</titleabbrev>
+<titleabbrev>Delete job</titleabbrev>
 ++++
 
 experimental[]

@@ -123,7 +123,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         }
         if (minDocCount == 0) {
             double minBound = round(emptyBucketInfo.minBound);
-            if (expectedCounts.isEmpty() && emptyBucketInfo.minBound < emptyBucketInfo.maxBound) {
+            if (expectedCounts.isEmpty() && emptyBucketInfo.minBound <= emptyBucketInfo.maxBound) {
                 expectedCounts.put(minBound, 0L);
             }
             if (expectedCounts.isEmpty() == false) {

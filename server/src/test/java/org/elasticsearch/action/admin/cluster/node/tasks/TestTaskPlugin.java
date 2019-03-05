@@ -396,6 +396,13 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
 
     public static class UnblockTestTasksRequest extends BaseTasksRequest<UnblockTestTasksRequest> {
+
+        UnblockTestTasksRequest() {}
+
+        UnblockTestTasksRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public boolean match(Task task) {
             return task instanceof TestTask && super.match(task);
@@ -406,19 +413,14 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         private List<UnblockTestTaskResponse> tasks;
 
-        public UnblockTestTasksResponse() {
-            super(null, null);
-        }
-
         public UnblockTestTasksResponse(List<UnblockTestTaskResponse> tasks, List<TaskOperationFailure> taskFailures, List<? extends
             FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
             this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public UnblockTestTasksResponse(StreamInput in) throws IOException {
+            super(in);
             int taskCount = in.readVInt();
             List<UnblockTestTaskResponse> builder = new ArrayList<>();
             for (int i = 0; i < taskCount; i++) {
@@ -446,7 +448,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         @Inject
         public TransportUnblockTestTasksAction(ClusterService clusterService, TransportService transportService) {
             super(UnblockTestTasksAction.NAME, clusterService, transportService, new ActionFilters(new HashSet<>()),
-                  UnblockTestTasksRequest::new, UnblockTestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+                  UnblockTestTasksRequest::new, UnblockTestTasksResponse::new, UnblockTestTaskResponse::new, ThreadPool.Names.MANAGEMENT);
         }
 
         @Override
@@ -454,11 +456,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                                                        List<TaskOperationFailure> taskOperationFailures, List<FailedNodeException>
                                                                    failedNodeExceptions) {
             return new UnblockTestTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
-        }
-
-        @Override
-        protected UnblockTestTaskResponse readTaskResponse(StreamInput in) throws IOException {
-            return new UnblockTestTaskResponse(in);
         }
 
         @Override
@@ -480,7 +477,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         @Override
         public UnblockTestTasksResponse newResponse() {
-            return new UnblockTestTasksResponse();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        }
+
+        @Override
+        public Writeable.Reader<UnblockTestTasksResponse> getResponseReader() {
+            return UnblockTestTasksResponse::new;
         }
     }
 

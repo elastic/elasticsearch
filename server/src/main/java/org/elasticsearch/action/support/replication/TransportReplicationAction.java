@@ -84,8 +84,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
 /**
  * Base class for requests that should be executed on a primary copy followed by replica copies.
@@ -220,7 +221,7 @@ public abstract class TransportReplicationAction<
      * Index level block to check before request execution. Returning null means that no blocks need to be checked.
      */
     @Nullable
-    protected ClusterBlockLevel indexBlockLevel() {
+    public ClusterBlockLevel indexBlockLevel() {
         return null;
     }
 
@@ -523,7 +524,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected static class ReplicaResult {
+    public static class ReplicaResult {
         final Exception finalFailure;
 
         public ReplicaResult(Exception finalFailure) {
@@ -1123,6 +1124,19 @@ public abstract class TransportReplicationAction<
             return globalCheckpoint;
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ReplicaResponse that = (ReplicaResponse) o;
+            return localCheckpoint == that.localCheckpoint &&
+                globalCheckpoint == that.globalCheckpoint;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(localCheckpoint, globalCheckpoint);
+        }
     }
 
     /**
@@ -1158,47 +1172,21 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception,
-                                      Runnable onSuccess, Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception, ActionListener<Void> listener) {
             // This does not need to fail the shard. The idea is that this
             // is a non-write operation (something like a refresh or a global
             // checkpoint sync) and therefore the replica should still be
             // "alive" if it were to fail.
-            onSuccess.run();
+            listener.onResponse(null);
         }
 
         @Override
-        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, Runnable onSuccess,
-                                                 Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, ActionListener<Void> listener) {
             // This does not need to make the shard stale. The idea is that this
             // is a non-write operation (something like a refresh or a global
             // checkpoint sync) and therefore the replica should still be
             // "alive" if it were to be marked as stale.
-            onSuccess.run();
-        }
-
-        protected final ShardStateAction.Listener createShardActionListener(final Runnable onSuccess,
-                                                                            final Consumer<Exception> onPrimaryDemoted,
-                                                                            final Consumer<Exception> onIgnoredFailure) {
-            return new ShardStateAction.Listener() {
-                @Override
-                public void onSuccess() {
-                    onSuccess.run();
-                }
-
-                @Override
-                public void onFailure(Exception shardFailedError) {
-                    if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
-                        onPrimaryDemoted.accept(shardFailedError);
-                    } else {
-                        // these can occur if the node is shutting down and are okay
-                        // any other exception here is not expected and merits investigation
-                        assert shardFailedError instanceof TransportException ||
-                            shardFailedError instanceof NodeClosedException : shardFailedError;
-                        onIgnoredFailure.accept(shardFailedError);
-                    }
-                }
-            };
+            listener.onResponse(null);
         }
     }
 
@@ -1235,7 +1223,7 @@ public abstract class TransportReplicationAction<
             request = requestSupplier.get();
             // null now, but will be populated by reading from the streams
             targetAllocationID = null;
-            primaryTerm = 0L;
+            primaryTerm = UNASSIGNED_PRIMARY_TERM;
         }
 
         public ConcreteShardRequest(R request, String targetAllocationID, long primaryTerm) {

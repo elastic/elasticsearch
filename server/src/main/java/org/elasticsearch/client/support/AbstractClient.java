@@ -152,6 +152,7 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRespo
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -579,30 +580,6 @@ public abstract class AbstractClient implements Client {
     @Override
     public TermVectorsRequestBuilder prepareTermVectors(String index, String type, String id) {
         return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE, index, type, id);
-    }
-
-    @Deprecated
-    @Override
-    public ActionFuture<TermVectorsResponse> termVector(final TermVectorsRequest request) {
-        return termVectors(request);
-    }
-
-    @Deprecated
-    @Override
-    public void termVector(final TermVectorsRequest request, final ActionListener<TermVectorsResponse> listener) {
-        termVectors(request, listener);
-    }
-
-    @Deprecated
-    @Override
-    public TermVectorsRequestBuilder prepareTermVector() {
-        return prepareTermVectors();
-    }
-
-    @Deprecated
-    @Override
-    public TermVectorsRequestBuilder prepareTermVector(String index, String type, String id) {
-        return prepareTermVectors(index, type, id);
     }
 
     @Override
@@ -1091,11 +1068,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source) {
-            return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE, id, source);
-        }
-
-        @Override
         public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType) {
             return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE, id, source, xContentType);
         }
@@ -1143,11 +1115,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<SimulatePipelineResponse> simulatePipeline(SimulatePipelineRequest request) {
             return execute(SimulatePipelineAction.INSTANCE, request);
-        }
-
-        @Override
-        public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source) {
-            return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source);
         }
 
         @Override
@@ -1389,12 +1356,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<AcknowledgedResponse> close(final CloseIndexRequest request) {
+        public ActionFuture<CloseIndexResponse> close(final CloseIndexRequest request) {
             return execute(CloseIndexAction.INSTANCE, request);
         }
 
         @Override
-        public void close(final CloseIndexRequest request, final ActionListener<AcknowledgedResponse> listener) {
+        public void close(final CloseIndexRequest request, final ActionListener<CloseIndexResponse> listener) {
             execute(CloseIndexAction.INSTANCE, request, listener);
         }
 

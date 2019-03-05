@@ -45,6 +45,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -112,7 +113,7 @@ public class NativeUsersStoreTests extends ESTestCase {
                 SecurityIndexManager.SECURITY_INDEX_NAME,
                 NativeUsersStore.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
-                1L,
+            0, 1, 1L,
                 true,
                 BytesReference.bytes(jsonBuilder().map(values)),
                 Collections.emptyMap());
@@ -181,7 +182,7 @@ public class NativeUsersStoreTests extends ESTestCase {
                 SecurityIndexManager.SECURITY_INDEX_NAME,
                 NativeUsersStore.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
-                1L,
+                UNASSIGNED_SEQ_NO, 0, 1L,
                 false,
                 null,
                 Collections.emptyMap());
@@ -223,7 +224,7 @@ public class NativeUsersStoreTests extends ESTestCase {
                 SecurityIndexManager.SECURITY_INDEX_NAME,
                 NativeUsersStore.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
-                1L,
+                0, 1, 1L,
                 true,
                 source,
                 Collections.emptyMap());

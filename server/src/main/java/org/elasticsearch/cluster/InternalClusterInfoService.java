@@ -130,17 +130,17 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         if (logger.isTraceEnabled()) {
             logger.trace("I have been elected master, scheduling a ClusterInfoUpdateJob");
         }
+
+        // Submit a job that will start after DEFAULT_STARTING_INTERVAL, and reschedule itself after running
+        threadPool.scheduleUnlessShuttingDown(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
+
         try {
-            // Submit a job that will start after DEFAULT_STARTING_INTERVAL, and reschedule itself after running
-            threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
             if (clusterService.state().getNodes().getDataNodes().size() > 1) {
                 // Submit an info update job to be run immediately
                 threadPool.executor(executorName()).execute(() -> maybeRefresh());
             }
         } catch (EsRejectedExecutionException ex) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
-            }
+            logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
         }
     }
 
@@ -223,11 +223,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Scheduling next run for updating cluster info in: {}", updateFrequency.toString());
                             }
-                            try {
-                                threadPool.schedule(updateFrequency, executorName(), this);
-                            } catch (EsRejectedExecutionException ex) {
-                                logger.debug("Reschedule cluster info service was rejected", ex);
-                            }
+                            threadPool.scheduleUnlessShuttingDown(updateFrequency, executorName(), this);
                         }
                     }
                 });
@@ -345,17 +341,19 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         });
 
         try {
-            nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
+            if (nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
+                logger.warn("Failed to update node information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); // restore interrupt status
-            logger.warn("Failed to update node information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
         }
 
         try {
-            indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
+            if (indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
+                logger.warn("Failed to update shard information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); // restore interrupt status
-            logger.warn("Failed to update shard information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
         }
         ClusterInfo clusterInfo = getClusterInfo();
         try {

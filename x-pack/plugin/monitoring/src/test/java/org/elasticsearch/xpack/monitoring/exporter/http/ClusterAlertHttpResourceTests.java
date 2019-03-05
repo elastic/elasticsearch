@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.http.HttpEntity;
@@ -63,7 +64,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
 
         final HttpEntity entity = entityForClusterAlert(true, minimumVersion);
 
-        doCheckWithStatusCode(resource, "/_xpack/watcher/watch", watchId, successfulCheckStatus(), true, entity);
+        doCheckWithStatusCode(resource, "/_watcher/watch", watchId, successfulCheckStatus(), true, entity);
     }
 
     public void testDoCheckGetWatchDoesNotExist() throws IOException {
@@ -71,12 +72,12 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
 
         if (randomBoolean()) {
             // it does not exist because it's literally not there
-            assertCheckDoesNotExist(resource, "/_xpack/watcher/watch", watchId);
+            assertCheckDoesNotExist(resource, "/_watcher/watch", watchId);
         } else {
             // it does not exist because we need to replace it
             final HttpEntity entity = entityForClusterAlert(false, minimumVersion);
 
-            doCheckWithStatusCode(resource, "/_xpack/watcher/watch", watchId, successfulCheckStatus(), false, entity);
+            doCheckWithStatusCode(resource, "/_watcher/watch", watchId, successfulCheckStatus(), false, entity);
         }
     }
 
@@ -85,12 +86,12 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
 
         if (randomBoolean()) {
             // error because of a server error
-            assertCheckWithException(resource, "/_xpack/watcher/watch", watchId);
+            assertCheckWithException(resource, "/_watcher/watch", watchId);
         } else {
             // error because of a malformed response
             final HttpEntity entity = entityForClusterAlert(null, minimumVersion);
 
-            doCheckWithStatusCode(resource, "/_xpack/watcher/watch", watchId, successfulCheckStatus(), null, entity);
+            doCheckWithStatusCode(resource, "/_watcher/watch", watchId, successfulCheckStatus(), null, entity);
         }
     }
 
@@ -101,7 +102,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
         // should not matter
         when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(clusterAlertsAllowed);
 
-        assertCheckAsDeleteExists(noWatchResource, "/_xpack/watcher/watch", watchId);
+        assertCheckAsDeleteExists(noWatchResource, "/_watcher/watch", watchId);
     }
 
     public void testDoCheckWithExceptionAsDeleteWatchErrorWhenNoWatchIsSpecified() throws IOException {
@@ -111,27 +112,27 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
         // should not matter
         when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(clusterAlertsAllowed);
 
-        assertCheckAsDeleteWithException(noWatchResource, "/_xpack/watcher/watch", watchId);
+        assertCheckAsDeleteWithException(noWatchResource, "/_watcher/watch", watchId);
     }
 
     public void testDoCheckAsDeleteWatchExists() throws IOException {
         when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(false);
 
-        assertCheckAsDeleteExists(resource, "/_xpack/watcher/watch", watchId);
+        assertCheckAsDeleteExists(resource, "/_watcher/watch", watchId);
     }
 
     public void testDoCheckWithExceptionAsDeleteWatchError() throws IOException {
         when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(false);
 
-        assertCheckAsDeleteWithException(resource, "/_xpack/watcher/watch", watchId);
+        assertCheckAsDeleteWithException(resource, "/_watcher/watch", watchId);
     }
 
     public void testDoPublishTrue() throws IOException {
-        assertPublishSucceeds(resource, "/_xpack/watcher/watch", watchId, StringEntity.class);
+        assertPublishSucceeds(resource, "/_watcher/watch", watchId, Collections.emptyMap(), StringEntity.class);
     }
 
     public void testDoPublishFalseWithException() throws IOException {
-        assertPublishWithException(resource, "/_xpack/watcher/watch", watchId, StringEntity.class);
+        assertPublishWithException(resource, "/_watcher/watch", watchId, Collections.emptyMap(), StringEntity.class);
     }
 
     public void testShouldReplaceClusterAlertRethrowsIOException() throws IOException {
@@ -181,7 +182,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testParameters() {
-        final Map<String, String> parameters = new HashMap<>(resource.getParameters());
+        final Map<String, String> parameters = new HashMap<>(resource.getDefaultParameters());
 
         assertThat(parameters.remove("filter_path"), is("metadata.xpack.version_created"));
         assertThat(parameters.isEmpty(), is(true));

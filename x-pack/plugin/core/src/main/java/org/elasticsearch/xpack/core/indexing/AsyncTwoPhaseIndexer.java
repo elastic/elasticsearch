@@ -137,7 +137,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         case INDEXING:
         case STOPPING:
         case ABORTING:
-            logger.warn("Schedule was triggered for job [" + getJobId() + "], but prior indexer is still running.");
+            logger.warn("Schedule was triggered for job [" + getJobId() + "], but prior indexer is still running " +
+                "(with state [" + currentState + "]");
             return false;
 
         case STOPPED:
@@ -356,8 +357,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             ActionListener<SearchResponse> listener = ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure);
             // TODO probably something more intelligent than every-50 is needed
             if (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0) {
-                doSaveState(IndexerState.INDEXING, position, () -> doNextSearch(buildSearchRequest(), listener));
+                doSaveState(IndexerState.INDEXING, position, () -> {
+                    stats.markStartSearch();
+                    doNextSearch(buildSearchRequest(), listener);
+                });
             } else {
+                stats.markStartSearch();
                 doNextSearch(buildSearchRequest(), listener);
             }
         } catch (Exception e) {
@@ -377,8 +382,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
         case STOPPING:
             logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
-            doSaveState(finishAndSetState(), getPosition(), () -> {
-            });
+            doSaveState(finishAndSetState(), getPosition(), () -> {});
             return false;
 
         case STOPPED:

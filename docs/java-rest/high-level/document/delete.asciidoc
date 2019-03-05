@@ -10,15 +10,14 @@
 [id="{upid}-{api}-request"]
 ==== Delete Request
 
-A +{request}+ has no arguments
+A +{request}+ has two required arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Index
-<2> Type
-<3> Document id
+<2> Document id
 
 ==== Optional arguments
 The following arguments can optionally be provided:

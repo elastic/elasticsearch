@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
-import java.io.IOException;
 import java.util.List;
 
 public class TransportIsolateDatafeedAction extends TransportTasksAction<TransportStartDatafeedAction.DatafeedTask,
@@ -31,7 +29,7 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
     @Inject
     public TransportIsolateDatafeedAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
         super(IsolateDatafeedAction.NAME, clusterService, transportService, actionFilters, IsolateDatafeedAction.Request::new,
-            IsolateDatafeedAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
+            IsolateDatafeedAction.Response::new, IsolateDatafeedAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
     }
 
     @Override
@@ -42,7 +40,7 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
 
         if (datafeedTask == null || datafeedTask.getExecutorNode() == null) {
             // No running datafeed task to isolate
-            listener.onResponse(new IsolateDatafeedAction.Response());
+            listener.onResponse(new IsolateDatafeedAction.Response(false));
             return;
         }
 
@@ -64,7 +62,7 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
             throw org.elasticsearch.ExceptionsHelper
                     .convertToElastic(failedNodeExceptions.get(0));
         } else {
-            return new IsolateDatafeedAction.Response();
+            return new IsolateDatafeedAction.Response(false);
         }
     }
 
@@ -72,11 +70,7 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
     protected void taskOperation(IsolateDatafeedAction.Request request, TransportStartDatafeedAction.DatafeedTask datafeedTask,
                                  ActionListener<IsolateDatafeedAction.Response> listener) {
         datafeedTask.isolate();
-        listener.onResponse(new IsolateDatafeedAction.Response());
+        listener.onResponse(new IsolateDatafeedAction.Response(false));
     }
 
-    @Override
-    protected IsolateDatafeedAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new IsolateDatafeedAction.Response(in);
-    }
 }

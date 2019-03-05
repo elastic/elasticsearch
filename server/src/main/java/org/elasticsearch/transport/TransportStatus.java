@@ -66,6 +66,4 @@ public final class TransportStatus {
         value |= STATUS_HANDSHAKE;
         return value;
     }
-
-
 }

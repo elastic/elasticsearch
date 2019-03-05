@@ -33,9 +33,13 @@ tasks.withType(CheckForbiddenApis) {
     replaceSignatureFiles 'jdk-signatures'
 }
 
-namingConventions {
-    testClass = 'org.elasticsearch.tools.launchers.LaunchersTestCase'
-    skipIntegTestInDisguise = true
+testingConventions {
+    naming.clear()
+    naming {
+      Tests {
+        baseClass 'org.elasticsearch.tools.launchers.LaunchersTestCase'
+      }
+    }
 }
 
 javadoc.enabled = false

@@ -31,14 +31,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioGroup;
+import org.elasticsearch.nio.NioSelectorGroup;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
@@ -69,16 +68,14 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 public class MockNioTransport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(MockNioTransport.class);
 
-    private final PageCacheRecycler pageCacheRecycler;
     private final ConcurrentMap<String, MockTcpChannelFactory> profileToChannelFactory = newConcurrentMap();
-    private volatile NioGroup nioGroup;
+    private volatile NioSelectorGroup nioGroup;
     private volatile MockTcpChannelFactory clientChannelFactory;
 
-    MockNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                     PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
-                     CircuitBreakerService circuitBreakerService) {
-        super("mock-nio", settings, version, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
-        this.pageCacheRecycler = pageCacheRecycler;
+    public MockNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
+                            PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
+                            CircuitBreakerService circuitBreakerService) {
+        super("mock-nio", settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
     }
 
     @Override
@@ -97,7 +94,7 @@ public class MockNioTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX), 2,
+            nioGroup = new NioSelectorGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX), 2,
                 (s) -> new TestingSocketEventHandler(this::onNonChannelException, s));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
@@ -161,6 +158,11 @@ public class MockNioTransport extends TcpTransport {
         builder.setPingInterval(connectionProfile.getPingInterval());
         builder.setCompressionEnabled(connectionProfile.getCompressionEnabled());
         return builder.build();
+    }
+
+    private void onNonChannelException(Exception exception) {
+        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()),
+            exception);
     }
 
     private void exceptionCaught(NioSocketChannel channel, Exception exception) {

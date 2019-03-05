@@ -27,8 +27,8 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.azure.classic.AzureUnicastHostsProvider;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.discovery.azure.classic.AzureSeedHostsProvider;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
@@ -58,18 +58,18 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
     }
 
     @Override
-    public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
-                                                                            NetworkService networkService) {
+    public Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
+                                                                         NetworkService networkService) {
         return Collections.singletonMap(AZURE,
-            () -> createUnicastHostsProvider(settings, createComputeService(), transportService, networkService));
+            () -> createSeedHostsProvider(settings, createComputeService(), transportService, networkService));
     }
 
     // Used for testing
-    protected AzureUnicastHostsProvider createUnicastHostsProvider(final Settings settings,
-                                                                   final AzureComputeService azureComputeService,
-                                                                   final TransportService transportService,
-                                                                   final NetworkService networkService) {
-        return new AzureUnicastHostsProvider(settings, azureComputeService, transportService, networkService);
+    protected AzureSeedHostsProvider createSeedHostsProvider(final Settings settings,
+                                                             final AzureComputeService azureComputeService,
+                                                             final TransportService transportService,
+                                                             final NetworkService networkService) {
+        return new AzureSeedHostsProvider(settings, azureComputeService, transportService, networkService);
     }
 
     @Override

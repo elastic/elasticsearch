@@ -81,6 +81,9 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             "6_0_0", "6_0_1", "6_1_0", "6_1_1", "6_1_2", "6_1_3", "6_1_4", "6_2_0", "6_2_1", "6_2_2", "6_2_3",
             "6_2_4", "6_3_0", "6_3_1", "6_3_2", "6_4_0", "6_4_1", "6_4_2"
         ));
+        sampleVersions.put("7.1.0", asList(
+            "7_1_0", "7_0_0", "6_7_0", "6_6_1", "6_6_0"
+        ));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -107,16 +110,16 @@ public class VersionCollectionTests extends GradleUnitTestCase {
 
     public void testWireCompatible() {
         assertVersionsEquals(
-            singletonList("6.5.0-SNAPSHOT"),
+            asList("6.5.0", "7.0.0"),
             getVersionCollection("7.0.0-alpha1").getWireCompatible()
         );
         assertVersionsEquals(
             asList(
                 "5.6.0", "5.6.1", "5.6.2", "5.6.3", "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10",
-                "5.6.11", "5.6.12", "5.6.13-SNAPSHOT",
+                "5.6.11", "5.6.12", "5.6.13",
                 "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4",
                 "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4",
-                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT"
+                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2", "6.5.0"
             ),
             getVersionCollection("6.5.0").getWireCompatible()
         );
@@ -124,8 +127,8 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         assertVersionsEquals(
             asList(
                 "5.6.0", "5.6.1", "5.6.2", "5.6.3", "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10",
-                "5.6.11", "5.6.12", "5.6.13-SNAPSHOT", "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4",
-                "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4", "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1"
+                "5.6.11", "5.6.12", "5.6.13", "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4",
+                "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4", "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2"
             ),
             getVersionCollection("6.4.2").getWireCompatible()
         );
@@ -133,43 +136,52 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         assertVersionsEquals(
             asList(
                 "5.6.0", "5.6.1", "5.6.2", "5.6.3", "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10",
-                "5.6.11", "5.6.12", "5.6.13-SNAPSHOT",
+                "5.6.11", "5.6.12", "5.6.13",
                 "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4",
                 "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4",
-                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT", "6.5.0-SNAPSHOT"
+                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2", "6.5.0", "6.6.0"
             ),
             getVersionCollection("6.6.0").getWireCompatible()
         );
 
         assertVersionsEquals(
-            singletonList("7.3.0"),
+            asList("7.3.0", "8.0.0"),
             getVersionCollection("8.0.0").getWireCompatible()
         );
+        assertVersionsEquals(
+            asList("6.7.0", "7.0.0", "7.1.0"),
+            getVersionCollection("7.1.0").getWireCompatible()
+        );
+
     }
 
     public void testWireCompatibleUnreleased() {
         assertVersionsEquals(
-            singletonList("6.5.0-SNAPSHOT"),
+            asList("6.5.0", "7.0.0"),
             getVersionCollection("7.0.0-alpha1").getUnreleasedWireCompatible()
         );
         assertVersionsEquals(
-            asList("5.6.13-SNAPSHOT", "6.4.2-SNAPSHOT"),
+            asList("5.6.13", "6.4.2", "6.5.0"),
             getVersionCollection("6.5.0").getUnreleasedWireCompatible()
         );
 
         assertVersionsEquals(
-            singletonList("5.6.13-SNAPSHOT"),
+            asList("5.6.13", "6.4.2"),
             getVersionCollection("6.4.2").getUnreleasedWireCompatible()
         );
 
         assertVersionsEquals(
-            asList("5.6.13-SNAPSHOT", "6.4.2-SNAPSHOT", "6.5.0-SNAPSHOT"),
+            asList("5.6.13", "6.4.2", "6.5.0", "6.6.0"),
             getVersionCollection("6.6.0").getUnreleasedWireCompatible()
         );
 
         assertVersionsEquals(
-            singletonList("7.3.0"),
+            asList("7.3.0", "8.0.0"),
             getVersionCollection("8.0.0").getUnreleasedWireCompatible()
+        );
+        assertVersionsEquals(
+            asList("6.7.0", "7.0.0", "7.1.0"),
+            getVersionCollection("7.1.0").getWireCompatible()
         );
     }
 
@@ -178,7 +190,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             asList(
                 "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4",
                 "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4", "6.3.0", "6.3.1",
-                "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT", "6.5.0-SNAPSHOT"
+                "6.3.2", "6.4.0", "6.4.1", "6.4.2", "6.5.0", "7.0.0"
             ),
             getVersionCollection("7.0.0-alpha1").getIndexCompatible()
         );
@@ -187,9 +199,9 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             asList(
                 "5.0.0", "5.0.1", "5.0.2", "5.1.1", "5.1.2", "5.2.0", "5.2.1", "5.2.2", "5.3.0", "5.3.1", "5.3.2", "5.3.3",
                 "5.4.0", "5.4.1", "5.4.2", "5.4.3", "5.5.0", "5.5.1", "5.5.2", "5.5.3", "5.6.0", "5.6.1", "5.6.2", "5.6.3",
-                "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10", "5.6.11", "5.6.12", "5.6.13-SNAPSHOT",
+                "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10", "5.6.11", "5.6.12", "5.6.13",
                 "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4", "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4",
-                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT"
+                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2", "6.5.0"
             ),
             getVersionCollection("6.5.0").getIndexCompatible()
         );
@@ -198,9 +210,9 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             asList(
                 "5.0.0", "5.0.1", "5.0.2", "5.1.1", "5.1.2", "5.2.0", "5.2.1", "5.2.2", "5.3.0", "5.3.1", "5.3.2", "5.3.3",
                 "5.4.0", "5.4.1", "5.4.2", "5.4.3", "5.5.0", "5.5.1", "5.5.2", "5.5.3", "5.6.0", "5.6.1", "5.6.2", "5.6.3",
-                "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10", "5.6.11", "5.6.12", "5.6.13-SNAPSHOT",
+                "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10", "5.6.11", "5.6.12", "5.6.13",
                 "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4", "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4",
-                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1"
+                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2"
             ),
             getVersionCollection("6.4.2").getIndexCompatible()
         );
@@ -209,42 +221,42 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             asList(
                 "5.0.0", "5.0.1", "5.0.2", "5.1.1", "5.1.2", "5.2.0", "5.2.1", "5.2.2", "5.3.0", "5.3.1", "5.3.2", "5.3.3",
                 "5.4.0", "5.4.1", "5.4.2", "5.4.3", "5.5.0", "5.5.1", "5.5.2", "5.5.3", "5.6.0", "5.6.1", "5.6.2", "5.6.3",
-                "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10", "5.6.11", "5.6.12", "5.6.13-SNAPSHOT",
+                "5.6.4", "5.6.5", "5.6.6", "5.6.7", "5.6.8", "5.6.9", "5.6.10", "5.6.11", "5.6.12", "5.6.13",
                 "6.0.0", "6.0.1", "6.1.0", "6.1.1", "6.1.2", "6.1.3", "6.1.4", "6.2.0", "6.2.1", "6.2.2", "6.2.3", "6.2.4",
-                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2-SNAPSHOT", "6.5.0-SNAPSHOT"
+                "6.3.0", "6.3.1", "6.3.2", "6.4.0", "6.4.1", "6.4.2", "6.5.0", "6.6.0"
             ),
             getVersionCollection("6.6.0").getIndexCompatible()
         );
 
         assertVersionsEquals(
-            asList("7.0.0", "7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0"),
+            asList("7.0.0", "7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0", "8.0.0"),
             getVersionCollection("8.0.0").getIndexCompatible()
         );
     }
 
     public void testIndexCompatibleUnreleased() {
         assertVersionsEquals(
-            asList("6.4.2-SNAPSHOT", "6.5.0-SNAPSHOT"),
+            asList("6.4.2", "6.5.0", "7.0.0"),
             getVersionCollection("7.0.0-alpha1").getUnreleasedIndexCompatible()
         );
 
         assertVersionsEquals(
-            asList("5.6.13-SNAPSHOT", "6.4.2-SNAPSHOT"),
+            asList("5.6.13", "6.4.2", "6.5.0"),
             getVersionCollection("6.5.0").getUnreleasedIndexCompatible()
         );
 
         assertVersionsEquals(
-            singletonList("5.6.13-SNAPSHOT"),
+            asList("5.6.13", "6.4.2"),
             getVersionCollection("6.4.2").getUnreleasedIndexCompatible()
         );
 
         assertVersionsEquals(
-            asList("5.6.13-SNAPSHOT", "6.4.2-SNAPSHOT", "6.5.0-SNAPSHOT"),
+            asList("5.6.13", "6.4.2", "6.5.0", "6.6.0"),
             getVersionCollection("6.6.0").getUnreleasedIndexCompatible()
         );
 
         assertVersionsEquals(
-            asList("7.1.1", "7.2.0", "7.3.0"),
+            asList("7.1.1", "7.2.0", "7.3.0", "8.0.0"),
             getVersionCollection("8.0.0").getUnreleasedIndexCompatible()
         );
     }
@@ -286,7 +298,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             getVersionCollection("6.4.2")
         );
         assertUnreleasedBranchNames(
-            asList("5.6", "6.4", "6.5"),
+            asList("5.6", "6.4", "6.x"),
             getVersionCollection("6.6.0")
         );
         assertUnreleasedBranchNames(
@@ -295,26 +307,30 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         );
     }
 
-    public void testGetGradleProjectName() {
-        assertUnreleasedGradleProjectNames(
-            asList("bugfix", "minor"),
+    public void testGetGradleProjectPath() {
+        assertUnreleasedGradleProjectPaths(
+            asList(":distribution:bwc:bugfix", ":distribution:bwc:minor"),
             getVersionCollection("7.0.0-alpha1")
         );
-        assertUnreleasedGradleProjectNames(
-            asList("maintenance", "bugfix"),
+        assertUnreleasedGradleProjectPaths(
+            asList(":distribution:bwc:maintenance", ":distribution:bwc:bugfix"),
             getVersionCollection("6.5.0")
         );
-        assertUnreleasedGradleProjectNames(
-            singletonList("maintenance"),
+        assertUnreleasedGradleProjectPaths(
+            singletonList(":distribution:bwc:maintenance"),
             getVersionCollection("6.4.2")
         );
-        assertUnreleasedGradleProjectNames(
-            asList("maintenance", "bugfix", "staged"),
+        assertUnreleasedGradleProjectPaths(
+            asList(":distribution:bwc:maintenance", ":distribution:bwc:bugfix", ":distribution:bwc:minor"),
             getVersionCollection("6.6.0")
         );
-        assertUnreleasedGradleProjectNames(
-            asList("bugfix", "staged", "minor"),
+        assertUnreleasedGradleProjectPaths(
+            asList(":distribution:bwc:bugfix", ":distribution:bwc:staged", ":distribution:bwc:minor"),
             getVersionCollection("8.0.0")
+        );
+        assertUnreleasedGradleProjectPaths(
+            asList(":distribution:bwc:staged", ":distribution:bwc:minor"),
+            getVersionCollection("7.1.0")
         );
     }
 
@@ -366,10 +382,10 @@ public class VersionCollectionTests extends GradleUnitTestCase {
         vc.compareToAuthoritative(authoritativeReleasedVersions);
     }
 
-    private void assertUnreleasedGradleProjectNames(List<String> expectedNAmes, VersionCollection versionCollection) {
+    private void assertUnreleasedGradleProjectPaths(List<String> expectedNAmes, VersionCollection versionCollection) {
         List<String> actualNames = new ArrayList<>();
         versionCollection.forPreviousUnreleased(unreleasedVersion ->
-            actualNames.add(unreleasedVersion.gradleProjectName)
+            actualNames.add(unreleasedVersion.gradleProjectPath)
         );
         assertEquals(expectedNAmes, actualNames);
     }

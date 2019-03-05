@@ -88,9 +88,11 @@ example:
 xpack.monitoring.collection.indices: logstash-*, index1, test2
 ----------------------------------
 
-You can prepend `+` or `-` to explicitly include or exclude index names or 
+You can prepend `-` to explicitly exclude index names or
 patterns. For example, to include all indices that start with `test` except 
-`test3`, you could specify `+test*,-test3`.
+`test3`, you could specify `test*,-test3`. To include system indices such as
+.security and .kibana, add `.*` to the list of included names.
+For example `.*,test*,-test3`
 --
 
 .. Optional: Specify how often to collect monitoring data. The default value for 
@@ -101,10 +103,12 @@ the `xpack.monitoring.collection.interval` setting 10 seconds. See
 +
 --
 By default, the data is stored on the same cluster by using a 
-<<local-exporter,`local` exporter>>. 
-
-Alternatively, you can use an <<http-exporter,`http` exporter>> to send data to 
+<<local-exporter,`local` exporter>>. Alternatively, you can use an <<http-exporter,`http` exporter>> to send data to 
 a separate _monitoring cluster_. 
+
+IMPORTANT: The {es} {monitor-features} use ingest pipelines, therefore the
+cluster that stores the monitoring data must have at least one 
+<<ingest,ingest node>>. 
 
 For more information about typical monitoring architectures, 
 see {stack-ov}/how-monitoring-works.html[How Monitoring Works].

@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -41,8 +40,8 @@ public class StubbableConnectionManager extends ConnectionManager {
     private volatile GetConnectionBehavior defaultGetConnectionBehavior = ConnectionManager::getConnection;
     private volatile NodeConnectedBehavior defaultNodeConnectedBehavior = ConnectionManager::nodeConnected;
 
-    public StubbableConnectionManager(ConnectionManager delegate, Settings settings, Transport transport, ThreadPool threadPool) {
-        super(settings, transport, threadPool);
+    public StubbableConnectionManager(ConnectionManager delegate, Settings settings, Transport transport) {
+        super(settings, transport);
         this.delegate = delegate;
         this.getConnectionBehaviors = new ConcurrentHashMap<>();
         this.nodeConnectedBehaviors = new ConcurrentHashMap<>();
@@ -52,7 +51,7 @@ public class StubbableConnectionManager extends ConnectionManager {
         return getConnectionBehaviors.put(transportAddress, connectBehavior) == null;
     }
 
-    public boolean setDefaultConnectBehavior(GetConnectionBehavior behavior) {
+    public boolean setDefaultGetConnectionBehavior(GetConnectionBehavior behavior) {
         GetConnectionBehavior prior = defaultGetConnectionBehavior;
         defaultGetConnectionBehavior = behavior;
         return prior == null;
@@ -69,7 +68,9 @@ public class StubbableConnectionManager extends ConnectionManager {
     }
 
     public void clearBehaviors() {
+        defaultGetConnectionBehavior = ConnectionManager::getConnection;
         getConnectionBehaviors.clear();
+        defaultNodeConnectedBehavior = ConnectionManager::nodeConnected;
         nodeConnectedBehaviors.clear();
     }
 

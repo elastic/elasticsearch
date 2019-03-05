@@ -22,6 +22,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
 import org.elasticsearch.client.rollup.GetRollupCapsRequest;
 import org.elasticsearch.client.rollup.GetRollupIndexCapsRequest;
@@ -91,6 +92,20 @@ final class RollupRequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         request.setEntity(createEntity(deleteRollupJobRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
+    }
+
+    static Request search(final SearchRequest request) throws IOException {
+        if (request.types().length > 0) {
+            /*
+             * Ideally we'd check this with the standard validation framework
+             * but we don't have a special request for rollup search so that'd
+             * be difficult. 
+             */
+            ValidationException ve = new ValidationException();
+            ve.addValidationError("types are not allowed in rollup search");
+            throw ve;
+        }
+        return RequestConverters.search(request, "_rollup_search");
     }
 
     static Request getRollupCaps(final GetRollupCapsRequest getRollupCapsRequest) throws IOException {

@@ -38,7 +38,7 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
     private static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
     private static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
 
-    private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
+    private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
         a -> new RolloverAction((ByteSizeValue) a[0], (TimeValue) a[1], (Long) a[2]));
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),

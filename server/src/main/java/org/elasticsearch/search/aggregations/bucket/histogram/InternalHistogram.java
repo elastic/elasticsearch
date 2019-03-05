@@ -421,26 +421,22 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
-
-        // adding empty buckets if needed
-        if (minDocCount == 0) {
-            addEmptyBuckets(reducedBuckets, reduceContext);
+        if (reduceContext.isFinalReduce()) {
+            if (minDocCount == 0) {
+                addEmptyBuckets(reducedBuckets, reduceContext);
+            }
+            if (InternalOrder.isKeyDesc(order)) {
+                // we just need to reverse here...
+                List<Bucket> reverse = new ArrayList<>(reducedBuckets);
+                Collections.reverse(reverse);
+                reducedBuckets = reverse;
+            } else if (InternalOrder.isKeyAsc(order) ==  false){
+                // nothing to do when sorting by key ascending, as data is already sorted since shards return
+                // sorted buckets and the merge-sort performed by reduceBuckets maintains order.
+                // otherwise, sorted by compound order or sub-aggregation, we need to fall back to a costly n*log(n) sort
+                CollectionUtil.introSort(reducedBuckets, order.comparator(null));
+            }
         }
-
-        if (InternalOrder.isKeyAsc(order) || reduceContext.isFinalReduce() == false) {
-            // nothing to do, data are already sorted since shards return
-            // sorted buckets and the merge-sort performed by reduceBuckets
-            // maintains order
-        } else if (InternalOrder.isKeyDesc(order)) {
-            // we just need to reverse here...
-            List<Bucket> reverse = new ArrayList<>(reducedBuckets);
-            Collections.reverse(reverse);
-            reducedBuckets = reverse;
-        } else {
-            // sorted by compound order or sub-aggregation, need to fall back to a costly n*log(n) sort
-            CollectionUtil.introSort(reducedBuckets, order.comparator(null));
-        }
-
         return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, pipelineAggregators(),
                 getMetaData());
     }

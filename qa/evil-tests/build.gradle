@@ -31,18 +31,21 @@ dependencies {
 
 // TODO: give each evil test its own fresh JVM for more isolation.
 
-test {
+unitTest {
   systemProperty 'tests.security.manager', 'false'
 }
 
-thirdPartyAudit.excludes = [
-  // uses internal java api: sun.misc.Unsafe
-  'com.google.common.cache.Striped64',
-  'com.google.common.cache.Striped64$1',
-  'com.google.common.cache.Striped64$Cell',
-  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+thirdPartyAudit {
+    ignoreMissingClasses (
+        'com.ibm.icu.lang.UCharacter'
+    )
 
-  // missing class
-  'com.ibm.icu.lang.UCharacter',
-]
+    ignoreViolations (
+      // uses internal java api: sun.misc.Unsafe
+      'com.google.common.cache.Striped64',
+      'com.google.common.cache.Striped64$1',
+      'com.google.common.cache.Striped64$Cell',
+      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
+    )
+}

@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.ShardId;
@@ -48,6 +49,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .build();
         final IndexService indexService = createIndex("index", settings);
 
@@ -130,6 +132,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .build();
         final IndexService indexService = createIndex("index", settings);
 
@@ -160,6 +163,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final Settings settings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .build();
         final IndexService indexService = createIndex("index", settings);
 

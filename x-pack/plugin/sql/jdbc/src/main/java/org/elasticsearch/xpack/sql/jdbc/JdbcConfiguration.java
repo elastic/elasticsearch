@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.client.Version;
 
 import java.net.URI;
 import java.sql.DriverPropertyInfo;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -69,7 +70,7 @@ class JdbcConfiguration extends ConnectionConfiguration {
     private final String debugOut;
 
     // mutable ones
-    private TimeZone timeZone;
+    private ZoneId zoneId;
 
     public static JdbcConfiguration create(String u, Properties props, int loginTimeoutSeconds) throws JdbcSQLException {
         URI uri = parseUrl(u);
@@ -148,7 +149,8 @@ class JdbcConfiguration extends ConnectionConfiguration {
         this.debug = parseValue(DEBUG, props.getProperty(DEBUG, DEBUG_DEFAULT), Boolean::parseBoolean);
         this.debugOut = props.getProperty(DEBUG_OUTPUT, DEBUG_OUTPUT_DEFAULT);
 
-        this.timeZone = parseValue(TIME_ZONE, props.getProperty(TIME_ZONE, TIME_ZONE_DEFAULT), TimeZone::getTimeZone);
+        this.zoneId = parseValue(TIME_ZONE, props.getProperty(TIME_ZONE, TIME_ZONE_DEFAULT),
+                s -> TimeZone.getTimeZone(s).toZoneId().normalized());
     }
 
     @Override
@@ -165,11 +167,11 @@ class JdbcConfiguration extends ConnectionConfiguration {
     }
 
     public TimeZone timeZone() {
-        return timeZone;
+        return zoneId != null ? TimeZone.getTimeZone(zoneId) : null;
     }
 
     public void timeZone(TimeZone timeZone) {
-        this.timeZone = timeZone;
+        this.zoneId = timeZone != null ? timeZone.toZoneId() : null;
     }
 
     public static boolean canAccept(String url) {

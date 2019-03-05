@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-basic-status]]
-=== Get Basic Status API
+=== Get basic status API
+++++
+<titleabbrev>Get basic status</titleabbrev>
+++++
 
 This API enables you to check the status of your basic license.
 

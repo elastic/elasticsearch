@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.client.migration.DeprecationInfoRequest;
 import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.client.migration.IndexUpgradeRequest;
 
@@ -46,6 +47,15 @@ final class MigrationRequestConverters {
 
     static Request submitMigrateTask(IndexUpgradeRequest indexUpgradeRequest) {
         return prepareMigrateRequest(indexUpgradeRequest, false);
+    }
+
+    static Request getDeprecationInfo(DeprecationInfoRequest deprecationInfoRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addCommaSeparatedPathParts(deprecationInfoRequest.getIndices())
+            .addPathPartAsIs("_migration", "deprecations")
+            .build();
+
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     private static Request prepareMigrateRequest(IndexUpgradeRequest indexUpgradeRequest, boolean waitForCompletion) {

@@ -14,7 +14,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.TimeZone;
 import java.util.function.Function;
 
 public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
@@ -46,8 +45,8 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
 
     private final NameExtractor extractor;
 
-    public NamedDateTimeProcessor(NameExtractor extractor, TimeZone timeZone) {
-        super(timeZone);
+    public NamedDateTimeProcessor(NameExtractor extractor, ZoneId zoneId) {
+        super(zoneId);
         this.extractor = extractor;
     }
 
@@ -78,7 +77,7 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(extractor, timeZone());
+        return Objects.hash(extractor, zoneId());
     }
 
     @Override
@@ -88,7 +87,7 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
         }
         NamedDateTimeProcessor other = (NamedDateTimeProcessor) obj;
         return Objects.equals(extractor, other.extractor)
-                && Objects.equals(timeZone(), other.timeZone());
+                && Objects.equals(zoneId(), other.zoneId());
     }
 
     @Override

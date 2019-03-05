@@ -21,7 +21,10 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.mockito.ArgumentCaptor;
@@ -38,24 +41,24 @@ import static org.mockito.Mockito.verify;
 
 public class TransportHandshakerTests extends ESTestCase {
 
-    private TcpTransportHandshaker handshaker;
+    private TransportHandshaker handshaker;
     private DiscoveryNode node;
     private TcpChannel channel;
     private TestThreadPool threadPool;
-    private TcpTransportHandshaker.HandshakeRequestSender requestSender;
-    private TcpTransportHandshaker.HandshakeResponseSender responseSender;
+    private TransportHandshaker.HandshakeRequestSender requestSender;
+    private TransportHandshaker.HandshakeResponseSender responseSender;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         String nodeId = "node-id";
         channel = mock(TcpChannel.class);
-        requestSender = mock(TcpTransportHandshaker.HandshakeRequestSender.class);
-        responseSender = mock(TcpTransportHandshaker.HandshakeResponseSender.class);
+        requestSender = mock(TransportHandshaker.HandshakeRequestSender.class);
+        responseSender = mock(TransportHandshaker.HandshakeResponseSender.class);
         node = new DiscoveryNode(nodeId, nodeId, nodeId, "host", "host_address", buildNewFakeTransportAddress(), Collections.emptyMap(),
             Collections.emptySet(), Version.CURRENT);
         threadPool = new TestThreadPool("thread-poll");
-        handshaker = new TcpTransportHandshaker(Version.CURRENT, threadPool, requestSender, responseSender);
+        handshaker = new TransportHandshaker(Version.CURRENT, threadPool, requestSender, responseSender);
     }
 
     @Override
@@ -74,18 +77,61 @@ public class TransportHandshakerTests extends ESTestCase {
         assertFalse(versionFuture.isDone());
 
         TcpChannel mockChannel = mock(TcpChannel.class);
-        handshaker.handleHandshake(Version.CURRENT, Collections.emptySet(), mockChannel, reqId);
+        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(Version.CURRENT);
+        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+        handshakeRequest.writeTo(bytesStreamOutput);
+        StreamInput input = bytesStreamOutput.bytes().streamInput();
+        handshaker.handleHandshake(Version.CURRENT, Collections.emptySet(), mockChannel, reqId, input);
 
 
         ArgumentCaptor<TransportResponse> responseCaptor = ArgumentCaptor.forClass(TransportResponse.class);
         verify(responseSender).sendResponse(eq(Version.CURRENT), eq(Collections.emptySet()), eq(mockChannel), responseCaptor.capture(),
             eq(reqId));
 
-        TransportResponseHandler<TcpTransportHandshaker.VersionHandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
-        handler.handleResponse((TcpTransportHandshaker.VersionHandshakeResponse) responseCaptor.getValue());
+        TransportResponseHandler<TransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
+        handler.handleResponse((TransportHandshaker.HandshakeResponse) responseCaptor.getValue());
 
         assertTrue(versionFuture.isDone());
         assertEquals(Version.CURRENT, versionFuture.actionGet());
+    }
+
+    public void testHandshakeRequestFutureVersionsCompatibility() throws IOException {
+        long reqId = randomLongBetween(1, 10);
+        handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), PlainActionFuture.newFuture());
+
+        verify(requestSender).sendRequest(node, channel, reqId, Version.CURRENT.minimumCompatibilityVersion());
+
+        TcpChannel mockChannel = mock(TcpChannel.class);
+        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(Version.CURRENT);
+        BytesStreamOutput currentHandshakeBytes = new BytesStreamOutput();
+        handshakeRequest.writeTo(currentHandshakeBytes);
+
+        BytesStreamOutput lengthCheckingHandshake = new BytesStreamOutput();
+        BytesStreamOutput futureHandshake = new BytesStreamOutput();
+        TaskId.EMPTY_TASK_ID.writeTo(lengthCheckingHandshake);
+        TaskId.EMPTY_TASK_ID.writeTo(futureHandshake);
+        try (BytesStreamOutput internalMessage = new BytesStreamOutput()) {
+            Version.writeVersion(Version.CURRENT, internalMessage);
+            lengthCheckingHandshake.writeBytesReference(internalMessage.bytes());
+            internalMessage.write(new byte[1024]);
+            futureHandshake.writeBytesReference(internalMessage.bytes());
+        }
+        StreamInput futureHandshakeStream = futureHandshake.bytes().streamInput();
+        // We check that the handshake we serialize for this test equals the actual request.
+        // Otherwise, we need to update the test.
+        assertEquals(currentHandshakeBytes.bytes().length(), lengthCheckingHandshake.bytes().length());
+        assertEquals(1031, futureHandshakeStream.available());
+        handshaker.handleHandshake(Version.CURRENT, Collections.emptySet(), mockChannel, reqId, futureHandshakeStream);
+        assertEquals(0, futureHandshakeStream.available());
+
+
+        ArgumentCaptor<TransportResponse> responseCaptor = ArgumentCaptor.forClass(TransportResponse.class);
+        verify(responseSender).sendResponse(eq(Version.CURRENT), eq(Collections.emptySet()), eq(mockChannel), responseCaptor.capture(),
+            eq(reqId));
+
+        TransportHandshaker.HandshakeResponse response = (TransportHandshaker.HandshakeResponse) responseCaptor.getValue();
+
+        assertEquals(Version.CURRENT, response.getResponseVersion());
     }
 
     public void testHandshakeError() throws IOException {
@@ -97,7 +143,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
         assertFalse(versionFuture.isDone());
 
-        TransportResponseHandler<TcpTransportHandshaker.VersionHandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
+        TransportResponseHandler<TransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
         handler.handleException(new TransportException("failed"));
 
         assertTrue(versionFuture.isDone());
@@ -112,7 +158,6 @@ public class TransportHandshakerTests extends ESTestCase {
         doThrow(new IOException("boom")).when(requestSender).sendRequest(node, channel, reqId, compatibilityVersion);
 
         handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), versionFuture);
-
 
         assertTrue(versionFuture.isDone());
         ConnectTransportException cte = expectThrows(ConnectTransportException.class, versionFuture::actionGet);

@@ -183,7 +183,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     }
 
     public int asDistance(String text) {
-        if (this.fuzziness.equals("AUTO")) {
+        if (this.equals(AUTO) || isAutoWithCustomValues()) { //AUTO
             final int len = termLen(text);
             if (len < lowDistance) {
                 return 0;

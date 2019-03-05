@@ -26,7 +26,6 @@ public class RestGetRollupIndexCapsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger =
             new DeprecationLogger(LogManager.getLogger(RestGetRollupIndexCapsAction.class));
 
-
     static final ParseField INDEX = new ParseField("index");
 
     public RestGetRollupIndexCapsAction(Settings settings, RestController controller) {

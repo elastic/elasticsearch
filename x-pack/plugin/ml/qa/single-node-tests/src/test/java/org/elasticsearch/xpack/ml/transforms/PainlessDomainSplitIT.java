@@ -13,8 +13,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.joda.time.DateTime;
 
+import java.time.Clock;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -182,7 +184,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
         createIndex("painless", settings.build());
-        Request createDoc = new Request("PUT", "/painless/test/1");
+        Request createDoc = new Request("PUT", "/painless/_doc/1");
         createDoc.setJsonEntity("{\"test\": \"test\"}");
         createDoc.addParameter("refresh", "true");
         client().performRequest(createDoc);
@@ -262,11 +264,11 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
-        createIndex("painless", settings.build(), "\"test\": { \"properties\": { \"domain\": { \"type\": \"keyword\" }," +
-                "\"time\": { \"type\": \"date\" } } }");
+        createIndex("painless", settings.build(), "\"properties\": { \"domain\": { \"type\": \"keyword\" }," +
+                "\"time\": { \"type\": \"date\" } }");
 
         // Index some data
-        DateTime baseTime = new DateTime().minusYears(1);
+        ZonedDateTime baseTime = ZonedDateTime.now(Clock.systemDefaultZone()).minusYears(1);
         TestConfiguration test = tests.get(randomInt(tests.size()-1));
 
         // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() did not, so we need a special case for sub
@@ -276,18 +278,20 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
         for (int i = 0; i < 100; i++) {
 
-            DateTime time = baseTime.plusHours(i);
+            ZonedDateTime time = baseTime.plusHours(i);
             if (i == 64) {
                 // Anomaly has 100 docs, but we don't care about the value
                 for (int j = 0; j < 100; j++) {
-                    Request createDocRequest = new Request("PUT", "/painless/test/" + time.toDateTimeISO() + "_" + j);
-                    createDocRequest.setJsonEntity("{\"domain\": \"" + "bar.bar.com\", \"time\": \"" + time.toDateTimeISO() + "\"}");
+                    String formattedTime = time.format(DateTimeFormatter.ISO_DATE_TIME);
+                    Request createDocRequest = new Request("PUT", "/painless/_doc/" + formattedTime + "_" + j);
+                    createDocRequest.setJsonEntity("{\"domain\": \"" + "bar.bar.com\", \"time\": \"" + formattedTime + "\"}");
                     client().performRequest(createDocRequest);
                 }
             } else {
                 // Non-anomalous values will be what's seen when the anomaly is reported
-                Request createDocRequest = new Request("PUT", "/painless/test/" + time.toDateTimeISO());
-                createDocRequest.setJsonEntity("{\"domain\": \"" + test.hostName + "\", \"time\": \"" + time.toDateTimeISO() + "\"}");
+                String formattedTime = time.format(DateTimeFormatter.ISO_DATE_TIME);
+                Request createDocRequest = new Request("PUT", "/painless/_doc/" + formattedTime);
+                createDocRequest.setJsonEntity("{\"domain\": \"" + test.hostName + "\", \"time\": \"" + formattedTime + "\"}");
                 client().performRequest(createDocRequest);
             }
         }
@@ -300,7 +304,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "{\n" +
                 "   \"job_id\":\"hrd-split-job\",\n" +
                 "   \"indexes\":[\"painless\"],\n" +
-                "   \"types\":[\"test\"],\n" +
+                "   \"types\":[\"_doc\"],\n" +
                 "   \"script_fields\": {\n" +
                 "      \"domain_split\": {\n" +
                 "         \"script\": \"return domainSplit(doc['domain'].value, params);\"\n" +

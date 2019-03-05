@@ -20,7 +20,15 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.ccr.CcrStatsRequest;
+import org.elasticsearch.client.ccr.CcrStatsResponse;
 import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.FollowInfoRequest;
+import org.elasticsearch.client.ccr.FollowInfoResponse;
+import org.elasticsearch.client.ccr.FollowStatsRequest;
+import org.elasticsearch.client.ccr.FollowStatsResponse;
+import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
@@ -291,7 +299,7 @@ public final class CcrClient {
     }
 
     /**
-     * Deletes an auto follow pattern.
+     * Asynchronously deletes an auto follow pattern.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-delete-auto-follow-pattern.html">
      * the docs</a> for more.
@@ -313,4 +321,179 @@ public final class CcrClient {
         );
     }
 
+    /**
+     * Gets an auto follow pattern.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-auto-follow-pattern.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetAutoFollowPatternResponse getAutoFollowPattern(GetAutoFollowPatternRequest request,
+                                                             RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::getAutoFollowPattern,
+            options,
+            GetAutoFollowPatternResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously gets an auto follow pattern.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-auto-follow-pattern.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getAutoFollowPatternAsync(GetAutoFollowPatternRequest request,
+                                          RequestOptions options,
+                                          ActionListener<GetAutoFollowPatternResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::getAutoFollowPattern,
+            options,
+            GetAutoFollowPatternResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Gets all CCR stats.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-stats.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public CcrStatsResponse getCcrStats(CcrStatsRequest request,
+                                        RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::getCcrStats,
+            options,
+            CcrStatsResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously gets all CCR stats.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-stats.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public void getCcrStatsAsync(CcrStatsRequest request,
+                                 RequestOptions options,
+                                 ActionListener<CcrStatsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::getCcrStats,
+            options,
+            CcrStatsResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Gets follow stats for specific indices.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-follow-stats.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public FollowStatsResponse getFollowStats(FollowStatsRequest request,
+                                              RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::getFollowStats,
+            options,
+            FollowStatsResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously gets follow stats for specific indices.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-follow-stats.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public void getFollowStatsAsync(FollowStatsRequest request,
+                                    RequestOptions options,
+                                    ActionListener<FollowStatsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::getFollowStats,
+            options,
+            FollowStatsResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Gets follow info for specific indices.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-follow-info.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public FollowInfoResponse getFollowInfo(FollowInfoRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::getFollowInfo,
+            options,
+            FollowInfoResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously gets follow info for specific indices.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-follow-info.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public void getFollowInfoAsync(FollowInfoRequest request,
+                                   RequestOptions options,
+                                   ActionListener<FollowInfoResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::getFollowInfo,
+            options,
+            FollowInfoResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
 }

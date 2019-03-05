@@ -222,14 +222,13 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         HistogramAggregationBuilder histogram =
                 AggregationBuilders.histogram("time").interval(interval).field("time").subAggregation(maxTime);
         DatafeedConfig.Builder datafeedConfig = createValidDatafeedConfig();
-        datafeedConfig.setAggregations(new AggregatorFactories.Builder().addAggregator(histogram));
+        datafeedConfig.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(histogram));
         return datafeedConfig;
     }
 
     private static DatafeedConfig.Builder createValidDatafeedConfig() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("my-datafeed", "my-job");
         builder.setIndices(Collections.singletonList("myIndex"));
-        builder.setTypes(Collections.singletonList("myType"));
         return builder;
     }
 }

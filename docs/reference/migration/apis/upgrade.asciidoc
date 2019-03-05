@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[migration-api-upgrade]]
-=== Migration Upgrade API
+=== Migration upgrade API
+++++
+<titleabbrev>Migration upgrade</titleabbrev>
+++++
 
 The Migration Upgrade API performs the upgrade of internal indices to make them
 compatible with the next major version.

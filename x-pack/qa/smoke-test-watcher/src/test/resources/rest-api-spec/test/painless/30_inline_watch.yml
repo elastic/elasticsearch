@@ -5,7 +5,7 @@
           wait_for_status: green
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body: >
           {
             "trigger_data" : {
@@ -27,6 +27,7 @@
                 "search" : {
                   "request" : {
                     "indices" : [ "logstash*" ],
+                    "rest_total_hits_as_int": true,
                     "body" : {
                       "query" : {
                         "bool" : {

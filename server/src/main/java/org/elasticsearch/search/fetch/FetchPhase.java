@@ -28,7 +28,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
@@ -182,8 +181,7 @@ public class FetchPhase implements SearchPhase {
             }
 
             TotalHits totalHits = context.queryResult().getTotalHits();
-            long totalHitsAsLong = totalHits.relation == Relation.EQUAL_TO ? totalHits.value : -1;
-            context.fetchResult().hits(new SearchHits(hits, totalHitsAsLong, context.queryResult().getMaxScore()));
+            context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         }

@@ -72,7 +72,7 @@ operation that executes:
 `noop`::
 
 Set `ctx.op = "noop"` if your script doesn't make any
-changes. The `updateByQuery` operaton then omits that document from the updates.
+changes. The `updateByQuery` operation then omits that document from the updates.
 This behavior increments the `noop` counter in the response body.
 
 `delete`::
@@ -88,7 +88,7 @@ This API doesn't allow you to move the documents it touches, just modify their
 source. This is intentional! We've made no provisions for removing the document
 from its original location.
 
-You can also perform these operations on multiple indices and types at once, similar to the search API:
+You can also perform these operations on multiple indices at once, similar to the search API:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

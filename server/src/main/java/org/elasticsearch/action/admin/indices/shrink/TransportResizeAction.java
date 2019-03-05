@@ -107,11 +107,8 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                         return shard == null ? null : shard.getPrimary().getDocs();
                     }, sourceIndex, targetIndex);
                 createIndexService.createIndex(
-                    updateRequest,
-                    ActionListener.wrap(response ->
-                            listener.onResponse(new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(),
-                                    updateRequest.index())), listener::onFailure
-                    )
+                    updateRequest, ActionListener.map(listener,
+                        response -> new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(), updateRequest.index()))
                 );
             }
 
@@ -172,8 +169,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                 throw new IllegalArgumentException("cannot provide index.number_of_routing_shards on resize");
             }
         }
-        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(metaData.getSettings()) &&
-            IndexSettings.INDEX_SOFT_DELETES_SETTING.get(metaData.getSettings()) &&
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(metaData.getSettings()) &&
             IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(targetIndexSettings) &&
             IndexSettings.INDEX_SOFT_DELETES_SETTING.get(targetIndexSettings) == false) {
             throw new IllegalArgumentException("Can't disable [index.soft_deletes.enabled] setting on resize");

@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -40,16 +39,6 @@ public class PutIndexTemplateRequestBuilder
 
     public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action, String name) {
         super(client, action, new PutIndexTemplateRequest(name));
-    }
-
-    /**
-     * Sets the match expression that will be used to match on indices created.
-     *
-     * @deprecated Replaced by {@link #setPatterns(List)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequestBuilder setTemplate(String indexPattern) {
-        return setPatterns(Collections.singletonList(indexPattern));
     }
 
     /**

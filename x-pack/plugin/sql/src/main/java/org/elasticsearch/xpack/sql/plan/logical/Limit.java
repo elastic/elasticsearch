@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Limit extends UnaryPlan {
 
     private final Expression limit;
 
-    public Limit(Location location, Expression limit, LogicalPlan child) {
-        super(location, child);
+    public Limit(Source source, Expression limit, LogicalPlan child) {
+        super(source, child);
         this.limit = limit;
     }
 
@@ -27,7 +27,7 @@ public class Limit extends UnaryPlan {
 
     @Override
     protected Limit replaceChild(LogicalPlan newChild) {
-        return new Limit(location(), limit, newChild);
+        return new Limit(source(), limit, newChild);
     }
 
     public Expression limit() {

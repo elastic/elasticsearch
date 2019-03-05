@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -20,30 +19,37 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.MODE;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CLIENT_ID;
 
 /**
  * Request to clean all SQL resources associated with the cursor
  */
 public class SqlClearCursorRequest extends AbstractSqlRequest {
 
-    private static final ConstructingObjectParser<SqlClearCursorRequest, Mode> PARSER =
-        new ConstructingObjectParser<>(SqlClearCursorAction.NAME, true, (objects, mode) -> new SqlClearCursorRequest(
-            mode,
-            (String) objects[0]
-        ));
+    private static final ConstructingObjectParser<SqlClearCursorRequest, RequestInfo> PARSER =
+        // here the position in "objects" is the same as the fields parser declarations below 
+        new ConstructingObjectParser<>(SqlClearCursorAction.NAME, objects -> {
+            RequestInfo requestInfo = new RequestInfo(Mode.fromString((String) objects[1]),
+                    (String) objects[2]);
+            return new SqlClearCursorRequest(requestInfo, (String) objects[0]);
+       });
 
     static {
-        PARSER.declareString(constructorArg(), new ParseField("cursor"));
+        // "cursor" is required constructor parameter
+        PARSER.declareString(constructorArg(), CURSOR);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), MODE);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CLIENT_ID);
     }
 
     private String cursor;
 
     public SqlClearCursorRequest() {
-
     }
     
-    public SqlClearCursorRequest(Mode mode, String cursor) {
-        super(new RequestInfo(mode));
+    public SqlClearCursorRequest(RequestInfo requestInfo, String cursor) {
+        super(requestInfo);
         this.cursor = cursor;
     }
 
@@ -101,7 +107,7 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
         return new org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest(cursor, requestInfo()).toXContent(builder, params);
     }
 
-    public static SqlClearCursorRequest fromXContent(XContentParser parser, Mode mode) {
-        return PARSER.apply(parser, mode);
+    public static SqlClearCursorRequest fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

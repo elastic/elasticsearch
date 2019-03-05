@@ -1,0 +1,88 @@
+[[json-processor]]
+=== JSON Processor
+Converts a JSON string into a structured JSON object.
+
+[[json-options]]
+.Json Options
+[options="header"]
+|======
+| Name           | Required  | Default  | Description
+| `field`        | yes       | -        | The field to be parsed
+| `target_field` | no        | `field`  | The field to insert the converted structured object into
+| `add_to_root`  | no        | false    | Flag that forces the serialized json to be injected into the top level of the document. `target_field` must not be set when this option is chosen.
+include::common-options.asciidoc[]
+|======
+
+All JSON-supported types will be parsed (null, boolean, number, array, object, string).
+
+Suppose you provide this configuration of the `json` processor:
+
+[source,js]
+--------------------------------------------------
+{
+  "json" : {
+    "field" : "string_source",
+    "target_field" : "json_target"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+If the following document is processed:
+
+[source,js]
+--------------------------------------------------
+{
+  "string_source": "{\"foo\": 2000}"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+after the `json` processor operates on it, it will look like:
+
+[source,js]
+--------------------------------------------------
+{
+  "string_source": "{\"foo\": 2000}",
+  "json_target": {
+    "foo": 2000
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+If the following configuration is provided, omitting the optional `target_field` setting:
+[source,js]
+--------------------------------------------------
+{
+  "json" : {
+    "field" : "source_and_target"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+then after the `json` processor operates on this document:
+
+[source,js]
+--------------------------------------------------
+{
+  "source_and_target": "{\"foo\": 2000}"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+it will look like:
+
+[source,js]
+--------------------------------------------------
+{
+  "source_and_target": {
+    "foo": 2000
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+This illustrates that, unless it is explicitly named in the processor configuration, the `target_field`
+is the same field provided in the required `field` configuration.

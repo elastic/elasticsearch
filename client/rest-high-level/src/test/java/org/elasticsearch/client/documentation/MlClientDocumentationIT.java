@@ -20,7 +20,6 @@ package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -33,6 +32,7 @@ import org.elasticsearch.client.MachineLearningIT;
 import org.elasticsearch.client.MlTestStateCleaner;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
@@ -99,6 +99,7 @@ import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
+import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -139,6 +140,7 @@ import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -764,7 +766,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-datafeed-execute
             GetDatafeedResponse response = client.machineLearning().getDatafeed(request, RequestOptions.DEFAULT);
             // end::get-datafeed-execute
-            
+
             // tag::get-datafeed-response
             long numberOfDatafeeds = response.count(); // <1>
             List<DatafeedConfig> datafeeds = response.datafeeds(); // <2>
@@ -823,7 +825,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             AcknowledgedResponse deleteDatafeedResponse = client.machineLearning().deleteDatafeed(
                 deleteDatafeedRequest, RequestOptions.DEFAULT);
             // end::delete-datafeed-execute
-            
+
             // tag::delete-datafeed-response
             boolean isAcknowledged = deleteDatafeedResponse.isAcknowledged(); // <1>
             // end::delete-datafeed-response
@@ -869,10 +871,18 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId = job.getId() + "-feed";
         String indexName = "preview_data_2";
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
-            .setTypes(Arrays.asList("doc"))
             .setIndices(indexName)
             .build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
@@ -929,10 +939,18 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId = job.getId() + "-feed";
         String indexName = "start_data_2";
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
-            .setTypes(Arrays.asList("doc"))
             .setIndices(indexName)
             .build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
@@ -1050,17 +1068,24 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId1 = job.getId() + "-feed";
         String indexName = "datafeed_stats_data_2";
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId1, job.getId())
-            .setTypes(Arrays.asList("doc"))
             .setIndices(indexName)
             .build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
         String datafeedId2 = secondJob.getId() + "-feed";
         DatafeedConfig secondDatafeed = DatafeedConfig.builder(datafeedId2, secondJob.getId())
-            .setTypes(Arrays.asList("doc"))
             .setIndices(indexName)
             .build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(secondDatafeed), RequestOptions.DEFAULT);
@@ -1123,7 +1148,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a bucket
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-get-buckets\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
                         "\"bucket_span\": 600,\"is_interim\": false, \"anomaly_score\": 80.0}", XContentType.JSON);
@@ -1277,7 +1302,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-    
+
     public void testDeleteForecast() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1356,7 +1381,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-    
+
     public void testGetJobStats() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1481,7 +1506,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-    
+
     public void testGetOverallBuckets() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -1497,13 +1522,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         {
-            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
             indexRequest.source("{\"job_id\":\"test-get-overall-buckets-1\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
                     "\"bucket_span\": 600,\"is_interim\": false, \"anomaly_score\": 60.0}", XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
         {
-            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
             indexRequest.source("{\"job_id\":\"test-get-overall-buckets-2\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
                     "\"bucket_span\": 3600,\"is_interim\": false, \"anomaly_score\": 100.0}", XContentType.JSON);
             bulkRequest.add(indexRequest);
@@ -1591,7 +1616,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a record
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-get-records\", \"result_type\":\"record\", \"timestamp\": 1533081600000," +
                 "\"bucket_span\": 600,\"is_interim\": false, \"record_score\": 80.0}", XContentType.JSON);
@@ -1810,7 +1835,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a record
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-get-influencers\", \"result_type\":\"influencer\", \"timestamp\": 1533081600000," +
                 "\"bucket_span\": 600,\"is_interim\": false, \"influencer_score\": 80.0, \"influencer_field_name\": \"my_influencer\"," +
@@ -1901,7 +1926,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a category
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\": \"test-get-categories\", \"category_id\": 1, \"terms\": \"AAL\"," +
                 " \"regex\": \".*?AAL.*\", \"max_matching_length\": 3, \"examples\": [\"AAL\"]}", XContentType.JSON);
@@ -2022,7 +2047,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a snapshot
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -2088,7 +2113,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a snapshot
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-get-model-snapshots\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -2186,7 +2211,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // Let us index a snapshot
         String documentId = jobId + "_model_snapshot_" + snapshotId;
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc", documentId);
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -2262,7 +2287,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         // Let us index a snapshot
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc", documentId);
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"test-update-model-snapshot\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -2475,7 +2500,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-    
+
     public void testGetCalendar() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -2658,7 +2683,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-    
+
     public void testPostCalendarEvent() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -3051,6 +3076,57 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::get-ml-info-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testSetUpgradeMode() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::set-upgrade-mode-request
+            SetUpgradeModeRequest request = new SetUpgradeModeRequest(true); // <1>
+            request.setTimeout(TimeValue.timeValueMinutes(10)); // <2>
+            // end::set-upgrade-mode-request
+
+            // Set to false so that the cluster setting does not have to be unset at the end of the test.
+            request.setEnabled(false);
+
+            // tag::set-upgrade-mode-execute
+            AcknowledgedResponse acknowledgedResponse = client.machineLearning().setUpgradeMode(request, RequestOptions.DEFAULT);
+            // end::set-upgrade-mode-execute
+
+            // tag::set-upgrade-mode-response
+            boolean acknowledged = acknowledgedResponse.isAcknowledged(); // <1>
+            // end::set-upgrade-mode-response
+            assertThat(acknowledged, is(true));
+        }
+        {
+            SetUpgradeModeRequest request = new SetUpgradeModeRequest(false);
+
+            // tag::set-upgrade-mode-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::set-upgrade-mode-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::set-upgrade-mode-execute-async
+            client.machineLearning()
+                .setUpgradeModeAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::set-upgrade-mode-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
         }
     }
 

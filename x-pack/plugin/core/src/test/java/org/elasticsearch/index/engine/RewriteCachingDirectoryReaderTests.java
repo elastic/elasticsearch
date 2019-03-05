@@ -15,9 +15,9 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 
 public class RewriteCachingDirectoryReaderTests extends ESTestCase {
 
@@ -92,15 +92,15 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                     dateFieldType.setName("test");
                     QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> 0);
                     MappedFieldType.Relation relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 0, 10,
-                        true, true, DateTimeZone.UTC, null, context);
+                        true, true, ZoneOffset.UTC, null, context);
                     assertEquals(relation, MappedFieldType.Relation.WITHIN);
 
                     relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 3, 11,
-                        true, true, DateTimeZone.UTC, null, context);
+                        true, true, ZoneOffset.UTC, null, context);
                     assertEquals(relation, MappedFieldType.Relation.INTERSECTS);
 
                     relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 10, 11,
-                        false, true, DateTimeZone.UTC, null, context);
+                        false, true, ZoneOffset.UTC, null, context);
                     assertEquals(relation, MappedFieldType.Relation.DISJOINT);
                 }
             }

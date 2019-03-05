@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -78,8 +77,6 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         assertEquals(1, request.requests().get(0).getScriptParams().size());
         assertEquals(1, request.requests().get(1).getScriptParams().size());
         assertEquals(1, request.requests().get(2).getScriptParams().size());
-
-        assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testParseWithCarriageReturn() throws Exception {

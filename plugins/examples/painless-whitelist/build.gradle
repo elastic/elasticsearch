@@ -32,7 +32,7 @@ dependencies {
 }
 
 if (System.getProperty('tests.distribution') == null) {
-  integTestCluster.distribution = 'oss-zip'
+  integTestCluster.distribution = 'oss'
 }
 
-test.enabled = false
+unitTest.enabled = false

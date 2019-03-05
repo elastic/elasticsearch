@@ -54,8 +54,6 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
 
     public void testBuildResponse() throws Exception {
         final RestGetUserPrivilegesAction.RestListener listener = new RestGetUserPrivilegesAction.RestListener(null);
-
-
         final Set<String> cluster = new LinkedHashSet<>(Arrays.asList("monitor", "manage_ml", "manage_watcher"));
         final Set<ConditionalClusterPrivilege> conditionalCluster = Collections.singleton(
             new ConditionalClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))));
@@ -68,10 +66,11 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                 new LinkedHashSet<>(Arrays.asList(
                     new BytesArray("{ \"term\": { \"access\": \"public\" } }"),
                     new BytesArray("{ \"term\": { \"access\": \"standard\" } }")
-                ))
+                )),
+                false
             ),
             new GetUserPrivilegesResponse.Indices(Arrays.asList("index-4"), Collections.singleton("all"),
-                Collections.emptySet(), Collections.emptySet()
+                Collections.emptySet(), Collections.emptySet(), true
             )
         ));
         final Set<ApplicationResourcePrivileges> application = Sets.newHashSet(
@@ -100,8 +99,10 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
             "\"query\":[" +
             "\"{ \\\"term\\\": { \\\"access\\\": \\\"public\\\" } }\"," +
             "\"{ \\\"term\\\": { \\\"access\\\": \\\"standard\\\" } }\"" +
-            "]}," +
-            "{\"names\":[\"index-4\"],\"privileges\":[\"all\"]}" +
+            "]," +
+            "\"allow_restricted_indices\":false" +
+            "}," +
+            "{\"names\":[\"index-4\"],\"privileges\":[\"all\"],\"allow_restricted_indices\":true}" +
             "]," +
             "\"applications\":[" +
             "{\"application\":\"app01\",\"privileges\":[\"read\",\"write\"],\"resources\":[\"*\"]}," +

@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.rollup.rest;
 
 import org.apache.logging.log4j.LogManager;
@@ -15,7 +16,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 
@@ -25,7 +25,6 @@ public class RestGetRollupCapsAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetRollupCapsAction.class));
 
-
     public static final ParseField ID = new ParseField("id");
 
     public RestGetRollupCapsAction(Settings settings, RestController controller) {
@@ -33,7 +32,7 @@ public class RestGetRollupCapsAction extends BaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 GET, "/_rollup/data/{id}", this,
-                GET, Rollup.BASE_PATH +  "data/{id}/", deprecationLogger);
+                GET, "/_xpack/rollup/data/{id}/", deprecationLogger);
     }
 
     @Override

@@ -216,9 +216,9 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
         if (randomBoolean()) {
-            internalCluster().startMasterOnlyNode(Settings.EMPTY);
+            internalCluster().startMasterOnlyNode();
         } else {
-            internalCluster().startDataOnlyNode(Settings.EMPTY);
+            internalCluster().startDataOnlyNode();
         }
         // wait for the cluster status to settle
         ensureGreen();

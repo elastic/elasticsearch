@@ -304,7 +304,8 @@ public class SecurityIndexManager implements ClusterStateListener {
         final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
         // TODO we should improve this so we don't fire off a bunch of requests to do the same thing (create or update mappings)
         if (indexState == State.UNRECOVERED_STATE) {
-            consumer.accept(new ElasticsearchStatusException("Cluster state has not been recovered yet, cannot write to the security index", RestStatus.SERVICE_UNAVAILABLE));
+            consumer.accept(new ElasticsearchStatusException("Cluster state has not been recovered yet, cannot write to the security index",
+                    RestStatus.SERVICE_UNAVAILABLE));
         } else if (indexState.indexExists && indexState.isIndexUpToDate == false) {
             consumer.accept(new IllegalStateException(
                     "Security index is not on the current version. Security features relying on the index will not be available until " +

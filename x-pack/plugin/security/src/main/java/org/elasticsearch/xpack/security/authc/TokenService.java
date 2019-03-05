@@ -300,30 +300,6 @@ public final class TokenService {
     }
 
     /**
-     * Reconstructs the {@link UserToken} from the existing {@code userTokenSource} and call the listener with the {@link UserToken} and the
-     * refresh token string
-     */
-    private void reIssueTokens(Map<String, Object> userTokenSource,
-                               String refreshToken, ActionListener<Tuple<UserToken, String>> listener) {
-        final String authString = (String) userTokenSource.get("authentication");
-        final Integer version = (Integer) userTokenSource.get("version");
-        final Map<String, Object> metadata = (Map<String, Object>) userTokenSource.get("metadata");
-        final String id = (String) userTokenSource.get("id");
-        final Long expiration = (Long) userTokenSource.get("expiration_time");
-
-        Version authVersion = Version.fromId(version);
-        try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(authString))) {
-            in.setVersion(authVersion);
-            Authentication authentication = new Authentication(in);
-            UserToken userToken = new UserToken(id, authVersion, authentication, Instant.ofEpochMilli(expiration), metadata);
-            listener.onResponse(new Tuple<>(userToken, refreshToken));
-        } catch (IOException e) {
-            logger.error("Unable to decode existing user token", e);
-            listener.onFailure(invalidGrantException("could not refresh the requested token"));
-        }
-    }
-
-    /**
      * Looks in the context to see if the request provided a header with a user token and if so the
      * token is validated, which might include authenticated decryption and verification that the token
      * has not been revoked or is expired.
@@ -835,13 +811,15 @@ public final class TokenService {
                     public void onResponse(GetResponse response) {
                         if (response.isExists()) {
                             logger.debug("Found superseding token document [{}] ", supersedingTokenDocId);
-                            final Map<String, Object> supersedingTokenSource = response.getSource();
-                            final Map<String, Object> supersedingUserTokenSource = (Map<String, Object>)
-                                ((Map<String, Object>) supersedingTokenSource.get("access_token")).get("user_token");
-                            final Map<String, Object> supersedingRefreshTokenSrc =
-                                (Map<String, Object>) supersedingTokenSource.get("refresh_token");
-                            final String supersedingRefreshTokenValue = (String) supersedingRefreshTokenSrc.get("token");
-                            reIssueTokens(supersedingUserTokenSource, supersedingRefreshTokenValue, listener);
+                            final Tuple<UserToken, String> parsedTokens;
+                            try {
+                                parsedTokens = parseTokensFromDocument(response.getSource(), null);
+                            } catch (IOException e) {
+                                logger.error("Unable to decode existing user token", e);
+                                listener.onFailure(invalidGrantException("could not refresh the requested token"));
+                                return;
+                            }
+                            listener.onResponse(parsedTokens);
                         } else {
                             // We retry this since the creation of the superseding token document might already be in flight but not
                             // yet completed, triggered by a refresh request that came a few milliseconds ago
@@ -1226,19 +1204,7 @@ public final class TokenService {
         if (null != filter && filter.test(userTokenSource) == false) {
             return null;
         }
-        final String id = (String) userTokenSource.get("id");
-        final Integer version = (Integer) userTokenSource.get("version");
-        final String authString = (String) userTokenSource.get("authentication");
-        final Long expiration = (Long) userTokenSource.get("expiration_time");
-        final Map<String, Object> metadata = (Map<String, Object>) userTokenSource.get("metadata");
-
-        Version authVersion = Version.fromId(version);
-        try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(authString))) {
-            in.setVersion(authVersion);
-            Authentication authentication = new Authentication(in);
-            return new Tuple<>(new UserToken(id, Version.fromId(version), authentication, Instant.ofEpochMilli(expiration), metadata),
-                refreshToken);
-        }
+        return new Tuple<>(UserToken.fromSourceMap(userTokenSource), refreshToken);
     }
 
     private static String getTokenDocumentId(UserToken userToken) {

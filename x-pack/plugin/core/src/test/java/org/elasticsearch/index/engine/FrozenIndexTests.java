@@ -9,11 +9,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -26,6 +29,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
@@ -48,8 +52,10 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class FrozenIndexTests extends ESSingleNodeTestCase {
 
@@ -248,20 +254,20 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             IndexShard shard = indexService.getShard(0);
             assertFalse(indexService.getIndexSettings().isSearchThrottled());
             SearchService searchService = getInstanceFromNode(SearchService.class);
-            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(shard.shardId(), 1, SearchType.QUERY_THEN_FETCH, null,
-                Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, true, null, null)));
+            SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+            searchRequest.source(sourceBuilder);
             sourceBuilder.query(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d/d"));
-            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(shard.shardId(), 1, SearchType.QUERY_THEN_FETCH, sourceBuilder,
-                Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, true, null, null)));
+            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
-            sourceBuilder = new SearchSourceBuilder();
             sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
-            assertFalse(searchService.canMatch(new ShardSearchLocalRequest(shard.shardId(), 1, SearchType.QUERY_THEN_FETCH, sourceBuilder,
-                Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, true, null, null)));
+            assertFalse(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
         }
-
 
         XPackClient xPackClient = new XPackClient(client());
         assertAcked(xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest("index")));
@@ -273,18 +279,19 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             IndexShard shard = indexService.getShard(0);
             assertTrue(indexService.getIndexSettings().isSearchThrottled());
             SearchService searchService = getInstanceFromNode(SearchService.class);
-            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(shard.shardId(), 1, SearchType.QUERY_THEN_FETCH, null,
-                Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, true, null, null)));
+            SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
             sourceBuilder.query(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d/d"));
-            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(shard.shardId(), 1, SearchType.QUERY_THEN_FETCH, sourceBuilder,
-                Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, true, null, null)));
+            searchRequest.source(sourceBuilder);
+            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
-            sourceBuilder = new SearchSourceBuilder();
             sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
-            assertFalse(searchService.canMatch(new ShardSearchLocalRequest(shard.shardId(), 1, SearchType.QUERY_THEN_FETCH, sourceBuilder,
-                Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, true, null, null)));
+            assertFalse(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
             IndicesStatsResponse response = client().admin().indices().prepareStats("index").clear().setRefresh(true).get();
             assertEquals(0, response.getTotal().refresh.getTotal()); // never opened a reader
@@ -342,7 +349,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertAcked(xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest(index)));
         assertIndexFrozen(index);
         assertThat(client().admin().cluster().prepareState().get().getState().metaData().index(index).getSettingsVersion(),
-            equalTo(settingsVersion + 1));
+            greaterThan(settingsVersion));
     }
 
     public void testFreezeEmptyIndexWithTranslogOps() throws Exception {
@@ -369,5 +376,37 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         assertAcked(new XPackClient(client()).freeze(new TransportFreezeIndexAction.FreezeRequest(indexName)));
         assertIndexFrozen(indexName);
+    }
+
+    public void testRecoveryState() throws ExecutionException, InterruptedException {
+        final String indexName = "index_recovery_state";
+        createIndex(indexName, Settings.builder()
+            .put("index.number_of_replicas", 0)
+            .build());
+
+        final long nbDocs = randomIntBetween(0, 50);
+        for (long i = 0; i < nbDocs; i++) {
+            final IndexResponse indexResponse = client().prepareIndex(indexName, "_doc", Long.toString(i)).setSource("field", i).get();
+            assertThat(indexResponse.status(), is(RestStatus.CREATED));
+        }
+
+        assertAcked(new XPackClient(client()).freeze(new TransportFreezeIndexAction.FreezeRequest(indexName)));
+        assertIndexFrozen(indexName);
+
+        final IndexMetaData indexMetaData = client().admin().cluster().prepareState().get().getState().metaData().index(indexName);
+        final IndexService indexService = getInstanceFromNode(IndicesService.class).indexService(indexMetaData.getIndex());
+        for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
+            final IndexShard indexShard = indexService.getShardOrNull(i);
+            assertThat("Shard [" + i + "] is missing for index " + indexMetaData.getIndex(), indexShard, notNullValue());
+            final RecoveryState recoveryState = indexShard.recoveryState();
+            assertThat(recoveryState.getRecoverySource(), is(RecoverySource.ExistingStoreRecoverySource.INSTANCE));
+            assertThat(recoveryState.getStage(), is(RecoveryState.Stage.DONE));
+            assertThat(recoveryState.getTargetNode(), notNullValue());
+            assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
+            assertThat(recoveryState.getIndex().reusedFileCount(), greaterThan(0));
+            assertThat(recoveryState.getTranslog().recoveredOperations(), equalTo(0));
+            assertThat(recoveryState.getTranslog().totalOperations(), equalTo(0));
+            assertThat(recoveryState.getTranslog().recoveredPercent(), equalTo(100.0f));
+        }
     }
 }

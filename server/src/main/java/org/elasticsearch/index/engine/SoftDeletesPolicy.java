@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -107,10 +106,6 @@ final class SoftDeletesPolicy {
      * Operations whose seq# is least this value should exist in the Lucene index.
      */
     synchronized long getMinRetainedSeqNo() {
-        return getRetentionPolicy().v1();
-    }
-
-    public synchronized Tuple<Long, RetentionLeases> getRetentionPolicy() {
         /*
          * When an engine is flushed, we need to provide it the latest collection of retention leases even when the soft deletes policy is
          * locked for peer recovery.
@@ -137,11 +132,13 @@ final class SoftDeletesPolicy {
                     .orElse(Long.MAX_VALUE);
             /*
              * The minimum sequence number to retain is the minimum of the minimum based on retention leases, and the number of operations
-             * below the global checkpoint to retain (index.soft_deletes.retention.operations).
+             * below the global checkpoint to retain (index.soft_deletes.retention.operations). The additional increments on the global
+             * checkpoint and the local checkpoint of the safe commit are due to the fact that we want to retain all operations above
+             * those checkpoints.
              */
             final long minSeqNoForQueryingChanges =
-                    Math.min(globalCheckpointSupplier.getAsLong() - retentionOperations, minimumRetainingSequenceNumber);
-            final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, localCheckpointOfSafeCommit) + 1;
+                    Math.min(1 + globalCheckpointSupplier.getAsLong() - retentionOperations, minimumRetainingSequenceNumber);
+            final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, 1 + localCheckpointOfSafeCommit);
 
             /*
              * We take the maximum as minSeqNoToRetain can go backward as the retention operations value can be changed in settings, or from
@@ -149,7 +146,7 @@ final class SoftDeletesPolicy {
              */
             minRetainedSeqNo = Math.max(minRetainedSeqNo, minSeqNoToRetain);
         }
-        return Tuple.tuple(minRetainedSeqNo, retentionLeases);
+        return minRetainedSeqNo;
     }
 
     /**

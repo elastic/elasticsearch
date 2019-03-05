@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -91,6 +92,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s").build();
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings,
             Collections.singleton(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING)));
+        when(clusterService.lifecycleState()).thenReturn(State.STARTED);
 
         Client client = mock(Client.class);
         AdminClient adminClient = mock(AdminClient.class);
@@ -108,6 +110,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     @After
     public void cleanup() {
+        when(clusterService.lifecycleState()).thenReturn(randomFrom(State.STOPPED, State.CLOSED));
         indexLifecycleService.close();
         threadPool.shutdownNow();
     }

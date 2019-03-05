@@ -32,6 +32,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ccr.CcrStatsRequest;
 import org.elasticsearch.client.ccr.CcrStatsResponse;
 import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.FollowInfoRequest;
+import org.elasticsearch.client.ccr.FollowInfoResponse;
 import org.elasticsearch.client.ccr.FollowStatsRequest;
 import org.elasticsearch.client.ccr.FollowStatsResponse;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
@@ -113,6 +115,15 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
         try {
             assertBusy(() -> {
+                FollowInfoRequest followInfoRequest = new FollowInfoRequest("follower");
+                FollowInfoResponse followInfoResponse =
+                    execute(followInfoRequest, ccrClient::getFollowInfo, ccrClient::getFollowInfoAsync);
+                assertThat(followInfoResponse.getInfos().size(), equalTo(1));
+                assertThat(followInfoResponse.getInfos().get(0).getFollowerIndex(), equalTo("follower"));
+                assertThat(followInfoResponse.getInfos().get(0).getLeaderIndex(), equalTo("leader"));
+                assertThat(followInfoResponse.getInfos().get(0).getRemoteCluster(), equalTo("local_cluster"));
+                assertThat(followInfoResponse.getInfos().get(0).getStatus(), equalTo(FollowInfoResponse.Status.ACTIVE));
+
                 FollowStatsRequest followStatsRequest = new FollowStatsRequest("follower");
                 FollowStatsResponse followStatsResponse =
                     execute(followStatsRequest, ccrClient::getFollowStats, ccrClient::getFollowStatsAsync);
@@ -169,6 +180,17 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         pauseFollowRequest = new PauseFollowRequest("follower");
         pauseFollowResponse = execute(pauseFollowRequest, ccrClient::pauseFollow, ccrClient::pauseFollowAsync);
         assertThat(pauseFollowResponse.isAcknowledged(), is(true));
+
+        assertBusy(() -> {
+            FollowInfoRequest followInfoRequest = new FollowInfoRequest("follower");
+            FollowInfoResponse followInfoResponse =
+                execute(followInfoRequest, ccrClient::getFollowInfo, ccrClient::getFollowInfoAsync);
+            assertThat(followInfoResponse.getInfos().size(), equalTo(1));
+            assertThat(followInfoResponse.getInfos().get(0).getFollowerIndex(), equalTo("follower"));
+            assertThat(followInfoResponse.getInfos().get(0).getLeaderIndex(), equalTo("leader"));
+            assertThat(followInfoResponse.getInfos().get(0).getRemoteCluster(), equalTo("local_cluster"));
+            assertThat(followInfoResponse.getInfos().get(0).getStatus(), equalTo(FollowInfoResponse.Status.PAUSED));
+        });
 
         // Need to close index prior to unfollowing it:
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest("follower");

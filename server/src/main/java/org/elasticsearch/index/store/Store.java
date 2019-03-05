@@ -87,6 +87,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -416,16 +417,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     private void closeInternal() {
-        try {
+        // Leverage try-with-resources to close the shard lock for us
+        try (Closeable c = shardLock) {
             try {
                 directory.innerClose(); // this closes the distributorDirectory as well
             } finally {
                 onClose.accept(shardLock);
             }
         } catch (IOException e) {
-            logger.debug("failed to close directory", e);
-        } finally {
-            IOUtils.closeWhileHandlingException(shardLock);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -436,7 +436,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public static MetadataSnapshot readMetadataSnapshot(Path indexLocation, ShardId shardId, NodeEnvironment.ShardLocker shardLocker,
                                                         Logger logger) throws IOException {
-        try (ShardLock lock = shardLocker.lock(shardId, TimeUnit.SECONDS.toMillis(5));
+        try (ShardLock lock = shardLocker.lock(shardId, "read metadata snapshot", TimeUnit.SECONDS.toMillis(5));
              Directory dir = new SimpleFSDirectory(indexLocation)) {
             failIfCorrupted(dir, shardId);
             return new MetadataSnapshot(null, dir, logger);
@@ -457,7 +457,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public static void tryOpenIndex(Path indexLocation, ShardId shardId, NodeEnvironment.ShardLocker shardLocker,
                                         Logger logger) throws IOException, ShardLockObtainFailedException {
-        try (ShardLock lock = shardLocker.lock(shardId, TimeUnit.SECONDS.toMillis(5));
+        try (ShardLock lock = shardLocker.lock(shardId, "open index", TimeUnit.SECONDS.toMillis(5));
              Directory dir = new SimpleFSDirectory(indexLocation)) {
             failIfCorrupted(dir, shardId);
             SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
@@ -1521,7 +1521,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (existingCommits.isEmpty()) {
                 throw new IllegalArgumentException("No index found to trim");
             }
-            final String translogUUID = existingCommits.get(existingCommits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final IndexCommit lastIndexCommitCommit = existingCommits.get(existingCommits.size() - 1);
+            final String translogUUID = lastIndexCommitCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY);
             final IndexCommit startingIndexCommit;
             // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
             // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
@@ -1546,7 +1547,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     + startingIndexCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY) + "] is not equal to last commit's translog uuid ["
                     + translogUUID + "]");
             }
-            if (startingIndexCommit.equals(existingCommits.get(existingCommits.size() - 1)) == false) {
+            if (startingIndexCommit.equals(lastIndexCommitCommit) == false) {
                 try (IndexWriter writer = newAppendingIndexWriter(directory, startingIndexCommit)) {
                     // this achieves two things:
                     // - by committing a new commit based on the starting commit, it make sure the starting commit will be opened

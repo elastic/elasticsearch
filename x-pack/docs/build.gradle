@@ -97,7 +97,7 @@ buildRestTests.docs = fileTree(projectDir) {
 Map<String, String> setups = buildRestTests.setups
 setups['my_inactive_watch'] = '''
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         active: false
         body:  >
@@ -216,7 +216,7 @@ setups['library'] = '''
 '''
 setups['sample_job'] = '''
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: "sample_job"
         body:  >
           {
@@ -270,7 +270,7 @@ setups['farequote_data'] = setups['farequote_index'] + '''
 '''
 setups['farequote_job'] = setups['farequote_data'] + '''
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: "farequote"
         body:  >
           {
@@ -290,7 +290,7 @@ setups['farequote_job'] = setups['farequote_data'] + '''
 '''
 setups['farequote_datafeed'] = setups['farequote_job'] + '''
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: "datafeed-farequote"
         body:  >
           {
@@ -300,7 +300,7 @@ setups['farequote_datafeed'] = setups['farequote_job'] + '''
 '''
 setups['ml_filter_safe_domains'] = '''
   - do:
-      xpack.ml.put_filter:
+      ml.put_filter:
         filter_id: "safe_domains"
         body:  >
           {
@@ -364,7 +364,7 @@ setups['server_metrics_data'] = setups['server_metrics_index'] + '''
 '''
 setups['server_metrics_job'] = setups['server_metrics_data'] + '''
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: "total-requests"
         body:  >
           {
@@ -386,7 +386,7 @@ setups['server_metrics_job'] = setups['server_metrics_data'] + '''
 '''
 setups['server_metrics_datafeed'] = setups['server_metrics_job'] + '''
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: "datafeed-total-requests"
         body:  >
           {
@@ -396,22 +396,22 @@ setups['server_metrics_datafeed'] = setups['server_metrics_job'] + '''
 '''
 setups['server_metrics_openjob'] = setups['server_metrics_datafeed'] + '''
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "total-requests"
 '''
 setups['server_metrics_startdf'] = setups['server_metrics_openjob'] + '''
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "datafeed-total-requests"
 '''
 setups['calendar_outages'] = '''
   - do:
-        xpack.ml.put_calendar:
+        ml.put_calendar:
           calendar_id: "planned-outages"
 '''
 setups['calendar_outages_addevent'] = setups['calendar_outages'] + '''
   - do:
-        xpack.ml.post_calendar_events:
+        ml.post_calendar_events:
           calendar_id: "planned-outages"
           body: >
             { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z", "calendar_id": "planned-outages" }
@@ -420,12 +420,12 @@ setups['calendar_outages_addevent'] = setups['calendar_outages'] + '''
 '''
 setups['calendar_outages_openjob'] = setups['server_metrics_openjob'] + '''
   - do:
-       xpack.ml.put_calendar:
+       ml.put_calendar:
          calendar_id: "planned-outages"
 '''
 setups['calendar_outages_addjob'] = setups['server_metrics_openjob'] + '''
   - do:
-       xpack.ml.put_calendar:
+       ml.put_calendar:
          calendar_id: "planned-outages"
          body:  >
            {
@@ -434,7 +434,7 @@ setups['calendar_outages_addjob'] = setups['server_metrics_openjob'] + '''
 '''
 setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
   - do:
-       xpack.ml.post_calendar_events:
+       ml.post_calendar_events:
          calendar_id: "planned-outages"
          body:  >
            { "events" : [
@@ -473,7 +473,7 @@ setups['sensor_rollup_job'] = '''
               node:
                 type: keyword
   - do:
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: "sensor"
         body:  >
             {
@@ -541,7 +541,7 @@ setups['sensor_started_rollup_job'] = '''
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
 
   - do:
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: "sensor"
         body:  >
             {
@@ -571,7 +571,7 @@ setups['sensor_started_rollup_job'] = '''
                 ]
             }
   - do:
-      xpack.rollup.start_job:
+      rollup.start_job:
         id: "sensor"
 '''
 

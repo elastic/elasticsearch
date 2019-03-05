@@ -3,8 +3,6 @@
 [[sql-functions-datetime]]
 === Date/Time and Interval Functions and Operators
 
-beta[]
-
 {es-sql} offers a wide range of facilities for performing date/time manipulations.
 
 [[sql-functions-datetime-interval]]
@@ -91,7 +89,7 @@ include-tagged::{sql-specs}/docs.csv-spec[dtIntervalMul]
 
 ==== Functions
 
-beta[]
+Functions that target date/time.
 
 [[sql-functions-current-date]]
 ==== `CURRENT_DATE/CURDATE`
@@ -155,7 +153,8 @@ CURRENT_TIMESTAMP(precision <1>)
 
 Returns the date/time when the current query reached the server.
 As a function, `CURRENT_TIMESTAMP()` accepts _precision_ as an optional
-parameter for rounding the second fractional digits (nanoseconds).
+parameter for rounding the second fractional digits (nanoseconds). The default _precision_ is 3,
+meaning a milliseconds precision current date/time will be returned.
 
 This method always returns the same value for its every occurrence within the same query.
 

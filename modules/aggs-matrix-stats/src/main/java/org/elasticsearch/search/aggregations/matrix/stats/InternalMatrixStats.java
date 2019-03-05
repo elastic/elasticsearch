@@ -244,12 +244,15 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         }
 
         RunningStats runningStats = new RunningStats();
-        for (int i=0; i < aggs.size(); ++i) {
-            runningStats.merge(((InternalMatrixStats) aggs.get(i)).stats);
+        for (InternalAggregation agg : aggs) {
+            runningStats.merge(((InternalMatrixStats) agg).stats);
         }
-        MatrixStatsResults results = new MatrixStatsResults(runningStats);
 
-        return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, pipelineAggregators(), getMetaData());
+        if (reduceContext.isFinalReduce()) {
+            MatrixStatsResults results = new MatrixStatsResults(runningStats);
+            return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, pipelineAggregators(), getMetaData());
+        }
+        return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, pipelineAggregators(), getMetaData());
     }
 
     @Override

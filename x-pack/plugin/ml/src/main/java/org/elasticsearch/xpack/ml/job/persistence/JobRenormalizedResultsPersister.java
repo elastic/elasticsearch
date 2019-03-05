@@ -26,7 +26,6 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
-import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
 
 
 /**
@@ -78,7 +77,7 @@ public class JobRenormalizedResultsPersister {
 
     public void updateResult(String id, String index, ToXContent resultDoc) {
         try (XContentBuilder content = toXContentBuilder(resultDoc)) {
-            bulkRequest.add(new IndexRequest(index, DOC_TYPE, id).source(content));
+            bulkRequest.add(new IndexRequest(index).id(id).source(content));
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] Error serialising result", jobId), e);
         }

@@ -109,13 +109,13 @@ Vagrant.configure(2) do |config|
       rpm_common config, box
     end
   end
-  'fedora-27'.tap do |box|
+  'fedora-28'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/fedora-27-x86_64'
+      config.vm.box = 'elastic/fedora-28-x86_64'
       dnf_common config, box
     end
   end
-  'fedora-28'.tap do |box|
+  'fedora-29'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/fedora-28-x86_64'
       dnf_common config, box
@@ -346,6 +346,11 @@ def sh_install_deps(config,
       echo "==> Java is not installed"
       return 1
     }
+    cat \<\<JAVA > /etc/profile.d/java_home.sh
+if [ -z "\\\$JAVA_HOME" ]; then
+  export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+fi
+JAVA
     ensure tar
     ensure curl
     ensure unzip
@@ -382,6 +387,7 @@ Defaults   env_keep += "BATS_UTILS"
 Defaults   env_keep += "BATS_TESTS"
 Defaults   env_keep += "PACKAGING_ARCHIVES"
 Defaults   env_keep += "PACKAGING_TESTS"
+Defaults   env_keep += "JAVA_HOME"
 SUDOERS_VARS
     chmod 0440 /etc/sudoers.d/elasticsearch_vars
   SHELL

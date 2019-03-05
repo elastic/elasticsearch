@@ -127,42 +127,25 @@ class ClusterFormationTasks {
             nodes.add(node)
             Closure<Map> writeConfigSetup
             Object dependsOn
-            if (node.nodeVersion.onOrAfter("6.5.0")) {
-                writeConfigSetup = { Map esConfig ->
-                    if (config.getAutoSetHostsProvider()) {
-                        // Don't force discovery provider if one is set by the test cluster specs already
-                        final String seedProvidersSettingName =
-                                node.nodeVersion.onOrAfter("7.0.0") ? "discovery.seed_providers" : "discovery.zen.hosts_provider";
-                        if (esConfig.containsKey(seedProvidersSettingName) == false) {
-                            esConfig[seedProvidersSettingName] = 'file'
+            writeConfigSetup = { Map esConfig ->
+                if (config.getAutoSetHostsProvider()) {
+                    if (esConfig.containsKey("discovery.seed_providers") == false) {
+                        esConfig["discovery.seed_providers"] = 'file'
+                    }
+                    esConfig["discovery.seed_hosts"] = []
+                }
+                if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes()) {
+                    esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
+                        if (n.config.settings['node.name'] == null) {
+                            return "node-" + n.nodeNum
+                        } else {
+                            return n.config.settings['node.name']
                         }
-                        esConfig[node.nodeVersion.onOrAfter("7.0.0") ? "discovery.seed_hosts" : "discovery.zen.ping.unicast.hosts"] = []
-                    }
-                    boolean supportsInitialMasterNodes = hasBwcNodes == false || config.bwcVersion.onOrAfter("7.0.0")
-                    if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes() && supportsInitialMasterNodes) {
-                        esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
-                            if (n.config.settings['node.name'] == null) {
-                                return "node-" + n.nodeNum
-                            } else {
-                                return n.config.settings['node.name']
-                            }
-                        }).collect(Collectors.toList())
-                    }
-                    esConfig
+                    }).collect(Collectors.toList())
                 }
-                dependsOn = startDependencies
-            } else {
-                dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
-                writeConfigSetup = { Map esConfig ->
-                    String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.createAntBuilder())
-                    if (unicastTransportUri == null) {
-                        esConfig['discovery.zen.ping.unicast.hosts'] = []
-                    } else {
-                        esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
-                    }
-                    esConfig
-                }
+                esConfig
             }
+            dependsOn = startDependencies
             startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, writeConfigSetup))
         }
 
@@ -216,7 +199,8 @@ class ClusterFormationTasks {
         }
         if (unreleasedInfo != null) {
             dependency = project.dependencies.project(
-                        path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: snapshotProject)
+                    path: unreleasedInfo.gradleProjectPath, configuration: snapshotProject
+            )
         } else if (internalBuild && elasticsearchVersion.equals(VersionProperties.elasticsearch)) {
             dependency = project.dependencies.project(path: ":distribution:archives:${snapshotProject}")
         } else {
@@ -224,7 +208,7 @@ class ClusterFormationTasks {
                 classifier = "" // for bwc, before we had classifiers
             }
             // group does not matter as it is not used when we pull from the ivy repo that points to the download service
-            dependency = "dnm:${artifactName}:${elasticsearchVersion}${classifier}@${packaging}"
+            dependency = "dnm:${artifactName}:${elasticsearchVersion}-${classifier}@${packaging}"
         }
         project.dependencies.add(configuration.name, dependency)
     }
@@ -274,7 +258,7 @@ class ClusterFormationTasks {
         }
         setup = configureCheckPreviousTask(taskName(prefix, node, 'checkPrevious'), project, setup, node)
         setup = configureStopTask(taskName(prefix, node, 'stopPrevious'), project, setup, node)
-        setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, distribution)
+        setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, distribution, config.distribution)
         setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node, writeConfig)
         setup = configureCreateKeystoreTask(taskName(prefix, node, 'createKeystore'), project, setup, node)
         setup = configureAddKeystoreSettingTasks(prefix, project, setup, node)
@@ -343,14 +327,15 @@ class ClusterFormationTasks {
     }
 
     /** Adds a task to extract the elasticsearch distribution */
-    static Task configureExtractTask(String name, Project project, Task setup, NodeInfo node, Configuration configuration) {
+    static Task configureExtractTask(String name, Project project, Task setup, NodeInfo node,
+                                     Configuration configuration, String distribution) {
         List extractDependsOn = [configuration, setup]
         /* configuration.singleFile will be an external artifact if this is being run by a plugin not living in the
           elasticsearch source tree. If this is a plugin built in the elasticsearch source tree or this is a distro in
           the elasticsearch source tree then this should be the version of elasticsearch built by the source tree.
           If it isn't then Bad Things(TM) will happen. */
         Task extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
-            if (getOs().equals("windows")) {
+            if (getOs().equals("windows") || distribution.equals("integ-test-zip")) {
                 from {
                     project.zipTree(configuration.singleFile)
                 }
@@ -379,17 +364,6 @@ class ClusterFormationTasks {
                 // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
                 'discovery.initial_state_timeout' : '0s'
         ]
-        int minimumMasterNodes = node.config.minimumMasterNodes.call()
-        if (node.nodeVersion.before("7.0.0") && minimumMasterNodes > 0) {
-            esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes
-        }
-        if (node.nodeVersion.before("7.0.0") && esConfig.containsKey('discovery.zen.master_election.wait_for_joins_timeout') == false) {
-            // If a node decides to become master based on partial information from the pinging, don't let it hang for 30 seconds to correct
-            // its mistake. Instead, only wait 5s to do another round of pinging.
-            // This is necessary since we use 30s as the default timeout in REST requests waiting for cluster formation
-            // so we need to bail quicker than the default 30s for the cluster to form in time.
-            esConfig['discovery.zen.master_election.wait_for_joins_timeout'] = '5s'
-        }
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
         esConfig['transport.tcp.port'] =  node.config.transportPort
@@ -971,9 +945,9 @@ class ClusterFormationTasks {
     /** Find the current OS */
     static String getOs() {
         String os = "linux"
-        if (Os.FAMILY_WINDOWS) {
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             os = "windows"
-        } else if (Os.FAMILY_MAC) {
+        } else if (Os.isFamily(Os.FAMILY_MAC)) {
             os = "darwin"
         }
         return os

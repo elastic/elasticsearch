@@ -126,9 +126,8 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-
             if (scriptContextName == null) {
+                builder.startObject();
                 builder.startArray("contexts");
 
                 for (ScriptContext<?> scriptContext : painlessScriptEngine.getContextsToLookups().keySet()) {
@@ -136,155 +135,22 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
                 }
 
                 builder.endArray();
+                builder.endObject();
             } else {
+                ScriptContext<?> scriptContext = null;
                 PainlessLookup painlessLookup = null;
 
                 for (Map.Entry<ScriptContext<?>, PainlessLookup> contextLookupEntry :
                         painlessScriptEngine.getContextsToLookups().entrySet()) {
                     if (contextLookupEntry.getKey().name.equals(scriptContextName)) {
+                        scriptContext = contextLookupEntry.getKey();
                         painlessLookup = contextLookupEntry.getValue();
                         break;
                     }
                 }
 
-                List<Class<?>> sortedJavaClasses = new ArrayList<>(painlessLookup.getClasses());
-                sortedJavaClasses.sort(Comparator.comparing(Class::getCanonicalName));
-
-                for (Class<?> javaClass : sortedJavaClasses) {
-                    PainlessClass painlessClass = painlessLookup.lookupPainlessClass(javaClass);
-                    builder.startObject("class");
-                    builder.field("name", PainlessLookupUtility.typeToCanonicalTypeName(javaClass));
-
-                    for (PainlessConstructor painlessConstructor : painlessClass.constructors.values()) {
-                        builder.startObject("constructor");
-                        builder.startArray("parameters");
-
-                        for (Class<?> typeParameter : painlessConstructor.typeParameters) {
-                            builder.value(PainlessLookupUtility.typeToCanonicalTypeName(typeParameter));
-                        }
-
-                        builder.endArray();
-                        builder.endObject();
-                    }
-
-                    for (PainlessMethod painlessMethod : painlessClass.staticMethods.values()) {
-                        builder.startObject("static_method");
-                        builder.field("name", painlessMethod.javaMethod.getName());
-                        builder.field("return", PainlessLookupUtility.typeToCanonicalTypeName(painlessMethod.returnType));
-                        builder.startArray("parameters");
-
-                        for (Class<?> typeParameter : painlessMethod.typeParameters) {
-                            builder.value(PainlessLookupUtility.typeToCanonicalTypeName(typeParameter));
-                        }
-
-                        builder.endArray();
-                        builder.endObject();
-                    }
-
-                    for (PainlessMethod painlessMethod : painlessClass.methods.values()) {
-                        builder.startObject("method");
-                        builder.field("target", PainlessLookupUtility.typeToCanonicalTypeName(painlessMethod.targetClass));
-                        builder.field("name", painlessMethod.javaMethod.getName());
-                        builder.field("return", PainlessLookupUtility.typeToCanonicalTypeName(painlessMethod.returnType));
-                        builder.startArray("parameters");
-
-                        for (Class<?> typeParameter : painlessMethod.typeParameters) {
-                            builder.value(PainlessLookupUtility.typeToCanonicalTypeName(typeParameter));
-                        }
-
-                        builder.endArray();
-                        builder.endObject();
-                    }
-
-                    for (PainlessField painlessField : painlessClass.staticFields.values()) {
-                        builder.startObject("static_field");
-                        builder.field("name", painlessField.javaField.getName());
-                        builder.field("type", PainlessLookupUtility.typeToCanonicalTypeName(painlessField.typeParameter));
-                        builder.endObject();
-                    }
-
-                    for (PainlessField painlessField : painlessClass.fields.values()) {
-                        builder.startObject("field");
-                        builder.field("name", painlessField.javaField.getName());
-                        builder.field("type", PainlessLookupUtility.typeToCanonicalTypeName(painlessField.typeParameter));
-                        builder.endObject();
-                    }
-
-                    builder.endObject();
-                }
-
-                List<String> importedPainlessMethodsKeys = new ArrayList<>(painlessLookup.getImportedPainlessMethodsKeys());
-                importedPainlessMethodsKeys.sort(String::compareTo);
-
-                for (String importedPainlessMethodKey : importedPainlessMethodsKeys) {
-                    String[] split = importedPainlessMethodKey.split("/");
-                    String importedPainlessMethodName = split[0];
-                    int importedPainlessMethodArity = Integer.parseInt(split[1]);
-                    PainlessMethod importedPainlessMethod =
-                            painlessLookup.lookupImportedPainlessMethod(importedPainlessMethodName, importedPainlessMethodArity);
-
-                    builder.startObject("imported_method");
-                    builder.field("target", PainlessLookupUtility.typeToCanonicalTypeName(importedPainlessMethod.targetClass));
-                    builder.field("name", importedPainlessMethod.javaMethod.getName());
-                    builder.field("return", PainlessLookupUtility.typeToCanonicalTypeName(importedPainlessMethod.returnType));
-                    builder.startArray("parameters");
-
-                    for (Class<?> typeParameter : importedPainlessMethod.typeParameters) {
-                        builder.value(PainlessLookupUtility.typeToCanonicalTypeName(typeParameter));
-                    }
-
-                    builder.endArray();
-                    builder.endObject();
-                }
-
-                List<String> painlessClassBindingsKeys = new ArrayList<>(painlessLookup.getPainlessClassBindingsKeys());
-                painlessClassBindingsKeys.sort(String::compareTo);
-
-                for (String painlessClassBindingKey : painlessClassBindingsKeys) {
-                    String[] split = painlessClassBindingKey.split("/");
-                    String painlessClassBindingMethodName = split[0];
-                    int painlessClassBindingMethodArity = Integer.parseInt(split[1]);
-                    PainlessClassBinding painlessClassBinding =
-                            painlessLookup.lookupPainlessClassBinding(painlessClassBindingMethodName, painlessClassBindingMethodArity);
-
-                    builder.startObject("class_binding");
-                    builder.field("name", painlessClassBindingMethodName);
-                    builder.field("return", PainlessLookupUtility.typeToCanonicalTypeName(painlessClassBinding.returnType));
-                    builder.startArray("parameters");
-
-                    for (Class<?> typeParameter : painlessClassBinding.typeParameters) {
-                        builder.value(PainlessLookupUtility.typeToCanonicalTypeName(typeParameter));
-                    }
-
-                    builder.endArray();
-                    builder.endObject();
-                }
-
-                List<String> painlessInstanceBindingsKeys = new ArrayList<>(painlessLookup.getPainlessInstanceBindingsKeys());
-                painlessClassBindingsKeys.sort(String::compareTo);
-
-                for (String painlessInstanceBindingKey : painlessInstanceBindingsKeys) {
-                    String[] split = painlessInstanceBindingKey.split("/");
-                    String painlessInstanceBindingMethodName = split[0];
-                    int painlessInstanceBindingMethodArity = Integer.parseInt(split[1]);
-                    PainlessInstanceBinding painlessInstanceBinding = painlessLookup.
-                            lookupPainlessInstanceBinding(painlessInstanceBindingMethodName, painlessInstanceBindingMethodArity);
-
-                    builder.startObject("instance_binding");
-                    builder.field("name", painlessInstanceBindingMethodName);
-                    builder.field("return", PainlessLookupUtility.typeToCanonicalTypeName(painlessInstanceBinding.returnType));
-                    builder.startArray("parameters");
-
-                    for (Class<?> typeParameter : painlessInstanceBinding.typeParameters) {
-                        builder.value(PainlessLookupUtility.typeToCanonicalTypeName(typeParameter));
-                    }
-
-                    builder.endArray();
-                    builder.endObject();
-                }
+                new PainlessContextInfo(scriptContext, painlessLookup).toXContent(builder, params);
             }
-
-            builder.endObject();
 
             return builder;
         }

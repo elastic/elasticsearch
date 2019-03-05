@@ -1090,7 +1090,7 @@ public class CoordinatorTests extends ESTestCase {
         final ClusterNode leader = cluster.getAnyLeader();
         final ClusterNode otherNode = cluster.getAnyNodeExcept(leader);
 
-        cluster.dropRequestsFrom(otherNode, leader);
+        cluster.blackholeConnectionsFrom(otherNode, leader);
 
         cluster.runFor(
             (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
@@ -1103,7 +1103,7 @@ public class CoordinatorTests extends ESTestCase {
         assertThat(leader.getLastAppliedClusterState().nodes().toString(),
             leader.getLastAppliedClusterState().nodes().getSize(), equalTo(2));
 
-        cluster.stopDroppingRequests();
+        cluster.clearBlackholedConnections();
 
         cluster.stabilise(
             // time for the disconnected node to find the master again
@@ -1596,11 +1596,11 @@ public class CoordinatorTests extends ESTestCase {
             seedHostsList = emptyList();
         }
 
-        void dropRequestsFrom(ClusterNode sender, ClusterNode destination) {
+        void blackholeConnectionsFrom(ClusterNode sender, ClusterNode destination) {
             blackholedConnections.add(Tuple.tuple(sender.getId(), destination.getId()));
         }
 
-        void stopDroppingRequests() {
+        void clearBlackholedConnections() {
             blackholedConnections.clear();
         }
 

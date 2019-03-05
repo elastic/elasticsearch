@@ -13,7 +13,7 @@ of hits after a certain threshold.
 
 When set to `true` the search response will always track the number of hits that
 match the query accurately (e.g. `total.relation` will always be equal to `"eq"`
-when `track_total_hits is set to true). Otherwise the `"total.relation"` returned
+when `track_total_hits` is set to true). Otherwise the `"total.relation"` returned
 in the `"total"` object in the search response determines how the `"total.value"`
 should be interpreted. A value of `"gte"` means that the `"total.value"` is a
 lower bound of the total hits that match the query and a value of `"eq"` indicates

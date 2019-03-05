@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProce
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isBoolean;
+
 public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boolean, BinaryLogicOperation> {
 
     protected BinaryLogic(Source source, Expression left, Expression right, BinaryLogicOperation operation) {
@@ -27,7 +29,7 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
 
     @Override
     protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
-        return Expressions.typeMustBeBoolean(e, sourceText(), paramOrdinal);
+        return isBoolean(e, sourceText(), paramOrdinal);
     }
 
     @Override

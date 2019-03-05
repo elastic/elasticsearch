@@ -20,11 +20,12 @@ rem now set the path to java
 if defined JAVA_HOME (
   set JAVA="%JAVA_HOME%\bin\java.exe"
 ) else (
+  echo warning: Falling back to java on path. This behavior is deprecated. Specify JAVA_HOME
   for %%I in (java.exe) do set JAVA="%%~$PATH:I"
 )
 
 if not exist %JAVA% (
-  echo could not find java; set JAVA_HOME or ensure java is in PATH 1>&2
+  echo could not find java; set JAVA_HOME 1>&2
   exit /b 1
 )
 

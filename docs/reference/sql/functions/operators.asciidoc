@@ -3,8 +3,6 @@
 [[sql-operators]]
 === Comparison Operators
 
-beta[]
-
 Boolean operator for comparing against one or multiple expressions.
 
 * Equality (`=`)
@@ -64,8 +62,6 @@ include-tagged::{sql-specs}/filter.sql-spec[whereWithInAndMultipleValues]
 [[sql-operators-logical]]
 === Logical Operators
 
-beta[]
-
 Boolean operator for evaluating one or two expressions.
 
 * `AND`
@@ -91,8 +87,6 @@ include-tagged::{sql-specs}/filter.sql-spec[whereFieldEqualityNot]
 
 [[sql-operators-math]]
 === Math Operators
-
-beta[]
 
 Perform mathematical operations affecting one or two values.
 The result is a value of numeric type.
@@ -132,9 +126,21 @@ include-tagged::{sql-specs}/arithmetic.sql-spec[multiply]
 include-tagged::{sql-specs}/arithmetic.sql-spec[divide]
 --------------------------------------------------
 
-* https://en.wikipedia.org/wiki/Modulo_operation[Modulo] or Reminder(`%`)
+* https://en.wikipedia.org/wiki/Modulo_operation[Modulo] or Remainder(`%`)
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[mod]
+--------------------------------------------------
+
+[[sql-operators-cast]]
+=== Cast Operators
+
+* Cast (`::`)
+
+`::` provides an alternative syntax to the <<sql-functions-type-conversion-cast>> function.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[conversionStringToLongCastOperator]
 --------------------------------------------------

@@ -256,13 +256,13 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static RequestOptions expectWarnings(String... warnings) {
         return expectVersionSpecificWarnings(consumer -> consumer.current(warnings));
     }
-    
+
     /**
-     * Creates RequestOptions designed to ignore [types removal] warnings but nothing else 
+     * Creates RequestOptions designed to ignore [types removal] warnings but nothing else
      * @deprecated this method is only required while we deprecate types and can be removed in 8.0
      */
     @Deprecated
-    public static RequestOptions allowTypeRemovalWarnings() {
+    public static RequestOptions allowTypesRemovalWarnings() {
         Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.setWarningsHandler(new WarningsHandler() {
                 @Override
@@ -277,7 +277,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             });
         return builder.build();
-    }    
+    }
 
     /**
      * Construct an HttpHost from the given host and port
@@ -292,6 +292,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     @After
     public final void cleanUpCluster() throws Exception {
         if (preserveClusterUponCompletion() == false) {
+            ensureNoInitializingShards();
             wipeCluster();
             waitForClusterStateUpdatesToFinish();
             logIfThereAreRunningTasks();
@@ -458,6 +459,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws Exception {
+
+        // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
+        // so we need to fully shut them down first otherwise a job might stall waiting
+        // for a bulk to finish against a non-existing index (and then fail tests)
+        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
+            wipeRollupJobs();
+            waitForPendingRollupTasks();
+        }
+
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
@@ -503,11 +513,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         // wipe cluster settings
         if (preserveClusterSettings() == false) {
             wipeClusterSettings();
-        }
-
-        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
-            wipeRollupJobs();
-            waitForPendingRollupTasks();
         }
 
         if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
@@ -802,7 +807,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         request.addParameter("wait_for_no_initializing_shards", "true");
         request.addParameter("timeout", "70s");
         request.addParameter("level", "shards");
-        client().performRequest(request);
+        adminClient().performRequest(request);
     }
 
     protected static void createIndex(String name, Settings settings) throws IOException {

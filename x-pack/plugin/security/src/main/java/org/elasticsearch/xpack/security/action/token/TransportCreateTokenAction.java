@@ -72,7 +72,11 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
             authenticationService.authenticate(CreateTokenAction.NAME, request, authToken,
                 ActionListener.wrap(authentication -> {
                     request.getPassword().close();
-                    createToken(request, authentication, originatingAuthentication, true, listener);
+                    if (authentication != null) {
+                        createToken(request, authentication, originatingAuthentication, true, listener);
+                    } else {
+                        listener.onFailure(new UnsupportedOperationException("cannot create token if authentication is not allowed"));
+                    }
                 }, e -> {
                     // clear the request password
                     request.getPassword().close();
@@ -85,7 +89,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                              boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
         try {
             tokenService.createUserToken(authentication, originatingAuth, ActionListener.wrap(tuple -> {
-                final String tokenStr = tokenService.getUserTokenString(tuple.v1());
+                final String tokenStr = tokenService.getAccessTokenAsString(tuple.v1());
                 final String scope = getResponseScopeValue(request.getScope());
 
                 final CreateTokenResponse response =

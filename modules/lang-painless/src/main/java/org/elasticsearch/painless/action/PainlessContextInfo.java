@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class PainlessContextInfo implements Writeable, ToXContentObject {
+
     public final ParseField NAME = new ParseField("name");
     public final ParseField CLAZZ = new ParseField("class");
     public final ParseField IMPORTED_METHOD = new ParseField("imported_method");

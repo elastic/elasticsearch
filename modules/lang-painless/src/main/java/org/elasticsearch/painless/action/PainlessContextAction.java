@@ -27,21 +27,16 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.painless.PainlessScriptEngine;
-import org.elasticsearch.painless.lookup.PainlessClass;
-import org.elasticsearch.painless.lookup.PainlessClassBinding;
-import org.elasticsearch.painless.lookup.PainlessConstructor;
-import org.elasticsearch.painless.lookup.PainlessField;
-import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -51,9 +46,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -96,6 +90,11 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
             scriptContextName = null;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            scriptContextName = in.readString();
+        }
+
         public void setScriptContextName(String scriptContextName) {
             this.scriptContextName = scriptContextName;
         }
@@ -108,34 +107,83 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
         public ActionRequestValidationException validate() {
             return null;
         }
+
+        @Override
+        public void readFrom(StreamInput in) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(scriptContextName);
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final PainlessScriptEngine painlessScriptEngine;
+        public static final ParseField CONTEXTS = new ParseField("contexts");
+
+        private final Map<String, PainlessContextInfo> scriptContextNamesToPainlessContextInfos;
         private final String scriptContextName;
 
-        public Response(PainlessScriptEngine painlessScriptEngine, String scriptContextName) {
-            this.painlessScriptEngine = painlessScriptEngine;
+        public Response(Map<String, PainlessContextInfo> scriptContextNamesToPainlessContextInfos, String scriptContextName) {
+            this.scriptContextNamesToPainlessContextInfos = Collections.unmodifiableMap(scriptContextNamesToPainlessContextInfos);
             this.scriptContextName = scriptContextName;
         }
 
-        public Response(StreamInput input) {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            scriptContextNamesToPainlessContextInfos =
+                    Collections.unmodifiableMap(in.readMap(StreamInput::readString, PainlessContextInfo::new));
+            scriptContextName = in.readString();
+        }
+
+        @Override
+        public void readFrom(StreamInput in) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeMap(scriptContextNamesToPainlessContextInfos, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+            out.writeString(scriptContextName);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (scriptContextName == null) {
                 builder.startObject();
-                builder.startArray("contexts");
-
-                for (ScriptContext<?> scriptContext : painlessScriptEngine.getContextsToLookups().keySet()) {
-                    builder.value(scriptContext.name);
-                }
-
-                builder.endArray();
+                builder.field(CONTEXTS.getPreferredName(), scriptContextNamesToPainlessContextInfos.keySet());
                 builder.endObject();
+            } else {
+                scriptContextNamesToPainlessContextInfos.get(scriptContextName).toXContent(builder, params);
+            }
+
+            return builder;
+        }
+    }
+
+    public static class TransportAction extends HandledTransportAction<Request, Response> {
+
+        PainlessScriptEngine painlessScriptEngine;
+
+        @Inject
+        public TransportAction(TransportService transportService, ActionFilters actionFilters, PainlessScriptEngine painlessScriptEngine) {
+            super(NAME, transportService, actionFilters, (Writeable.Reader<Request>)Request::new);
+            this.painlessScriptEngine = painlessScriptEngine;
+        }
+
+        @Override
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            Map<String, PainlessContextInfo> scriptContextNamesToPainlessContextInfos = new HashMap<>();
+            String scriptContextName = request.getScriptContextName();
+
+            if (request.scriptContextName == null) {
+                for (ScriptContext<?> scriptContext : painlessScriptEngine.getContextsToLookups().keySet()) {
+                    scriptContextNamesToPainlessContextInfos.put(scriptContext.name, null);
+                }
             } else {
                 ScriptContext<?> scriptContext = null;
                 PainlessLookup painlessLookup = null;
@@ -149,26 +197,14 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
                     }
                 }
 
-                new PainlessContextInfo(scriptContext, painlessLookup).toXContent(builder, params);
+                if (scriptContext == null || painlessLookup == null) {
+                    throw new IllegalArgumentException("script context [" + scriptContextName + "] not found");
+                }
+
+                scriptContextNamesToPainlessContextInfos.put(scriptContext.name, new PainlessContextInfo(scriptContext, painlessLookup));
             }
 
-            return builder;
-        }
-    }
-
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
-
-        PainlessScriptEngine painlessScriptEngine;
-
-        @Inject
-        public TransportAction(TransportService transportService, ActionFilters actionFilters, PainlessScriptEngine painlessScriptEngine) {
-            super(NAME, transportService, actionFilters, Request::new);
-            this.painlessScriptEngine = painlessScriptEngine;
-        }
-
-        @Override
-        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            listener.onResponse(new Response(painlessScriptEngine, request.getScriptContextName()));
+            listener.onResponse(new Response(scriptContextNamesToPainlessContextInfos, scriptContextName));
         }
     }
 

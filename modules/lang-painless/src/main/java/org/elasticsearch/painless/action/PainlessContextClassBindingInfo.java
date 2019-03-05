@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class PainlessContextClassBindingInfo implements Writeable, ToXContentObject {
+
     public static final ParseField DECLARING = new ParseField("declaring");
     public static final ParseField NAME = new ParseField("name");
     public static final ParseField RTN = new ParseField("return");

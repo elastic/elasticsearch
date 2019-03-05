@@ -33,12 +33,13 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class PainlessContextClassInfo implements Writeable, ToXContentObject {
-    public final static ParseField NAME = new ParseField("name");
-    public final static ParseField CONSTRUCTOR = new ParseField("constructor");
-    public final static ParseField STATIC_METHOD = new ParseField("static_method");
-    public final static ParseField METHOD = new ParseField("method");
-    public final static ParseField STATIC_FIELD = new ParseField("static_field");
-    public final static ParseField FIELD = new ParseField("field");
+
+    public static final ParseField NAME = new ParseField("name");
+    public static final ParseField CONSTRUCTOR = new ParseField("constructor");
+    public static final ParseField STATIC_METHOD = new ParseField("static_method");
+    public static final ParseField METHOD = new ParseField("method");
+    public static final ParseField STATIC_FIELD = new ParseField("static_field");
+    public static final ParseField FIELD = new ParseField("field");
 
     private final String name;
     private final List<PainlessContextConstructorInfo> constructors;

@@ -30,6 +30,7 @@ import org.elasticsearch.painless.lookup.PainlessField;
 import java.io.IOException;
 
 public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
+
     public static final ParseField DECLARING = new ParseField("declaring");
     public static final ParseField NAME = new ParseField("name");
     public static final ParseField TYPE = new ParseField("type");

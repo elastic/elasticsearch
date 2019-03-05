@@ -86,7 +86,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             this.stats = new SegmentsStats();
             for (LeafReaderContext ctx : reader.getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
-                    fillSegmentStats(segmentReader, true, stats);
+                fillSegmentStats(segmentReader, true, stats);
             }
             success = true;
         } catch (IOException e) {

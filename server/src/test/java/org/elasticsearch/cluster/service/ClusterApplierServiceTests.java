@@ -88,7 +88,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         super.tearDown();
     }
 
-    TimedClusterApplierService createTimedClusterService(boolean makeMaster) throws InterruptedException {
+    TimedClusterApplierService createTimedClusterService(boolean makeMaster) {
         DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(),
             emptySet(), Version.CURRENT);
         TimedClusterApplierService timedClusterApplierService = new TimedClusterApplierService(Settings.builder().put("cluster.name",

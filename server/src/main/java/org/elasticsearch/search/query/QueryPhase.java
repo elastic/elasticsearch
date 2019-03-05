@@ -78,7 +78,7 @@ public class QueryPhase implements SearchPhase {
 
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
-    private RescorePhase rescorePhase;
+    private final RescorePhase rescorePhase;
 
     public QueryPhase() {
         this.aggregationPhase = new AggregationPhase();
@@ -157,11 +157,10 @@ public class QueryPhase implements SearchPhase {
                         // now this gets interesting: since we sort in index-order, we can directly
                         // skip to the desired doc
                         if (after != null) {
-                            BooleanQuery bq = new BooleanQuery.Builder()
+                            query = new BooleanQuery.Builder()
                                 .add(query, BooleanClause.Occur.MUST)
                                 .add(new MinDocQuery(after.doc + 1), BooleanClause.Occur.FILTER)
                                 .build();
-                            query = bq;
                         }
                         // ... and stop collecting after ${size} matches
                         searchContext.terminateAfter(searchContext.size());
@@ -169,11 +168,10 @@ public class QueryPhase implements SearchPhase {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
                         if (after != null) {
-                            BooleanQuery bq = new BooleanQuery.Builder()
+                            query = new BooleanQuery.Builder()
                                 .add(query, BooleanClause.Occur.MUST)
                                 .add(new SearchAfterSortedDocQuery(searchContext.sort().sort, (FieldDoc) after), BooleanClause.Occur.FILTER)
                                 .build();
-                            query = bq;
                         }
                     }
                 }
@@ -289,8 +287,7 @@ public class QueryPhase implements SearchPhase {
             for (QueryCollectorContext ctx : collectors) {
                 ctx.postProcess(result);
             }
-            ExecutorService executor =
-                    searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+            ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
             if (executor instanceof QueueResizingEsThreadPoolExecutor) {
                 QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
                 queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
@@ -311,7 +308,7 @@ public class QueryPhase implements SearchPhase {
      * @param query The query to execute
      * @param sf The query sort
      */
-    static boolean returnsDocsInOrder(Query query, SortAndFormats sf) {
+    private static boolean returnsDocsInOrder(Query query, SortAndFormats sf) {
         if (sf == null || Sort.RELEVANCE.equals(sf.sort)) {
             // sort by score
             // queries that return constant scores will return docs in index
@@ -327,7 +324,7 @@ public class QueryPhase implements SearchPhase {
      * Returns whether collection within the provided <code>reader</code> can be early-terminated if it sorts
      * with <code>sortAndFormats</code>.
      **/
-    static boolean canEarlyTerminate(IndexReader reader, SortAndFormats sortAndFormats) {
+    private static boolean canEarlyTerminate(IndexReader reader, SortAndFormats sortAndFormats) {
         if (sortAndFormats == null || sortAndFormats.sort == null) {
             return false;
         }

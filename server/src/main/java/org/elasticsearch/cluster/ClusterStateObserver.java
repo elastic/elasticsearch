@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,6 +45,7 @@ public class ClusterStateObserver {
     private final Predicate<ClusterState> MATCH_ALL_CHANGES_PREDICATE = state -> true;
 
     private final ClusterApplierService clusterApplierService;
+    private final ThreadPool threadPool;
     private final ThreadContext contextHolder;
     volatile TimeValue timeOutValue;
 
@@ -81,10 +83,11 @@ public class ClusterStateObserver {
     public ClusterStateObserver(ClusterState initialState, ClusterApplierService clusterApplierService, @Nullable TimeValue timeout,
                                 Logger logger, ThreadContext contextHolder) {
         this.clusterApplierService = clusterApplierService;
+        this.threadPool = clusterApplierService.threadPool();
         this.lastObservedState = new AtomicReference<>(new StoredState(initialState));
         this.timeOutValue = timeout;
         if (timeOutValue != null) {
-            this.startTimeMS = clusterApplierService.threadPool().relativeTimeInMillis();
+            this.startTimeMS = threadPool.relativeTimeInMillis();
         }
         this.logger = logger;
         this.contextHolder = contextHolder;
@@ -134,7 +137,7 @@ public class ClusterStateObserver {
         if (timeOutValue == null) {
             timeOutValue = this.timeOutValue;
             if (timeOutValue != null) {
-                long timeSinceStartMS = clusterApplierService.threadPool().relativeTimeInMillis() - startTimeMS;
+                long timeSinceStartMS = threadPool.relativeTimeInMillis() - startTimeMS;
                 timeoutTimeLeftMS = timeOutValue.millis() - timeSinceStartMS;
                 if (timeoutTimeLeftMS <= 0L) {
                     // things have timeout while we were busy -> notify
@@ -150,7 +153,7 @@ public class ClusterStateObserver {
                 timeoutTimeLeftMS = null;
             }
         } else {
-            this.startTimeMS = clusterApplierService.threadPool().relativeTimeInMillis();
+            this.startTimeMS = threadPool.relativeTimeInMillis();
             this.timeOutValue = timeOutValue;
             timeoutTimeLeftMS = timeOutValue.millis();
             timedOut = false;
@@ -240,7 +243,7 @@ public class ClusterStateObserver {
             ObservingContext context = observingContext.getAndSet(null);
             if (context != null) {
                 clusterApplierService.removeTimeoutListener(this);
-                long timeSinceStartMS = clusterApplierService.threadPool().relativeTimeInMillis() - startTimeMS;
+                long timeSinceStartMS = threadPool.relativeTimeInMillis() - startTimeMS;
                 logger.trace("observer: timeout notification from cluster service. timeout setting [{}], time since start [{}]",
                     timeOutValue, new TimeValue(timeSinceStartMS));
                 // update to latest, in case people want to retry

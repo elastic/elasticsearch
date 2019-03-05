@@ -263,7 +263,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
         // but index can't be opened for a failed shard
         assertThat("store index should be corrupted", StoreUtils.canOpenIndex(logger, shardPath.resolveIndex(), shard.shardId(),
-            (shardId, lockTimeoutMS) -> new DummyShardLock(shardId)),
+            (shardId, lockTimeoutMS, details) -> new DummyShardLock(shardId)),
             equalTo(false));
     }
 
@@ -2622,12 +2622,10 @@ public class IndexShardTests extends IndexShardTestCase {
                             maxAutoIdTimestamp,
                             maxSeqNoOfUpdatesOrDeletes,
                             retentionLeases,
-                            ActionListener.wrap(
-                                    checkpoint -> {
-                                        assertListenerCalled.accept(replica);
-                                        listener.onResponse(checkpoint);
-                                    },
-                                    listener::onFailure));
+                            ActionListener.map(listener, checkpoint -> {
+                                assertListenerCalled.accept(replica);
+                                return checkpoint;
+                            }));
                 }
 
                 @Override

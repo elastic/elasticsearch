@@ -208,7 +208,10 @@ public class ReplicationOperation<
             (failure instanceof TransportException && "TransportService is closed stopped can't send request".equals(failure.getMessage()));
         final String message;
         if (nodeIsClosing) {
-            message = String.format(Locale.ROOT, "primary node [%s] is shutting down while failing replica shard", primary.routingEntry());
+            message = String.format(Locale.ROOT,
+                "node with primary [%s] is shutting down while failing replica shard", primary.routingEntry());
+            // We prefer not to fail the primary to avoid unnecessary warning log
+            // when the node with the primary shard is gracefully shutting down.
         } else {
             if (Assertions.ENABLED) {
                 if (failure instanceof ShardStateAction.NoLongerPrimaryShardException == false) {

@@ -22,15 +22,14 @@ package org.elasticsearch.packaging.test;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Archives;
+import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.Before;
 import org.junit.BeforeClass;
-
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Installation;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -40,9 +39,9 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
-import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
@@ -191,6 +190,39 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         ServerUtils.runElasticsearchTests();
 
         Archives.stopElasticsearch(installation);
+    }
+
+    public void test51JavaHomeContainParansAndSpace() throws IOException {
+        assumeThat(installation, is(notNullValue()));
+
+        Platforms.onWindows(() -> {
+            final Shell sh = new Shell();
+            final String originalPath = sh.run("$Env:PATH").stdout.trim();
+            final String javaHome = sh.run("$Env:JAVA_HOME").stdout.trim();
+
+            try {
+                final String newPath = Arrays.stream(originalPath.split(";"))
+                                             .filter(path -> path.contains("Java") == false)
+                                             .collect(joining(";"));
+
+                sh.runIgnoreExitCode("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:JAVA_HOME");
+
+                sh.getEnv().put("PATH", newPath);
+                sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
+
+                Archives.runElasticsearch(installation, sh);
+
+                Archives.stopElasticsearch(installation);
+            } catch (IOException e) {
+                logger.error("Test failed with exception", e);
+            }finally {
+                //clean up sym link
+                sh.runIgnoreExitCode("cmd /c del /F /Q 'C:\\Program Files (x86)\\java' ");
+                sh.getEnv().put("PATH", originalPath);
+                sh.getEnv().put("JAVA_HOME", javaHome);
+
+            }
+        });
     }
 
     public void test60AutoCreateKeystore() {

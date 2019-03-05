@@ -524,9 +524,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         templateMetaDataBuilder.put("template2", IndexTemplateMetaData.builder("template2").patterns(Arrays.asList("missing_*"))
             .order(2).settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build()).build());
         templateMetaDataBuilder.put("template3", IndexTemplateMetaData.builder("template3").patterns(Arrays.asList("missing*"))
-            .order(3).settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline3").build()).build());
+            .order(3).build());
         templateMetaDataBuilder.put("template4", IndexTemplateMetaData.builder("template4").patterns(Arrays.asList("nope"))
-            .order(3).settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline4").build()).build());
+            .order(4).settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline4").build()).build());
 
         MetaData metaData = mock(MetaData.class);
         when(state.metaData()).thenReturn(metaData);
@@ -546,7 +546,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 failureCalled.set(true);
             }));
 
-        assertEquals("pipeline3", indexRequest.getPipeline());
+        assertEquals("pipeline2", indexRequest.getPipeline());
         verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
     }
 

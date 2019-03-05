@@ -54,6 +54,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -186,7 +187,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         String defaultPipeline = IngestService.NOOP_PIPELINE_NAME;
                         // apply templates, here, in reverse order, since first ones are better matching
                         for (int i = templates.size() - 1; i >= 0; i--) {
-                            defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(templates.get(i).settings());
+                            Settings settings = templates.get(i).settings();
+                            if(IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
+                                defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
+                            }
                         }
                         indexRequest.setPipeline(defaultPipeline);
                         if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {

@@ -22,7 +22,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -43,7 +42,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -62,9 +60,8 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
-import org.elasticsearch.discovery.SeedHostsResolver;
-import org.elasticsearch.discovery.zen.PendingClusterStateStats;
 import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
@@ -87,8 +84,6 @@ import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecov
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
-
-    public static final long ZEN1_BWC_TERM = 0;
 
     private static final Logger logger = LogManager.getLogger(Coordinator.class);
 
@@ -272,14 +267,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 throw new CoordinationStateRejectedException("no longer leading this publication's term: " + publishRequest);
             }
 
-            if (publishRequest.getAcceptedState().term() == ZEN1_BWC_TERM && getCurrentTerm() == ZEN1_BWC_TERM
-                && mode == Mode.FOLLOWER && Optional.of(sourceNode).equals(lastKnownLeader) == false) {
-
-                logger.debug("received cluster state from {} but currently following {}, rejecting", sourceNode, lastKnownLeader);
-                throw new CoordinationStateRejectedException("received cluster state from " + sourceNode + " but currently following "
-                    + lastKnownLeader + ", rejecting");
-            }
-
             final ClusterState localState = coordinationState.get().getLastAcceptedState();
 
             if (localState.metaData().clusterUUIDCommitted() &&
@@ -369,11 +356,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 final StartJoinRequest startJoinRequest
                     = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
                 logger.debug("starting election with {}", startJoinRequest);
-                getDiscoveredNodes().forEach(node -> {
-                    if (isZen1Node(node) == false) {
-                        joinHelper.sendStartJoinRequest(startJoinRequest, node);
-                    }
-                });
+                getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }
         }
     }
@@ -384,11 +367,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         assert newMaster.isMasterNode() : "should only abdicate to master-eligible node but was " + newMaster;
         final StartJoinRequest startJoinRequest = new StartJoinRequest(newMaster, Math.max(getCurrentTerm(), maxTermSeen) + 1);
         logger.info("abdicating to {} with term {}", newMaster, startJoinRequest.getTerm());
-        getLastAcceptedState().nodes().mastersFirstStream().forEach(node -> {
-            if (isZen1Node(node) == false) {
-                joinHelper.sendStartJoinRequest(startJoinRequest, node);
-            }
-        });
+        getLastAcceptedState().nodes().mastersFirstStream().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
         // handling of start join messages on the local node will be dispatched to the generic thread-pool
         assert mode == Mode.LEADER : "should still be leader after sending abdication messages " + mode;
         // explicitly move node to candidate state so that the next cluster state update task yields an onNoLongerMaster event
@@ -612,7 +591,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private PreVoteResponse getPreVoteResponse() {
         return new PreVoteResponse(getCurrentTerm(), coordinationState.get().getLastAcceptedTerm(),
-            coordinationState.get().getLastAcceptedState().getVersionOrMetaDataVersion());
+            coordinationState.get().getLastAcceptedState().version());
     }
 
     // package-visible for testing
@@ -837,7 +816,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
         final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
-            .filter(this::hasJoinVoteFrom).filter(discoveryNode -> isZen1Node(discoveryNode) == false).collect(Collectors.toSet());
+            .filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
         final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes,
             clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId).collect(Collectors.toSet()),
             getLocalNode(), clusterState.getLastAcceptedConfiguration());
@@ -1062,6 +1041,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
+    public Collection<BiConsumer<DiscoveryNode, ClusterState>> getOnJoinValidators() {
+        return onJoinValidators;
+    }
+
     public enum Mode {
         CANDIDATE, LEADER, FOLLOWER
     }
@@ -1130,10 +1113,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         if (prevotingRound != null) {
                             prevotingRound.close();
                         }
-                        final List<DiscoveryNode> discoveredNodes
-                            = getDiscoveredNodes().stream().filter(n -> isZen1Node(n) == false).collect(Collectors.toList());
-
-                        prevotingRound = preVoteCollector.start(lastAcceptedState, discoveredNodes);
+                        prevotingRound = preVoteCollector.start(lastAcceptedState, getDiscoveredNodes());
                     }
                 }
             }
@@ -1357,16 +1337,5 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                        ActionListener<Empty> responseActionListener) {
             publicationContext.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
         }
-    }
-
-    // TODO: only here temporarily for BWC development, remove once complete
-    public static Settings.Builder addZen1Attribute(boolean isZen1Node, Settings.Builder builder) {
-        return builder.put("node.attr.zen1", isZen1Node);
-    }
-
-    // TODO: only here temporarily for BWC development, remove once complete
-    public static boolean isZen1Node(DiscoveryNode discoveryNode) {
-        return discoveryNode.getVersion().before(Version.V_7_0_0) ||
-            (Booleans.isTrue(discoveryNode.getAttributes().getOrDefault("zen1", "false")));
     }
 }

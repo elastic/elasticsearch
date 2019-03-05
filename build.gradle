@@ -241,7 +241,7 @@ allprojects {
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
     // for security example plugins
     "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core',
-    "org.elasticsearch.client.x-pack-transport:${version}": ':x-pack:transport-client'
+    "org.elasticsearch.client:x-pack-transport:${version}": ':x-pack:transport-client'
   ]
 
   /*

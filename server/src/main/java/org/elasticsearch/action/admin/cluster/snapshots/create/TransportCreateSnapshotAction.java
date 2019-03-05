@@ -72,11 +72,9 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
     protected void masterOperation(final CreateSnapshotRequest request, ClusterState state,
         final ActionListener<CreateSnapshotResponse> listener) {
         if (request.waitForCompletion()) {
-            snapshotsService.executeSnapshot(request,
-                ActionListener.wrap(snapshotInfo-> listener.onResponse(new CreateSnapshotResponse(snapshotInfo)), listener::onFailure));
+            snapshotsService.executeSnapshot(request, ActionListener.map(listener, CreateSnapshotResponse::new));
         } else {
-            snapshotsService.createSnapshot(request,
-                ActionListener.wrap(snapshot -> listener.onResponse(new CreateSnapshotResponse()), listener::onFailure));
+            snapshotsService.createSnapshot(request, ActionListener.map(listener, snapshot -> new CreateSnapshotResponse()));
         }
     }
 }

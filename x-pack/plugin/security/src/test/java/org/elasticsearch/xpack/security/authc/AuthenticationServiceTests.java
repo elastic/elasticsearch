@@ -1107,7 +1107,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
-            tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap(), true);
+            tokenService.createUserToken(expected, originatingAuth, Collections.emptyMap(), true, tokenFuture);
         }
         String token = tokenService.getAccessTokenAsString(tokenFuture.get().v1());
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
@@ -1190,7 +1190,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
-            tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap(), true);
+            tokenService.createUserToken(expected, originatingAuth, Collections.emptyMap(), true, tokenFuture);
         }
         String token = tokenService.getAccessTokenAsString(tokenFuture.get().v1());
         mockGetTokenFromId(tokenFuture.get().v1(), true, client);

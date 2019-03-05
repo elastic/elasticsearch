@@ -228,9 +228,9 @@ public final class TokenService {
      * The created token will be stored in the security index.
      */
     public void createUserToken(Authentication authentication, Authentication originatingClientAuth,
-                                ActionListener<Tuple<UserToken, String>> listener, Map<String, Object> metadata,
-                                boolean includeRefreshToken) throws IOException {
-        createUserToken(UUIDs.randomBase64UUID(), authentication, originatingClientAuth, listener, metadata, includeRefreshToken);
+                                Map<String, Object> metadata, boolean includeRefreshToken,
+                                ActionListener<Tuple<UserToken, String>> listener) throws IOException {
+        createUserToken(UUIDs.randomBase64UUID(), authentication, originatingClientAuth, metadata, includeRefreshToken, listener);
     }
 
     /**
@@ -238,8 +238,8 @@ public final class TokenService {
      * The created token will be stored in the security index.
      */
     private void createUserToken(String userTokenId, Authentication authentication, Authentication originatingClientAuth,
-                                 ActionListener<Tuple<UserToken, String>> listener, Map<String, Object> metadata,
-                                 boolean includeRefreshToken) throws IOException {
+                                 Map<String, Object> metadata, boolean includeRefreshToken,
+                                 ActionListener<Tuple<UserToken, String>> listener) throws IOException {
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(traceLog("create token", new IllegalArgumentException("authentication must be provided")));
@@ -478,7 +478,7 @@ public final class TokenService {
              * some additional latency.
              */
             client.threadPool().executor(THREAD_POOL_NAME)
-                    .submit(new KeyComputingRunnable(decodedSalt, listener, keyAndCache));
+                    .submit(new KeyComputingRunnable(decodedSalt, keyAndCache, listener));
         }
     }
 
@@ -507,8 +507,8 @@ public final class TokenService {
                     if (userToken == null) {
                         listener.onFailure(traceLog("invalidate token", tokenString, malformedTokenException()));
                     } else {
-                        indexInvalidation(Collections.singleton(userToken.getId()), listener, backoff,
-                            "access_token", null);
+                        indexInvalidation(Collections.singleton(userToken.getId()), backoff, "access_token",
+                            null, listener);
                     }
                 }, listener::onFailure));
             } catch (IOException e) {
@@ -531,7 +531,7 @@ public final class TokenService {
         } else {
             maybeStartTokenRemover();
             final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-            indexInvalidation(Collections.singleton(userToken.getId()), listener, backoff, "access_token", null);
+            indexInvalidation(Collections.singleton(userToken.getId()), backoff, "access_token", null, listener);
         }
     }
 
@@ -551,10 +551,10 @@ public final class TokenService {
             maybeStartTokenRemover();
             final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
             findTokenFromRefreshToken(refreshToken,
-                ActionListener.wrap(searchResponse -> {
+                backoff, ActionListener.wrap(searchResponse -> {
                     final String docId = getTokenIdFromDocumentId(searchResponse.getHits().getAt(0).getId());
-                    indexInvalidation(Collections.singletonList(docId), listener, backoff, "refresh_token", null);
-                }, listener::onFailure), backoff);
+                    indexInvalidation(Collections.singletonList(docId), backoff, "refresh_token", null, listener);
+                }, listener::onFailure));
         }
     }
 
@@ -587,14 +587,14 @@ public final class TokenService {
                 if (Strings.hasText(username)) {
                     filter = isOfUser(username);
                 }
-                findActiveTokensForRealm(realmName, ActionListener.wrap(tokenTuples -> {
+                findActiveTokensForRealm(realmName, filter, ActionListener.wrap(tokenTuples -> {
                     if (tokenTuples.isEmpty()) {
                         logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
                         listener.onResponse(TokensInvalidationResult.emptyResult());
                     } else {
                         invalidateAllTokens(tokenTuples.stream().map(t -> t.v1().getId()).collect(Collectors.toList()), listener);
                     }
-                }, listener::onFailure), filter);
+                }, listener::onFailure));
             }
         }
     }
@@ -611,9 +611,9 @@ public final class TokenService {
         // Invalidate the refresh tokens first so that they cannot be used to get new
         // access tokens while we invalidate the access tokens we currently know about
         final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-        indexInvalidation(accessTokenIds, ActionListener.wrap(result ->
-                indexInvalidation(accessTokenIds, listener, backoff, "access_token", result),
-            listener::onFailure), backoff, "refresh_token", null);
+        indexInvalidation(accessTokenIds, backoff, "refresh_token", null, ActionListener.wrap(result ->
+                    indexInvalidation(accessTokenIds, backoff, "access_token", result, listener),
+                listener::onFailure));
     }
 
     /**
@@ -622,15 +622,15 @@ public final class TokenService {
      * an exponential backoff policy.
      *
      * @param tokenIds        the tokens to invalidate
-     * @param listener        the listener to notify upon completion
      * @param backoff         the amount of time to delay between attempts
      * @param srcPrefix       the prefix to use when constructing the doc to update, either refresh_token or access_token depending on
      *                        what type of tokens should be invalidated
      * @param previousResult  if this not the initial attempt for invalidation, it contains the result of invalidating
      *                        tokens up to the point of the retry. This result is added to the result of the current attempt
+     * @param listener        the listener to notify upon completion
      */
-    private void indexInvalidation(Collection<String> tokenIds, ActionListener<TokensInvalidationResult> listener,
-                                   Iterator<TimeValue> backoff, String srcPrefix, @Nullable TokensInvalidationResult previousResult) {
+    private void indexInvalidation(Collection<String> tokenIds, Iterator<TimeValue> backoff, String srcPrefix,
+                                   @Nullable TokensInvalidationResult previousResult, ActionListener<TokensInvalidationResult> listener) {
         if (tokenIds.isEmpty()) {
             logger.warn("No [{}] tokens provided for invalidation", srcPrefix);
             listener.onFailure(invalidGrantException("No tokens provided for invalidation"));
@@ -684,7 +684,7 @@ public final class TokenService {
                                 final TokensInvalidationResult incompleteResult = new TokensInvalidationResult(invalidated,
                                         previouslyInvalidated, failedRequestResponses);
                                 final Runnable retryWithContextRunnable = client.threadPool().getThreadContext().preserveContext(
-                                        () -> indexInvalidation(retryTokenDocIds, listener, backoff, srcPrefix, incompleteResult));
+                                        () -> indexInvalidation(retryTokenDocIds, backoff, srcPrefix, incompleteResult, listener));
                                 client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                             } else {
                                 logger.warn("failed to invalidate [{}] tokens out of [{}] after all retries", retryTokenDocIds.size(),
@@ -701,7 +701,7 @@ public final class TokenService {
                         if (isShardNotAvailableException(cause) && backoff.hasNext()) {
                             logger.debug("failed to invalidate tokens, retrying ");
                             final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                    .preserveContext(() -> indexInvalidation(tokenIds, listener, backoff, srcPrefix, previousResult));
+                                    .preserveContext(() -> indexInvalidation(tokenIds, backoff, srcPrefix, previousResult, listener));
                             client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                         } else {
                             listener.onFailure(e);
@@ -718,29 +718,29 @@ public final class TokenService {
         final Instant refreshRequested = clock.instant();
         final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
         findTokenFromRefreshToken(refreshToken,
+            backoff,
             ActionListener.wrap(searchResponse -> {
                 final Authentication clientAuth = Authentication.readFromContext(client.threadPool().getThreadContext());
                 final SearchHit tokenDocHit = searchResponse.getHits().getHits()[0];
                 final String tokenDocId = tokenDocHit.getId();
                 innerRefresh(tokenDocId, tokenDocHit.getSourceAsMap(), tokenDocHit.getSeqNo(), tokenDocHit.getPrimaryTerm(), clientAuth,
-                    listener, backoff, refreshRequested);
-            }, listener::onFailure),
-            backoff);
+                    backoff, refreshRequested, listener);
+            }, listener::onFailure));
     }
 
     /**
      * Performs an asynchronous search request for the token document that contains the {@code refreshToken} and calls the listener with the
      * {@link SearchResponse}. In case of recoverable errors the SearchRequest is retried using an exponential backoff policy.
      */
-    private void findTokenFromRefreshToken(String refreshToken, ActionListener<SearchResponse> listener,
-                                           Iterator<TimeValue> backoff) {
+    private void findTokenFromRefreshToken(String refreshToken, Iterator<TimeValue> backoff,
+                                           ActionListener<SearchResponse> listener) {
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("find token by refresh token", refreshToken, ex));
         final Consumer<Exception> maybeRetryOnFailure = ex -> {
             if (backoff.hasNext()) {
                 final TimeValue backofTimeValue = backoff.next();
                 logger.debug("retrying after [" + backofTimeValue + "] back off");
                 final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                        .preserveContext(() -> findTokenFromRefreshToken(refreshToken, listener, backoff));
+                        .preserveContext(() -> findTokenFromRefreshToken(refreshToken, backoff, listener));
                 client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);
             } else {
                 logger.warn("failed to find token from refresh token after all retries");
@@ -801,7 +801,7 @@ public final class TokenService {
      * returned to the listener.
      */
     private void innerRefresh(String tokenDocId, Map<String, Object> source, long seqNo, long primaryTerm, Authentication clientAuth,
-                              ActionListener<Tuple<UserToken, String>> listener, Iterator<TimeValue> backoff, Instant refreshRequested) {
+                              Iterator<TimeValue> backoff, Instant refreshRequested, ActionListener<Tuple<UserToken, String>> listener) {
         logger.debug("Attempting to refresh token [{}]", tokenDocId);
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
         final Optional<ElasticsearchSecurityException> invalidSource = checkTokenDocForRefresh(source, clientAuth);
@@ -895,13 +895,13 @@ public final class TokenService {
                         updateResponse -> {
                             if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
                                 logger.debug("updated the original token document to {}", updateResponse.getGetResult().sourceAsMap());
-                                createUserToken(newUserTokenId, authentication, clientAuth, listener, metadata, true);
+                                createUserToken(newUserTokenId, authentication, clientAuth, metadata, true, listener);
                             } else if (backoff.hasNext()) {
                                 logger.info("failed to update the original token document [{}], the update result was [{}]. Retrying",
                                     tokenDocId, updateResponse.getResult());
                                 final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                        .preserveContext(() -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, listener,
-                                                backoff, refreshRequested));
+                                        .preserveContext(() -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, backoff,
+                                                refreshRequested, listener));
                                 client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                             } else {
                                 logger.info("failed to update the original token document [{}] after all retries, " +
@@ -918,7 +918,7 @@ public final class TokenService {
                                     public void onResponse(GetResponse response) {
                                         if (response.isExists()) {
                                             innerRefresh(tokenDocId, response.getSource(), response.getSeqNo(), response.getPrimaryTerm(),
-                                                    clientAuth, listener, backoff, refreshRequested);
+                                                    clientAuth, backoff, refreshRequested, listener);
                                         } else {
                                             logger.warn("could not find token document [{}] for refresh", tokenDocId);
                                             onFailure.accept(invalidGrantException("could not refresh the requested token"));
@@ -947,8 +947,8 @@ public final class TokenService {
                                 if (backoff.hasNext()) {
                                     logger.debug("failed to update the original token document [{}], retrying", tokenDocId);
                                     final Runnable retryWithContextRunnable = client.threadPool().getThreadContext().preserveContext(
-                                            () -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, listener, backoff,
-                                                    refreshRequested));
+                                            () -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, backoff, refreshRequested,
+                                                    listener));
                                     client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                                 } else {
                                     logger.warn("failed to update the original token document [{}], after all retries", tokenDocId);
@@ -1093,11 +1093,11 @@ public final class TokenService {
      * the specified realm.
      *
      * @param realmName The name of the realm for which to get the tokens
-     * @param listener  The listener to notify upon completion
      * @param filter    an optional Predicate to test the source of the found documents against
+     * @param listener  The listener to notify upon completion
      */
-    public void findActiveTokensForRealm(String realmName, ActionListener<Collection<Tuple<UserToken, String>>> listener,
-                                         @Nullable Predicate<Map<String, Object>> filter) {
+    public void findActiveTokensForRealm(String realmName, @Nullable Predicate<Map<String, Object>> filter,
+                                         ActionListener<Collection<Tuple<UserToken, String>>> listener) {
         ensureEnabled();
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (Strings.isNullOrEmpty(realmName)) {
@@ -1517,7 +1517,7 @@ public final class TokenService {
         private final ActionListener<SecretKey> listener;
         private final KeyAndCache keyAndCache;
 
-        KeyComputingRunnable(BytesKey decodedSalt, ActionListener<SecretKey> listener, KeyAndCache keyAndCache) {
+        KeyComputingRunnable(BytesKey decodedSalt, KeyAndCache keyAndCache, ActionListener<SecretKey> listener) {
             this.decodedSalt = decodedSalt;
             this.listener = listener;
             this.keyAndCache = keyAndCache;
@@ -1679,22 +1679,22 @@ public final class TokenService {
         TokenMetaData tokenMetaData = generateSpareKey();
         clusterService.submitStateUpdateTask("publish next key to prepare key rotation",
             new TokenMetadataPublishAction(
-                ActionListener.wrap((res) -> {
+                tokenMetaData, ActionListener.wrap((res) -> {
                     if (res.isAcknowledged()) {
                         TokenMetaData metaData = rotateToSpareKey();
                         clusterService.submitStateUpdateTask("publish next key to prepare key rotation",
-                            new TokenMetadataPublishAction(listener, metaData));
+                            new TokenMetadataPublishAction(metaData, listener));
                     } else {
                         listener.onFailure(new IllegalStateException("not acked"));
                     }
-                }, listener::onFailure), tokenMetaData));
+                }, listener::onFailure)));
     }
 
     private final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask<ClusterStateUpdateResponse> {
 
         private final TokenMetaData tokenMetaData;
 
-        protected TokenMetadataPublishAction(ActionListener<ClusterStateUpdateResponse> listener, TokenMetaData tokenMetaData) {
+        protected TokenMetadataPublishAction(TokenMetaData tokenMetaData, ActionListener<ClusterStateUpdateResponse> listener) {
             super(new AckedRequest() {
                 @Override
                 public TimeValue ackTimeout() {

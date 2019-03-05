@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.dataframe;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,9 +39,11 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
@@ -227,25 +230,42 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
             () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.MB))));
     }
 
-    public void testMemoryCapping() {
+    public void testNoMemoryCapping() {
 
         DataFrameAnalyticsConfig uncapped = createRandom("foo");
 
         ByteSizeValue unlimited = randomBoolean() ? null : ByteSizeValue.ZERO;
         assertThat(uncapped.getModelMemoryLimit(),
-            equalTo(new DataFrameAnalyticsConfig.Builder(uncapped).applyMaxModelMemoryLimitAndBuild(unlimited).getModelMemoryLimit()));
+            equalTo(new DataFrameAnalyticsConfig.Builder(uncapped, unlimited).build().getModelMemoryLimit()));
+    }
 
-        ByteSizeValue limit = new ByteSizeValue(randomIntBetween(500, 1000), ByteSizeUnit.MB);
-        if (limit.compareTo(uncapped.getModelMemoryLimit()) < 0) {
-            assertThat(limit,
-                equalTo(new DataFrameAnalyticsConfig.Builder(uncapped).applyMaxModelMemoryLimitAndBuild(limit).getModelMemoryLimit()));
+    public void testMemoryCapping() {
+
+        DataFrameAnalyticsConfig defaultLimitConfig = createRandomBuilder("foo").setModelMemoryLimit(null).build();
+
+        ByteSizeValue maxLimit = new ByteSizeValue(randomIntBetween(500, 1000), ByteSizeUnit.MB);
+        if (maxLimit.compareTo(defaultLimitConfig.getModelMemoryLimit()) < 0) {
+            assertThat(maxLimit,
+                equalTo(new DataFrameAnalyticsConfig.Builder(defaultLimitConfig, maxLimit).build().getModelMemoryLimit()));
         } else {
-            assertThat(uncapped.getModelMemoryLimit(),
-                equalTo(new DataFrameAnalyticsConfig.Builder(uncapped).applyMaxModelMemoryLimitAndBuild(limit).getModelMemoryLimit()));
+            assertThat(defaultLimitConfig.getModelMemoryLimit(),
+                equalTo(new DataFrameAnalyticsConfig.Builder(defaultLimitConfig, maxLimit).build().getModelMemoryLimit()));
         }
     }
 
+    public void testExplicitModelMemoryLimitTooHigh() {
+
+        ByteSizeValue configuredLimit = new ByteSizeValue(randomIntBetween(5, 10), ByteSizeUnit.GB);
+        DataFrameAnalyticsConfig explicitLimitConfig = createRandomBuilder("foo").setModelMemoryLimit(configuredLimit).build();
+
+        ByteSizeValue maxLimit = new ByteSizeValue(randomIntBetween(500, 1000), ByteSizeUnit.MB);
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+            () -> new DataFrameAnalyticsConfig.Builder(explicitLimitConfig, maxLimit).build());
+        assertThat(e.getMessage(), startsWith("model_memory_limit"));
+        assertThat(e.getMessage(), containsString("must be less than the value of the xpack.ml.max_model_memory_limit setting"));
+    }
+
     public void assertTooSmall(IllegalArgumentException e) {
-        assertThat(e.getMessage(), is("[model_memory_limit] must be at least [1mb]."));
+        assertThat(e.getMessage(), is("[model_memory_limit] must be at least [1mb]"));
     }
 }

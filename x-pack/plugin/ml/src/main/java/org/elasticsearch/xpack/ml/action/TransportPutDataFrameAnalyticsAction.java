@@ -84,7 +84,7 @@ public class TransportPutDataFrameAnalyticsAction
         }
         validateConfig(request.getConfig());
         DataFrameAnalyticsConfig memoryCappedConfig =
-            new DataFrameAnalyticsConfig.Builder(request.getConfig()).applyMaxModelMemoryLimitAndBuild(maxModelMemoryLimit);
+            new DataFrameAnalyticsConfig.Builder(request.getConfig(), maxModelMemoryLimit).build();
         if (licenseState.isAuthAllowed()) {
             final String username = securityContext.getUser().principal();
             RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()

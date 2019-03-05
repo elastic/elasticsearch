@@ -110,6 +110,14 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final Map<String, Object> query;
     private final CachedSupplier<QueryBuilder> querySupplier;
     private final FetchSourceContext analysesFields;
+    /**
+     * This may be null up to the point of persistence, as the relationship with <code>xpack.ml.max_model_memory_limit</code>
+     * depends on whether the user explicitly set the value or if the default was requested.  <code>null</code> indicates
+     * the default was requested, which in turn means a default higher than the maximum is silently capped.
+     * A non-<code>null</code> value higher than <code>xpack.ml.max_model_memory_limit</code> will cause a
+     * validation error even if it is equal to the default value.  This behaviour matches what is done in
+     * {@link org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits}.
+     */
     private final ByteSizeValue modelMemoryLimit;
     private final Map<String, String> headers;
 
@@ -212,9 +220,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         if (analysesFields != null) {
             builder.field(ANALYSES_FIELDS.getPreferredName(), analysesFields);
         }
-        if (modelMemoryLimit != null) {
-            builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), modelMemoryLimit.getStringRep());
-        }
+        builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), getModelMemoryLimit().getStringRep());
         if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
@@ -246,13 +252,13 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             && Objects.equals(analyses, other.analyses)
             && Objects.equals(query, other.query)
             && Objects.equals(headers, other.headers)
-            && Objects.equals(modelMemoryLimit, other.modelMemoryLimit)
+            && Objects.equals(getModelMemoryLimit(), other.getModelMemoryLimit())
             && Objects.equals(analysesFields, other.analysesFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, analyses, query, headers, modelMemoryLimit, analysesFields);
+        return Objects.hash(id, source, dest, analyses, query, headers, getModelMemoryLimit(), analysesFields);
     }
 
     public static String documentId(String id) {
@@ -268,6 +274,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private Map<String, Object> query = Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap());
         private FetchSourceContext analysesFields;
         private ByteSizeValue modelMemoryLimit;
+        private ByteSizeValue maxModelMemoryLimit;
         private Map<String, String> headers = Collections.emptyMap();
 
         public Builder() {}
@@ -276,11 +283,15 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             setId(id);
         }
 
-        public String getId() {
-            return id;
+        public Builder(ByteSizeValue maxModelMemoryLimit) {
+            this.maxModelMemoryLimit = maxModelMemoryLimit;
         }
 
         public Builder(DataFrameAnalyticsConfig config) {
+            this(config, null);
+        }
+
+        public Builder(DataFrameAnalyticsConfig config, ByteSizeValue maxModelMemoryLimit) {
             this.id = config.id;
             this.source = config.source;
             this.dest = config.dest;
@@ -288,9 +299,14 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             this.query = new LinkedHashMap<>(config.query);
             this.headers = new HashMap<>(config.headers);
             this.modelMemoryLimit = config.modelMemoryLimit;
+            this.maxModelMemoryLimit = maxModelMemoryLimit;
             if (config.analysesFields != null) {
-               this.analysesFields = new FetchSourceContext(true, config.analysesFields.includes(), config.analysesFields.excludes());
+                this.analysesFields = new FetchSourceContext(true, config.analysesFields.includes(), config.analysesFields.excludes());
             }
+        }
+
+        public String getId() {
+            return id;
         }
 
         public Builder setId(String id) {
@@ -345,13 +361,13 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         public Builder setModelMemoryLimit(ByteSizeValue modelMemoryLimit) {
             if (modelMemoryLimit != null && modelMemoryLimit.compareTo(MIN_MODEL_MEMORY_LIMIT) < 0) {
                 throw new IllegalArgumentException("[" + MODEL_MEMORY_LIMIT.getPreferredName()
-                    + "] must be at least [" + MIN_MODEL_MEMORY_LIMIT.getStringRep() + "].");
+                    + "] must be at least [" + MIN_MODEL_MEMORY_LIMIT.getStringRep() + "]");
             }
             this.modelMemoryLimit = modelMemoryLimit;
             return this;
         }
 
-        public DataFrameAnalyticsConfig applyMaxModelMemoryLimitAndBuild(ByteSizeValue maxModelMemoryLimit) {
+        private void applyMaxModelMemoryLimit() {
 
             boolean maxModelMemoryIsSet = maxModelMemoryLimit != null && maxModelMemoryLimit.getMb() > 0;
 
@@ -359,19 +375,16 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 // Default is silently capped if higher than limit
                 if (maxModelMemoryIsSet && DEFAULT_MODEL_MEMORY_LIMIT.compareTo(maxModelMemoryLimit) > 0) {
                     modelMemoryLimit = maxModelMemoryLimit;
-                } else {
-                    modelMemoryLimit = DEFAULT_MODEL_MEMORY_LIMIT;
                 }
             } else if (maxModelMemoryIsSet && modelMemoryLimit.compareTo(maxModelMemoryLimit) > 0) {
                 // Explicit setting higher than limit is an error
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX,
                     modelMemoryLimit, maxModelMemoryLimit));
             }
-
-            return build();
         }
 
         public DataFrameAnalyticsConfig build() {
+            applyMaxModelMemoryLimit();
             return new DataFrameAnalyticsConfig(id, source, dest, analyses, query, headers, modelMemoryLimit, analysesFields);
         }
     }

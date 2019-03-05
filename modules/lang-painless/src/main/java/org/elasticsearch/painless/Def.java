@@ -767,7 +767,9 @@ public final class Def {
     }
 
     public static char defTocharExplicit(final Object value) {
-        if (value instanceof Character) {
+        if (value instanceof String) {
+            return Utility.StringTochar((String)value);
+        } else if (value instanceof Character) {
             return (char)value;
         } else if (
                 value instanceof Byte    ||

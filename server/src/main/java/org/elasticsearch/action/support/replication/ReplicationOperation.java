@@ -102,33 +102,36 @@ public class ReplicationOperation<
 
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet(); // increase by 1 until we finish all primary coordination
-        primaryResult = primary.perform(request);
-        primary.updateLocalCheckpointForShard(primaryRouting.allocationId().getId(), primary.localCheckpoint());
-        final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
-        if (replicaRequest != null) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
+        primary.perform(request, ActionListener.wrap(primaryResult -> {
+            this.primaryResult = primaryResult;
+            primary.updateLocalCheckpointForShard(primaryRouting.allocationId().getId(), primary.localCheckpoint());
+            final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
+            if (replicaRequest != null) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
+                }
+
+                // we have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.
+                // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
+                // to the recovery target. If we used an old replication group, we may miss a recovery that has started since then.
+                // we also have to make sure to get the global checkpoint before the replication group, to ensure that the global checkpoint
+                // is valid for this replication group. If we would sample in the reverse, the global checkpoint might be based on a subset
+                // of the sampled replication group, and advanced further than what the given replication group would allow it to.
+                // This would entail that some shards could learn about a global checkpoint that would be higher than its local checkpoint.
+                final long globalCheckpoint = primary.globalCheckpoint();
+                // we have to capture the max_seq_no_of_updates after this request was completed on the primary to make sure the value of
+                // max_seq_no_of_updates on replica when this request is executed is at least the value on the primary when it was executed
+                // on.
+                final long maxSeqNoOfUpdatesOrDeletes = primary.maxSeqNoOfUpdatesOrDeletes();
+                assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "seqno_of_updates still uninitialized";
+                final ReplicationGroup replicationGroup = primary.getReplicationGroup();
+                markUnavailableShardsAsStale(replicaRequest, replicationGroup);
+                performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup);
             }
 
-            // we have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.
-            // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
-            // to the recovery target. If we used an old replication group, we may miss a recovery that has started since then.
-            // we also have to make sure to get the global checkpoint before the replication group, to ensure that the global checkpoint
-            // is valid for this replication group. If we would sample in the reverse, the global checkpoint might be based on a subset
-            // of the sampled replication group, and advanced further than what the given replication group would allow it to.
-            // This would entail that some shards could learn about a global checkpoint that would be higher than its local checkpoint.
-            final long globalCheckpoint = primary.globalCheckpoint();
-            // we have to capture the max_seq_no_of_updates after this request was completed on the primary to make sure the value of
-            // max_seq_no_of_updates on replica when this request is executed is at least the value on the primary when it was executed on.
-            final long maxSeqNoOfUpdatesOrDeletes = primary.maxSeqNoOfUpdatesOrDeletes();
-            assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "seqno_of_updates still uninitialized";
-            final ReplicationGroup replicationGroup = primary.getReplicationGroup();
-            markUnavailableShardsAsStale(replicaRequest, replicationGroup);
-            performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup);
-        }
-
-        successfulShards.incrementAndGet();  // mark primary as successful
-        decPendingAndFinishIfNeeded();
+            successfulShards.incrementAndGet();  // mark primary as successful
+            decPendingAndFinishIfNeeded();
+        }, resultListener::onFailure));
     }
 
     private void markUnavailableShardsAsStale(ReplicaRequest replicaRequest, ReplicationGroup replicationGroup) {
@@ -310,9 +313,9 @@ public class ReplicationOperation<
          * also complete after. Deal with it.
          *
          * @param request the request to perform
-         * @return the request to send to the replicas
+         * @param listener result listener
          */
-        PrimaryResultT perform(RequestT request) throws Exception;
+        void perform(RequestT request, ActionListener<PrimaryResultT> listener);
 
         /**
          * Notifies the primary of a local checkpoint for the given allocation.

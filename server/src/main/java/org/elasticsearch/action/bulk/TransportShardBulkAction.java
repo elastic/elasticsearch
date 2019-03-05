@@ -22,7 +22,10 @@ package org.elasticsearch.action.bulk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -30,7 +33,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -44,8 +46,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -57,7 +57,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -69,8 +68,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -82,7 +81,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
 
-    private final ThreadPool threadPool;
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
 
@@ -93,7 +91,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                     IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             indexNameExpressionResolver, BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE);
-        this.threadPool = threadPool;
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
     }
@@ -114,157 +111,213 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected WritePrimaryResult<BulkShardRequest, BulkShardResponse> shardOperationOnPrimary(BulkShardRequest request, IndexShard primary)
-        throws Exception {
+    protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
+            ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        CheckedRunnable<Exception> waitForMappingUpdate = () -> {
-            PlainActionFuture<Void> waitingFuture = new PlainActionFuture<>();
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+        performOnPrimary(request, primary, updateHelper, threadPool::relativeTimeInMillis,
+            (update, shardId, type, mappingListener) -> {
+                assert update != null;
+                assert shardId != null;
+                mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update, mappingListener);
+            },
+            mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    waitingFuture.onResponse(null);
+                    mappingUpdateListener.onResponse(null);
                 }
 
                 @Override
                 public void onClusterServiceClose() {
-                    waitingFuture.onFailure(new NodeClosedException(clusterService.localNode()));
+                    mappingUpdateListener.onFailure(new NodeClosedException(clusterService.localNode()));
                 }
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    waitingFuture.onFailure(
-                        new MapperException("timed out while waiting for a dynamic mapping update"));
+                    mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
                 }
-            });
-            waitingFuture.get();
-        };
-        return performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
-            new ConcreteMappingUpdatePerformer(), waitForMappingUpdate);
+            }), listener, threadPool
+        );
     }
 
-    public static WritePrimaryResult<BulkShardRequest, BulkShardResponse> performOnPrimary(
+    public static void performOnPrimary(
         BulkShardRequest request,
         IndexShard primary,
         UpdateHelper updateHelper,
         LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater,
-        CheckedRunnable<Exception> waitForMappingUpdate) throws Exception {
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
-        return performOnPrimary(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate);
-    }
+        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
+        ThreadPool threadPool) {
+        new ActionRunnable<PrimaryResult<BulkShardRequest, BulkShardResponse>>(listener) {
 
-    private static WritePrimaryResult<BulkShardRequest, BulkShardResponse> performOnPrimary(
-        BulkPrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
-        MappingUpdatePerformer mappingUpdater, CheckedRunnable<Exception> waitForMappingUpdate) throws Exception {
+            private final Executor executor = threadPool.executor(ThreadPool.Names.WRITE);
 
-        while (context.hasMoreOperationsToExecute()) {
-            executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate);
-            assert context.isInitial(); // either completed and moved to next or reset
-        }
-        return new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(), context.getLocationToSync(),
-            null, context.getPrimary(), logger);
-    }
+            private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
 
-    /** Executes bulk item requests and handles request execution exceptions */
-    static void executeBulkItemRequest(BulkPrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
-                                       MappingUpdatePerformer mappingUpdater, CheckedRunnable<Exception> waitForMappingUpdate)
-        throws Exception {
-        final DocWriteRequest.OpType opType = context.getCurrent().opType();
-
-        final UpdateHelper.Result updateResult;
-        if (opType == DocWriteRequest.OpType.UPDATE) {
-            final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
-            try {
-                updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier);
-            } catch (Exception failure) {
-                // we may fail translating a update to index or delete operation
-                // we use index result to communicate failure while translating update request
-                final Engine.Result result = new Engine.IndexResult(failure, updateRequest.version(), SequenceNumbers.UNASSIGNED_SEQ_NO);
-                context.setRequestToExecute(updateRequest);
-                context.markOperationAsExecuted(result);
-                context.markAsCompleted(context.getExecutionResult());
-                return;
+            @Override
+            protected void doRun() {
+                while (context.hasMoreOperationsToExecute()) {
+                    if (executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
+                        ActionListener.wrap(v -> executor.execute(this), listener::onFailure)) == false) {
+                        // We are waiting for a mapping update on another thread, that will invoke this action again once its done
+                        // so we just break out here.
+                        return;
+                    }
+                    assert context.isInitial(); // either completed and moved to next or reset
+                }
+                // We're done, there's no more operations to execute so we resolve the wrapped listener
+                listener.onResponse(
+                    new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(), context.getLocationToSync(),
+                        null, context.getPrimary(), logger));
             }
-            // execute translated update request
-            switch (updateResult.getResponseResult()) {
-                case CREATED:
-                case UPDATED:
-                    IndexRequest indexRequest = updateResult.action();
-                    IndexMetaData metaData = context.getPrimary().indexSettings().getIndexMetaData();
-                    MappingMetaData mappingMd = metaData.mappingOrDefault();
-                    indexRequest.process(metaData.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
-                    context.setRequestToExecute(indexRequest);
-                    break;
-                case DELETED:
-                    context.setRequestToExecute(updateResult.action());
-                    break;
-                case NOOP:
-                    context.markOperationAsNoOp(updateResult.action());
+        }.doRun();
+    }
+
+    /**
+     * Executes bulk item requests and handles request execution exceptions.
+     * @return {@code true} if request completed on this thread and the listener was invoked, {@code false} if the request triggered
+     *                      a mapping update that will finish and invoke the listener on a different thread
+     */
+    static boolean executeBulkItemRequest(BulkPrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
+                                       MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate,
+                                       ActionListener<Void> itemDoneListener) {
+        try {
+            final DocWriteRequest.OpType opType = context.getCurrent().opType();
+
+            final UpdateHelper.Result updateResult;
+            if (opType == DocWriteRequest.OpType.UPDATE) {
+                final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
+                try {
+                    updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier);
+                } catch (Exception failure) {
+                    // we may fail translating a update to index or delete operation
+                    // we use index result to communicate failure while translating update request
+                    final Engine.Result result =
+                        new Engine.IndexResult(failure, updateRequest.version(), SequenceNumbers.UNASSIGNED_SEQ_NO);
+                    context.setRequestToExecute(updateRequest);
+                    context.markOperationAsExecuted(result);
                     context.markAsCompleted(context.getExecutionResult());
-                    return;
-                default:
-                    throw new IllegalStateException("Illegal update operation " + updateResult.getResponseResult());
+                    return true;
+                }
+                // execute translated update request
+                switch (updateResult.getResponseResult()) {
+                    case CREATED:
+                    case UPDATED:
+                        IndexRequest indexRequest = updateResult.action();
+                        IndexMetaData metaData = context.getPrimary().indexSettings().getIndexMetaData();
+                        MappingMetaData mappingMd = metaData.mappingOrDefault();
+                        indexRequest.process(metaData.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
+                        context.setRequestToExecute(indexRequest);
+                        break;
+                    case DELETED:
+                        context.setRequestToExecute(updateResult.action());
+                        break;
+                    case NOOP:
+                        context.markOperationAsNoOp(updateResult.action());
+                        context.markAsCompleted(context.getExecutionResult());
+                        return true;
+                    default:
+                        throw new IllegalStateException("Illegal update operation " + updateResult.getResponseResult());
+                }
+            } else {
+                context.setRequestToExecute(context.getCurrent());
+                updateResult = null;
             }
-        } else {
-            context.setRequestToExecute(context.getCurrent());
-            updateResult = null;
-        }
 
-        assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
+            assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
 
-        if (context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE) {
-            executeDeleteRequestOnPrimary(context, mappingUpdater);
-        } else {
-            executeIndexRequestOnPrimary(context, mappingUpdater);
-        }
-
-        if (context.requiresWaitingForMappingUpdate()) {
+            final IndexShard primary = context.getPrimary();
+            final long version = context.getRequestToExecute().version();
+            final boolean isDelete = context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE;
+            final Function<Exception, Engine.Result> exceptionToResult =
+                isDelete ? e -> primary.getFailedDeleteResult(e, version) : e -> primary.getFailedIndexResult(e, version);
             try {
-                waitForMappingUpdate.run();
-                context.resetForExecutionForRetry();
+                final Engine.Result result;
+                if (isDelete) {
+                    final DeleteRequest request = context.getRequestToExecute();
+                    result = primary.applyDeleteOperationOnPrimary(version, request.type(), request.id(), request.versionType(),
+                        request.ifSeqNo(), request.ifPrimaryTerm());
+                } else {
+                    final IndexRequest request = context.getRequestToExecute();
+                    result = primary.applyIndexOperationOnPrimary(version, request.versionType(), new SourceToParse(
+                            request.index(), request.type(), request.id(), request.source(), request.getContentType(), request.routing()),
+                        request.ifSeqNo(), request.ifPrimaryTerm(), request.getAutoGeneratedTimestamp(), request.isRetry());
+                }
+                if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+                    mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(),
+                        context.getRequestToExecute().type(),
+                        new ActionListener<Void>() {
+                            @Override
+                            public void onResponse(Void v) {
+                                context.markAsRequiringMappingUpdate();
+                                waitForMappingUpdate.accept(
+                                    ActionListener.runAfter(new ActionListener<Void>() {
+                                        @Override
+                                        public void onResponse(Void v) {
+                                            assert context.requiresWaitingForMappingUpdate();
+                                            context.resetForExecutionForRetry();
+                                        }
+
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            context.failOnMappingUpdate(e);
+                                        }
+                                    }, () -> itemDoneListener.onResponse(null))
+                                );
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                onComplete(exceptionToResult.apply(e), context, updateResult);
+                                // Requesting mapping update failed, so we don't have to wait for a cluster state update
+                                assert context.isInitial();
+                                itemDoneListener.onResponse(null);
+                            }
+                        });
+                    return false;
+                } else {
+                    onComplete(result, context, updateResult);
+                    return true;
+                }
             } catch (Exception e) {
-                context.failOnMappingUpdate(e);
+                onComplete(exceptionToResult.apply(e), context, updateResult);
+                return true;
             }
+        } catch (Exception e) {
+            itemDoneListener.onFailure(e);
+            return true;
+        }
+    }
+
+    private static void onComplete(Engine.Result r, BulkPrimaryExecutionContext context, UpdateHelper.Result updateResult) {
+        context.markOperationAsExecuted(r);
+        final DocWriteRequest<?> docWriteRequest = context.getCurrent();
+        final DocWriteRequest.OpType opType = docWriteRequest.opType();
+        final boolean isUpdate = opType == DocWriteRequest.OpType.UPDATE;
+        final BulkItemResponse executionResult = context.getExecutionResult();
+        final boolean isFailed = executionResult.isFailed();
+        if (isUpdate && isFailed && isConflictException(executionResult.getFailure().getCause())
+            && context.getRetryCounter() < ((UpdateRequest) docWriteRequest).retryOnConflict()) {
+            context.resetForExecutionForRetry();
             return;
         }
-
-        assert context.isOperationExecuted();
-
-        if (opType == DocWriteRequest.OpType.UPDATE &&
-            context.getExecutionResult().isFailed() &&
-            isConflictException(context.getExecutionResult().getFailure().getCause())) {
-            final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
-            if (context.getRetryCounter() < updateRequest.retryOnConflict()) {
-                context.resetForExecutionForRetry();
-                return;
-            }
-        }
-
-        finalizePrimaryOperationOnCompletion(context, opType, updateResult);
-    }
-
-    private static void finalizePrimaryOperationOnCompletion(BulkPrimaryExecutionContext context, DocWriteRequest.OpType opType,
-                                                             UpdateHelper.Result updateResult) {
-        final BulkItemResponse executionResult = context.getExecutionResult();
-        if (opType == DocWriteRequest.OpType.UPDATE) {
-            final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
-            context.markAsCompleted(
-                processUpdateResponse(updateRequest, context.getConcreteIndex(), executionResult, updateResult));
-        } else if (executionResult.isFailed()) {
-            final Exception failure = executionResult.getFailure().getCause();
-            final DocWriteRequest docWriteRequest = context.getCurrent();
-            if (TransportShardBulkAction.isConflictException(failure)) {
-                logger.trace(() -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
-                    context.getPrimary().shardId(), docWriteRequest.opType().getLowercase(), docWriteRequest), failure);
-            } else {
-                logger.debug(() -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
-                    context.getPrimary().shardId(), docWriteRequest.opType().getLowercase(), docWriteRequest), failure);
-            }
-
-            context.markAsCompleted(executionResult);
+        final BulkItemResponse response;
+        if (isUpdate) {
+            response = processUpdateResponse((UpdateRequest) docWriteRequest, context.getConcreteIndex(), executionResult, updateResult);
         } else {
-            context.markAsCompleted(executionResult);
+            if (isFailed) {
+                final Exception failure = executionResult.getFailure().getCause();
+                final MessageSupplier messageSupplier = () -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
+                    context.getPrimary().shardId(), opType.getLowercase(), docWriteRequest);
+                if (TransportShardBulkAction.isConflictException(failure)) {
+                    logger.trace(messageSupplier, failure);
+                } else {
+                    logger.debug(messageSupplier, failure);
+                }
+            }
+            response = executionResult;
         }
+        context.markAsCompleted(response);
         assert context.isInitial();
     }
 
@@ -275,10 +328,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     /**
      * Creates a new bulk item result from the given requests and result of performing the update operation on the shard.
      */
-    static BulkItemResponse processUpdateResponse(final UpdateRequest updateRequest, final String concreteIndex,
-                                                  BulkItemResponse operationResponse,
-                                                  final UpdateHelper.Result translate) {
-
+    private static BulkItemResponse processUpdateResponse(UpdateRequest updateRequest, String concreteIndex,
+                                                          BulkItemResponse operationResponse, UpdateHelper.Result translate) {
         final BulkItemResponse response;
         DocWriteResponse.Result translatedResult = translate.getResponseResult();
         if (operationResponse.isFailed()) {
@@ -438,66 +489,5 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 "Mappings are not available on the replica yet, triggered update: " + result.getRequiredMappingUpdate());
         }
         return result;
-    }
-
-    /** Executes index operation on primary shard after updates mapping if dynamic mappings are found */
-    private static void executeIndexRequestOnPrimary(BulkPrimaryExecutionContext context,
-                                             MappingUpdatePerformer mappingUpdater) throws Exception {
-        final IndexRequest request = context.getRequestToExecute();
-        final IndexShard primary = context.getPrimary();
-        final SourceToParse sourceToParse =
-            new SourceToParse(request.index(), request.type(), request.id(), request.source(), request.getContentType(), request.routing());
-        executeOnPrimaryWhileHandlingMappingUpdates(context,
-            () ->
-                primary.applyIndexOperationOnPrimary(request.version(), request.versionType(), sourceToParse,
-                    request.ifSeqNo(), request.ifPrimaryTerm(), request.getAutoGeneratedTimestamp(), request.isRetry()),
-            e -> primary.getFailedIndexResult(e, request.version()),
-            context::markOperationAsExecuted,
-            mapping -> mappingUpdater.updateMappings(mapping, primary.shardId(), request.type()));
-    }
-
-    private static void executeDeleteRequestOnPrimary(BulkPrimaryExecutionContext context,
-                                                      MappingUpdatePerformer mappingUpdater) throws Exception {
-        final DeleteRequest request = context.getRequestToExecute();
-        final IndexShard primary = context.getPrimary();
-        executeOnPrimaryWhileHandlingMappingUpdates(context,
-            () -> primary.applyDeleteOperationOnPrimary(request.version(), request.type(), request.id(), request.versionType(),
-                request.ifSeqNo(), request.ifPrimaryTerm()),
-            e -> primary.getFailedDeleteResult(e, request.version()),
-            context::markOperationAsExecuted,
-            mapping -> mappingUpdater.updateMappings(mapping, primary.shardId(), request.type()));
-    }
-
-    private static <T extends Engine.Result> void executeOnPrimaryWhileHandlingMappingUpdates(
-        BulkPrimaryExecutionContext context, CheckedSupplier<T, IOException> toExecute,
-        Function<Exception, T> exceptionToResult, Consumer<T> onComplete, Consumer<Mapping> mappingUpdater)
-        throws IOException {
-        T result = toExecute.get();
-        if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
-            // try to update the mappings and mark the context as needing to try again.
-            try {
-                mappingUpdater.accept(result.getRequiredMappingUpdate());
-                context.markAsRequiringMappingUpdate();
-            } catch (Exception e) {
-                // failure to update the mapping should translate to a failure of specific requests. Other requests
-                // still need to be executed and replicated.
-                onComplete.accept(exceptionToResult.apply(e));
-                return;
-            }
-        } else {
-            onComplete.accept(result);
-        }
-    }
-
-    class ConcreteMappingUpdatePerformer implements MappingUpdatePerformer {
-
-        @Override
-        public void updateMappings(final Mapping update, final ShardId shardId, final String type) {
-            assert update != null;
-            assert shardId != null;
-            // can throw timeout exception when updating mappings or ISE for attempting to
-            // update default mappings which are bubbled up
-            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update);
-        }
     }
 }

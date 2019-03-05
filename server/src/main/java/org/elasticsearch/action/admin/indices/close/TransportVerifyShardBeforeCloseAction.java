@@ -85,14 +85,18 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     @Override
-    protected PrimaryResult<ShardRequest, ReplicationResponse> shardOperationOnPrimary(final ShardRequest shardRequest,
-                                                                                       final IndexShard primary) throws Exception {
-        executeShardOperation(shardRequest, primary);
-        return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+    protected void shardOperationOnPrimary(final ShardRequest shardRequest, final IndexShard primary,
+            ActionListener<PrimaryResult<ShardRequest, ReplicationResponse>> listener) {
+        try {
+            executeShardOperation(shardRequest, primary);
+            listener.onResponse(new PrimaryResult<>(shardRequest, new ReplicationResponse()));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) throws Exception {
+    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) {
         executeShardOperation(shardRequest, replica);
         return new ReplicaResult();
     }

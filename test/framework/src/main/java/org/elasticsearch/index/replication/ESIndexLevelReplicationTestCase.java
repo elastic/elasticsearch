@@ -36,6 +36,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
@@ -90,6 +91,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
@@ -191,14 +193,15 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 sync(shardId, retentionLeases, ActionListener.wrap(
                     r -> { },
                     e -> {
-                        throw new AssertionError("failed to backgroun sync retention lease", e);
+                        throw new AssertionError("failed to background sync retention lease", e);
                     }));
             }
         };
 
         protected ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
-            primary = newShard(primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);
+            primary = newShard(
+                primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);
             replicas = new CopyOnWriteArrayList<>();
             this.indexMetaData = indexMetaData;
             updateAllocationIDsOnPrimary();
@@ -254,9 +257,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         private BulkItemResponse executeWriteRequest(
             DocWriteRequest<?> writeRequest, WriteRequest.RefreshPolicy refreshPolicy) throws Exception {
             PlainActionFuture<BulkItemResponse> listener = new PlainActionFuture<>();
-            final ActionListener<BulkShardResponse> wrapBulkListener = ActionListener.wrap(
-                bulkShardResponse -> listener.onResponse(bulkShardResponse.getResponses()[0]),
-                listener::onFailure);
+            final ActionListener<BulkShardResponse> wrapBulkListener =
+                ActionListener.map(listener, bulkShardResponse -> bulkShardResponse.getResponses()[0]);
             BulkItemRequest[] items = new BulkItemRequest[1];
             items[0] = new BulkItemRequest(0, writeRequest);
             BulkShardRequest request = new BulkShardRequest(shardId, refreshPolicy, items);
@@ -309,8 +311,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public synchronized void addReplica(IndexShard replica) throws IOException {
-            assert shardRoutings().stream()
-                .filter(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())).findFirst().isPresent() == false :
+            assert shardRoutings().stream().anyMatch(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())) == false :
                 "replica with aId [" + replica.routingEntry().allocationId() + "] already exists";
             replicas.add(replica);
             if (replicationTargets != null) {
@@ -533,10 +534,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
-            RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(shardId, leases);
-            ActionListener<RetentionLeaseSyncAction.Response> wrappedListener = ActionListener.wrap(
-                r -> listener.onResponse(new ReplicationResponse()), listener::onFailure);
-            new SyncRetentionLeases(request, ReplicationGroup.this, wrappedListener).execute();
+            new SyncRetentionLeases(new RetentionLeaseSyncAction.Request(shardId, leases), this,
+                ActionListener.map(listener, r -> new ReplicationResponse())).execute();
         }
 
         public synchronized RetentionLease addRetentionLease(String id, long retainingSequenceNumber, String source,
@@ -611,17 +610,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public void execute() {
             try {
                 new ReplicationOperation<>(request, new PrimaryRef(),
-                    new ActionListener<PrimaryResult>() {
-                        @Override
-                        public void onResponse(PrimaryResult result) {
-                            result.respond(listener);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, new ReplicasRef(), logger, opType).execute();
+                    ActionListener.wrap(result -> result.respond(listener), listener::onFailure), new ReplicasRef(), logger, opType
+                ).execute();
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -631,7 +621,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return replicationTargets.primary;
         }
 
-        protected abstract PrimaryResult performOnPrimary(IndexShard primary, Request request) throws Exception;
+        protected abstract void performOnPrimary(IndexShard primary, Request request, ActionListener<PrimaryResult> listener);
 
         protected abstract void performOnReplica(ReplicaRequest request, IndexShard replica) throws Exception;
 
@@ -648,8 +638,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
 
             @Override
-            public PrimaryResult perform(Request request) throws Exception {
-                return performOnPrimary(getPrimaryShard(), request);
+            public void perform(Request request, ActionListener<PrimaryResult> listener) {
+                performOnPrimary(getPrimaryShard(), request, listener);
             }
 
             @Override
@@ -763,10 +753,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         @Override
-        protected PrimaryResult performOnPrimary(IndexShard primary, BulkShardRequest request) throws Exception {
-            final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>
-                result = executeShardBulkOnPrimary(primary, request);
-            return new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful);
+        protected void performOnPrimary(IndexShard primary, BulkShardRequest request, ActionListener<PrimaryResult> listener) {
+            executeShardBulkOnPrimary(primary, request,
+                ActionListener.map(listener, result -> new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful)));
         }
 
         @Override
@@ -776,8 +765,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
     }
 
-    private TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> executeShardBulkOnPrimary(
-        IndexShard primary, BulkShardRequest request) throws Exception {
+    private void executeShardBulkOnPrimary(IndexShard primary, BulkShardRequest request,
+        ActionListener<TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         for (BulkItemRequest itemRequest : request.items()) {
             if (itemRequest.request() instanceof IndexRequest) {
                 ((IndexRequest) itemRequest.request()).process(Version.CURRENT, null, index.getName());
@@ -785,21 +774,37 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
         primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, request);
-        final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
-            MappingUpdatePerformer noopMappingUpdater = (update, shardId, type) -> { };
-            result = TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater,
-                null);
+            MappingUpdatePerformer noopMappingUpdater = (update, shardId, type, listener1) -> {};
+            TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater,
+                null, ActionTestUtils.assertNoFailureListener(result -> {
+                    TransportWriteActionTestHelper.performPostWriteActions(primary, request,
+                        ((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, logger);
+                    listener.onResponse((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result);
+                }), threadPool);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
-        TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
-        return result;
     }
 
-    private <Request extends ReplicatedWriteRequest & DocWriteRequest>
-    BulkShardRequest executeReplicationRequestOnPrimary(IndexShard primary, Request request) throws Exception {
+    private <Request extends ReplicatedWriteRequest & DocWriteRequest> BulkShardRequest executeReplicationRequestOnPrimary(
+            IndexShard primary, Request request) throws Exception {
         final BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, request.getRefreshPolicy(),
             new BulkItemRequest[]{new BulkItemRequest(0, request)});
-        return executeShardBulkOnPrimary(primary, bulkShardRequest).replicaRequest();
+        final CompletableFuture<BulkShardRequest> res = new CompletableFuture<>();
+        executeShardBulkOnPrimary(
+            primary, bulkShardRequest, new ActionListener<TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>>() {
+                @Override
+                public void onResponse(TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result) {
+                    res.complete(result.replicaRequest());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    res.completeExceptionally(e);
+                }
+            });
+        return res.get();
     }
 
     private void executeShardBulkOnReplica(BulkShardRequest request, IndexShard replica, long operationPrimaryTerm,
@@ -862,10 +867,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         @Override
-        protected PrimaryResult performOnPrimary(
-                final IndexShard primary, final GlobalCheckpointSyncAction.Request request) throws Exception {
-            primary.sync();
-            return new PrimaryResult(request, new ReplicationResponse());
+        protected void performOnPrimary(IndexShard primary, GlobalCheckpointSyncAction.Request request,
+                ActionListener<PrimaryResult> listener) {
+            try {
+                primary.sync();
+                listener.onResponse(new PrimaryResult(request, new ReplicationResponse()));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
 
         @Override
@@ -881,10 +890,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         @Override
-        protected PrimaryResult performOnPrimary(IndexShard primary, ResyncReplicationRequest request) throws Exception {
-            final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
-                executeResyncOnPrimary(primary, request);
-            return new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful);
+        protected void performOnPrimary(IndexShard primary, ResyncReplicationRequest request, ActionListener<PrimaryResult> listener) {
+            try {
+                final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
+                    executeResyncOnPrimary(primary, request);
+                listener.onResponse(new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
 
         @Override
@@ -895,7 +908,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     private TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> executeResyncOnPrimary(
-        IndexShard primary, ResyncReplicationRequest request) throws Exception {
+        IndexShard primary, ResyncReplicationRequest request) {
         final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
             new TransportWriteAction.WritePrimaryResult<>(TransportResyncReplicationAction.performOnPrimary(request, primary),
                 new ResyncReplicationResponse(), null, null, primary, logger);
@@ -924,9 +937,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         @Override
-        protected PrimaryResult performOnPrimary(IndexShard primary, RetentionLeaseSyncAction.Request request) throws Exception {
-            primary.persistRetentionLeases();
-            return new PrimaryResult(request, new RetentionLeaseSyncAction.Response());
+        protected void performOnPrimary(IndexShard primary, RetentionLeaseSyncAction.Request request,
+                ActionListener<PrimaryResult> listener) {
+            try {
+                primary.persistRetentionLeases();
+                listener.onResponse(new PrimaryResult(request, new RetentionLeaseSyncAction.Response()));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
 
         @Override

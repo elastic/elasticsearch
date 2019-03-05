@@ -44,7 +44,7 @@ public class UpdateShasTask extends DefaultTask {
 
     public UpdateShasTask() {
         setDescription("Updates the sha files for the dependencyLicenses check");
-        setOnlyIf(element -> parentTask.getLicensesDir().exists());
+        setOnlyIf(element -> parentTask.getLicensesDir() != null);
     }
 
     @TaskAction

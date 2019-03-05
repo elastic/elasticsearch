@@ -1,0 +1,10 @@
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'elasticsearch.build'
+
+    repositories {
+        jcenter()
+    }
+
+    unitTest.enabled = false
+}

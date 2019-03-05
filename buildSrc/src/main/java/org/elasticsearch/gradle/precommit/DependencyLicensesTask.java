@@ -25,10 +25,7 @@ import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputDirectory;
-import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -317,9 +314,14 @@ public class DependencyLicensesTask extends DefaultTask {
         this.dependencies = dependencies;
     }
 
+    @Optional
     @InputDirectory
     public File getLicensesDir() {
-        return licensesDir;
+        if (licensesDir.exists()) {
+            return licensesDir;
+        }
+
+        return null;
     }
 
     public void setLicensesDir(File licensesDir) {

@@ -234,7 +234,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             future3.actionGet();
             assertConnectedExactlyToNodes(nodes01);
 
-            // if we disconnect from a node while blocked trying to connect from it then we do eventually disconnect from it
+            // if we disconnect from a node while blocked trying to connect to it then we do eventually disconnect from it
             nodeConnectionBlocks.put(node0, connectionBarrier::await);
             transportService.disconnectFromNode(node0);
             final PlainActionFuture<Void> future4 = new PlainActionFuture<>();
@@ -253,7 +253,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             ensureConnections(service);
             assertConnectedExactlyToNodes(nodes1);
 
-            // if we disconnect from a node while blocked trying to connect from it then the listener is notified
+            // if we disconnect from a node while blocked trying to connect to it then the listener is notified
             nodeConnectionBlocks.put(node0, connectionBarrier::await);
             final PlainActionFuture<Void> future6 = new PlainActionFuture<>();
             service.connectToNodes(nodes01, () -> future6.onResponse(null));

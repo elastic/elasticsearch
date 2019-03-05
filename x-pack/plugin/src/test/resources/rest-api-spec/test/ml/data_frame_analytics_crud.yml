@@ -405,3 +405,62 @@
       catch: missing
       ml.delete_data_frame_analytics:
         id: "missing_config"
+
+---
+"Test max model memory limit":
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.put_settings:
+        body:
+          transient:
+            xpack.ml.max_model_memory_limit: "20mb"
+  - match: {transient.xpack.ml.max_model_memory_limit: "20mb"}
+
+  # Explicit request higher than limit is an error
+  - do:
+      catch: /model_memory_limit \[8gb\] must be less than the value of the xpack.ml.max_model_memory_limit setting \[20mb\]/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection-with-query"
+        body: >
+          {
+            "source": "index-source",
+            "dest": "index-dest",
+            "analyses": [{"outlier_detection":{}}],
+            "query": {"term" : { "user" : "Kimchy" }},
+            "model_memory_limit": "8gb",
+            "analyses_fields": [ "obj1.*", "obj2.*" ]
+          }
+
+  # Request using default higher than limit gets silently capped
+  - do:
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection-with-query"
+        body: >
+          {
+            "source": "index-source",
+            "dest": "index-dest",
+            "analyses": [{"outlier_detection":{}}],
+            "query": {"term" : { "user" : "Kimchy" }},
+            "analyses_fields": [ "obj1.*", "obj2.*" ]
+          }
+  - match: { id: "simple-outlier-detection-with-query" }
+  - match: { source: "index-source" }
+  - match: { dest: "index-dest" }
+  - match: { analyses: [{"outlier_detection":{}}] }
+  - match: { query: {"term" : { "user" : "Kimchy"} } }
+  - match: { analyses_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
+  - match: { model_memory_limit: "20mb" }
+
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.put_settings:
+        body:
+          transient:
+            xpack.ml.max_model_memory_limit: null
+  - match: {transient: {}}
+

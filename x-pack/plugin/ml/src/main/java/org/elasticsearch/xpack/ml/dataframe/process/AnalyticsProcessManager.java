@@ -12,8 +12,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -40,7 +38,6 @@ public class AnalyticsProcessManager {
     private static final Logger LOGGER = LogManager.getLogger(AnalyticsProcessManager.class);
 
     private final Client client;
-    private final Environment environment;
     private final ThreadPool threadPool;
     private final AnalyticsProcessFactory processFactory;
     private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
@@ -48,7 +45,6 @@ public class AnalyticsProcessManager {
     public AnalyticsProcessManager(Client client, Environment environment, ThreadPool threadPool,
                                    AnalyticsProcessFactory analyticsProcessFactory) {
         this.client = Objects.requireNonNull(client);
-        this.environment = Objects.requireNonNull(environment);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.processFactory = Objects.requireNonNull(analyticsProcessFactory);
     }
@@ -155,7 +151,7 @@ public class AnalyticsProcessManager {
         assert dataFrameAnalyses.size() == 1;
 
         AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(dataSummary.rows, dataSummary.cols,
-                new ByteSizeValue(1, ByteSizeUnit.GB), 1, dataFrameAnalyses.get(0));
+                config.getModelMemoryLimit(), 1, dataFrameAnalyses.get(0));
         return processConfig;
     }
 

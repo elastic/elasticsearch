@@ -41,6 +41,7 @@ include::follow/put-follow.asciidoc[]
 include::follow/post-pause-follow.asciidoc[]
 include::follow/post-resume-follow.asciidoc[]
 include::follow/post-unfollow.asciidoc[]
+include::follow/post-forget-follower.asciidoc[]
 include::follow/get-follow-stats.asciidoc[]
 include::follow/get-follow-info.asciidoc[]
 

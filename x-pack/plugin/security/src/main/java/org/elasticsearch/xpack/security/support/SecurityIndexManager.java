@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
@@ -81,7 +83,7 @@ public class SecurityIndexManager implements ClusterStateListener {
     private volatile State indexState;
 
     public SecurityIndexManager(Client client, String indexName, ClusterService clusterService) {
-        this(client, indexName, new State(false, false, false, false, null, null, null));
+        this(client, indexName, State.UNRECOVERED_STATE);
         clusterService.addListener(this);
     }
 
@@ -119,6 +121,10 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     public boolean isMappingUpToDate() {
         return this.indexState.mappingUpToDate;
+    }
+
+    public boolean isStateRecovered() {
+        return this.indexState != State.UNRECOVERED_STATE;
     }
 
     public ElasticsearchException getUnavailableReason() {
@@ -297,7 +303,10 @@ public class SecurityIndexManager implements ClusterStateListener {
     public void prepareIndexIfNeededThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
         final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
         // TODO we should improve this so we don't fire off a bunch of requests to do the same thing (create or update mappings)
-        if (indexState.indexExists && indexState.isIndexUpToDate == false) {
+        if (indexState == State.UNRECOVERED_STATE) {
+            consumer.accept(new ElasticsearchStatusException("Cluster state has not been recovered yet, cannot write to the security index",
+                    RestStatus.SERVICE_UNAVAILABLE));
+        } else if (indexState.indexExists && indexState.isIndexUpToDate == false) {
             consumer.accept(new IllegalStateException(
                     "Security index is not on the current version. Security features relying on the index will not be available until " +
                             "the upgrade API is run on the security index"));
@@ -377,6 +386,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      * State of the security index.
      */
     public static class State {
+        public static final State UNRECOVERED_STATE = new State(false, false, false, false, null, null, null);
         public final boolean indexExists;
         public final boolean isIndexUpToDate;
         public final boolean indexAvailable;

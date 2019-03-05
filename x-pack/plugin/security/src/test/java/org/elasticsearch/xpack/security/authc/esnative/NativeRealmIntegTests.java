@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -17,7 +19,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -46,6 +51,7 @@ import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -58,12 +64,14 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_SECURITY_INDEX;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -377,6 +385,69 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             assertFalse("no cluster permission should be authorized",
                     Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/bar", request));
         }
+    }
+
+    public void testSnapshotDeleteRestore() {
+        logger.error("--> creating role");
+        securityClient().preparePutRole("test_role")
+                .cluster("all")
+                .addIndices(new String[]{"*"}, new String[]{"create_index"}, null, null, null, true)
+                .get();
+        logger.error("--> creating user");
+        securityClient().preparePutUser("joe", "s3krit".toCharArray(), hasher, "test_role", "snapshot_user").get();
+        logger.error("--> waiting for .security index");
+        ensureGreen(SECURITY_INDEX_NAME);
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster()
+                .preparePutRepository("test-repo")
+                    .setType("fs").setSettings(Settings.builder()
+                            .put("location", randomRepoPath())
+                            .put("compress", randomBoolean())
+                            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        final String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
+        // joe can snapshot all indices, including '.security'
+        SnapshotInfo snapshotInfo = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
+                .prepareCreateSnapshot("test-repo", "test-snap-1")
+                .setWaitForCompletion(true)
+                .setIncludeGlobalState(false)
+                .setIndices(SECURITY_INDEX_NAME)
+                .get().getSnapshotInfo();
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.indices(), contains(SecurityIndexManager.INTERNAL_SECURITY_INDEX));
+        deleteSecurityIndex();
+        // the realm cache should clear itself but we don't wish to race it
+        securityClient().prepareClearRealmCache().get();
+        // authn fails
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> client()
+                .filterWithHeader(Collections.singletonMap("Authorization", token)).admin().indices().prepareCreate("idx").get());
+        assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
+        // users and roles are missing
+        GetUsersResponse getUsersResponse = securityClient().prepareGetUsers("joe").get();
+        assertThat(getUsersResponse.users().length, is(0));
+        GetRolesResponse getRolesResponse = securityClient().prepareGetRoles("test_role").get();
+        assertThat(getRolesResponse.roles().length, is(0));
+        // restore
+        RestoreSnapshotResponse response = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-1")
+                .setWaitForCompletion(true).setIncludeAliases(true).get();
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertThat(response.getRestoreInfo().indices(), contains(SecurityIndexManager.INTERNAL_SECURITY_INDEX));
+        // the realm cache should clear itself but we don't wish to race it
+        securityClient().prepareClearRealmCache().get();
+        // users and roles are retrievable
+        getUsersResponse = securityClient().prepareGetUsers("joe").get();
+        assertThat(getUsersResponse.users().length, is(1));
+        assertThat(Arrays.asList(getUsersResponse.users()[0].roles()), contains("test_role", "snapshot_user"));
+        getRolesResponse = securityClient().prepareGetRoles("test_role").get();
+        assertThat(getRolesResponse.roles().length, is(1));
+        assertThat(Arrays.asList(getRolesResponse.roles()[0].getClusterPrivileges()), contains("all"));
+        assertThat(getRolesResponse.roles()[0].getIndicesPrivileges().length, is(1));
+        assertThat(Arrays.asList(getRolesResponse.roles()[0].getIndicesPrivileges()[0].getPrivileges()), contains("create_index"));
+        assertThat(Arrays.asList(getRolesResponse.roles()[0].getIndicesPrivileges()[0].getIndices()), contains("*"));
+        // joe can create indices
+        CreateIndexResponse createIndexResponse = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin()
+                .indices().prepareCreate("idx").get();
+        assertThat(createIndexResponse.isAcknowledged(), is (true));
+        assertAcked(client().admin().cluster().prepareDeleteRepository("test-repo"));
     }
 
     public void testAuthenticateWithDeletedRole() {

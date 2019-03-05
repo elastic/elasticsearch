@@ -64,24 +64,6 @@ public class MappingUpdatedAction {
         this.client = client.admin().indices();
     }
 
-    private void updateMappingRequest(Index index, String type, Mapping mappingUpdate, TimeValue timeout, ActionListener<Void> listener) {
-        if (type.equals(MapperService.DEFAULT_MAPPING)) {
-            throw new IllegalArgumentException("_default_ mapping should not be updated");
-        }
-        client.preparePutMapping().setConcreteIndex(index).setType(type).setSource(mappingUpdate.toString(), XContentType.JSON)
-            .setMasterNodeTimeout(timeout).setTimeout(TimeValue.ZERO).execute(new ActionListener<AcknowledgedResponse>() {
-            @Override
-            public void onResponse(final AcknowledgedResponse acknowledgedResponse) {
-                listener.onResponse(null);
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                listener.onFailure(unwrapExecutionExceptionCause(e));
-            }
-        });
-    }
-
     /**
      * Update mappings on the master node, waiting for the change to be committed,
      * but not for the mapping update to be applied on all nodes. The timeout specified by
@@ -89,10 +71,25 @@ public class MappingUpdatedAction {
      * potentially waiting for a master node to be available.
      */
     public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, ActionListener<Void> listener) {
-        updateMappingRequest(index, type, mappingUpdate, dynamicMappingUpdateTimeout, listener);
+        if (type.equals(MapperService.DEFAULT_MAPPING)) {
+            throw new IllegalArgumentException("_default_ mapping should not be updated");
+        }
+        client.preparePutMapping().setConcreteIndex(index).setType(type).setSource(mappingUpdate.toString(), XContentType.JSON)
+            .setMasterNodeTimeout(dynamicMappingUpdateTimeout).setTimeout(TimeValue.ZERO)
+            .execute(new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(unwrapException(e));
+                }
+            });
     }
 
-    private static Exception unwrapExecutionExceptionCause(Exception e) {
+    private static Exception unwrapException(Exception e) {
         final Throwable cause = e.getCause();
         if (cause instanceof ElasticsearchException) {
             ElasticsearchException esEx = (ElasticsearchException) cause;

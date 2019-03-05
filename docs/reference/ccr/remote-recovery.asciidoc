@@ -1,5 +1,7 @@
+[role="xpack"]
+[testenv="platinum"]
 [[remote-recovery]]
-=== Remote Recovery
+== Remote recovery
 
 When you create a follower index, you cannot use it until it is fully initialized.
 The _remote recovery_ process builds a new copy of a shard on a follower node by
@@ -22,7 +24,6 @@ and manage the resources consumed by remote recoveries. See
 {ref}/ccr-settings.html[{ccr-cap} settings].
 
 You can obtain information about an in-progress remote recovery by using the
-<<cat-recovery,recovery>> api on the follower cluster. Remote recoveries are implemented
-using the <<modules-snapshots,snapshot and restore>> infrastructure. This means that
-on-going remote recoveries are labelled as type `snapshot` in the recovery API.
-
+{ref}/cat-recovery.html[recovery API] on the follower cluster. Remote recoveries
+are implemented using the {ref}/modules-snapshots.html[snapshot and restore] infrastructure. This means that on-going remote recoveries are labelled as type
+`snapshot` in the recovery API.

@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ccr.CcrStatsRequest;
 import org.elasticsearch.client.ccr.CcrStatsResponse;
@@ -36,6 +38,7 @@ import org.elasticsearch.client.ccr.FollowInfoRequest;
 import org.elasticsearch.client.ccr.FollowInfoResponse;
 import org.elasticsearch.client.ccr.FollowStatsRequest;
 import org.elasticsearch.client.ccr.FollowStatsResponse;
+import org.elasticsearch.client.ccr.ForgetFollowerRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
 import org.elasticsearch.client.ccr.IndicesFollowStats;
@@ -47,19 +50,25 @@ import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.core.BroadcastResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -201,6 +210,60 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         UnfollowRequest unfollowRequest = new UnfollowRequest("follower");
         AcknowledgedResponse unfollowResponse = execute(unfollowRequest, ccrClient::unfollow, ccrClient::unfollowAsync);
         assertThat(unfollowResponse.isAcknowledged(), is(true));
+    }
+
+    public void testForgetFollower() throws IOException {
+        final CcrClient ccrClient = highLevelClient().ccr();
+
+        final CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
+        final Map<String, String> settings = new HashMap<>(2);
+        final int numberOfShards = randomIntBetween(1, 2);
+        settings.put("index.number_of_shards", Integer.toString(numberOfShards));
+        settings.put("index.soft_deletes.enabled", Boolean.TRUE.toString());
+        createIndexRequest.settings(settings);
+        final CreateIndexResponse response = highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        assertThat(response.isAcknowledged(), is(true));
+
+        final PutFollowRequest putFollowRequest = new PutFollowRequest("local_cluster", "leader", "follower", ActiveShardCount.ONE);
+        final PutFollowResponse putFollowResponse = execute(putFollowRequest, ccrClient::putFollow, ccrClient::putFollowAsync);
+        assertTrue(putFollowResponse.isFollowIndexCreated());
+        assertTrue(putFollowResponse.isFollowIndexShardsAcked());
+        assertTrue(putFollowResponse.isIndexFollowingStarted());
+
+        final String clusterName = highLevelClient().info(RequestOptions.DEFAULT).getClusterName().value();
+
+        final Request statsRequest = new Request("GET", "/follower/_stats");
+        final Response statsResponse = client().performRequest(statsRequest);
+        final ObjectPath statsObjectPath = ObjectPath.createFromResponse(statsResponse);
+        final String followerIndexUUID = statsObjectPath.evaluate("indices.follower.uuid");
+
+        final PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
+        AcknowledgedResponse pauseFollowResponse = execute(pauseFollowRequest, ccrClient::pauseFollow, ccrClient::pauseFollowAsync);
+        assertTrue(pauseFollowResponse.isAcknowledged());
+
+        final CloseIndexRequest closeIndexRequest = new CloseIndexRequest("follower");
+        org.elasticsearch.action.support.master.AcknowledgedResponse closeIndexReponse =
+                highLevelClient().indices().close(closeIndexRequest, RequestOptions.DEFAULT);
+        assertTrue(closeIndexReponse.isAcknowledged());
+
+        final UnfollowRequest unfollowRequest = new UnfollowRequest("follower");
+        final AcknowledgedResponse unfollowResponse = execute(unfollowRequest, ccrClient::unfollow, ccrClient::unfollowAsync);
+        assertTrue(unfollowResponse.isAcknowledged());
+
+        final ForgetFollowerRequest forgetFollowerRequest =
+                new ForgetFollowerRequest(clusterName, "follower", followerIndexUUID, "local_cluster", "leader");
+        final BroadcastResponse forgetFollowerResponse =
+                execute(forgetFollowerRequest, ccrClient::forgetFollower, ccrClient::forgetFollowerAsync);
+        assertThat(forgetFollowerResponse.shards().total(), equalTo(numberOfShards));
+        // we expect failures because unfollowing will have been successful and removed the retention leases already
+        assertThat(forgetFollowerResponse.shards().successful(), equalTo(0));
+        assertThat(forgetFollowerResponse.shards().skipped(), equalTo(0));
+        assertThat(forgetFollowerResponse.shards().failed(), equalTo(numberOfShards));
+        assertThat(forgetFollowerResponse.shards().failures(), hasSize(1)); // the failures are grouped
+        final DefaultShardOperationFailedException failure = forgetFollowerResponse.shards().failures().iterator().next();
+        assertThat(failure.getCause(), instanceOf(ElasticsearchException.class));
+        final ElasticsearchException cause = (ElasticsearchException) failure.getCause();
+        assertThat(cause.getDetailedMessage(), containsString("type=retention_lease_not_found_exception"));
     }
 
     public void testAutoFollowing() throws Exception {

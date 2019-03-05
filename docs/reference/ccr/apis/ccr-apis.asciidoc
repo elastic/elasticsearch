@@ -21,6 +21,7 @@ You can use the following APIs to perform {ccr} operations.
 * <<ccr-post-pause-follow,Pause follower>>
 * <<ccr-post-resume-follow,Resume follower>>
 * <<ccr-post-unfollow,Convert follower index to a regular index>>
+* <<ccr-post-forget-follower,Remove follower retention leases from the leader>>
 * <<ccr-get-follow-stats,Get stats about follower indices>>
 * <<ccr-get-follow-info,Get info about follower indices>>
 

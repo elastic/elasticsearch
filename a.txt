@@ -1,0 +1,5 @@
+NOTE: This API does not stop replication by a following index. If you use this
+API targeting a follower index that is still actively following, the following
+index will add back retention leases on the leader. The only purpose of this API
+is to handle the case of failure to remove the following retention leases after
+the <<ccr-post-unfollow,unfollow API>> is invoked.

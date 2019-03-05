@@ -186,20 +186,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @SuppressForbidden(reason = "we manage references explicitly here")
-    private synchronized DirectoryReader getReader() throws IOException {
-        DirectoryReader reader = null;
-        boolean success = false;
-        try {
-            if (lastOpenedReader != null && lastOpenedReader.tryIncRef()) {
-                reader = lastOpenedReader;
-            }
-            success = true;
-            return reader;
-        } finally {
-            if (success == false) {
-                IOUtils.close(reader);
-            }
+    private synchronized DirectoryReader getReader() {
+        if (lastOpenedReader != null && lastOpenedReader.tryIncRef()) {
+            return lastOpenedReader;
         }
+        return null;
     }
 
     @Override

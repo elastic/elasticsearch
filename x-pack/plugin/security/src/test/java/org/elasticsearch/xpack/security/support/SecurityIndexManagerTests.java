@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -26,6 +27,7 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -40,10 +42,13 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
@@ -55,6 +60,10 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_PATTERN;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -72,6 +81,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final Client mockClient = mock(Client.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(threadPool.generic()).thenReturn(EsExecutors.newDirectExecutorService());
         when(mockClient.threadPool()).thenReturn(threadPool);
         when(mockClient.settings()).thenReturn(Settings.EMPTY);
         final ClusterService clusterService = mock(ClusterService.class);
@@ -192,6 +202,67 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertEquals(ClusterHealthStatus.GREEN, currentState.get().indexStatus);
     }
 
+    public void testWriteBeforeStateNotRecovered() throws Exception {
+        final AtomicBoolean prepareRunnableCalled = new AtomicBoolean(false);
+        final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
+        manager.prepareIndexIfNeededThenExecute(ex -> {
+            prepareException.set(ex);
+        }, () -> {
+            prepareRunnableCalled.set(true);
+        });
+        assertThat(prepareException.get(), is(notNullValue()));
+        assertThat(prepareException.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException)prepareException.get()).status(), is(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(prepareRunnableCalled.get(), is(false));
+        prepareException.set(null);
+        prepareRunnableCalled.set(false);
+        // state not recovered
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+        manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME).blocks(blocks)));
+        manager.prepareIndexIfNeededThenExecute(ex -> {
+            prepareException.set(ex);
+        }, () -> {
+            prepareRunnableCalled.set(true);
+        });
+        assertThat(prepareException.get(), is(notNullValue()));
+        assertThat(prepareException.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException)prepareException.get()).status(), is(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(prepareRunnableCalled.get(), is(false));
+        prepareException.set(null);
+        prepareRunnableCalled.set(false);
+        // state recovered with index
+        ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME,
+                SecurityIndexManager.INTERNAL_INDEX_FORMAT);
+        markShardsAvailable(clusterStateBuilder);
+        manager.clusterChanged(event(clusterStateBuilder));
+        manager.prepareIndexIfNeededThenExecute(ex -> {
+            prepareException.set(ex);
+        }, () -> {
+            prepareRunnableCalled.set(true);
+        });
+        assertThat(prepareException.get(), is(nullValue()));
+        assertThat(prepareRunnableCalled.get(), is(true));
+    }
+
+    public void testListeneredNotCalledBeforeStateNotRecovered() throws Exception {
+        final AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        manager.addIndexStateListener((prev, current) -> {
+            listenerCalled.set(true);
+        });
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+        // state not recovered
+        manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME).blocks(blocks)));
+        assertThat(manager.isStateRecovered(), is(false));
+        assertThat(listenerCalled.get(), is(false));
+        // state recovered with index
+        ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME,
+                SecurityIndexManager.INTERNAL_INDEX_FORMAT);
+        markShardsAvailable(clusterStateBuilder);
+        manager.clusterChanged(event(clusterStateBuilder));
+        assertThat(manager.isStateRecovered(), is(true));
+        assertThat(listenerCalled.get(), is(true));
+    }
+
     public void testIndexOutOfDateListeners() throws Exception {
         final AtomicBoolean listenerCalled = new AtomicBoolean(false);
         manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
@@ -236,12 +307,14 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(manager.indexExists(), Matchers.equalTo(false));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
         assertThat(manager.isMappingUpToDate(), Matchers.equalTo(false));
+        assertThat(manager.isStateRecovered(), Matchers.equalTo(false));
     }
 
     private void assertIndexUpToDateButNotAvailable() {
         assertThat(manager.indexExists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
         assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
+        assertThat(manager.isStateRecovered(), Matchers.equalTo(true));
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String templateName) throws IOException {

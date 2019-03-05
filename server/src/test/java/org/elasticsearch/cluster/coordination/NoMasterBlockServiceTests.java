@@ -25,7 +25,6 @@ import org.elasticsearch.test.ESTestCase;
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ALL;
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_SETTING;
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
-import static org.elasticsearch.cluster.coordination.NoMasterBlockService.LEGACY_NO_MASTER_BLOCK_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -39,31 +38,14 @@ public class NoMasterBlockServiceTests extends ESTestCase {
         noMasterBlockService = new NoMasterBlockService(settings, clusterSettings);
     }
 
-    private void assertDeprecatedWarningEmitted() {
-        assertWarnings("[discovery.zen.no_master_block] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-            "See the breaking changes documentation for the next major version.");
-    }
-
     public void testBlocksWritesByDefault() {
         createService(Settings.EMPTY);
         assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
     }
 
-    public void testIgnoresLegacySettingBlockingWrites() {
-        createService(Settings.builder().put(LEGACY_NO_MASTER_BLOCK_SETTING.getKey(), "write").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
-        assertDeprecatedWarningEmitted();
-    }
-
     public void testBlocksWritesIfConfiguredBySetting() {
         createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "write").build());
         assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
-    }
-
-    public void testIgnoresLegacySettingBlockingAll() {
-        createService(Settings.builder().put(LEGACY_NO_MASTER_BLOCK_SETTING.getKey(), "all").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
-        assertDeprecatedWarningEmitted();
     }
 
     public void testBlocksAllIfConfiguredBySetting() {
@@ -76,26 +58,11 @@ public class NoMasterBlockServiceTests extends ESTestCase {
             createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "unknown").build()));
     }
 
-    public void testRejectsInvalidLegacySetting() {
-        expectThrows(IllegalArgumentException.class, () ->
-            createService(Settings.builder().put(LEGACY_NO_MASTER_BLOCK_SETTING.getKey(), "unknown").build()));
-        assertDeprecatedWarningEmitted();
-    }
-
     public void testSettingCanBeUpdated() {
         createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "all").build());
         assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_ALL));
 
         clusterSettings.applySettings(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "write").build());
         assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
-    }
-
-    public void testIgnoresUpdatesToLegacySetting() {
-        createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "all").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_ALL));
-
-        clusterSettings.applySettings(Settings.builder().put(LEGACY_NO_MASTER_BLOCK_SETTING.getKey(), "write").build());
-        assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_ALL));
-        assertDeprecatedWarningEmitted();
     }
 }

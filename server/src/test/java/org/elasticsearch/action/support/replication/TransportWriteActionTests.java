@@ -310,11 +310,17 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         AtomicReference<Object> failure = new AtomicReference<>();
-        AtomicReference<Object> ignoredFailure = new AtomicReference<>();
         AtomicBoolean success = new AtomicBoolean();
-        proxy.failShardIfNeeded(replica, "test", new ElasticsearchException("simulated"),
-                () -> success.set(true), failure::set, ignoredFailure::set
-        );
+        proxy.failShardIfNeeded(replica, "test", new ElasticsearchException("simulated"), new ShardStateAction.Listener() {
+                @Override
+                public void onSuccess() {
+                    success.set(true);
+                }
+                @Override
+                public void onFailure(Exception e) {
+                    failure.set(e);
+                }
+            });
         CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();
         // A write replication action proxy should fail the shard
         assertEquals(1, shardFailedRequests.length);
@@ -328,8 +334,6 @@ public class TransportWriteActionTests extends ESTestCase {
             transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
             assertTrue(success.get());
             assertNull(failure.get());
-            assertNull(ignoredFailure.get());
-
         } else if (randomBoolean()) {
             // simulate the primary has been demoted
             transport.handleRemoteError(shardFailedRequest.requestId,
@@ -337,15 +341,12 @@ public class TransportWriteActionTests extends ESTestCase {
                     "shard-failed-test"));
             assertFalse(success.get());
             assertNotNull(failure.get());
-            assertNull(ignoredFailure.get());
-
         } else {
-            // simulated an "ignored" exception
+            // simulated a node closing exception
             transport.handleRemoteError(shardFailedRequest.requestId,
                 new NodeClosedException(state.nodes().getLocalNode()));
             assertFalse(success.get());
-            assertNull(failure.get());
-            assertNotNull(ignoredFailure.get());
+            assertNotNull(failure.get());
         }
     }
 

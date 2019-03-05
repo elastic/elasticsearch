@@ -107,6 +107,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
 
     private static final ShardStateAction.Listener SHARD_STATE_ACTION_LISTENER = new ShardStateAction.Listener() {
+        @Override
+        public void onSuccess() {
+        }
+        @Override
+        public void onFailure(Exception e) {
+        }
     };
 
     private final Settings settings;

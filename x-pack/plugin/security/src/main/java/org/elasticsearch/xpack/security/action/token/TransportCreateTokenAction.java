@@ -86,19 +86,15 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
     }
 
     private void createToken(CreateTokenRequest request, Authentication authentication, Authentication originatingAuth,
-                             boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
-        try {
-            tokenService.createUserToken(authentication, originatingAuth, Collections.emptyMap(), includeRefreshToken, ActionListener.wrap(tuple -> {
-                final String tokenStr = tokenService.getAccessTokenAsString(tuple.v1());
-                final String scope = getResponseScopeValue(request.getScope());
-
-                final CreateTokenResponse response =
-                    new CreateTokenResponse(tokenStr, tokenService.getExpirationDelay(), scope, tuple.v2());
-                listener.onResponse(response);
-            }, listener::onFailure));
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
+            boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
+        tokenService.createUserToken(authentication, originatingAuth, Collections.emptyMap(), includeRefreshToken,
+                ActionListener.wrap(tuple -> {
+                    final String tokenStr = tokenService.getAccessTokenAsString(tuple.v1());
+                    final String scope = getResponseScopeValue(request.getScope());
+                    final CreateTokenResponse response = new CreateTokenResponse(tokenStr, tokenService.getExpirationDelay(), scope,
+                            tuple.v2());
+                    listener.onResponse(response);
+                }, listener::onFailure));
     }
 
     static String getResponseScopeValue(String requestScope) {

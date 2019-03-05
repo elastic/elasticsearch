@@ -47,10 +47,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -229,7 +233,7 @@ public final class TokenService {
      */
     public void createUserToken(Authentication authentication, Authentication originatingClientAuth,
                                 Map<String, Object> metadata, boolean includeRefreshToken,
-                                ActionListener<Tuple<UserToken, String>> listener) throws IOException {
+                                ActionListener<Tuple<UserToken, String>> listener) {
         createUserToken(UUIDs.randomBase64UUID(), authentication, originatingClientAuth, metadata, includeRefreshToken, listener);
     }
 
@@ -239,7 +243,7 @@ public final class TokenService {
      */
     private void createUserToken(String userTokenId, Authentication authentication, Authentication originatingClientAuth,
                                  Map<String, Object> metadata, boolean includeRefreshToken,
-                                 ActionListener<Tuple<UserToken, String>> listener) throws IOException {
+                                 ActionListener<Tuple<UserToken, String>> listener) {
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(traceLog("create token", new IllegalArgumentException("authentication must be provided")));
@@ -253,8 +257,10 @@ public final class TokenService {
             final Authentication tokenAuth = new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
                 authentication.getLookedUpBy(), version, AuthenticationType.TOKEN, authentication.getMetadata());
             final UserToken userToken = new UserToken(userTokenId, version, tokenAuth, expiration, metadata);
+            final String documentId = getTokenDocumentId(userToken);
             final String refreshToken = includeRefreshToken ? UUIDs.randomBase64UUID() : null;
 
+            final IndexRequest request;
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
                 builder.field("doc_type", TOKEN_DOC_TYPE);
@@ -277,19 +283,19 @@ public final class TokenService {
                         .field("realm", authentication.getAuthenticatedBy().getName())
                         .endObject();
                 builder.endObject();
-                final String documentId = getTokenDocumentId(userToken);
-                IndexRequest request =
-                        client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, documentId)
+                request = client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, documentId)
                                 .setOpType(OpType.CREATE)
                                 .setSource(builder)
                                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                                 .request();
-                securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", documentId, ex)),
-                    () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, request,
-                        ActionListener.wrap(indexResponse -> listener.onResponse(new Tuple<>(userToken, refreshToken)),
-                            listener::onFailure))
-                );
+            } catch (IOException e) {
+                // unexpected exception
+                listener.onFailure(e);
+                return;
             }
+            securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", documentId, ex)),
+                    () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, request, ActionListener
+                            .wrap(indexResponse -> listener.onResponse(new Tuple<>(userToken, refreshToken)), listener::onFailure)));
         }
     }
 
@@ -322,25 +328,19 @@ public final class TokenService {
      * token is validated, which might include authenticated decryption and verification that the token
      * has not been revoked or is expired.
      */
-    void getAndValidateToken(ThreadContext ctx, ActionListener<UserToken> listener) {
+    void getAndValidateToken(ThreadContext ctx,ActionListener<UserToken> listener) {
         if (enabled) {
             final String token = getFromHeader(ctx);
             if (token == null) {
                 listener.onResponse(null);
             } else {
-                try {
-                    decodeToken(token, ActionListener.wrap(userToken -> {
-                        if (userToken != null) {
-                            checkIfTokenIsValid(userToken, listener);
-                        } else {
-                            listener.onResponse(null);
-                        }
-                    }, listener::onFailure));
-                } catch (IOException e) {
-                    // could happen with a token that is not ours
-                    logger.debug("invalid token", e);
-                    listener.onResponse(null);
-                }
+                decodeToken(token, ActionListener.wrap(userToken -> {
+                    if (userToken != null) {
+                        checkIfTokenIsValid(userToken, listener);
+                    } else {
+                        listener.onResponse(null);
+                    }
+                }, listener::onFailure));
             }
         } else {
             listener.onResponse(null);
@@ -351,8 +351,7 @@ public final class TokenService {
      * Reads the authentication and metadata from the given token.
      * This method does not validate whether the token is expired or not.
      */
-    public void getAuthenticationAndMetaData(String token, ActionListener<Tuple<Authentication, Map<String, Object>>> listener)
-            throws IOException {
+    public void getAuthenticationAndMetaData(String token, ActionListener<Tuple<Authentication, Map<String, Object>>> listener) {
         decodeToken(token, ActionListener.wrap(
                 userToken -> {
                     if (userToken == null) {
@@ -421,49 +420,56 @@ public final class TokenService {
      * we can restrain the amount of resources consumed by the key computation to a single thread.
      * For tokens created in an after 7.1.0 cluster, the token is just the token document Id so this is used directly without decryption
      */
-    void decodeToken(String token, ActionListener<UserToken> listener) throws IOException {
-        // We intentionally do not use try-with resources since we need to keep the stream open if we need to compute a key!
-        byte[] bytes = token.getBytes(StandardCharsets.UTF_8);
-        StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length);
-        final Version version = Version.readVersion(in);
-        if (version.onOrAfter(Version.V_8_0_0)) {
-            // The token was created in a > 7.1.0 cluster so it contains the tokenId as a String
-            String usedTokenId = in.readString();
-            getUserTokenFromId(usedTokenId, listener);
-        } else {
-            // The token was created in a < 7.1.0 cluster so we need to decrypt it to get the tokenId
+    void decodeToken(String token, ActionListener<UserToken> listener) {
+        final byte[] bytes = token.getBytes(StandardCharsets.UTF_8);
+        try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
+            final Version version = Version.readVersion(in);
             in.setVersion(version);
-            if (in.available() < MINIMUM_BASE64_BYTES) {
-                logger.debug("invalid token, smaller than [{}] bytes", MINIMUM_BASE64_BYTES);
-                listener.onResponse(null);
-                return;
-            }
-            final BytesKey decodedSalt = new BytesKey(in.readByteArray());
-            final BytesKey passphraseHash = new BytesKey(in.readByteArray());
-            KeyAndCache keyAndCache = keyCache.get(passphraseHash);
-            if (keyAndCache != null) {
-                getKeyAsync(decodedSalt, keyAndCache, ActionListener.wrap(decodeKey -> {
-                    try {
-                        final byte[] iv = in.readByteArray();
-                        final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
-                        decryptTokenId(in, cipher, version, ActionListener.wrap(tokenId -> getUserTokenFromId(tokenId, listener),
-                            listener::onFailure));
-                    } catch (GeneralSecurityException e) {
-                        // could happen with a token that is not ours
-                        logger.warn("invalid token", e);
-                        listener.onResponse(null);
-                    } finally {
-                        in.close();
-                    }
-                }, e -> {
-                    IOUtils.closeWhileHandlingException(in);
-                    listener.onFailure(e);
-                }));
+            if (version.onOrAfter(Version.V_8_0_0)) {
+                // The token was created in a > 7.1.0 cluster so it contains the tokenId as a String
+                String usedTokenId = in.readString();
+                getUserTokenFromId(usedTokenId, listener);
             } else {
-                IOUtils.closeWhileHandlingException(in);
-                logger.debug("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet());
-                listener.onResponse(null);
+                // The token was created in a < 7.1.0 cluster so we need to decrypt it to get the tokenId
+                if (in.available() < MINIMUM_BASE64_BYTES) {
+                    logger.debug("invalid token, smaller than [{}] bytes", MINIMUM_BASE64_BYTES);
+                    listener.onResponse(null);
+                    return;
+                }
+                final BytesKey decodedSalt = new BytesKey(in.readByteArray());
+                final BytesKey passphraseHash = new BytesKey(in.readByteArray());
+                final byte[] iv = in.readByteArray();
+                final BytesStreamOutput out = new BytesStreamOutput();
+                Streams.copy(in, out);
+                final byte[] encryptedTokenId = BytesReference.toBytes(out.bytes());
+                final KeyAndCache keyAndCache = keyCache.get(passphraseHash);
+                if (keyAndCache != null) {
+                    getKeyAsync(decodedSalt, keyAndCache, ActionListener.wrap(decodeKey -> {
+                        if (decodeKey == null) {
+                            // could happen with a token that is not ours
+                            logger.warn("invalid token");
+                            listener.onResponse(null);
+                            return;
+                        }
+                        try {
+                            final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
+                            final String tokenId = decryptTokenId(encryptedTokenId, cipher, version);
+                            getUserTokenFromId(tokenId, listener);
+                        } catch (IOException | GeneralSecurityException e) {
+                            // could happen with a token that is not ours
+                            logger.warn("invalid token", e);
+                            listener.onResponse(null);
+                        }
+                    }, listener::onFailure));
+                } else {
+                    logger.debug("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet());
+                    listener.onResponse(null);
+                }
             }
+        } catch (IOException e) {
+            // could happen with a token that is not ours
+            logger.debug("invalid token");
+            listener.onResponse(null);
         }
     }
 
@@ -482,10 +488,13 @@ public final class TokenService {
         }
     }
 
-    private static void decryptTokenId(StreamInput in, Cipher cipher, Version version, ActionListener<String> listener) throws IOException {
-        try (CipherInputStream cis = new CipherInputStream(in, cipher); StreamInput decryptedInput = new InputStreamStreamInput(cis)) {
+    private static String decryptTokenId(byte[] encryptedTokenId, Cipher cipher, Version version)
+            throws GeneralSecurityException, IOException {
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(encryptedTokenId);
+                CipherInputStream cis = new CipherInputStream(bais, cipher);
+                StreamInput decryptedInput = new InputStreamStreamInput(cis)) {
             decryptedInput.setVersion(version);
-            listener.onResponse(decryptedInput.readString());
+            return decryptedInput.readString();
         }
     }
 
@@ -502,19 +511,14 @@ public final class TokenService {
         } else {
             maybeStartTokenRemover();
             final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-            try {
-                decodeToken(tokenString, ActionListener.wrap(userToken -> {
-                    if (userToken == null) {
-                        listener.onFailure(traceLog("invalidate token", tokenString, malformedTokenException()));
-                    } else {
-                        indexInvalidation(Collections.singleton(userToken.getId()), backoff, "access_token",
-                            null, listener);
-                    }
-                }, listener::onFailure));
-            } catch (IOException e) {
-                logger.error("received a malformed token as part of a invalidation request", e);
-                listener.onFailure(malformedTokenException());
-            }
+            decodeToken(tokenString, ActionListener.wrap(userToken -> {
+                if (userToken == null) {
+                    logger.error("received a malformed token as part of a invalidation request");
+                    listener.onFailure(traceLog("invalidate token", tokenString, malformedTokenException()));
+                } else {
+                    indexInvalidation(Collections.singleton(userToken.getId()), backoff, "access_token", null, listener);
+                }
+            }, listener::onFailure));
         }
     }
 
@@ -1514,13 +1518,13 @@ public final class TokenService {
     private class KeyComputingRunnable extends AbstractRunnable {
 
         private final BytesKey decodedSalt;
-        private final ActionListener<SecretKey> listener;
         private final KeyAndCache keyAndCache;
+        private final ActionListener<SecretKey> listener;
 
         KeyComputingRunnable(BytesKey decodedSalt, KeyAndCache keyAndCache, ActionListener<SecretKey> listener) {
             this.decodedSalt = decodedSalt;
-            this.listener = listener;
             this.keyAndCache = keyAndCache;
+            this.listener = listener;
         }
 
         @Override

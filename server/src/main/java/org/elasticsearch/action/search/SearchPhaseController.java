@@ -756,7 +756,7 @@ public final class SearchPhaseController {
                 assert totalHitsRelation == Relation.EQUAL_TO;
                 return new TotalHits(totalHits, totalHitsRelation);
             } else {
-                if (totalHits < trackTotalHitsUpTo) {
+                if (totalHits <= trackTotalHitsUpTo) {
                     return new TotalHits(totalHits, totalHitsRelation);
                 } else {
                     /*

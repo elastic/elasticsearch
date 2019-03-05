@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -1031,6 +1032,13 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void perform(Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
+            if (Assertions.ENABLED) {
+                listener = ActionListener.map(listener, result -> {
+                    assert result.replicaRequest() == null || result.finalFailure == null : "a replica request [" + result.replicaRequest()
+                        + "] with a primary failure [" + result.finalFailure + "]";
+                    return result;
+                });
+            }
             shardOperationOnPrimary(request, indexShard, listener);
         }
 

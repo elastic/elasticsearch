@@ -35,9 +35,15 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -45,6 +51,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
@@ -315,7 +322,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             Tuple<String, Settings> mappingAndSettings = loadMappingAndSettingsSourceFromTemplate();
             CreateIndexRequest request = new CreateIndexRequest(INTERNAL_SECURITY_INDEX)
                     .alias(new Alias(SECURITY_INDEX_NAME))
-                    .mapping("doc", mappingAndSettings.v1(), XContentType.JSON)
+                    .mapping(MapperService.SINGLE_MAPPING_NAME, mappingAndSettings.v1(), XContentType.JSON)
                     .waitForActiveShards(ActiveShardCount.ALL)
                     .settings(mappingAndSettings.v2());
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
@@ -344,9 +351,10 @@ public class SecurityIndexManager implements ClusterStateListener {
         } else if (indexState.mappingUpToDate == false) {
             LOGGER.info(
                 "security index [{}] (alias [{}]) is not up to date. Updating mapping", indexState.concreteIndexName, SECURITY_INDEX_NAME);
+
             PutMappingRequest request = new PutMappingRequest(indexState.concreteIndexName)
                     .source(loadMappingAndSettingsSourceFromTemplate().v1(), XContentType.JSON)
-                    .type("doc");
+                    .type(MapperService.SINGLE_MAPPING_NAME);
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                     ActionListener.<AcknowledgedResponse>wrap(putMappingResponse -> {
                         if (putMappingResponse.isAcknowledged()) {
@@ -361,10 +369,27 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     private Tuple<String, Settings> loadMappingAndSettingsSourceFromTemplate() {
-        final byte[] template = TemplateUtils.loadTemplate("/" + SECURITY_TEMPLATE_NAME + ".json",
-                Version.CURRENT.toString(), SecurityIndexManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest(SECURITY_TEMPLATE_NAME).source(template, XContentType.JSON);
-        return new Tuple<>(request.mappings().get("doc"), request.settings());
+        final byte[] template = TemplateUtils.loadTemplate("/" + SECURITY_TEMPLATE_NAME + ".json", Version.CURRENT.toString(),
+                SecurityIndexManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
+        final PutIndexTemplateRequest request = new PutIndexTemplateRequest(SECURITY_TEMPLATE_NAME).source(template, XContentType.JSON);
+
+        final String mappingSource = request.mappings().get(MapperService.SINGLE_MAPPING_NAME);
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, mappingSource)) {
+            // remove the type wrapping to get the mapping
+            if (parser.nextToken() == XContentParser.Token.START_OBJECT) { // {
+                if (parser.nextToken() == XContentParser.Token.FIELD_NAME) { // "_doc"
+                    if (parser.nextToken() == XContentParser.Token.START_OBJECT) { // {
+                        XContentBuilder builder = JsonXContent.contentBuilder();
+                        builder.generator().copyCurrentStructure(parser);
+                        return new Tuple<>(Strings.toString(builder), request.settings());
+                    }
+                }
+            }
+            throw new ElasticsearchException("cannot read mapping from security template");
+        } catch (IOException e) {
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
     }
 
     /**

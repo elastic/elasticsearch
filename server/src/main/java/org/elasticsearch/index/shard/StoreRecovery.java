@@ -372,15 +372,25 @@ final class StoreRecovery {
         final RecoveryState recoveryState = indexShard.recoveryState();
         final RecoverySource recoverySource = recoveryState.getRecoverySource();
         assert recoveryState.getStage() == RecoveryState.Stage.INDEX : recoveryState.getStage();
-        final boolean createEmptyStore = recoverySource.getType() == RecoverySource.Type.EMPTY_STORE;
         final Store store = indexShard.store();
         store.incRef();
+
+        // create Lucene store if necessary
         try {
-            try {
-                SegmentInfos si = null;
-                store.failIfCorrupted();
+            if (recoverySource.getType() == RecoverySource.Type.EMPTY_STORE) {
+                logger.trace("cleaning existing shard");
+                store.removeCorruptionMarker();
+                // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
+                // its a "new index create" API, we have to do something, so better to clean it than use same data
+                Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
+                store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
+                recoveryState.getIndex().updateVersion(store.readLastCommittedSegmentsInfo().getVersion());
+            } else {
+                // existing Lucene index, check that last committed segments info can be read
+                final SegmentInfos si;
                 try {
                     si = store.readLastCommittedSegmentsInfo();
+                    recoveryState.getIndex().updateVersion(si.getVersion());
                 } catch (Exception e) {
                     String files = "_unknown_";
                     try {
@@ -389,48 +399,31 @@ final class StoreRecovery {
                         inner.addSuppressed(e);
                         files += " (failure=" + ExceptionsHelper.detailedMessage(inner) + ")";
                     }
-                    if (createEmptyStore == false) {
-                        throw new IndexShardRecoveryException(shardId, "shard allocated for " + recoverySource.getType() +
-                            " (post api), should exist, but doesn't, current files: " + files, e);
-                    }
+                    throw new IndexShardRecoveryException(shardId, "shard allocated for " + recoverySource.getType() +
+                        " (post api), should exist, but doesn't, current files: " + files, e);
                 }
-                if (createEmptyStore) {
-                    recoveryState.getIndex().updateVersion(-1);
-                    if (si != null) {
-                        // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
-                        // its a "new index create" API, we have to do something, so better to clean it than use same data
-                        logger.trace("cleaning existing shard, shouldn't exists");
-                        Lucene.cleanLuceneIndex(store.directory());
-                    }
-                } else {
-                    assert si != null;
-                    recoveryState.getIndex().updateVersion(si.getVersion());
-                    if (recoverySource.getType() == RecoverySource.Type.EXISTING_STORE) {
-                        // fill in files and size in recovery details
-                        try {
-                            final RecoveryState.Index index = recoveryState.getIndex();
-                            final Directory directory = store.directory();
-                            for (String name : Lucene.files(si)) {
-                                long length = directory.fileLength(name);
-                                index.addFileDetail(name, length, true);
-                            }
-                        } catch (IOException e) {
-                            logger.debug("failed to list file details", e);
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                throw new IndexShardRecoveryException(shardId, "failed to fetch index version after copying it over", e);
-            }
 
-            // set up new Lucene commit and translog if necessary
-            if (recoverySource.shouldBootstrapNewHistoryUUID()) {
-                if (createEmptyStore) {
-                    store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion); // also bootstraps a new history
-                } else {
+                if (recoverySource.getType() == RecoverySource.Type.EXISTING_STORE) {
+                    // fill in files and size in recovery details
+                    try {
+                        final RecoveryState.Index index = recoveryState.getIndex();
+                        final Directory directory = store.directory();
+                        for (String name : Lucene.files(si)) {
+                            long length = directory.fileLength(name);
+                            index.addFileDetail(name, length, true);
+                        }
+                    } catch (IOException e) {
+                        logger.debug("failed to list file details", e);
+                    }
+                }
+
+                // create new history uuid if necessary
+                if (recoverySource.shouldBootstrapNewHistoryUUID()) {
                     store.bootstrapNewHistory();
                 }
             }
+
+            // create translog if necessary
             if (recoverySource.getType() != RecoverySource.Type.EXISTING_STORE) {
                 final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
                 final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
@@ -438,6 +431,7 @@ final class StoreRecovery {
                     indexShard.shardPath().resolveTranslog(), localCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
                 store.associateIndexWithNewTranslog(translogUUID);
             }
+
             indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();

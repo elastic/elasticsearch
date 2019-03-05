@@ -113,8 +113,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         logger.info("-->  creating a snapshot is blocked when an index is blocked for reads");
         try {
             enableIndexBlock(INDEX_NAME, SETTING_BLOCKS_READ);
-            client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-2")
-                .setIndices(COMMON_INDEX_NAME_MASK).get();
+            assertThat(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-2")
+                .setIndices(COMMON_INDEX_NAME_MASK).setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
         } finally {
             disableIndexBlock(INDEX_NAME, SETTING_BLOCKS_READ);
         }

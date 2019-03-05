@@ -29,6 +29,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -55,9 +56,12 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.either;
+import static org.hamcrest.CoreMatchers.everyItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasProperty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
@@ -392,6 +396,26 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
         assertThat(query.toString(),
             containsString("field:[string_no_pos] was indexed without position data; cannot run PhraseQuery"));
+    }
+
+    public void testBooleanPrefixQuery() throws Exception {
+        final MatchQuery matchQuery = new MatchQuery(createShardContext());
+        final Query query = matchQuery.parse(Type.BOOLEAN_PREFIX, STRING_FIELD_NAME, "foo bar baz");
+        assertThat(query, instanceOf(BooleanQuery.class));
+        final BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(booleanQuery.clauses(), hasSize(3));
+        assertThat(booleanQuery.clauses(), everyItem(hasProperty("occur", equalTo(BooleanClause.Occur.SHOULD))));
+
+        final Query firstClause = booleanQuery.clauses().get(0).getQuery();
+        assertThat(firstClause, instanceOf(TermQuery.class));
+        assertThat(((TermQuery) firstClause).getTerm().text(), equalTo("foo"));
+        final Query secondClause = booleanQuery.clauses().get(1).getQuery();
+        assertThat(secondClause, instanceOf(TermQuery.class));
+        assertThat(((TermQuery) secondClause).getTerm().text(), equalTo("bar"));
+        final Query thirdClause = booleanQuery.clauses().get(2).getQuery();
+        assertThat(thirdClause, instanceOf(PrefixQuery.class));
+        assertThat(((PrefixQuery) thirdClause).getPrefix().text(), equalTo("baz"));
+
     }
 
     public void testMaxBooleanClause() {

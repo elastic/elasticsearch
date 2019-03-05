@@ -335,6 +335,12 @@ public class AllocationService {
             clusterInfoService.getClusterInfo(), currentNanoTime());
         // don't short circuit deciders, we want a full explanation
         allocation.debugDecision(true);
+
+        
+        if (retryFailed) {
+            resetFailedAllocationCounter(allocation);
+        }
+
         // we ignore disable allocation, because commands are explicit
         allocation.ignoreDisable(true);
         RoutingExplanations explanations = commands.execute(allocation, explain);
@@ -342,10 +348,6 @@ public class AllocationService {
         allocation.ignoreDisable(false);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
-
-        if (retryFailed) {
-            resetFailedAllocationCounter(allocation);
-        }
 
         reroute(allocation);
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));

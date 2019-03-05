@@ -350,6 +350,8 @@ def sh_install_deps(config,
 if [ -z "\\\$JAVA_HOME" ]; then
   export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
 fi
+export SYSTEM_JAVA_HOME=\\\$JAVA_HOME
+unset JAVA_HOME
 JAVA
     ensure tar
     ensure curl
@@ -388,6 +390,7 @@ Defaults   env_keep += "BATS_TESTS"
 Defaults   env_keep += "PACKAGING_ARCHIVES"
 Defaults   env_keep += "PACKAGING_TESTS"
 Defaults   env_keep += "JAVA_HOME"
+Defaults   env_keep += "SYSTEM_JAVA_HOME"
 SUDOERS_VARS
     chmod 0440 /etc/sudoers.d/elasticsearch_vars
   SHELL
@@ -408,6 +411,9 @@ def windows_common(config, name)
   config.vm.provision 'set env variables', type: 'shell', inline: <<-SHELL
     $ErrorActionPreference = "Stop"
     [Environment]::SetEnvironmentVariable("PACKAGING_ARCHIVES", "C:/project/build/packaging/archives", "Machine")
+    $javaHome = [Environment]::GetEnvironmentVariable("JAVA_HOME", "Machine")
+    [Environment]::SetEnvironmentVariable("SYSTEM_JAVA_HOME", $javaHome, "Machine")
     [Environment]::SetEnvironmentVariable("PACKAGING_TESTS", "C:/project/build/packaging/tests", "Machine")
+    [Environment]::SetEnvironmentVariable("JAVA_HOME", $null, "Machine")
   SHELL
 end

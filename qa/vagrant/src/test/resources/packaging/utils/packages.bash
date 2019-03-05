@@ -100,7 +100,7 @@ install_package() {
     fi
 
     # pass through java home to package
-    echo "JAVA_HOME=\"$JAVA_HOME\"" >> $(env_file)
+    echo "JAVA_HOME=\"$SYSTEM_JAVA_HOME\"" >> $(env_file)
 }
 
 # Checks that all directories & files are correctly installed after a deb or

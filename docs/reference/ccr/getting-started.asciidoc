@@ -253,6 +253,11 @@ PUT /server-metrics-copy/_ccr/follow?wait_for_active_shards=1
 
 //////////////////////////
 
+The follower index is initialized using the <<remote-recovery, remote recovery>>
+process. The remote recovery process transfers the existing Lucene segment files
+from the leader to the follower. When the remote recovery process is complete,
+the index following begins.
+
 Now when you index documents into your leader index, you will see these
 documents replicated in the follower index. You can
 inspect the status of replication using the

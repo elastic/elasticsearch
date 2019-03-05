@@ -642,7 +642,8 @@ public class ShardStateAction {
 
     public interface Listener {
 
-        void onSuccess();
+        default void onSuccess() {
+        }
 
         /**
          * Notification for non-channel exceptions that are not handled
@@ -659,7 +660,9 @@ public class ShardStateAction {
          *
          * @param e the unexpected cause of the failure on the master
          */
-        void onFailure(Exception e);
+        default void onFailure(final Exception e) {
+        }
+
     }
 
     /**

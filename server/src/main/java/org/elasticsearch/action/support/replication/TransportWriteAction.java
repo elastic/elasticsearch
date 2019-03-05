@@ -47,6 +47,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -375,17 +376,20 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception, ShardStateAction.Listener listener) {
+        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception,
+                                      Runnable onSuccess, Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             if (TransportActions.isShardNotAvailableException(exception) == false) {
                 logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
             }
-            shardStateAction.remoteShardFailed(
-                replica.shardId(), replica.allocationId().getId(), primaryTerm, true, message, exception, listener);
+            shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, true, message, exception,
+                createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
         }
 
         @Override
-        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, ShardStateAction.Listener listener) {
-            shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null, listener);
+        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, Runnable onSuccess,
+                                                 Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+            shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null,
+                createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
         }
     }
 }

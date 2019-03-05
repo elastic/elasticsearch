@@ -501,13 +501,11 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get());
         } else if (this.termsLookup != null) {
             SetOnce<List<?>> supplier = new SetOnce<>();
-            queryRewriteContext.registerAsyncAction((client, listener) -> {
-                fetch(termsLookup, client, ActionListener.wrap(list -> {
-                    supplier.set(list);
-                    listener.onResponse(null);
-                }, listener::onFailure));
-
-            });
+            queryRewriteContext.registerAsyncAction((client, listener) ->
+                fetch(termsLookup, client, ActionListener.map(listener, list -> {
+                supplier.set(list);
+                return null;
+            })));
             return new TermsQueryBuilder(this.fieldName, supplier::get);
         }
         return this;

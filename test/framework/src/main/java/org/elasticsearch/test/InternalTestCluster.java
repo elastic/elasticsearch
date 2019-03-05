@@ -30,7 +30,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
@@ -76,8 +75,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -151,15 +148,12 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
-import static org.elasticsearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
-import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
-import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
+import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -412,10 +406,6 @@ public final class InternalTestCluster extends TestCluster {
                 EsExecutors.daemonThreadFactory("test_" + clusterName), new ThreadContext(Settings.EMPTY));
     }
 
-    private static boolean usingZen1(Settings settings) {
-        return ZEN_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(settings));
-    }
-
     /**
      * Sets {@link #bootstrapMasterNodeIndex} to the given value, see {@link #bootstrapMasterNodeWithSpecifiedIndex(List)}
      * for the description of how this field is used.
@@ -431,11 +421,6 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public String getClusterName() {
         return clusterName;
-    }
-
-    /** returns true if the {@link ElectMasterService#DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING} setting is auto managed by this cluster */
-    public boolean getAutoManageMinMasterNode() {
-        return autoManageMinMasterNodes;
     }
 
     public String[] getNodeNames() {
@@ -648,25 +633,10 @@ public final class InternalTestCluster extends TestCluster {
 
         final String discoveryType = DISCOVERY_TYPE_SETTING.get(updatedSettings.build());
         final boolean usingSingleNodeDiscovery = discoveryType.equals("single-node");
-        final boolean usingZen1 = usingZen1(updatedSettings.build());
         if (usingSingleNodeDiscovery == false) {
             if (autoManageMinMasterNodes) {
-                assertThat("min master nodes may not be set when auto managed",
-                    updatedSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()), nullValue());
                 assertThat("automatically managing min master nodes require nodes to complete a join cycle when starting",
                     updatedSettings.get(INITIAL_STATE_TIMEOUT_SETTING.getKey()), nullValue());
-
-                if (usingZen1) {
-                    updatedSettings
-                        // don't wait too long not to slow down tests
-                        .put(ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.getKey(), "5s")
-                        .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes);
-                }
-            } else {
-                if (usingZen1) {
-                    assertThat(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " must be configured",
-                        updatedSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()), not(nullValue()));
-                }
             }
         }
 
@@ -975,10 +945,6 @@ public final class InternalTestCluster extends TestCluster {
             Settings.Builder newSettings = Settings.builder();
             newSettings.put(callbackSettings);
             if (minMasterNodes >= 0) {
-                if (usingZen1(newSettings.build())) {
-                    assertFalse("min master nodes is auto managed", DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(newSettings.build()));
-                    newSettings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes);
-                }
                 if (INITIAL_MASTER_NODES_SETTING.exists(callbackSettings) == false) {
                     newSettings.putList(INITIAL_MASTER_NODES_SETTING.getKey());
                 }
@@ -1010,24 +976,6 @@ public final class InternalTestCluster extends TestCluster {
                     .put(newSettings)
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                     .build();
-            if (usingZen1(finalSettings)) {
-                if (DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(finalSettings) == false) {
-                    throw new IllegalStateException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() +
-                        " is not configured after restart of [" + name + "]");
-                }
-            } else {
-                if (DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(finalSettings)) {
-                    // simulating an upgrade from Zen1 to Zen2, but there's no way to remove a setting when restarting a node, so
-                    // you have to set it to REMOVED_MINIMUM_MASTER_NODES (== Integer.MAX_VALUE) to indicate its removal:
-                    assertTrue(DISCOVERY_TYPE_SETTING.exists(finalSettings));
-                    assertThat(DISCOVERY_TYPE_SETTING.get(finalSettings), equalTo(ZEN2_DISCOVERY_TYPE));
-                    assertThat(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(finalSettings), equalTo(REMOVED_MINIMUM_MASTER_NODES));
-
-                    final Builder builder = Settings.builder().put(finalSettings);
-                    builder.remove(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());
-                    finalSettings = builder.build();
-                }
-            }
             Collection<Class<? extends Plugin>> plugins = node.getClasspathPlugins();
             node = new MockNode(finalSettings, plugins);
             node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
@@ -1125,9 +1073,6 @@ public final class InternalTestCluster extends TestCluster {
         if (nextNodeId.get() == newSize && nodes.size() == newSize) {
             if (wipeData) {
                 wipePendingDataDirectories();
-            }
-            if (nodes.size() > 0 && autoManageMinMasterNodes) {
-                updateMinMasterNodes(getMasterNodesCount());
             }
             logger.debug("Cluster hasn't changed - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]",
                     nodes.keySet(), nextNodeId.get(), newSize);
@@ -1655,11 +1600,6 @@ public final class InternalTestCluster extends TestCluster {
                 .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old masters
                 .count();
             final int currentMasters = getMasterNodesCount();
-            if (autoManageMinMasterNodes && currentMasters > 0 && newMasters > 0 &&
-                getMinMasterNodes(currentMasters + newMasters) <= currentMasters) {
-                // if we're adding too many master-eligible nodes at once, we can't update the min master setting before adding the nodes.
-                updateMinMasterNodes(currentMasters + newMasters);
-            }
             rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start
             List<Future<?>> futures = nodeAndClients.stream().map(node -> executor.submit(node::startNode)).collect(Collectors.toList());
 
@@ -1678,7 +1618,6 @@ public final class InternalTestCluster extends TestCluster {
                 getMinMasterNodes(currentMasters + newMasters) > currentMasters) {
                 // update once masters have joined
                 validateClusterFormed();
-                updateMinMasterNodes(currentMasters + newMasters);
             }
         }
     }
@@ -1813,10 +1752,6 @@ public final class InternalTestCluster extends TestCluster {
             // the fact it left
             validateClusterFormed(nodeAndClient.name);
         }
-
-        if (excludedNodeIds.isEmpty() == false) {
-            updateMinMasterNodes(getMasterNodesCount());
-        }
     }
 
     private NodeAndClient removeNode(NodeAndClient nodeAndClient) {
@@ -1851,10 +1786,6 @@ public final class InternalTestCluster extends TestCluster {
                 } catch (InterruptedException | ExecutionException e) {
                     throw new AssertionError("unexpected", e);
                 }
-            }
-
-            if (stoppingMasters > 0) {
-                updateMinMasterNodes(getMasterNodesCount() - Math.toIntExact(stoppingMasters));
             }
         }
         return excludedNodeIds;
@@ -2144,28 +2075,6 @@ public final class InternalTestCluster extends TestCluster {
             numNodes,
             Settings.builder().put(Settings.EMPTY).put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(Node.NODE_DATA_SETTING.getKey(), true).build());
-    }
-
-    /**
-     * updates the min master nodes setting in the current running cluster.
-     *
-     * @param eligibleMasterNodeCount the number of master eligible nodes to use as basis for the min master node setting
-     */
-    private void updateMinMasterNodes(int eligibleMasterNodeCount) {
-        assert autoManageMinMasterNodes;
-        final int minMasterNodes = getMinMasterNodes(eligibleMasterNodeCount);
-        if (getMasterNodesCount() > 0) {
-            // there should be at least one master to update
-            logger.debug("updating min_master_nodes to [{}]", minMasterNodes);
-            try {
-                assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                    Settings.builder().put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes)
-                ));
-            } catch (Exception e) {
-                throw new ElasticsearchException("failed to update minimum master node to [{}] (current masters [{}])", e,
-                    minMasterNodes, getMasterNodesCount());
-            }
-        }
     }
 
     /** calculates a min master nodes value based on the given number of master nodes */

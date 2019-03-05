@@ -432,12 +432,18 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         final String leaderCluster = "local";
 
         // tag::ccr-forget-follower-request
-        final ForgetFollowerRequest request =
-                new ForgetFollowerRequest(followerCluster, followerIndex, followerIndexUUID, leaderCluster, leaderIndex); // <1>
+        final ForgetFollowerRequest request = new ForgetFollowerRequest( // <1>
+                followerCluster,
+                followerIndex,
+                followerIndexUUID,
+                leaderCluster,
+                leaderIndex);
         // end::ccr-forget-follower-request
 
         // tag::ccr-forget-follower-execute
-        final BroadcastResponse response = client.ccr().forgetFollower(request, RequestOptions.DEFAULT);
+        final BroadcastResponse response = client
+                .ccr()
+                .forgetFollower(request, RequestOptions.DEFAULT);
         // end::ccr-forget-follower-execute
 
         // tag::ccr-forget-follower-response
@@ -446,7 +452,8 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         final int successful = shards.successful();
         final int skipped = shards.skipped();
         final int failed = shards.failed();
-        final Collection<DefaultShardOperationFailedException> failures = shards.failures();
+        final Collection<DefaultShardOperationFailedException> failures =
+                shards.failures();
         // end::ccr-forget-follower-response
 
         // tag::ccr-forget-follower-execute-listener
@@ -455,12 +462,13 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
                     @Override
                     public void onResponse(final BroadcastResponse response) {
-                        final BroadcastResponse.Shards shards = response.shards(); // <1>
+                        final BroadcastResponse.Shards shards = // <1>
+                                response.shards();
                         final int total = shards.total();
                         final int successful = shards.successful();
                         final int skipped = shards.skipped();
                         final int failed = shards.failed();
-                        final Collection<DefaultShardOperationFailedException> failures = shards.failures();
+                        shards.failures().forEach(failure -> {});
                     }
 
                     @Override
@@ -476,7 +484,10 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::ccr-forget-follower-execute-async
-        client.ccr().forgetFollowerAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        client.ccr().forgetFollowerAsync(
+                request,
+                RequestOptions.DEFAULT,
+                listener); // <1>
         // end::ccr-forget-follower-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));

@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -55,14 +54,13 @@ public class DataFrameTransformConfig implements ToXContentObject {
                     String id = (String) args[0];
                     String source = (String) args[1];
                     String dest = (String) args[2];
-                    // default handling: if the user does not specify a query, we default to match_all
-                    QueryConfig queryConfig = (args[3] == null) ? new QueryConfig(new MatchAllQueryBuilder()) : (QueryConfig) args[3];
+                    QueryConfig queryConfig = (QueryConfig) args[3];
                     PivotConfig pivotConfig = (PivotConfig) args[4];
                     return new DataFrameTransformConfig(id, source, dest, queryConfig, pivotConfig);
                 });
 
     static {
-        PARSER.declareString(optionalConstructorArg(), ID);
+        PARSER.declareString(constructorArg(), ID);
         PARSER.declareString(constructorArg(), SOURCE);
         PARSER.declareString(constructorArg(), DEST);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> QueryConfig.fromXContent(p), QUERY);
@@ -88,11 +86,6 @@ public class DataFrameTransformConfig implements ToXContentObject {
 
     public String getId() {
         return id;
-    }
-
-    // TODO should this function be removed?
-    public String getCron() {
-        return "*";
     }
 
     public String getSource() {

@@ -71,10 +71,10 @@ public abstract class BytesReference implements Comparable<BytesReference>, ToXC
      * Finds the index of the first occurrence of the given marker between within the given bounds.
      * @param marker marker byte to search
      * @param from lower bound for the index to check (inclusive)
-     * @param to upper bound for the index to check (exclusive)
      * @return first index of the marker or {@code -1} if not found
      */
-    public int findNextMarker(byte marker, int from, int to) {
+    public int indexOf(byte marker, int from) {
+        final int to = length();
         for (int i = from; i < to; i++) {
             if (get(i) == marker) {
                 return i;

@@ -51,9 +51,9 @@ final class ByteBufBytesReference extends BytesReference {
     }
 
     @Override
-    public int findNextMarker(byte marker, int from, int to) {
+    public int indexOf(byte marker, int from) {
         final int start = offset + from;
-        return buffer.forEachByte(start, to - start, value -> value != marker);
+        return buffer.forEachByte(start, length - start, value -> value != marker);
     }
 
     @Override

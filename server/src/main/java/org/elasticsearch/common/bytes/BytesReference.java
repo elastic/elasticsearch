@@ -61,7 +61,7 @@ public abstract class BytesReference implements Comparable<BytesReference>, ToXC
     public abstract byte get(int index);
 
     /**
-     * Returns the integer read from the 4 bytes starting at the given index.
+     * Returns the integer read from the 4 bytes (BE) starting at the given index.
      */
     public int getInt(int index) {
         return (get(index) & 0xFF) << 24 | (get(index + 1) & 0xFF) << 16 | (get(index + 2) & 0xFF) << 8 | get(index + 3) & 0xFF;

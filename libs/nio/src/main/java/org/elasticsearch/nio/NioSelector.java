@@ -265,11 +265,7 @@ public class NioSelector implements Closeable {
     private void handleScheduledTasks(long nanoTime) {
         Runnable task;
         while ((task = taskScheduler.pollTask(nanoTime)) != null) {
-            try {
-                task.run();
-            } catch (Exception e) {
-                eventHandler.taskException(e);
-            }
+            eventHandler.handleTask(task);
         }
     }
 
@@ -353,11 +349,7 @@ public class NioSelector implements Closeable {
      */
     public <V> void executeListener(BiConsumer<V, Exception> listener, V value) {
         assertOnSelectorThread();
-        try {
-            listener.accept(value, null);
-        } catch (Exception e) {
-            eventHandler.taskException(e);
-        }
+        eventHandler.handleTask(() -> listener.accept(value, null));
     }
 
     /**
@@ -369,11 +361,7 @@ public class NioSelector implements Closeable {
      */
     public <V> void executeFailedListener(BiConsumer<V, Exception> listener, Exception exception) {
         assertOnSelectorThread();
-        try {
-            listener.accept(null, exception);
-        } catch (Exception e) {
-            eventHandler.taskException(e);
-        }
+        eventHandler.handleTask(() -> listener.accept(null, exception));
     }
 
     private void cleanupPendingWrites() {

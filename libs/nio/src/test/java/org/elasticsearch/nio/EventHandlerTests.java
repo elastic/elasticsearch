@@ -243,10 +243,10 @@ public class EventHandlerTests extends ESTestCase {
         assertEquals(SelectionKey.OP_READ, key.interestOps());
     }
 
-    public void testListenerExceptionCallsGenericExceptionHandler() throws IOException {
-        RuntimeException listenerException = new RuntimeException();
-        handler.taskException(listenerException);
-        verify(genericExceptionHandler).accept(listenerException);
+    public void testExecuteTaskWillHandleException() throws Exception {
+        RuntimeException exception = new RuntimeException();
+        handler.handleTask(() -> {throw exception;});
+        verify(genericExceptionHandler).accept(exception);
     }
 
     private class DoNotRegisterSocketContext extends BytesChannelContext {

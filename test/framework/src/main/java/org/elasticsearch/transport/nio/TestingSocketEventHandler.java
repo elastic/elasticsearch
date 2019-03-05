@@ -19,6 +19,9 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.SocketChannelContext;
@@ -27,10 +30,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class TestingSocketEventHandler extends EventHandler {
+
+    private static final Logger logger = LogManager.getLogger(TestingSocketEventHandler.class);
 
     private Set<SocketChannelContext> hasConnectedMap = Collections.newSetFromMap(new WeakHashMap<>());
 
@@ -40,9 +46,14 @@ public class TestingSocketEventHandler extends EventHandler {
 
     public void handleConnect(SocketChannelContext context) throws IOException {
         assert hasConnectedMap.contains(context) == false : "handleConnect should only be called is a channel is not yet connected";
-        super.handleConnect(context);
-        if (context.isConnectComplete()) {
-            hasConnectedMap.add(context);
+        long startTime = System.nanoTime();
+        try {
+            super.handleConnect(context);
+            if (context.isConnectComplete()) {
+                hasConnectedMap.add(context);
+            }
+        } finally {
+            maybeLogElapsedTime(startTime);
         }
     }
 
@@ -52,5 +63,45 @@ public class TestingSocketEventHandler extends EventHandler {
         assert hasConnectExceptionMap.contains(context) == false : "connectException should only called at maximum once per channel";
         hasConnectExceptionMap.add(context);
         super.connectException(context, e);
+    }
+
+    @Override
+    protected void handleRead(SocketChannelContext context) throws IOException {
+        long startTime = System.nanoTime();
+        try {
+            super.handleRead(context);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
+    }
+
+    @Override
+    protected void handleWrite(SocketChannelContext context) throws IOException {
+        long startTime = System.nanoTime();
+        try {
+            super.handleWrite(context);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
+    }
+
+    @Override
+    protected void handleTask(Runnable task) {
+        long startTime = System.nanoTime();
+        try {
+            super.handleTask(task);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
+    }
+
+    private static final long WARN_THRESHOLD = 200;
+
+    private void maybeLogElapsedTime(long startTime) {
+        long elapsedTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
+        if (elapsedTime > WARN_THRESHOLD) {
+            logger.warn(new ParameterizedMessage("Slow execution on network thread [{} milliseconds]", elapsedTime),
+                new RuntimeException("Slow exception on network thread"));
+        }
     }
 }

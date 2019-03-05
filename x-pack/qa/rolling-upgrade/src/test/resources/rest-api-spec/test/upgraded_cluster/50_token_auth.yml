@@ -2,6 +2,9 @@
 "Get the indexed token and use if to authenticate":
   - skip:
       features: headers
+      version: "all"
+      reason: "Backporting https://github.com/elastic/elasticsearch/pull/39647"
+      
   - do:
       get:
         index: token_index

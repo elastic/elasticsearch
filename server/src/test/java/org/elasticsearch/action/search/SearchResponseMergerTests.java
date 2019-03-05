@@ -47,6 +47,7 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -64,6 +65,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchResponseMergerTests extends ESTestCase {
@@ -241,17 +244,25 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertEquals(expectedProfile, mergedResponse.getProfileResults());
     }
 
-    public void testMergeSuggestions()  throws InterruptedException {
+    public void testMergeCompletionSuggestions()  throws InterruptedException {
         String suggestionName = randomAlphaOfLengthBetween(4, 8);
-        boolean skipDuplicates = randomBoolean();
         int size = randomIntBetween(1, 100);
         SearchResponseMerger searchResponseMerger = new SearchResponseMerger(0, 0, 0, new SearchTimeProvider(0, 0, () -> 0), flag -> null);
         for (int i = 0; i < numResponses; i++) {
             List<Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>> suggestions =
                 new ArrayList<>();
-            CompletionSuggestion completionSuggestion = new CompletionSuggestion(suggestionName, size, skipDuplicates);
+            CompletionSuggestion completionSuggestion = new CompletionSuggestion(suggestionName, size, false);
             CompletionSuggestion.Entry options = new CompletionSuggestion.Entry(new Text("suggest"), 0, 10);
-            options.addOption(new CompletionSuggestion.Entry.Option(randomInt(), new Text("suggestion"), i, Collections.emptyMap()));
+            int docId = randomIntBetween(0, Integer.MAX_VALUE);
+            CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(docId,
+                new Text(randomAlphaOfLengthBetween(5, 10)), i, Collections.emptyMap());
+            SearchHit hit = new SearchHit(docId);
+            ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10),
+                randomIntBetween(0, Integer.MAX_VALUE));
+            String clusterAlias = randomBoolean() ? "" : randomAlphaOfLengthBetween(5, 10);
+            hit.shard(new SearchShardTarget("node", shardId, clusterAlias, OriginalIndices.NONE));
+            option.setHit(hit);
+            options.addOption(option);
             completionSuggestion.addTerm(options);
             suggestions.add(completionSuggestion);
             Suggest suggest = new Suggest(suggestions);
@@ -275,11 +286,66 @@ public class SearchResponseMergerTests extends ESTestCase {
             mergedResponse.getSuggest().getSuggestion(suggestionName);
         assertEquals(1, suggestion.getEntries().size());
         Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option> options = suggestion.getEntries().get(0);
-        assertEquals(skipDuplicates ? 1 : Math.min(numResponses, size), options.getOptions().size());
+        assertEquals(Math.min(numResponses, size), options.getOptions().size());
         int i = numResponses;
         for (Suggest.Suggestion.Entry.Option option : options) {
-            assertEquals("suggestion", option.getText().string());
             assertEquals(--i, option.getScore(), 0f);
+        }
+    }
+
+    public void testMergeCompletionSuggestionsTieBreak()  throws InterruptedException {
+        String suggestionName = randomAlphaOfLengthBetween(4, 8);
+        int size = randomIntBetween(1, 100);
+        SearchResponseMerger searchResponseMerger = new SearchResponseMerger(0, 0, 0, new SearchTimeProvider(0, 0, () -> 0), flag -> null);
+        for (int i = 0; i < numResponses; i++) {
+            List<Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>> suggestions =
+                new ArrayList<>();
+            CompletionSuggestion completionSuggestion = new CompletionSuggestion(suggestionName, size, false);
+            CompletionSuggestion.Entry options = new CompletionSuggestion.Entry(new Text("suggest"), 0, 10);
+            int docId = randomIntBetween(0, Integer.MAX_VALUE);
+            CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(docId, new Text("suggestion"), 1F,
+                Collections.emptyMap());
+            SearchHit searchHit = new SearchHit(docId);
+            searchHit.shard(new SearchShardTarget("node", new ShardId("index", "uuid", randomIntBetween(0, Integer.MAX_VALUE)),
+                randomBoolean() ? RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY : randomAlphaOfLengthBetween(5, 10), OriginalIndices.NONE));
+            option.setHit(searchHit);
+            options.addOption(option);
+            completionSuggestion.addTerm(options);
+            suggestions.add(completionSuggestion);
+            Suggest suggest = new Suggest(suggestions);
+            SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
+            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, suggest, null, false, null, 1);
+            SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, 1, 1, 0, randomLong(),
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            addResponse(searchResponseMerger, searchResponse);
+        }
+        awaitResponsesAdded();
+        assertEquals(numResponses, searchResponseMerger.numResponses());
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+        SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters);
+        assertSame(clusters, mergedResponse.getClusters());
+        assertEquals(numResponses, mergedResponse.getTotalShards());
+        assertEquals(numResponses, mergedResponse.getSuccessfulShards());
+        assertEquals(0, mergedResponse.getSkippedShards());
+        assertEquals(0, mergedResponse.getFailedShards());
+        assertEquals(0, mergedResponse.getShardFailures().length);
+        CompletionSuggestion suggestion = mergedResponse.getSuggest().getSuggestion(suggestionName);
+        assertEquals(1, suggestion.getEntries().size());
+        CompletionSuggestion.Entry options = suggestion.getEntries().get(0);
+        assertEquals(Math.min(numResponses, size), options.getOptions().size());
+        int lastShardId = 0;
+        String lastClusterAlias = null;
+        for (CompletionSuggestion.Entry.Option option : options) {
+            assertEquals("suggestion", option.getText().string());
+            SearchShardTarget shard = option.getHit().getShard();
+            int currentShardId = shard.getShardId().id();
+            assertThat(currentShardId, greaterThanOrEqualTo(lastShardId));
+            if (currentShardId == lastShardId) {
+                assertThat(shard.getClusterAlias(), greaterThan(lastClusterAlias));
+            } else {
+                lastShardId = currentShardId;
+            }
+            lastClusterAlias = shard.getClusterAlias();
         }
     }
 

@@ -64,19 +64,6 @@ class ClusterConfiguration {
     boolean debug = false
 
     /**
-     * Configuration of the setting {@code discovery.zen.minimum_master_nodes} on the nodes.
-     * In case of more than one node, this defaults to the number of nodes
-     */
-    @Input
-    Closure<Integer> minimumMasterNodes = {
-        if (bwcVersion != null && bwcVersion.before("6.5.0")) {
-            return numNodes > 1 ? numNodes : -1
-        } else {
-            return numNodes > 1 ? numNodes.intdiv(2) + 1 : -1
-        }
-    }
-
-    /**
      * Whether the initial_master_nodes setting should be automatically derived from the nodes
      * in the cluster. Only takes effect if all nodes in the cluster understand this setting
      * and the discovery type is not explicitly set.

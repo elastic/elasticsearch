@@ -41,12 +41,12 @@ public class ActionTestUtils {
     public static <T> ActionListener<T> assertNoFailureListener(Consumer<T> consumer) {
         return new ActionListener<T>() {
             @Override
-            public void onResponse(final T t) {
+            public void onResponse(T t) {
                 consumer.accept(t);
             }
 
             @Override
-            public void onFailure(final Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
         };

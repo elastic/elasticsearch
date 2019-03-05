@@ -71,7 +71,7 @@ public abstract class TransportSingleItemBulkWriteAction<
 
     @Override
     protected void shardOperationOnPrimary(
-        Request request, final IndexShard primary, ActionListener<PrimaryResult<Request, Response>> listener) {
+            Request request, IndexShard primary, ActionListener<PrimaryResult<Request, Response>> listener) {
         BulkItemRequest[] itemRequests = new BulkItemRequest[1];
         WriteRequest.RefreshPolicy refreshPolicy = request.getRefreshPolicy();
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);

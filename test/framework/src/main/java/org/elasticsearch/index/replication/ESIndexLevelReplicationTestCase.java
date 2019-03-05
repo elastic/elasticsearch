@@ -800,12 +800,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         executeShardBulkOnPrimary(
             primary, bulkShardRequest, new ActionListener<TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>>() {
                 @Override
-                public void onResponse(final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result) {
+                public void onResponse(TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result) {
                     res.complete(result.replicaRequest());
                 }
 
                 @Override
-                public void onFailure(final Exception e) {
+                public void onFailure(Exception e) {
                     res.completeExceptionally(e);
                 }
             });

@@ -25,8 +25,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -42,6 +43,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -60,9 +62,11 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -273,6 +277,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     mappingsAndSettings.endObject();
                 }
                 mappingsAndSettings.endObject();
+
                 mappingsAndSettings.startObject("settings");
                 {
                     mappingsAndSettings.field("index.number_of_shards", 5);
@@ -428,7 +433,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"test\":\"test\"}\n");
         }
+
         Request bulkRequest = new Request("POST", "/" + index + "_write/_bulk");
+
         bulkRequest.setJsonEntity(bulk.toString());
         bulkRequest.addParameter("refresh", "");
         assertThat(EntityUtils.toString(client().performRequest(bulkRequest).getEntity()), containsString("\"errors\":false"));
@@ -563,8 +570,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         client().performRequest(updateRequest);
 
         Request getRequest = new Request("GET", "/" + index + "/_doc/" + docId);
-        if (getOldClusterVersion().before(Version.V_6_7_0)) {
-        }
+
         Map<String, Object> getRsp = entityAsMap(client().performRequest(getRequest));
         Map<?, ?> source = (Map<?, ?>) getRsp.get("_source");
         assertTrue("doc does not contain 'foo' key: " + source, source.containsKey("foo"));
@@ -777,7 +783,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      */
     public void testSnapshotRestore() throws IOException {
         int count;
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().major < 8) {
+        if (isRunningAgainstOldCluster()) {
             // Create the index
             count = between(200, 300);
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
@@ -951,6 +957,98 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    /**
+     * This test creates an index in the old cluster and then closes it. When the cluster is fully restarted in a newer version,
+     * it verifies that the index exists and is replicated if the old version supports replication.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39576")
+    public void testClosedIndices() throws Exception {
+        if (isRunningAgainstOldCluster()) {
+            createIndex(index, Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build());
+            ensureGreen(index);
+
+            int numDocs = 0;
+            if (randomBoolean()) {
+                numDocs = between(1, 100);
+                for (int i = 0; i < numDocs; i++) {
+                    final Request request = new Request("POST", "/" + index + "/_doc/" + i);
+                    request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v1").endObject()));
+                    assertOK(client().performRequest(request));
+                    if (rarely()) {
+                        refresh();
+                    }
+                }
+                refresh();
+            }
+
+            assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+            saveInfoDocument(index + "_doc_count", Integer.toString(numDocs));
+            closeIndex(index);
+        }
+
+        if (getOldClusterVersion().onOrAfter(Version.V_7_1_0)) {
+            ensureGreenLongWait(index);
+            assertClosedIndex(index, true);
+        } else {
+            assertClosedIndex(index, false);
+        }
+
+        if (isRunningAgainstOldCluster() == false) {
+            openIndex(index);
+            ensureGreen(index);
+
+            final int expectedNumDocs = Integer.parseInt(loadInfoDocument(index + "_doc_count"));
+            assertTotalHits(expectedNumDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+        }
+    }
+
+    /**
+     * Asserts that an index is closed in the cluster state. If `checkRoutingTable` is true, it also asserts
+     * that the index has started shards.
+     */
+    @SuppressWarnings("unchecked")
+    private void assertClosedIndex(final String index, final boolean checkRoutingTable) throws IOException {
+        final Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+
+        final Map<String, ?> metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata.indices." + index, state);
+        assertThat(metadata, notNullValue());
+        assertThat(metadata.get("state"), equalTo("close"));
+
+        final Map<String, ?> blocks = (Map<String, Object>) XContentMapValues.extractValue("blocks.indices." + index, state);
+        assertThat(blocks, notNullValue());
+        assertThat(blocks.containsKey(String.valueOf(MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID)), is(true));
+
+        final Map<String, ?> settings = (Map<String, Object>) XContentMapValues.extractValue("settings", metadata);
+        assertThat(settings, notNullValue());
+
+        final Map<String, ?> routingTable = (Map<String, Object>) XContentMapValues.extractValue("routing_table.indices." + index, state);
+        if (checkRoutingTable) {
+            assertThat(routingTable, notNullValue());
+            assertThat(Booleans.parseBoolean((String) XContentMapValues.extractValue("index.verified_before_close", settings)), is(true));
+            final String numberOfShards = (String) XContentMapValues.extractValue("index.number_of_shards", settings);
+            assertThat(numberOfShards, notNullValue());
+            final int nbShards = Integer.parseInt(numberOfShards);
+            assertThat(nbShards, greaterThanOrEqualTo(1));
+
+            for (int i = 0; i < nbShards; i++) {
+                final Collection<Map<String, ?>> shards =
+                    (Collection<Map<String, ?>>) XContentMapValues.extractValue("shards." + i, routingTable);
+                assertThat(shards, notNullValue());
+                assertThat(shards.size(), equalTo(2));
+                for (Map<String, ?> shard : shards) {
+                    assertThat(XContentMapValues.extractValue("shard", shard), equalTo(i));
+                    assertThat(XContentMapValues.extractValue("state", shard), equalTo("STARTED"));
+                    assertThat(XContentMapValues.extractValue("index", shard), equalTo(index));
+                }
+            }
+        } else {
+            assertThat(routingTable, nullValue());
+            assertThat(XContentMapValues.extractValue("index.verified_before_close", settings), nullValue());
+        }
+    }
+
     private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
@@ -960,26 +1058,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", listSnapshotResponse));
 
         // Remove the routing setting and template so we can test restoring them.
-        try {
-            Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
-            clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
-            client().performRequest(clearRoutingFromSettings);
-        } catch (WarningFailureException e) {
-            /*
-             * If this test is executed on the upgraded mode before testRemoteClusterSettingsUpgraded,
-             * we will hit a warning exception because we put some deprecated settings in that test.
-             */
-            if (isRunningAgainstOldCluster() == false) {
-                for (String warning : e.getResponse().getWarnings()) {
-                    assertThat(warning, containsString(
-                        "setting was deprecated in Elasticsearch and will be removed in a future release! "
-                            + "See the breaking changes documentation for the next major version."));
-                    assertThat(warning, startsWith("[search.remote."));
-                }
-            } else {
-                throw e;
-            }
-        }
+        Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
+        clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
+        client().performRequest(clearRoutingFromSettings);
+
         client().performRequest(new Request("DELETE", "/_template/test_template"));
 
         // Restore
@@ -1007,7 +1089,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             bulk.append("{\"index\":{\"_id\":\"").append(count + i).append("\"}}\n");
             bulk.append("{\"test\":\"test\"}\n");
         }
+
         Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/_bulk");
+
         writeToRestoredRequest.addParameter("refresh", "true");
         writeToRestoredRequest.setJsonEntity(bulk.toString());
         assertThat(EntityUtils.toString(client().performRequest(writeToRestoredRequest).getEntity()), containsString("\"errors\":false"));
@@ -1035,13 +1119,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         Map<String, Object> getTemplateResponse = entityAsMap(client().performRequest(getTemplateRequest));
         Map<String, Object> expectedTemplate = new HashMap<>();
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_0_0_beta1)) {
-            expectedTemplate.put("template", "evil_*");
-        } else {
-            expectedTemplate.put("index_patterns", singletonList("evil_*"));
-        }
+        expectedTemplate.put("index_patterns", singletonList("evil_*"));
+
         expectedTemplate.put("settings", singletonMap("index", singletonMap("number_of_shards", "1")));
         expectedTemplate.put("mappings", singletonMap("_source", singletonMap("enabled", true)));
+
 
         expectedTemplate.put("order", 0);
         Map<String, Object> aliases = new HashMap<>();

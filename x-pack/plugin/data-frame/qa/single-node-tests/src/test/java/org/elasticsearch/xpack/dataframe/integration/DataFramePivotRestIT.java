@@ -7,14 +7,15 @@
 package org.elasticsearch.xpack.dataframe.integration;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -224,33 +225,32 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertOnePivotValue(dataFrameIndex + "/_search?q=by_day:2017-01-15", 3.82);
     }
 
-    private void startAndWaitForTransform(String transformId, String dataFrameIndex) throws IOException, Exception {
-        // start the transform
-        final Request startTransformRequest = new Request("POST", DATAFRAME_ENDPOINT + transformId + "/_start");
-        Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
-        assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
+    @SuppressWarnings("unchecked")
+    public void testPreviewTransform() throws Exception {
+        final Request createPreviewRequest = new Request("POST", DATAFRAME_ENDPOINT + "_preview");
 
-        // wait until the dataframe has been created and all data is available
-        waitForDataFrameGeneration(transformId);
-        refreshIndex(dataFrameIndex);
-    }
+        String config = "{"
+            + " \"source\": \"reviews\",";
 
-    private void waitForDataFrameGeneration(String transformId) throws Exception {
-        assertBusy(() -> {
-            long generation = getDataFrameGeneration(transformId);
-            assertEquals(1, generation);
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    private static int getDataFrameGeneration(String transformId) throws IOException {
-        Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + transformId + "/_stats"));
-
-        Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
-        return (int) XContentMapValues.extractValue("state.generation", transformStatsAsMap);
-    }
-
-    private void refreshIndex(String index) throws IOException {
-        assertOK(client().performRequest(new Request("POST", index + "/_refresh")));
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {\"terms\": { \"field\": \"user_id\" }},"
+            + "     \"by_day\": {\"date_histogram\": {\"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"}}},"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } }"
+            + "}";
+        createPreviewRequest.setJsonEntity(config);
+        Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
+        List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
+        assertThat(preview.size(), equalTo(393));
+        Set<String> expectedFields = new HashSet<>(Arrays.asList("reviewer", "by_day", "avg_rating"));
+        preview.forEach(p -> {
+            Set<String> keys = p.keySet();
+            assertThat(keys, equalTo(expectedFields));
+        });
     }
 
     private void assertOnePivotValue(String query, double expected) throws IOException {

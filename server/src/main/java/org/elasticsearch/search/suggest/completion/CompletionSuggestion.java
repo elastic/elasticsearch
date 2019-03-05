@@ -169,11 +169,8 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         }
     }
 
-    /**
-     * Reduces suggestions to a single suggestion containing at most
-     * top {@link CompletionSuggestion#getSize()} options across <code>toReduce</code>
-     */
-    public static CompletionSuggestion reduceTo(List<Suggest.Suggestion<Entry>> toReduce) {
+    @Override
+    public CompletionSuggestion reduce(List<Suggest.Suggestion<Entry>> toReduce) {
         if (toReduce.isEmpty()) {
             return null;
         } else {
@@ -209,7 +206,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                         pq.pop();
                     }
                     if (leader.skipDuplicates == false ||
-                            seenSurfaceForms.add(current.getText().toString())) {
+                        seenSurfaceForms.add(current.getText().toString())) {
                         options.add(current);
                         if (options.size() >= size) {
                             break;
@@ -221,11 +218,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 return suggestion;
             }
         }
-    }
-
-    @Override
-    public Suggest.Suggestion<Entry> reduce(List<Suggest.Suggestion<Entry>> toReduce) {
-        return reduceTo(toReduce);
     }
 
     public void setShardIndex(int shardIndex) {

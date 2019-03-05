@@ -532,7 +532,7 @@ public final class TokenService {
             final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
             findTokenFromRefreshToken(refreshToken,
                 backoff, ActionListener.wrap(searchResponse -> {
-                    final String docId = getTokenIdFromDocumentId(searchResponse.getHits().getAt(0).getId());
+                    final String docId = getTokenIdFromDocumentId(searchResponse.getId());
                     indexInvalidation(Collections.singletonList(docId), backoff, "refresh_token", null, listener);
                 }, listener::onFailure));
         }
@@ -699,11 +699,9 @@ public final class TokenService {
         final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
         findTokenFromRefreshToken(refreshToken,
             backoff,
-            ActionListener.wrap(searchResponse -> {
+            ActionListener.wrap(tokenDocHit -> {
                 final Authentication clientAuth = Authentication.readFromContext(client.threadPool().getThreadContext());
-                final SearchHit tokenDocHit = searchResponse.getHits().getHits()[0];
-                final String tokenDocId = tokenDocHit.getId();
-                innerRefresh(tokenDocId, tokenDocHit.getSourceAsMap(), tokenDocHit.getSeqNo(), tokenDocHit.getPrimaryTerm(), clientAuth,
+                innerRefresh(tokenDocHit.getId(), tokenDocHit.getSourceAsMap(), tokenDocHit.getSeqNo(), tokenDocHit.getPrimaryTerm(), clientAuth,
                     backoff, refreshRequested, listener);
             }, listener::onFailure));
     }
@@ -713,7 +711,7 @@ public final class TokenService {
      * {@link SearchResponse}. In case of recoverable errors the SearchRequest is retried using an exponential backoff policy.
      */
     private void findTokenFromRefreshToken(String refreshToken, Iterator<TimeValue> backoff,
-                                           ActionListener<SearchResponse> listener) {
+                                           ActionListener<SearchHit> listener) {
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("find token by refresh token", refreshToken, ex));
         final Consumer<Exception> maybeRetryOnFailure = ex -> {
             if (backoff.hasNext()) {
@@ -753,7 +751,7 @@ public final class TokenService {
                         } else if (searchResponse.getHits().getHits().length > 1) {
                             onFailure.accept(new IllegalStateException("multiple tokens share the same refresh token"));
                         } else {
-                            listener.onResponse(searchResponse);
+                            listener.onResponse(searchResponse.getHits().getAt(0));
                         }
                     }, e -> {
                         if (isShardNotAvailableException(e)) {

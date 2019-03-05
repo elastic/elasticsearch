@@ -19,6 +19,7 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
@@ -197,7 +198,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCloseSearchContextOnRewriteException() {
-        createIndex("index");
+        createIndex("index", Settings.builder().put("index.refresh_interval", -1).build());
         client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         SearchService service = getInstanceFromNode(SearchService.class);

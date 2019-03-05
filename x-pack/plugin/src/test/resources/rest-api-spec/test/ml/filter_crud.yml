@@ -8,7 +8,6 @@ setup:
         Content-Type: application/json
       index:
         index: .ml-meta
-        type: doc
         id: filter_imposter-filter
         body: >
           {

@@ -54,6 +54,7 @@ import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -209,24 +210,34 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     }
 
     public void testReplicaRecovery() throws Exception {
-        logger.info("--> start node A");
-        String nodeA = internalCluster().startNode();
+        final String nodeA = internalCluster().startNode();
+        createIndex(INDEX_NAME, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
+            .build());
+        ensureGreen(INDEX_NAME);
 
-        logger.info("--> create index on node: {}", nodeA);
-        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
+        final int numOfDocs = scaledRandomIntBetween(0, 200);
+        try (BackgroundIndexer indexer = new BackgroundIndexer(INDEX_NAME, "_doc", client(), numOfDocs)) {
+            waitForDocs(numOfDocs, indexer);
+        }
 
-        logger.info("--> start node B");
-        String nodeB = internalCluster().startNode();
-        ensureGreen();
+        refresh(INDEX_NAME);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numOfDocs);
+
+        final boolean closedIndex = randomBoolean();
+        if (closedIndex) {
+            assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+            ensureGreen(INDEX_NAME);
+        }
 
         // force a shard recovery from nodeA to nodeB
-        logger.info("--> bump replica count");
-        client().admin().indices().prepareUpdateSettings(INDEX_NAME)
-                .setSettings(Settings.builder().put("number_of_replicas", 1)).execute().actionGet();
-        ensureGreen();
+        final String nodeB = internalCluster().startNode();
+        assertAcked(client().admin().indices().prepareUpdateSettings(INDEX_NAME)
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)));
+        ensureGreen(INDEX_NAME);
 
-        logger.info("--> request recoveries");
-        RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
+        final RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
         // we should now have two total shards, one primary and one replica
         List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
@@ -238,14 +249,27 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertThat(nodeBResponses.size(), equalTo(1));
 
         // validate node A recovery
-        RecoveryState nodeARecoveryState = nodeAResponses.get(0);
-        assertRecoveryState(nodeARecoveryState, 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE, true, Stage.DONE, null, nodeA);
+        final RecoveryState nodeARecoveryState = nodeAResponses.get(0);
+        final RecoverySource expectedRecoverySource;
+        if (closedIndex == false) {
+            expectedRecoverySource = RecoverySource.EmptyStoreRecoverySource.INSTANCE;
+        } else {
+            expectedRecoverySource = RecoverySource.ExistingStoreRecoverySource.INSTANCE;
+        }
+        assertRecoveryState(nodeARecoveryState, 0, expectedRecoverySource, true, Stage.DONE, null, nodeA);
         validateIndexRecoveryState(nodeARecoveryState.getIndex());
 
         // validate node B recovery
-        RecoveryState nodeBRecoveryState = nodeBResponses.get(0);
+        final RecoveryState nodeBRecoveryState = nodeBResponses.get(0);
         assertRecoveryState(nodeBRecoveryState, 0, PeerRecoverySource.INSTANCE, false, Stage.DONE, nodeA, nodeB);
         validateIndexRecoveryState(nodeBRecoveryState.getIndex());
+
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+
+        if (closedIndex) {
+            assertAcked(client().admin().indices().prepareOpen(INDEX_NAME));
+        }
+        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numOfDocs);
     }
 
     @TestLogging(

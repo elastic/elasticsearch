@@ -20,23 +20,36 @@ package org.elasticsearch.gradle;
 
 public enum Distribution {
 
-    INTEG_TEST("integ-test", "zip"),
-    ZIP("elasticsearch", "zip"),
-    ZIP_OSS("elasticsearch-oss", "zip");
+    INTEG_TEST("integ-test"),
+    DEFAULT("elasticsearch"),
+    OSS("elasticsearch-oss");
 
     private final String fileName;
-    private final String fileExtension;
 
-    Distribution(String name, String fileExtension) {
+    Distribution(String name) {
         this.fileName = name;
-        this.fileExtension = fileExtension;
     }
 
-    public String getFileName() {
+    public String getArtifactName() {
         return fileName;
     }
 
     public String getFileExtension() {
-        return fileExtension;
+        if (this.equals(INTEG_TEST)) {
+            return "zip";
+        } else {
+            return OS.conditionalString()
+                .onUnix(() -> "tar.gz")
+                .onWindows(() -> "zip")
+                .supply();
+        }
+    }
+
+    public String getClassifier() {
+        return OS.<String>conditional()
+            .onLinux(() -> "linux-x86_64")
+            .onWindows(() -> "windows-x86_64")
+            .onMac(() -> "darwin-x86_64")
+            .supply();
     }
 }

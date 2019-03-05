@@ -999,8 +999,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engine.getMergeStats();
     }
 
-    public SegmentsStats segmentStats(boolean includeSegmentFileSizes) {
-        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes);
+    public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         return segmentsStats;
     }
@@ -2915,6 +2915,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return <code>true</code> iff the engine got refreshed otherwise <code>false</code>
      */
     public boolean scheduledRefresh() {
+        verifyNotClosed();
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
         if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
@@ -2929,8 +2930,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 setRefreshPending(engine);
                 return false;
             } else {
-                refresh("schedule");
-                return true;
+                if (logger.isTraceEnabled()) {
+                    logger.trace("refresh with source [schedule]");
+                }
+                return getEngine().maybeRefresh("schedule");
             }
         }
         final Engine engine = getEngine();

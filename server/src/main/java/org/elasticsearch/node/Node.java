@@ -86,7 +86,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -227,6 +226,9 @@ public class Node implements Closeable {
                 throw new IllegalArgumentException("indices.breaker.type must be one of [hierarchy, none] but was: " + s);
         }
     }, Setting.Property.NodeScope);
+
+    public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("discovery.initial_state_timeout", TimeValue.timeValueSeconds(30), Property.NodeScope);
 
     private static final String CLIENT_TYPE = "node";
 
@@ -683,7 +685,7 @@ public class Node implements Closeable {
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
-        final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings);
+        final TimeValue initialStateTimeout = INITIAL_STATE_TIMEOUT_SETTING.get(settings);
         configureNodeAndClusterIdStateListener(clusterService);
 
         if (initialStateTimeout.millis() > 0) {

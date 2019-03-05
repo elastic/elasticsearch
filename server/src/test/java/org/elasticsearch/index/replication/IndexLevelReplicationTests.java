@@ -229,8 +229,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             IndexShard replica = shards.addReplica();
             shards.recoverReplica(replica);
 
-            SegmentsStats segmentsStats = replica.segmentStats(false);
-            SegmentsStats primarySegmentStats = shards.getPrimary().segmentStats(false);
+            SegmentsStats segmentsStats = replica.segmentStats(false, false);
+            SegmentsStats primarySegmentStats = shards.getPrimary().segmentStats(false, false);
             assertNotEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, primarySegmentStats.getMaxUnsafeAutoIdTimestamp());
             assertEquals(primarySegmentStats.getMaxUnsafeAutoIdTimestamp(), segmentsStats.getMaxUnsafeAutoIdTimestamp());
             assertNotEquals(Long.MAX_VALUE, segmentsStats.getMaxUnsafeAutoIdTimestamp());

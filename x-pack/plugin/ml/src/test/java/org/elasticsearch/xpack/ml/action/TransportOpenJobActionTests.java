@@ -182,7 +182,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
                 30, memoryTracker, isMemoryTrackerRecentlyRefreshed, logger);
         assertNull(result.getExecutorNode());
         assertTrue(result.getExplanation(), result.getExplanation().contains("because this node is full. Number of opened jobs ["
-            + maxRunningJobsPerNode + "], xpack.ml.max_open_workers [" + maxRunningJobsPerNode + "]"));
+            + maxRunningJobsPerNode + "], xpack.ml.max_open_jobs [" + maxRunningJobsPerNode + "]"));
     }
 
     public void testSelectLeastLoadedMlNode_noMlNodes() {
@@ -539,7 +539,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
             Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_WORKERS_PER_NODE)
+                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE)
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
@@ -556,7 +556,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_WORKERS_PER_NODE)
+                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE)
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 

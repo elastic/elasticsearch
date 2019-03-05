@@ -59,23 +59,16 @@ that is greater than this setting value, an error occurs. Existing jobs are not
 affected when you update this setting. For more information about the
 `model_memory_limit` property, see <<ml-apilimits>>.
 
-`xpack.ml.max_open_jobs`::
-The maximum number of worker processes that can run on a node. Defaults to `20`.
-A worker process could be a process run by an anomaly detector job or by data
-frame analytics. The maximum number of worker processes is also constrained by
-memory usage, so fewer worker processes than specified by this setting will run
-on a node if their estimated memory use would be higher than allowed. This setting
-is deprecated; use`xpack.ml.max_open_workers` instead.
-deprecated[7.1.0,Replaced by `xpack.ml.max_open_workers`]
-
-`xpack.ml.max_open_workers` (<<cluster-update-settings,Dynamic>>)::
-The maximum number of worker processes that can run on a node. Defaults to `20`.
-A worker process could be a process run by an anomaly detector job or by data
-frame analytics. The maximum number of worker processes is also constrained by
-memory usage, so fewer worker processes than specified by this setting will run
-on a node if their estimated memory use would be higher than allowed. Although
-this setting is dynamic, changes to its value after node startup are
-used only after every node in the cluster is running version 7.1 or higher.
+`xpack.ml.max_open_jobs` (<<cluster-update-settings,Dynamic>>)::
+The maximum number of jobs that can run simultaneously on a node. Defaults to
+`20`. In this context jobs includes both anomaly detector jobs and data frame
+analytics jobs. The maximum number of jobs is also constrained by memory usage,
+so fewer jobs than specified by this setting will run on a node if their
+estimated memory use would be higher than allowed. Prior to version 7.1 this
+setting was a per-node non-dynamic setting. It became a cluster-wide dynamic
+setting in version 7.1. As a result, changes to its value after node startup
+are used only after every node in the cluster is running version 7.1 or higher.
+The maximum permitted value is `512`.
 
 `xpack.ml.node_concurrent_job_allocations` (<<cluster-update-settings,Dynamic>>)::
 The maximum number of jobs that can concurrently be in the `opening` state on

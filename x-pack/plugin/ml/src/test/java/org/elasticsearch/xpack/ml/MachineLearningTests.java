@@ -20,22 +20,15 @@ import static org.mockito.Mockito.when;
 public class MachineLearningTests extends ESTestCase {
 
     public void testMaxOpenWorkersSetting_givenDefault() {
-        int maxOpenWorkers = MachineLearning.MAX_OPEN_WORKERS_PER_NODE.get(Settings.EMPTY);
+        int maxOpenWorkers = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(Settings.EMPTY);
         assertEquals(20, maxOpenWorkers);
     }
 
-    public void testMaxOpenWorkersSetting_givenNewSettingOnly() {
+    public void testMaxOpenWorkersSetting_givenSetting() {
         Settings.Builder settings = Settings.builder();
-        settings.put(MachineLearning.MAX_OPEN_WORKERS_PER_NODE.getKey(), 7);
-        int maxOpenWorkers = MachineLearning.MAX_OPEN_WORKERS_PER_NODE.get(settings.build());
-        assertEquals(7, maxOpenWorkers);
-    }
-
-    public void testMaxOpenWorkersSetting_givenOldSettingOnly() {
-        Settings.Builder settings = Settings.builder();
-        settings.put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), 13);
+        settings.put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), 7);
         int maxOpenWorkers = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings.build());
-        assertEquals(13, maxOpenWorkers);
+        assertEquals(7, maxOpenWorkers);
     }
 
     public void testNoAttributes_givenNoClash() {

@@ -140,7 +140,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
-        this.maxAllowedRunningJobs = MachineLearning.MAX_OPEN_WORKERS_PER_NODE.get(settings);
+        this.maxAllowedRunningJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.normalizerFactory = normalizerFactory;
         this.jobManager = jobManager;
@@ -151,7 +151,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         this.nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
         clusterService.addListener(this);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_WORKERS_PER_NODE, this::setMaxAllowedRunningJobs);
+            .addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxAllowedRunningJobs);
     }
 
     void setMaxAllowedRunningJobs(int maxAllowedRunningJobs) {
@@ -519,10 +519,10 @@ public class AutodetectProcessManager implements ClusterStateListener {
     AutodetectCommunicator create(JobTask jobTask, Job job, AutodetectParams autodetectParams, BiConsumer<Exception, Boolean> handler) {
         // Copy for consistency within a single method call
         int localMaxAllowedRunningJobs = maxAllowedRunningJobs;
-        // Closing jobs can still be using some or all threads in MachineLearning.WORKER_COMMS_THREAD_POOL_NAME
+        // Closing jobs can still be using some or all threads in MachineLearning.JOB_COMMS_THREAD_POOL_NAME
         // that an open job uses, so include them too when considering if enough threads are available.
         int currentRunningJobs = processByAllocation.size();
-        // TODO: in future this will also need to consider worker processes that are not anomaly detector jobs
+        // TODO: in future this will also need to consider jobs that are not anomaly detector jobs
         if (currentRunningJobs > localMaxAllowedRunningJobs) {
             throw new ElasticsearchStatusException("max running job capacity [" + localMaxAllowedRunningJobs + "] reached",
                     RestStatus.TOO_MANY_REQUESTS);
@@ -545,7 +545,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         }
 
         // A TP with no queue, so that we fail immediately if there are no threads available
-        ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.WORKER_COMMS_THREAD_POOL_NAME);
+        ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, autodetectParams.dataCounts(), jobDataCountsPersister);
         ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobResultsProvider,
                 new JobRenormalizedResultsPersister(job.getId(), client), normalizerFactory);

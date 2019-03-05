@@ -67,10 +67,10 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         int maxNumberOfJobsPerNode = 1;
         int maxNumberOfLazyNodes = 2;
         internalCluster().ensureAtMostNumDataNodes(0);
-        logger.info("[{}] is [{}]", MachineLearning.MAX_OPEN_WORKERS_PER_NODE.getKey(), maxNumberOfJobsPerNode);
+        logger.info("[{}] is [{}]", MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode);
         for (int i = 0; i < numNodes; i++) {
             internalCluster().startNode(Settings.builder()
-                .put(MachineLearning.MAX_OPEN_WORKERS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
+                .put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
         }
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);
@@ -112,7 +112,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
 
         // Add another Node so we can get allocated
         internalCluster().startNode(Settings.builder()
-            .put(MachineLearning.MAX_OPEN_WORKERS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
+            .put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
         ensureStableCluster(numNodes+1);
 
         // We should automatically get allocated and opened to new node
@@ -143,7 +143,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         for (int i = 1; i <= (clusterWideMaxNumberOfJobs + 1); i++) {
             if (i == 2 && testDynamicChange) {
                 ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
-                        Settings.builder().put(MachineLearning.MAX_OPEN_WORKERS_PER_NODE.getKey(), maxNumberOfJobsPerNode).build());
+                        Settings.builder().put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode).build());
                 client().execute(ClusterUpdateSettingsAction.INSTANCE, clusterUpdateSettingsRequest).actionGet();
             }
             Job.Builder job = createJob("max-number-of-jobs-limit-job-" + Integer.toString(i), jobModelMemoryLimit);
@@ -175,7 +175,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                             memoryFootprintPerJob + "]]"));
                 } else {
                     assertTrue(detailedMessage, detailedMessage.endsWith("because this node is full. Number of opened jobs [" +
-                        maxNumberOfJobsPerNode + "], xpack.ml.max_open_workers [" + maxNumberOfJobsPerNode + "]]"));
+                        maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "]]"));
                 }
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 
@@ -199,12 +199,12 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
     }
 
     private void startMlCluster(int numNodes, int maxNumberOfWorkersPerNode) throws Exception {
-        // clear all nodes, so that we can set xpack.ml.max_open_workers setting:
+        // clear all nodes, so that we can set xpack.ml.max_open_jobs setting:
         internalCluster().ensureAtMostNumDataNodes(0);
-        logger.info("[{}] is [{}]", MachineLearning.MAX_OPEN_WORKERS_PER_NODE.getKey(), maxNumberOfWorkersPerNode);
+        logger.info("[{}] is [{}]", MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfWorkersPerNode);
         for (int i = 0; i < numNodes; i++) {
             internalCluster().startNode(Settings.builder()
-                    .put(MachineLearning.MAX_OPEN_WORKERS_PER_NODE.getKey(), maxNumberOfWorkersPerNode));
+                    .put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfWorkersPerNode));
         }
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);

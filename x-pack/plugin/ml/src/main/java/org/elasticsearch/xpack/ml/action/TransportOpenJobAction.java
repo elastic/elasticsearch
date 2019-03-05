@@ -69,7 +69,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
-import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_WORKERS_PER_NODE;
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 
 /*
  This class extends from TransportMasterNodeAction for cluster state observing purposes.
@@ -245,7 +245,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             if (availableCount == 0) {
                 String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node)
                         + "], because this node is full. Number of opened jobs [" + numberOfAssignedJobs
-                        + "], " + MAX_OPEN_WORKERS_PER_NODE.getKey() + " [" + maxNumberOfOpenJobs + "]";
+                        + "], " + MAX_OPEN_JOBS_PER_NODE.getKey() + " [" + maxNumberOfOpenJobs + "]";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;
@@ -558,14 +558,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
-            this.maxOpenJobs = MAX_OPEN_WORKERS_PER_NODE.get(settings);
+            this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
             this.clusterService = clusterService;
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_WORKERS_PER_NODE, this::setMaxOpenJobs);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
             clusterService.addListener(event -> clusterState = event.state());
         }
 

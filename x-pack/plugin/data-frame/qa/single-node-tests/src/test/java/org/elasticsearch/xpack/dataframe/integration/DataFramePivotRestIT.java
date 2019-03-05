@@ -91,11 +91,11 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         String dataFrameIndex = "pivot_reviews_via_histogram";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
-        final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + transformId);
-        addAuthHeaderToRequest(createDataframeTransformRequest, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
-            + " \"source\": \"reviews\","
+            + " \"source\": \"" + REVIEWS_INDEX_NAME + "\","
             + " \"dest\": \"" + dataFrameIndex + "\",";
 
         config += " \"pivot\": {"
@@ -129,8 +129,8 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         String dataFrameIndex = "bigger_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
-        final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + transformId);
-        addAuthHeaderToRequest(createDataframeTransformRequest, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
                 + " \"source\": \"reviews\","
@@ -204,8 +204,8 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         String dataFrameIndex = "pivot_reviews_via_date_histogram";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
 
-        final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + transformId);
-        addAuthHeaderToRequest(createDataframeTransformRequest, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
             + " \"source\": \"" + REVIEWS_INDEX_NAME + "\","
@@ -240,7 +240,8 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     @SuppressWarnings("unchecked")
     public void testPreviewTransform() throws Exception {
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-        final Request createPreviewRequest = new Request("POST", DATAFRAME_ENDPOINT + "_preview");
+        final Request createPreviewRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + "_preview",
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
             + " \"source\": \"" + REVIEWS_INDEX_NAME + "\",";
@@ -256,7 +257,6 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + " } } } }"
             + "}";
         createPreviewRequest.setJsonEntity(config);
-        addAuthHeaderToRequest(createPreviewRequest, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
         Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
         List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
         assertThat(preview.size(), equalTo(393));

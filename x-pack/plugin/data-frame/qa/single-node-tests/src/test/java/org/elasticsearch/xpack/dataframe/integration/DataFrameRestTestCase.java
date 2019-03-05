@@ -136,7 +136,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
     protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query, String authHeader)
         throws IOException {
-        final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + transformId);
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId, authHeader);
 
         String config = "{"
                 + " \"source\": \"" + REVIEWS_INDEX_NAME + "\","
@@ -163,10 +163,6 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
         createDataframeTransformRequest.setJsonEntity(config);
 
-        if (authHeader != null) {
-            addAuthHeaderToRequest(createDataframeTransformRequest, authHeader);
-        }
-
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
         assertTrue(indexExists(dataFrameIndex));
@@ -178,11 +174,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
     protected void startAndWaitForTransform(String transformId, String dataFrameIndex, String authHeader) throws Exception {
         // start the transform
-        final Request startTransformRequest = new Request("POST", DATAFRAME_ENDPOINT + transformId + "/_start");
-
-        if (authHeader != null) {
-            addAuthHeaderToRequest(startTransformRequest, authHeader);
-        }
+        final Request startTransformRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + transformId + "/_start", authHeader);
 
         Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
         assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
@@ -192,10 +184,16 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         refreshIndex(dataFrameIndex);
     }
 
-    protected void addAuthHeaderToRequest(final Request request, final String authHeader) {
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Authorization", authHeader);
-        request.setOptions(options);
+    protected Request createRequestWithAuth(final String method, final String endpoint, final String authHeader) {
+        final Request request = new Request(method, endpoint);
+
+        if (authHeader != null) {
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Authorization", authHeader);
+            request.setOptions(options);
+        }
+
+        return request;
     }
 
     void waitForDataFrameGeneration(String transformId) throws Exception {

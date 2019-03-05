@@ -24,14 +24,20 @@ public enum Distribution {
     DEFAULT("elasticsearch"),
     OSS("elasticsearch-oss");
 
-    private final String fileName;
+    private final String artifactName;
 
     Distribution(String name) {
-        this.fileName = name;
+        this.artifactName = name;
     }
 
     public String getArtifactName() {
-        return fileName;
+        return artifactName;
+    }
+
+    public String getFileName(String version) {
+        return getArtifactName() + "-" + version + (
+            this.equals(INTEG_TEST) ? "" : "-" + getClassifier()
+        ) + "." + getFileExtension();
     }
 
     public String getFileExtension() {

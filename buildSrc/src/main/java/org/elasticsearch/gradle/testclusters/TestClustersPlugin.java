@@ -22,7 +22,7 @@ import groovy.lang.Closure;
 import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionCollection;
-import org.elasticsearch.gradle.VersionProperties;
+import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -30,12 +30,11 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
-import org.gradle.api.file.CopySpec;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
-import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskState;
 
 import java.io.File;
@@ -101,26 +100,30 @@ public class TestClustersPlugin implements Plugin<Project> {
             claimsInventory.clear();
             runningClusters.clear();
 
-
             // We have a single task to sync the helper configuration to "artifacts dir"
             // the clusters will look for artifacts there based on the naming conventions.
             // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
             // the build.
-            rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, Sync.class, sync -> {
-                sync.dependsOn(helperConfiguration);
-                helperConfiguration.getIncoming().afterResolve(dependencies ->
-                    dependencies.getFiles().forEach(file -> {
-                        final FileTree files;
-                        if (file.getName().endsWith(".zip")) {
-                            files = project.zipTree(file);
-                        } else if (file.getName().endsWith("tar.gz")) {
-                            files = project.tarTree(file);
-                        } else {
-                            throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
-                        }
-                        sync.from(files).into(getTestClustersConfigurationExtractDir(project) + "/" + file.getName());
-                    })
-                );
+            rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, sync -> {
+                sync.getInputs().files((Callable<FileCollection>) helperConfiguration::getAsFileTree);
+                sync.getOutputs().dir(getTestClustersConfigurationExtractDir(project));
+                sync.doLast(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        project.sync(spec ->
+                            helperConfiguration.getFiles().forEach(file -> {
+                                final FileTree files;
+                                if (file.getName().endsWith(".zip")) {
+                                    files = project.zipTree(file);
+                                } else if (file.getName().endsWith("tar.gz")) {
+                                    files = project.tarTree(file);
+                                } else {
+                                    throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
+                                }
+                                spec.from(files).into(getTestClustersConfigurationExtractDir(project) + "/" + file.getName());
+                            }));
+                    }
+                });
             });
 
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters

@@ -200,7 +200,7 @@ public class ElasticsearchNode {
         logger.info("Starting `{}`", this);
 
         Path distroArtifact = artifactsExtractDir
-            .resolve(distribution.getArtifactName() + "-" + getVersion() + "." + distribution.getFileExtension())
+            .resolve(distribution.getFileName(getVersion()))
             .resolve("elasticsearch-" + getVersion());
 
         if (Files.exists(distroArtifact) == false) {

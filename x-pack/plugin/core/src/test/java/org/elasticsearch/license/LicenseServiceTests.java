@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class LicenseServiceTests extends ESTestCase {
 
-    public void testLogExpirationWarningOnJdk9AndNewser() {
+    public void testLogExpirationWarningOnJdk9AndNewer() {
         assumeTrue("this is for JDK9+", JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
 
         long time = LocalDate.of(2018, 11, 15).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();

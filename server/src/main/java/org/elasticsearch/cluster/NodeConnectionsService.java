@@ -21,6 +21,8 @@ package org.elasticsearch.cluster;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.cluster.coordination.FollowersChecker;
+import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -32,8 +34,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
-import org.elasticsearch.discovery.zen.MasterFaultDetection;
-import org.elasticsearch.discovery.zen.NodesFaultDetection;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -51,8 +51,7 @@ import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
  * This component is responsible for connecting to nodes once they are added to the cluster state, and disconnect when they are
  * removed. Also, it periodically checks that all connections are still open and if needed restores them.
  * Note that this component is *not* responsible for removing nodes from the cluster if they disconnect / do not respond
- * to pings. This is done by {@link NodesFaultDetection}. Master fault detection
- * is done by {@link MasterFaultDetection}.
+ * to pings. This is done by {@link FollowersChecker}. Master fault detection is done by {@link LeaderChecker}.
  */
 public class NodeConnectionsService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(NodeConnectionsService.class);

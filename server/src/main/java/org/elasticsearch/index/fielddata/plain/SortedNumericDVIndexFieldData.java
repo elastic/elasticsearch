@@ -177,6 +177,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 public int docValueCount() {
                     return dv.docValueCount();
                 }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    return dv.nextDoc();
+                }
             };
         }
 

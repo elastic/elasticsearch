@@ -86,7 +86,7 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
     }
 
     /**
-     * Set the the specification of the ranking evaluation.
+     * Set the specification of the ranking evaluation.
      */
     public void setRankEvalSpec(RankEvalSpec task) {
         this.rankingEvaluationSpec = task;

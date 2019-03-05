@@ -67,7 +67,7 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{a} » %{b}»%{c}€%{d}", "foo » bar»baz€quux",
             Arrays.asList("a", "b", "c", "d"), Arrays.asList("foo", "bar", "baz", "quux"));
         assertMatch("%{a} %{b} %{+a}", "foo bar baz quux", Arrays.asList("a", "b"), Arrays.asList("foo baz quux", "bar"), " ");
-        //Logstash supports implicit ordering based anchored by the the key without the '+'
+        //Logstash supports implicit ordering based anchored by the key without the '+'
         //This implementation will only honor implicit ordering for appending right to left else explicit order (/N) is required.
         //The results of this test differ from Logstash.
         assertMatch("%{+a} %{a} %{+a} %{b}", "December 31 1999 quux",

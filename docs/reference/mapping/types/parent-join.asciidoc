@@ -12,11 +12,13 @@ A parent/child relation can be defined as follows:
 PUT my_index
 {
   "mappings": {
-    "properties": {
-      "my_join_field": { <1>
-        "type": "join",
-        "relations": {
-          "question": "answer" <2>
+    "_doc": {
+      "properties": {
+        "my_join_field": { <1>
+          "type": "join",
+          "relations": {
+            "question": "answer" <2>
+          }
         }
       }
     }

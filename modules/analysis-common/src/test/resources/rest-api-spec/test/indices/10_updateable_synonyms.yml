@@ -27,7 +27,6 @@ setup:
   - do:
       indices.put_mapping:
         index: test
-        type: doc
         body:
           properties:
             text1:
@@ -37,7 +36,6 @@ setup:
   - do:
       index:
         index:  test
-        type:   doc
         id:     1
         body:   { "text1": "quick"}
 
@@ -57,7 +55,6 @@ setup:
       catch: /analyzer \[syns_updateable_analyzer\] contains filters \[syns_updateable\] that are only allowed at search time/
       indices.put_mapping:
         index: test
-        type: doc
         body:
           properties:
             text1:
@@ -90,7 +87,6 @@ setup:
   - do:
       indices.put_mapping:
         index: test
-        type: doc
         body:
           properties:
             text1:
@@ -101,7 +97,6 @@ setup:
   - do:
       index:
         index:  test
-        type:   doc
         id:     1
         body:   { "text1": "quick"}
 
@@ -112,4 +107,4 @@ setup:
       search:
         body: { query: { match: { "text1" : "fast" }}}
 
-  - length:   { hits.hits: 1  }
+  - length:   { hits.hits: 1 }

@@ -20,24 +20,24 @@ package org.elasticsearch.gradle;
 
 public enum Distribution {
 
-    INTEG_TEST("integ-test-zip"),
-    DEFAULT("elasticsearch"),
-    OSS("elasticsearch-oss");
+    INTEG_TEST("elasticsearch", "integ-test-zip"),
+    DEFAULT("elasticsearch", "elasticsearch"),
+    OSS("elasticsearch-oss", "elasticsearch-oss");
 
     private final String artifactName;
+    private final String group;
 
-    Distribution(String name) {
+    Distribution(String name, String group) {
         this.artifactName = name;
+        this.group = group;
     }
 
     public String getArtifactName() {
         return artifactName;
     }
 
-    public String getFileName(String version) {
-        return getArtifactName() + "-" + version + (
-            this.equals(INTEG_TEST) ? "" : "-" + getClassifier()
-        ) + "." + getFileExtension();
+    public String getGroup() {
+        return "org.elasticsearch.distribution." + group;
     }
 
     public String getFileExtension() {
@@ -52,11 +52,15 @@ public enum Distribution {
     }
 
     public String getClassifier() {
-        return OS.<String>conditional()
-            .onLinux(() -> "linux-x86_64")
-            .onWindows(() -> "windows-x86_64")
-            .onMac(() -> "darwin-x86_64")
-            .supply();
+        if (this.equals(INTEG_TEST)) {
+            return "";
+        } else {
+            return OS.<String>conditional()
+                .onLinux(() -> "linux-x86_64")
+                .onWindows(() -> "windows-x86_64")
+                .onMac(() -> "darwin-x86_64")
+                .supply();
+        }
     }
 
     public String getLiveConfiguration() {

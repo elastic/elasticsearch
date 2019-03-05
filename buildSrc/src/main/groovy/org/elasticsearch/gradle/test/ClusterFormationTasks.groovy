@@ -176,8 +176,8 @@ class ClusterFormationTasks {
     static void configureDistributionDependency(Project project, String distro, Configuration configuration, String elasticsearchVersion) {
         boolean internalBuild = project.hasProperty('bwcVersions')
         if (distro.equals("integ-test-zip")) {
+            // short circuit integ test so it doesn't complicate the rest of the distribution setup below
             if (internalBuild) {
-                // short circuit integ test so it doesn't complicate the rest of the distribution setup below
                 project.dependencies.add(
                         configuration.name,
                         project.dependencies.project(path: ":distribution", configuration: 'integ-test-zip')

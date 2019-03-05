@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.testclusters;
 
 import groovy.lang.Closure;
 import org.elasticsearch.GradleServicesAdapter;
+import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionCollection;
 import org.gradle.api.Action;
@@ -111,8 +112,9 @@ public class TestClustersPlugin implements Plugin<Project> {
                     @Override
                     public void execute(Task task) {
                         project.sync(spec ->
-                            helperConfiguration.getFiles().forEach(file -> {
+                            helperConfiguration.getResolvedConfiguration().getResolvedArtifacts().forEach(resolvedArtifact -> {
                                 final FileTree files;
+                                File file = resolvedArtifact.getFile();
                                 if (file.getName().endsWith(".zip")) {
                                     files = project.zipTree(file);
                                 } else if (file.getName().endsWith("tar.gz")) {
@@ -120,7 +122,9 @@ public class TestClustersPlugin implements Plugin<Project> {
                                 } else {
                                     throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
                                 }
-                                spec.from(files).into(getTestClustersConfigurationExtractDir(project) + "/" + file.getName());
+                                spec.from(files).into(getTestClustersConfigurationExtractDir(project) + "/" +
+                                    resolvedArtifact.getModuleVersion().getId().getGroup()
+                                );
                             }));
                     }
                 });
@@ -330,18 +334,25 @@ public class TestClustersPlugin implements Plugin<Project> {
                     project.getDependencies().project(projectNotation)
                 );
             } else {
-                // declare dependencies to be downloaded from the download service.
-                // The BuildPlugin sets up the right repo for this to work
-                // TODO: move the repo definition in this plugin when ClusterFormationTasks is removed
-                String dependency = String.format(
-                    "download_service:%s:%s:%s@%s",
-                    esNode.getDistribution().getArtifactName(),
-                    esNode.getVersion(),
-                    esNode.getDistribution().getClassifier(),
-                    esNode.getDistribution().getFileExtension()
-                );
-                logger.info("Cluster {} depends on {}", esNode.getName(), dependency);
-                rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
+                if (esNode.getDistribution().equals(Distribution.INTEG_TEST)) {
+                    rootProject.getDependencies().add(
+                        HELPER_CONFIGURATION_NAME, "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + esNode.getVersion()
+                    );
+                } else {
+                    // declare dependencies to be downloaded from the download service.
+                    // The BuildPlugin sets up the right repo for this to work
+                    // TODO: move the repo definition in this plugin when ClusterFormationTasks is removed
+                    String dependency = String.format(
+                        "%s:%s:%s:%s@%s",
+                        esNode.getDistribution().getGroup(),
+                        esNode.getDistribution().getArtifactName(),
+                        esNode.getVersion(),
+                        esNode.getDistribution().getClassifier(),
+                        esNode.getDistribution().getFileExtension()
+                    );
+                    logger.info("Cluster {} depends on {}", esNode.getName(), dependency);
+                    rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
+                }
             }
         }));
     }

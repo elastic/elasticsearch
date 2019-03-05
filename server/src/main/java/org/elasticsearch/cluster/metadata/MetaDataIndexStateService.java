@@ -29,10 +29,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardsObserver;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -152,18 +153,9 @@ public class MetaDataIndexStateService {
                                 ActionListener.wrap(results ->
                                     clusterService.submitStateUpdateTask("close-indices", new ClusterStateUpdateTask(Priority.URGENT) {
 
-                                        boolean acknowledged = true;
-
                                         @Override
                                         public ClusterState execute(final ClusterState currentState) throws Exception {
                                             final ClusterState updatedState = closeRoutingTable(currentState, blockedIndices, results);
-                                            for (Map.Entry<Index, AcknowledgedResponse> result : results.entrySet()) {
-                                                IndexMetaData updatedMetaData = updatedState.metaData().index(result.getKey());
-                                                if (updatedMetaData != null && updatedMetaData.getState() != IndexMetaData.State.CLOSE) {
-                                                    acknowledged = false;
-                                                    break;
-                                                }
-                                            }
                                             return allocationService.reroute(updatedState, "indices closed");
                                         }
 
@@ -176,27 +168,29 @@ public class MetaDataIndexStateService {
                                         public void clusterStateProcessed(final String source,
                                                                           final ClusterState oldState, final ClusterState newState) {
 
-                                            final String[] indices = results.entrySet().stream()
-                                                .filter(result -> result.getValue().isAcknowledged())
-                                                .map(result -> result.getKey().getName())
-                                                .filter(index -> newState.routingTable().hasIndex(index))
+                                            final List<IndexResult> indices = new ArrayList<>(results.values());
+                                            final boolean acknowledged = indices.stream().noneMatch(IndexResult::hasFailures);
+                                            final String[] waitForIndices = indices.stream()
+                                                .filter(result -> result.hasFailures() == false)
+                                                .filter(result -> newState.routingTable().hasIndex(result.getIndex()))
+                                                .map(result -> result.getIndex().getName())
                                                 .toArray(String[]::new);
 
-                                            if (indices.length > 0) {
-                                                activeShardsObserver.waitForActiveShards(indices, request.waitForActiveShards(),
+                                            if (waitForIndices.length > 0) {
+                                                activeShardsObserver.waitForActiveShards(waitForIndices, request.waitForActiveShards(),
                                                     request.ackTimeout(), shardsAcknowledged -> {
                                                         if (shardsAcknowledged == false) {
                                                             logger.debug("[{}] indices closed, but the operation timed out while waiting " +
-                                                                "for enough shards to be started.", Arrays.toString(indices));
+                                                                "for enough shards to be started.", Arrays.toString(waitForIndices));
                                                         }
                                                         // acknowledged maybe be false but some indices may have been correctly closed, so
                                                         // we maintain a kind of coherency by overriding the shardsAcknowledged value
                                                         // (see ShardsAcknowledgedResponse constructor)
                                                         boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
-                                                        listener.onResponse(new CloseIndexResponse(acknowledged, shardsAcked));
+                                                        listener.onResponse(new CloseIndexResponse(acknowledged, shardsAcked, indices));
                                                     }, listener::onFailure);
                                             } else {
-                                                listener.onResponse(new CloseIndexResponse(acknowledged, false));
+                                                listener.onResponse(new CloseIndexResponse(acknowledged, false, indices));
                                             }
                                         }
                                     }),
@@ -292,11 +286,11 @@ public class MetaDataIndexStateService {
 
         private final Map<Index, ClusterBlock> blockedIndices;
         private final CloseIndexClusterStateUpdateRequest request;
-        private final ActionListener<Map<Index, AcknowledgedResponse>> listener;
+        private final ActionListener<Map<Index, IndexResult>> listener;
 
         private WaitForClosedBlocksApplied(final Map<Index, ClusterBlock> blockedIndices,
                                            final CloseIndexClusterStateUpdateRequest request,
-                                           final ActionListener<Map<Index, AcknowledgedResponse>> listener) {
+                                           final ActionListener<Map<Index, IndexResult>> listener) {
             if (blockedIndices == null || blockedIndices.isEmpty()) {
                 throw new IllegalArgumentException("Cannot wait for closed blocks to be applied, list of blocked indices is empty or null");
             }
@@ -312,7 +306,7 @@ public class MetaDataIndexStateService {
 
         @Override
         protected void doRun() throws Exception {
-            final Map<Index, AcknowledgedResponse> results = ConcurrentCollections.newConcurrentMap();
+            final Map<Index, IndexResult> results = ConcurrentCollections.newConcurrentMap();
             final CountDown countDown = new CountDown(blockedIndices.size());
             final ClusterState state = clusterService.state();
             blockedIndices.forEach((index, block) -> {
@@ -325,47 +319,49 @@ public class MetaDataIndexStateService {
             });
         }
 
-        private void waitForShardsReadyForClosing(final Index index, final ClusterBlock closingBlock,
-                                                  final ClusterState state, final Consumer<AcknowledgedResponse> onResponse) {
+        private void waitForShardsReadyForClosing(final Index index,
+                                                  final ClusterBlock closingBlock,
+                                                  final ClusterState state,
+                                                  final Consumer<IndexResult> onResponse) {
             final IndexMetaData indexMetaData = state.metaData().index(index);
             if (indexMetaData == null) {
                 logger.debug("index {} has been blocked before closing and is now deleted, ignoring", index);
-                onResponse.accept(new AcknowledgedResponse(true));
+                onResponse.accept(new IndexResult(index));
                 return;
             }
             final IndexRoutingTable indexRoutingTable = state.routingTable().index(index);
             if (indexRoutingTable == null || indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                 assert state.blocks().hasIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                 logger.debug("index {} has been blocked before closing and is already closed, ignoring", index);
-                onResponse.accept(new AcknowledgedResponse(true));
+                onResponse.accept(new IndexResult(index));
                 return;
             }
 
             final ImmutableOpenIntMap<IndexShardRoutingTable> shards = indexRoutingTable.getShards();
-            final AtomicArray<AcknowledgedResponse> results = new AtomicArray<>(shards.size());
+            final AtomicArray<ShardResult> results = new AtomicArray<>(shards.size());
             final CountDown countDown = new CountDown(shards.size());
 
             for (IntObjectCursor<IndexShardRoutingTable> shard : shards) {
                 final IndexShardRoutingTable shardRoutingTable = shard.value;
-                final ShardId shardId = shardRoutingTable.shardId();
+                final int shardId = shardRoutingTable.shardId().id();
                 sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, new NotifyOnceListener<ReplicationResponse>() {
                     @Override
                     public void innerOnResponse(final ReplicationResponse replicationResponse) {
-                        ReplicationResponse.ShardInfo shardInfo = replicationResponse.getShardInfo();
-                        results.setOnce(shardId.id(), new AcknowledgedResponse(shardInfo.getFailed() == 0));
+                        results.setOnce(shardId, new ShardResult(shardId, Arrays.stream(replicationResponse.getShardInfo().getFailures())
+                            .map(f -> new ShardResult.Failure(f.index(), f.shardId(), f.getCause(), f.nodeId()))
+                            .toArray(ShardResult.Failure[]::new)));
                         processIfFinished();
                     }
 
                     @Override
                     public void innerOnFailure(final Exception e) {
-                        results.setOnce(shardId.id(), new AcknowledgedResponse(false));
+                        results.setOnce(shardId, new ShardResult(shardId, new ShardResult.Failure(index.getName(), shardId, e)));
                         processIfFinished();
                     }
 
                     private void processIfFinished() {
                         if (countDown.countDown()) {
-                            final boolean acknowledged = results.asList().stream().allMatch(AcknowledgedResponse::isAcknowledged);
-                            onResponse.accept(new AcknowledgedResponse(acknowledged));
+                            onResponse.accept(new IndexResult(index, results.toArray(new ShardResult[results.length()])));
                         }
                     }
                 });
@@ -398,7 +394,7 @@ public class MetaDataIndexStateService {
      */
     static ClusterState closeRoutingTable(final ClusterState currentState,
                                           final Map<Index, ClusterBlock> blockedIndices,
-                                          final Map<Index, AcknowledgedResponse> results) {
+                                          final Map<Index, IndexResult> results) {
 
         // Remove the index routing table of closed indices if the cluster is in a mixed version
         // that does not support the replication of closed indices
@@ -409,9 +405,9 @@ public class MetaDataIndexStateService {
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
 
         final Set<String> closedIndices = new HashSet<>();
-        for (Map.Entry<Index, AcknowledgedResponse> result : results.entrySet()) {
+        for (Map.Entry<Index, IndexResult> result : results.entrySet()) {
             final Index index = result.getKey();
-            final boolean acknowledged = result.getValue().isAcknowledged();
+            final boolean acknowledged = result.getValue().hasFailures() == false;
             try {
                 if (acknowledged == false) {
                     logger.debug("verification of shards before closing {} failed", index);

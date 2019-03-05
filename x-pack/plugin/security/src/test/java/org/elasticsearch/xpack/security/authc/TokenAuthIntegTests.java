@@ -47,7 +47,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -393,8 +392,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
                 SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         SecurityClient securityClient = new SecurityClient(client);
-        Set<String> refreshTokens = new HashSet<>();
-        Set<String> accessTokens = new HashSet<>();
         CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
             .setGrantType("password")
             .setUsername(SecuritySettingsSource.TEST_USER_NAME)
@@ -408,6 +405,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         final CountDownLatch completedLatch = new CountDownLatch(numberOfThreads);
         final AtomicBoolean failed = new AtomicBoolean();
         final AtomicBoolean newToken = new AtomicBoolean();
+        final AtomicReference<HashSet> refreshTokens = new AtomicReference<>(new HashSet<String>());
+        final AtomicReference<HashSet> accessTokens = new AtomicReference<>(new HashSet<String>());
         for (int i = 0; i < numberOfThreads; i++) {
             threads.add(new Thread(() -> {
                 // Each thread gets its own client so that more than one nodes will be hit
@@ -426,14 +425,12 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     return;
                 }
                 threadSecurityClient.refreshToken(refreshRequest, ActionListener.wrap(result -> {
-                    if (accessTokens.size() > 0 && accessTokens.contains(result.getTokenString()) == false){
+                    if (accessTokens.get().size() > 0 && accessTokens.get().contains(result.getTokenString()) == false ||
+                        refreshTokens.get().size() > 0 && refreshTokens.get().contains(result.getRefreshToken()) == false) {
                         newToken.set(true);
                     }
-                    accessTokens.add(result.getTokenString());
-                    if (refreshTokens.size() > 0 && refreshTokens.contains(result.getRefreshToken()) == false){
-                        newToken.set(true);
-                    }
-                    refreshTokens.add(result.getRefreshToken());
+                    accessTokens.get().add(result.getTokenString());
+                    refreshTokens.get().add(result.getRefreshToken());
                     logger.info("received access token [{}] and refresh token [{}]", result.getTokenString(), result.getRefreshToken());
                     completedLatch.countDown();
                 }, e -> {

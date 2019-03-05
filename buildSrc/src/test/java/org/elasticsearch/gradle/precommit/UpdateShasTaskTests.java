@@ -11,7 +11,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
@@ -23,9 +22,6 @@ import java.security.NoSuchAlgorithmException;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class UpdateShasTaskTests extends GradleUnitTestCase {
-
-    @Rule
-    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -82,10 +78,8 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
         assertThat(FileUtils.readFileToString(groovySha), equalTo("content"));
     }
 
-    private Project createProject() throws IOException {
-        temporaryFolder.create();
-        File projectDir = temporaryFolder.newFolder();
-        Project project = ProjectBuilder.builder().withProjectDir(projectDir).build();
+    private Project createProject() {
+        Project project = ProjectBuilder.builder().build();
         project.getPlugins().apply(JavaPlugin.class);
 
         return project;

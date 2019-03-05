@@ -1,5 +1,6 @@
 package org.elasticsearch.gradle.precommit;
 
+import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
@@ -10,7 +11,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,10 +24,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class DependencyLicensesTaskTests {
-
-    @Rule
-    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -41,7 +38,7 @@ public class DependencyLicensesTaskTests {
     private Dependency dependency;
 
     @Before
-    public void prepare() throws IOException {
+    public void prepare() {
         project = createProject();
         task = createDependencyLicensesTask(project);
         updateShas = createUpdateShasTask(project, task);
@@ -208,10 +205,8 @@ public class DependencyLicensesTaskTests {
         task.checkDependencies();
     }
 
-    private Project createProject() throws IOException {
-        temporaryFolder.create();
-        File projectDir = temporaryFolder.newFolder();
-        Project project = ProjectBuilder.builder().withProjectDir(projectDir).build();
+    private Project createProject() {
+        Project project = ProjectBuilder.builder().build();
         project.getPlugins().apply(JavaPlugin.class);
 
         return project;

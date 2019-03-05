@@ -36,13 +36,23 @@ public class GroupConfig implements ToXContentObject {
 
     private final Map<String, SingleGroupSource> groups;
 
+    /**
+     * Leniently parse a {@code GroupConfig}.
+     * Parsing is lenient in that unknown fields in the root of the
+     * object are ignored. Unknown group types {@link SingleGroupSource.Type}
+     * will cause a parsing error.
+     *
+     * @param parser The XContent parser
+     * @return The parsed object
+     * @throws IOException On parsing error
+     */
     public static GroupConfig fromXContent(final XContentParser parser) throws IOException {
         LinkedHashMap<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
         // be parsing friendly, whether the token needs to be advanced or not (similar to what ObjectParser does)
         XContentParser.Token token;
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            token = parser.currentToken();
+            parser.currentToken();
         } else {
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
@@ -52,8 +62,16 @@ public class GroupConfig implements ToXContentObject {
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-            String destinationFieldName = parser.currentName();
             token = parser.nextToken();
+            if (token != XContentParser.Token.START_OBJECT) {
+                // leniently skip over key-value and array fields in the root of the object
+                if (token == XContentParser.Token.START_ARRAY) {
+                    parser.skipChildren();
+                }
+                continue;
+            }
+            String destinationFieldName = parser.currentName();
+
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
             token = parser.nextToken();
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
@@ -75,7 +93,7 @@ public class GroupConfig implements ToXContentObject {
                 default:
                     throw new ParsingException(parser.getTokenLocation(), "invalid grouping type: " + groupType);
             }
-
+            // destination field end_object
             parser.nextToken();
 
             groups.put(destinationFieldName, groupSource);

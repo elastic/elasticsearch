@@ -19,7 +19,11 @@
 
 package org.elasticsearch.client.dataframe.transforms.pivot;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -28,6 +32,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
 
     public static GroupConfig randomGroupConfig() {
@@ -35,7 +41,7 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
 
         // ensure that the unlikely does not happen: 2 group_by's share the same name
         Set<String> names = new HashSet<>();
-        for (int i = 0; i < randomIntBetween(1, 1); ++i) {
+        for (int i = 0; i < randomIntBetween(1, 4); ++i) {
             String targetFieldName = randomAlphaOfLengthBetween(1, 20);
             if (names.add(targetFieldName)) {
                 SingleGroupSource groupBy;
@@ -71,5 +77,34 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
     @Override
     protected boolean supportsUnknownFields() {
         return false;
+    }
+
+    public void testLenientParsing() throws IOException {
+        BytesArray json = new BytesArray(
+                "{ " +
+                        "\"unknown-field\":\"foo\", " +
+                        "\"destination-field\": {" +
+                            "\"terms\": {" +
+                                "\"field\": \"term-field\"" +
+                            "}" +
+                        "}," +
+                        "\"unknown-field-2\":\"bar\"," +
+                        "\"destination-field2\": {" +
+                            "\"terms\": {" +
+                                "\"field\": \"term-field2\"" +
+                            "}" +
+                        "}," +
+                        "\"array-field\" : [1.0, 2.0]" +
+                "}");
+        XContentParser parser = JsonXContent.jsonXContent
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
+
+        GroupConfig gc = GroupConfig.fromXContent(parser);
+
+        assertEquals(gc.getGroups().size(), 2);
+        assertTrue(gc.getGroups().containsKey("destination-field"));
+        SingleGroupSource groupSource = gc.getGroups().get("destination-field");
+        assertThat(groupSource, instanceOf(TermsGroupSource.class));
+        assertEquals(groupSource.getField(), "term-field");
     }
 }

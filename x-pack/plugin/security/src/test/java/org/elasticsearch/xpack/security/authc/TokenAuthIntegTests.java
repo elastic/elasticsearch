@@ -406,7 +406,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         List<Thread> threads = new ArrayList<>(numberOfThreads);
         final CountDownLatch readyLatch = new CountDownLatch(numberOfThreads + 1);
         final CountDownLatch completedLatch = new CountDownLatch(numberOfThreads);
-        AtomicBoolean failed = new AtomicBoolean();
+        final AtomicBoolean failed = new AtomicBoolean();
+        final AtomicBoolean newToken = new AtomicBoolean();
         for (int i = 0; i < numberOfThreads; i++) {
             threads.add(new Thread(() -> {
                 // Each thread gets its own client so that more than one nodes will be hit
@@ -425,7 +426,13 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     return;
                 }
                 threadSecurityClient.refreshToken(refreshRequest, ActionListener.wrap(result -> {
+                    if (accessTokens.size() > 0 && accessTokens.contains(result.getTokenString()) == false){
+                        newToken.set(true);
+                    }
                     accessTokens.add(result.getTokenString());
+                    if (refreshTokens.size() > 0 && refreshTokens.contains(result.getRefreshToken()) == false){
+                        newToken.set(true);
+                    }
                     refreshTokens.add(result.getRefreshToken());
                     logger.info("received access token [{}] and refresh token [{}]", result.getTokenString(), result.getRefreshToken());
                     completedLatch.countDown();
@@ -446,8 +453,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         }
         completedLatch.await();
         assertThat(failed.get(), equalTo(false));
-        assertThat(accessTokens.size(), equalTo(1));
-        assertThat(refreshTokens.size(), equalTo(1));
+        assertThat(newToken.get(), equalTo(false));
     }
 
     public void testRefreshAsDifferentUser() {

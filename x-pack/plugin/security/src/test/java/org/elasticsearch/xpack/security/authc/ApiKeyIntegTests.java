@@ -31,6 +31,9 @@ import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
@@ -52,6 +55,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -141,6 +145,31 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 .get());
         assertThat(e.getMessage(), containsString("unauthorized"));
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
+    }
+
+    public void testAuthenticateActionForApiKey() throws InterruptedException, ExecutionException {
+        final Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        final SecurityClient securityClient = new SecurityClient(client);
+        final CreateApiKeyResponse response = securityClient.prepareCreateApiKey()
+            .setName("test key")
+            .get();
+
+        assertEquals("test key", response.getName());
+        assertNotNull(response.getId());
+        assertNotNull(response.getKey());
+
+        final String base64ApiKeyKeyValue = Base64.getEncoder()
+                .encodeToString((response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+        final PlainActionFuture<AuthenticateResponse> future = new PlainActionFuture<AuthenticateResponse>();
+        client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue))
+                .execute(AuthenticateAction.INSTANCE, new AuthenticateRequest(response.getId()), future);
+        final AuthenticateResponse authenticateResponse = future.get();
+        assertThat(authenticateResponse.authentication().getUser().roles(), arrayContaining("superuser"));
+        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getName(), is("_es_api_key"));
+        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getType(), is("_es_api_key"));
+        assertThat(authenticateResponse.authentication().getUser().enabled(), is(true));
     }
 
     public void testCreateApiKeyFailsWhenApiKeyWithSameNameAlreadyExists() throws InterruptedException, ExecutionException {

@@ -471,8 +471,9 @@ public class ApiKeyService {
             final Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
             final Map<String, Object> roleDescriptors = (Map<String, Object>) source.get("role_descriptors");
             final Map<String, Object> limitedByRoleDescriptors = (Map<String, Object>) source.get("limited_by_role_descriptors");
-            final String[] roleNames = (roleDescriptors != null) ? roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY)
-                : limitedByRoleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
+            final String[] roleNames = (roleDescriptors != null && roleDescriptors.isEmpty() == false)
+                    ? roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY)
+                    : limitedByRoleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
             final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
             final Map<String, Object> authResultMetadata = new HashMap<>();
             authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);

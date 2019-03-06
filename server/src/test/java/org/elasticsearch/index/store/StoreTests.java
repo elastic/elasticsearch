@@ -40,11 +40,13 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.BaseDirectoryWrapper;
+import org.apache.lucene.store.ByteBufferIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
@@ -1077,6 +1079,33 @@ public class StoreTests extends ESTestCase {
             segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
             assertThat(segmentInfos.getUserData().get(Engine.HISTORY_UUID_KEY), not(equalTo(oldHistoryUUID)));
+        }
+    }
+
+    public void testDeoptimizeMMap() throws IOException {
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index",
+            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+                .put(Store.FORCE_RAM_TERM_DICT.getKey(), true).build());
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+
+        try (Store store = new Store(shardId, indexSettings, new MMapDirectory(createTempDir()), new DummyShardLock(shardId))) {
+            try (IndexOutput output = store.directory().createOutput("test", IOContext.DEFAULT)) {
+            }
+            IndexInput input = store.directory().openInput("test", IOContext.DEFAULT);
+            assertFalse(input instanceof ByteBufferIndexInput);
+            assertFalse(input.clone() instanceof ByteBufferIndexInput);
+        }
+
+        indexSettings = IndexSettingsModule.newIndexSettings("index",
+            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+                .put(Store.FORCE_RAM_TERM_DICT.getKey(), false).build());
+        try (Store store = new Store(shardId, indexSettings, new MMapDirectory(createTempDir()), new DummyShardLock(shardId))) {
+            try (IndexOutput output = store.directory().createOutput("test", IOContext.DEFAULT)) {
+            }
+            IndexInput input = store.directory().openInput("test", IOContext.DEFAULT);
+            assertTrue(input instanceof ByteBufferIndexInput);
+            assertTrue(input.clone() instanceof ByteBufferIndexInput);
+
         }
     }
 }

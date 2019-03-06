@@ -155,7 +155,7 @@ public final class TransportSettings {
         listSetting("transport.tracer.include", emptyList(), Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING =
         listSetting("transport.tracer.exclude",
-            Arrays.asList("internal:discovery/zen/fd*", "internal:coordination/fault_detection/*", TransportLivenessAction.NAME),
+            Arrays.asList("internal:coordination/fault_detection/*", TransportLivenessAction.NAME),
             Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private TransportSettings() {

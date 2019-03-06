@@ -16,13 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.TransportRequest;
 
-public interface PingContextProvider {
+import java.io.IOException;
 
-    /** return the current cluster state of the node */
-    ClusterState clusterState();
+public class ValidateJoinRequest extends TransportRequest {
+    private ClusterState state;
+
+    public ValidateJoinRequest() {}
+
+    public ValidateJoinRequest(ClusterState state) {
+        this.state = state;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        this.state = ClusterState.readFrom(in, null);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        this.state.writeTo(out);
+    }
+
+    public ClusterState getState() {
+        return state;
+    }
 }

@@ -664,6 +664,32 @@ public class SearchQueryIT extends ESIntegTestCase {
         expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch().setQuery(matchQuery("double", "2 3 4")).get());
     }
 
+    public void testMatchQueryFuzzy() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("_doc", "text", "type=text"));
+
+        indexRandom(true, client().prepareIndex("test", "_doc", "1").setSource("text", "Unit"),
+                client().prepareIndex("test", "_doc", "2").setSource("text", "Unity"));
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("0")).get();
+        assertHitCount(searchResponse, 0L);
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("1")).get();
+        assertHitCount(searchResponse, 2L);
+        assertSearchHits(searchResponse, "1", "2");
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("AUTO")).get();
+        assertHitCount(searchResponse, 2L);
+        assertSearchHits(searchResponse, "1", "2");
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("AUTO:5,7")).get();
+        assertHitCount(searchResponse, 0L);
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "unify").fuzziness("AUTO:5,7")).get();
+        assertHitCount(searchResponse, 1L);
+        assertSearchHits(searchResponse, "2");
+    }
+
+
     public void testMultiMatchQuery() throws Exception {
         createIndex("test");
 

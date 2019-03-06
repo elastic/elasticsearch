@@ -31,6 +31,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -76,7 +77,12 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> !field.isEmpty();
     }
 
     public void testLenientParsing() throws IOException {
@@ -104,6 +110,34 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
         assertEquals(gc.getGroups().size(), 2);
         assertTrue(gc.getGroups().containsKey("destination-field"));
         SingleGroupSource groupSource = gc.getGroups().get("destination-field");
+        assertThat(groupSource, instanceOf(TermsGroupSource.class));
+        assertEquals(groupSource.getField(), "term-field");
+    }
+
+    public void testLenientParsingUnknowGroupType() throws IOException {
+        BytesArray json = new BytesArray(
+                "{ " +
+                    "\"destination-field1\": {" +
+                        "\"newgroup\": {" +
+                            "\"field1\": \"bar\"," +
+                            "\"field2\": \"foo\"" +
+                        "}" +
+                    "}," +
+                    "\"unknown-field\":\"bar\"," +
+                    "\"destination-field2\": {" +
+                        "\"terms\": {" +
+                            "\"field\": \"term-field\"" +
+                        "}" +
+                    "}" +
+                "}");
+        XContentParser parser = JsonXContent.jsonXContent
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
+
+        GroupConfig gc = GroupConfig.fromXContent(parser);
+
+        assertEquals(gc.getGroups().size(), 1);
+        assertTrue(gc.getGroups().containsKey("destination-field2"));
+        SingleGroupSource groupSource = gc.getGroups().get("destination-field2");
         assertThat(groupSource, instanceOf(TermsGroupSource.class));
         assertEquals(groupSource.getField(), "term-field");
     }

@@ -20,13 +20,13 @@
 package org.elasticsearch.client.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -51,9 +51,7 @@ public class GroupConfig implements ToXContentObject {
 
         // be parsing friendly, whether the token needs to be advanced or not (similar to what ObjectParser does)
         XContentParser.Token token;
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            parser.currentToken();
-        } else {
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(), "Failed to parse object: Expected START_OBJECT but was: " + token);
@@ -70,35 +68,62 @@ public class GroupConfig implements ToXContentObject {
                 }
                 continue;
             }
-            String destinationFieldName = parser.currentName();
 
+            String destinationFieldName = parser.currentName();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
             token = parser.nextToken();
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-            SingleGroupSource.Type groupType = SingleGroupSource.Type.valueOf(parser.currentName().toUpperCase(Locale.ROOT));
+            String groupType = parser.currentName();
 
             token = parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-            SingleGroupSource groupSource;
+            if (token != XContentParser.Token.START_OBJECT) {
+                // need to consume up to dest field end obj
+                consumeUntilEndObject(parser, 1);
+                continue;
+            }
+
+            SingleGroupSource groupSource = null;
             switch (groupType) {
-                case TERMS:
+                case "terms":
                     groupSource = TermsGroupSource.fromXContent(parser);
                     break;
-                case HISTOGRAM:
+                case "histogram":
                     groupSource = HistogramGroupSource.fromXContent(parser);
                     break;
-                case DATE_HISTOGRAM:
+                case "date_histogram":
                     groupSource = DateHistogramGroupSource.fromXContent(parser);
                     break;
                 default:
-                    throw new ParsingException(parser.getTokenLocation(), "invalid grouping type: " + groupType);
+                    // not a valid group source. Consume up to the dest field end object
+                    consumeUntilEndObject(parser, 2);
             }
-            // destination field end_object
-            parser.nextToken();
 
-            groups.put(destinationFieldName, groupSource);
+            if (groupSource != null) {
+                groups.put(destinationFieldName, groupSource);
+                // destination field end_object
+                parser.nextToken();
+            }
         }
         return new GroupConfig(groups);
+    }
+
+    /**
+     * Consume tokens from the parser until {@code endObjectCount} of end object
+     * tokens have been read. Nested objects that start and end inside the current
+     * field are skipped and do contribute to the end object count.
+     * @param parser The XContent parser
+     * @param endObjectCount Number of end object tokens to consume
+     * @throws IOException On parsing error
+     */
+    private static void consumeUntilEndObject(XContentParser parser, int endObjectCount) throws IOException {
+        do {
+            XContentParser.Token token = parser.nextToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                endObjectCount++;
+            } else if (token == XContentParser.Token.END_OBJECT) {
+                endObjectCount--;
+            }
+        } while (endObjectCount != 0);
     }
 
     public GroupConfig(Map<String, SingleGroupSource> groups) {
@@ -143,5 +168,10 @@ public class GroupConfig implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(groups);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

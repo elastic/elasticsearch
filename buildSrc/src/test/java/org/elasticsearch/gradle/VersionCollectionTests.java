@@ -298,7 +298,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             getVersionCollection("6.4.2")
         );
         assertUnreleasedBranchNames(
-            asList("5.6", "6.4", "6.x"),
+            asList("5.6", "6.4", "6.5"),
             getVersionCollection("6.6.0")
         );
         assertUnreleasedBranchNames(
@@ -329,7 +329,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             getVersionCollection("8.0.0")
         );
         assertUnreleasedGradleProjectPaths(
-            asList(":distribution:bwc:staged", ":distribution:bwc:minor"),
+            asList(":distribution:bwc:maintenance", ":distribution:bwc:staged", ":distribution:bwc:minor"),
             getVersionCollection("7.1.0")
         );
     }

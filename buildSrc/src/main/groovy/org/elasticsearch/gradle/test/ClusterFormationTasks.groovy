@@ -642,7 +642,8 @@ class ClusterFormationTasks {
         return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) { Exec exec ->
             exec.workingDir node.cwd
             // TODO: this must change to 7.0.0 after bundling java has been backported
-            if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("8.0.0"))) {
+            if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("8.0.0")) ||
+                node.config.distribution == 'integ-test-zip') {
                 exec.environment.put('JAVA_HOME', project.runtimeJavaHome)
             } else {
                 // force JAVA_HOME to *not* be set
@@ -667,7 +668,8 @@ class ClusterFormationTasks {
             ant.exec(executable: node.executable, spawn: node.config.daemonize, newenvironment: true,
                      dir: node.cwd, taskname: 'elasticsearch') {
                 node.env.each { key, value -> env(key: key, value: value) }
-                if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("8.0.0"))) {
+                if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("8.0.0")) ||
+                    node.config.distribution == 'integ-test-zip') {
                     env(key: 'JAVA_HOME', value: project.runtimeJavaHome)
                 }
                 node.args.each { arg(value: it) }

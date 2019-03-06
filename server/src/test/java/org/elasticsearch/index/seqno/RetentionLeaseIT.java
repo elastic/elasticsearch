@@ -213,7 +213,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     .prepareUpdateSettings("index")
                     .setSettings(
                             Settings.builder()
-                                    .putNull(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING.getKey())
+                                    .putNull(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey())
                                     .build())
                     .get();
             assertTrue(longTtlResponse.isAcknowledged());
@@ -243,7 +243,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     .prepareUpdateSettings("index")
                     .setSettings(
                             Settings.builder()
-                                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING.getKey(), retentionLeaseTimeToLive)
+                                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), retentionLeaseTimeToLive)
                                     .build())
                     .get();
             assertTrue(shortTtlResponse.isAcknowledged());

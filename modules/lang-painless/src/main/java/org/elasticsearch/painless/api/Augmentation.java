@@ -503,4 +503,18 @@ public class Augmentation {
     public static String decodeBase64(String receiver) {
         return new String(Base64.getDecoder().decode(receiver.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8);
     }
+
+    /**
+     * Expose String.split(string) with regex disabled
+     */
+    public static String[] splitOnToken(String receiver, String token) {
+        return receiver.split(Pattern.quote(token));
+    }
+
+    /**
+     * Expose String.split(string, limit) with regex disabled
+     */
+    public static String[] splitOnToken(String receiver, String token, int limit) {
+        return receiver.split(Pattern.quote(token), limit);
+    }
 }

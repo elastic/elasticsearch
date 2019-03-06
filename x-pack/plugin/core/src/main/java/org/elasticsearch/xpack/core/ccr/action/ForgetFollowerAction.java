@@ -19,6 +19,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class ForgetFollowerAction extends Action<BroadcastResponse> {
 
     public static final String ACTION_NAME = "indices:admin/xpack/ccr/forget_follower";
@@ -33,6 +35,10 @@ public class ForgetFollowerAction extends Action<BroadcastResponse> {
         return new BroadcastResponse();
     }
 
+    /**
+     * Represents a forget follower request. Note that this an expert API intended to be used only when unfollowing a follower index fails
+     * to emove the follower retention leases. Please be sure that you understand the purpose this API before using.
+     */
     public static class Request extends BroadcastRequest<Request> {
 
         private static final ParseField FOLLOWER_CLUSTER = new ParseField("follower_cluster");
@@ -58,30 +64,55 @@ public class ForgetFollowerAction extends Action<BroadcastResponse> {
 
         private String followerCluster;
 
+        /**
+         * The name of the cluster containing the follower index.
+         *
+         * @return the name of the cluster containing the follower index
+         */
         public String followerCluster() {
             return followerCluster;
         }
 
         private String followerIndex;
 
+        /**
+         * The name of the follower index.
+         *
+         * @return the name of the follower index
+         */
         public String followerIndex() {
             return followerIndex;
         }
 
         private String followerIndexUUID;
 
+        /**
+         * The UUID of the follower index.
+         *
+         * @return the UUID of the follower index
+         */
         public String followerIndexUUID() {
             return followerIndexUUID;
         }
 
         private String leaderRemoteCluster;
 
+        /**
+         * The alias of the remote cluster containing the leader index.
+         *
+         * @return the alias of the remote cluster
+         */
         public String leaderRemoteCluster() {
             return leaderRemoteCluster;
         }
 
         private String leaderIndex;
 
+        /**
+         * The name of the leader index.
+         *
+         * @return the name of the leader index
+         */
         public String leaderIndex() {
             return leaderIndex;
         }
@@ -90,6 +121,15 @@ public class ForgetFollowerAction extends Action<BroadcastResponse> {
 
         }
 
+        /**
+         * Construct a forget follower request.
+         *
+         * @param followerCluster     the name of the cluster containing the follower index to forget
+         * @param followerIndex       the name of follower index
+         * @param followerIndexUUID   the UUID of the follower index
+         * @param leaderRemoteCluster the alias of the remote cluster containing the leader index from the perspective of the follower index
+         * @param leaderIndex         the name of the leader index
+         */
         public Request(
                 final String followerCluster,
                 final String followerIndex,

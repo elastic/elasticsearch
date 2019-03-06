@@ -427,7 +427,7 @@ public final class TokenService {
         byte[] bytes = token.getBytes(StandardCharsets.UTF_8);
         StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length);
         final Version version = Version.readVersion(in);
-        if (version.onOrAfter(Version.V_8_0_0)) {
+        if (version.onOrAfter(Version.V_7_1_0)) {
             // The token was created in a > 7.1.0 cluster so it contains the tokenId as a String
             String usedTokenId = in.readString();
             getUserTokenFromId(usedTokenId, listener);

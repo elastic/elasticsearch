@@ -36,13 +36,13 @@ public class MapperMergeValidatorTests extends ESTestCase {
         FieldAliasMapper aliasMapper = new FieldAliasMapper("path", "some.path", "field");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            MapperMergeValidator.validateMapperStructure("type",
+            MapperMergeValidator.validateMapperStructure(
                 singletonList(objectMapper),
                 emptyList(),
                 singletonList(aliasMapper),
                 emptyMap(),
                 new FieldTypeLookup()));
-        assertEquals("Field [some.path] is defined both as an object and a field in [type]", e.getMessage());
+        assertEquals("Field [some.path] is defined both as an object and a field.", e.getMessage());
     }
 
     public void testFieldAliasWithNestedScope() {

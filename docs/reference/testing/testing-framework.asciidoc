@@ -8,7 +8,7 @@ Testing is a crucial part of your application, and as information retrieval itse
 
 
 [[why-randomized-testing]]
-=== why randomized testing?
+=== Why randomized testing?
 
 The key concept of randomized testing is not to use the same input values for every testcase, but still be able to reproduce it in case of a failure. This allows to test with vastly different input variables in order to make sure, that your implementation is actually independent from your provided test data.
 

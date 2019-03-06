@@ -25,10 +25,10 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -50,6 +50,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
@@ -61,6 +62,7 @@ import static org.elasticsearch.cluster.coordination.JoinHelper.START_JOIN_ACTIO
 import static org.elasticsearch.cluster.coordination.PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.test.InternalTestCluster.REMOVED_MINIMUM_MASTER_NODES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -311,8 +313,9 @@ public class Zen1IT extends ESIntegTestCase {
     public void testFreshestMasterElectedAfterFullClusterRestart() throws Exception {
         final List<String> nodeNames = internalCluster().startNodes(3, ZEN1_SETTINGS);
 
+        // Set setting to a non-default value on all nodes.
         assertTrue(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.ALL)).get().isAcknowledged());
+            .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NEW_PRIMARIES)).get().isAcknowledged());
 
         final List<NodeEnvironment> nodeEnvironments
             = StreamSupport.stream(internalCluster().getDataOrMasterNodeInstances(NodeEnvironment.class).spliterator(), false)
@@ -335,6 +338,7 @@ public class Zen1IT extends ESIntegTestCase {
                         .waitForNoRelocatingShards(true)
                         .waitForNodes("2")).actionGet().isTimedOut());
 
+                    // Set setting to a different non-default value on two of the three remaining nodes.
                     assertTrue(client.admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
                         .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE)).get().isAcknowledged());
                 }
@@ -361,13 +365,14 @@ public class Zen1IT extends ESIntegTestCase {
             }
         });
 
-        assertFalse(client().admin().cluster().health(Requests.clusterHealthRequest()
-            .waitForEvents(Priority.LANGUID)
-            .waitForNoRelocatingShards(true)
-            .waitForNodes("3")).actionGet().isTimedOut());
+        final AtomicReference<ClusterState> clusterState = new AtomicReference<>();
+        assertBusy(() -> {
+            clusterState.set(client().admin().cluster().prepareState().get().getState());
+            assertFalse(clusterState.get().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
+        });
 
-        assertThat(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.get(
-            client().admin().cluster().state(new ClusterStateRequest()).get().getState().metaData().settings()),
-            equalTo(Allocation.NONE));
+        final Settings clusterSettings = clusterState.get().metaData().settings();
+        assertTrue(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.exists(clusterSettings));
+        assertThat(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.get(clusterSettings), equalTo(Allocation.NONE));
     }
 }

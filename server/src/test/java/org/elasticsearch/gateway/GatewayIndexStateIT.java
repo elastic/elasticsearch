@@ -43,7 +43,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -492,7 +491,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final MetaData metaData = state.getMetaData();
         final MetaData brokenMeta = MetaData.builder(metaData).persistentSettings(Settings.builder()
                 .put(metaData.persistentSettings()).put("this.is.unknown", true)
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), "broken").build()).build();
+                .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), "broken").build()).build();
         internalCluster().fullRestart(new RestartCallback(){
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
@@ -506,7 +505,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         state = client().admin().cluster().prepareState().get().getState();
         assertEquals("true", state.metaData().persistentSettings().get("archived.this.is.unknown"));
         assertEquals("broken", state.metaData().persistentSettings().get("archived."
-            + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()));
+            + MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()));
 
         // delete these settings
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("archived.*")).get();
@@ -514,7 +513,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         state = client().admin().cluster().prepareState().get().getState();
         assertNull(state.metaData().persistentSettings().get("archived.this.is.unknown"));
         assertNull(state.metaData().persistentSettings().get("archived."
-            + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()));
+            + MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()));
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }
 }

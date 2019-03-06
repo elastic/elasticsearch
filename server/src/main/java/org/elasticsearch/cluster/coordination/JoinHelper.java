@@ -131,7 +131,7 @@ public class JoinHelper {
             });
 
         transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
-            MembershipAction.ValidateJoinRequest::new, ThreadPool.Names.GENERIC,
+            ValidateJoinRequest::new, ThreadPool.Names.GENERIC,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metaData().clusterUUIDCommitted() &&
@@ -145,7 +145,7 @@ public class JoinHelper {
             });
 
         transportService.registerRequestHandler(MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
-            MembershipAction.ValidateJoinRequest::new, ThreadPool.Names.GENERIC,
+            ValidateJoinRequest::new, ThreadPool.Names.GENERIC,
             (request, channel, task) -> {
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
@@ -187,6 +187,11 @@ public class JoinHelper {
                 return "JoinCallback{request=" + request + "}";
             }
         };
+    }
+
+    boolean isJoinPending() {
+        // cannot use pendingOutgoingJoins.isEmpty() because it's not properly synchronized.
+        return pendingOutgoingJoins.iterator().hasNext();
     }
 
     public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
@@ -276,7 +281,7 @@ public class JoinHelper {
             actionName = VALIDATE_JOIN_ACTION_NAME;
         }
         transportService.sendRequest(node, actionName,
-            new MembershipAction.ValidateJoinRequest(state),
+            new ValidateJoinRequest(state),
             TransportRequestOptions.builder().withTimeout(joinTimeout).build(),
             new EmptyTransportResponseHandler(ThreadPool.Names.GENERIC) {
                 @Override

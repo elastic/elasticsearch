@@ -198,6 +198,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCloseSearchContextOnRewriteException() {
+        // if refresh happens while checking the exception, the subsequent reference count might not match, so we switch it off
         createIndex("index", Settings.builder().put("index.refresh_interval", -1).build());
         client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 

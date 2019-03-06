@@ -17,8 +17,8 @@ rem now set the classpath
 set ES_CLASSPATH=!ES_HOME!\lib\*
 
 rem now set the path to java
-rem pass "needsjava" arg to ensure JAVA_HOME and JAVA are set
-if not "%1" == "needsjava" (
+rem pass "nojava" arg to skip setting JAVA_HOME and JAVA
+if not "%1" == "nojava" (
   if defined JAVA_HOME (
     set JAVA="%JAVA_HOME%\bin\java.exe"
   ) else (
@@ -26,9 +26,9 @@ if not "%1" == "needsjava" (
     set JAVA_HOME="%ES_HOME%\jdk"
   )
 )
-rem we set JAVA above, so this must be in a duplicate needsjava block
+rem we set JAVA above, so this must be in a duplicate nojava block
 rem or we could set delayed expansion, but that might have effect on the rest of the script
-if not "%1" == "needsjava" (
+if not "%1" == "nojava" (
   if not exist %JAVA% (
     echo "could not find java in JAVA_HOME or bundled at %ES_HOME%\jdk" >&2
     exit /b 1

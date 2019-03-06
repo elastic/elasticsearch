@@ -168,8 +168,4 @@ public class ForgetFollowerAction extends Action<BroadcastResponse> {
 
     }
 
-    public static class Response extends BroadcastResponse {
-
-    }
-
 }

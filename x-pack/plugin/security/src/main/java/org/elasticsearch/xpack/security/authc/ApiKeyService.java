@@ -93,15 +93,16 @@ import java.util.stream.Collectors;
 
 import javax.crypto.SecretKeyFactory;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 
 public class ApiKeyService {
 
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-    private static final String TYPE = "doc";
     static final String API_KEY_ID_KEY = "_security_api_key_id";
     static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
     static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
@@ -248,7 +249,7 @@ public class ApiKeyService {
                             .endObject()
                             .endObject();
                         final IndexRequest indexRequest =
-                            client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE)
+                            client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME)
                                 .setSource(builder)
                                 .setRefreshPolicy(request.getRefreshPolicy())
                                 .request();
@@ -286,8 +287,10 @@ public class ApiKeyService {
             }
 
             if (credentials != null) {
-                final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, credentials.getId())
-                    .setFetchSource(true).request();
+                final GetRequest getRequest = client
+                        .prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, credentials.getId())
+                        .setFetchSource(true)
+                        .request();
                 executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
                         try (ApiKeyCredentials ignore = credentials) {
@@ -693,7 +696,7 @@ public class ApiKeyService {
             expiredQuery.should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
             boolQuery.filter(expiredQuery);
         }
-        final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+        final SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
             .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
             .setQuery(boolQuery)
             .setVersion(false)
@@ -766,9 +769,10 @@ public class ApiKeyService {
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String apiKeyId : apiKeyIds) {
-                UpdateRequest request = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, apiKeyId)
-                    .setDoc(Collections.singletonMap("api_key_invalidated", true))
-                    .request();
+                UpdateRequest request = client
+                        .prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, apiKeyId)
+                        .setDoc(Collections.singletonMap("api_key_invalidated", true))
+                        .request();
                 bulkRequestBuilder.add(request);
             }
             bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);

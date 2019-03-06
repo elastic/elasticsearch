@@ -6,8 +6,6 @@
 <titleabbrev>Forget Follower</titleabbrev>
 ++++
 
-beta[]
-
 Removes the follower retention leases from the leader.
 
 ==== Description

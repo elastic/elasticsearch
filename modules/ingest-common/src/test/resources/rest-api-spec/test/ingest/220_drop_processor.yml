@@ -97,4 +97,4 @@ teardown:
       index: test
       type: test
       id: 3
-- match: { found: false }
+

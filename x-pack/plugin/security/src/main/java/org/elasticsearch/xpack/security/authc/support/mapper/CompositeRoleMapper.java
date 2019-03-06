@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authc.support.mapper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -43,7 +42,7 @@ public class CompositeRoleMapper implements UserRoleMapper {
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
         GroupedActionListener<Set<String>> groupListener = new GroupedActionListener<>(ActionListener.wrap(
                 composite -> listener.onResponse(composite.stream().flatMap(Set::stream).collect(Collectors.toSet())), listener::onFailure
-        ), delegates.size(), Collections.emptyList());
+        ), delegates.size());
         this.delegates.forEach(mapper -> mapper.resolveRoles(user, groupListener));
     }
 

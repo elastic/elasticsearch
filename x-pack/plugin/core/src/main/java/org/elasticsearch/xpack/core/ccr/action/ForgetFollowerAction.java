@@ -21,11 +21,11 @@ import java.util.Objects;
 
 public class ForgetFollowerAction extends Action<BroadcastResponse> {
 
-    public static final String ACTION_NAME = "indices:admin/xpack/ccr/forget_follower";
+    public static final String NAME = "indices:admin/xpack/ccr/forget_follower";
     public static final ForgetFollowerAction INSTANCE = new ForgetFollowerAction();
 
     private ForgetFollowerAction() {
-        super(ACTION_NAME);
+        super(NAME);
     }
 
     @Override
@@ -44,7 +44,7 @@ public class ForgetFollowerAction extends Action<BroadcastResponse> {
         private static final ParseField FOLLOWER_INDEX_UUID = new ParseField("follower_index_uuid");
         private static final ParseField LEADER_REMOTE_CLUSTER = new ParseField("leader_remote_cluster");
 
-        private static final ObjectParser<String[], Void> PARSER = new ObjectParser<>(ACTION_NAME, () -> new String[4]);
+        private static final ObjectParser<String[], Void> PARSER = new ObjectParser<>(NAME, () -> new String[4]);
 
         static {
             PARSER.declareString((parameters, value) -> parameters[0] = value, FOLLOWER_CLUSTER);

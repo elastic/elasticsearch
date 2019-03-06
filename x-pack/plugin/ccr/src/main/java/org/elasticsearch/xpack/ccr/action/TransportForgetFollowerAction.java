@@ -56,7 +56,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final IndicesService indicesService) {
         super(
-                ForgetFollowerAction.ACTION_NAME,
+                ForgetFollowerAction.NAME,
                 Objects.requireNonNull(clusterService),
                 Objects.requireNonNull(transportService),
                 Objects.requireNonNull(actionFilters),

@@ -122,8 +122,6 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         assertThat(restResponse.status(), is(RestStatus.OK));
         assertThat(restResponse.content().utf8ToString(),
                    is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":false,\"errors\":false}"));
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testNoErrorsButIgnored() throws Exception {
@@ -134,8 +132,6 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         assertThat(restResponse.status(), is(RestStatus.OK));
         assertThat(restResponse.content().utf8ToString(),
                 is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":true,\"errors\":false}"));
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testWithErrors() throws Exception {
@@ -155,8 +151,6 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         assertThat(restResponse.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(restResponse.content().utf8ToString(),
                    is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":false,\"errors\":true,\"error\":" + errorJson + "}"));
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     /**

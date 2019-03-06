@@ -142,8 +142,6 @@ public class MonitoringBulkRequestTests extends ESTestCase {
             assertThat(bulkDoc.getXContentType(), equalTo(xContentType));
             ++count;
         }
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testAddRequestContentWithEmptySource() throws IOException {
@@ -191,8 +189,6 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         );
 
         assertThat(e.getMessage(), containsString("source is missing for monitoring document [][doc][" + nbDocs + "]"));
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testAddRequestContentWithUnrecognizedIndexName() throws IOException {
@@ -230,8 +226,6 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         );
 
         assertThat(e.getMessage(), containsString("unrecognized index name [" + indexName + "]"));
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testSerialization() throws IOException {

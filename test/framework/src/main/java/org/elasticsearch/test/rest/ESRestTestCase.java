@@ -292,7 +292,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     @After
     public final void cleanUpCluster() throws Exception {
         if (preserveClusterUponCompletion() == false) {
-            if (nodeVersions.stream().filter(version -> version.before(Version.V_6_2_0)).findAny().isPresent() == false) {
+            if (nodeVersions.stream().noneMatch(version -> version.before(Version.V_6_2_0))) {
                 // wait_for_no_initializing_shards added in 6.2
                 ensureNoInitializingShards();
             }

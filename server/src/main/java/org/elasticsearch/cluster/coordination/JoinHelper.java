@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -81,6 +83,8 @@ public class JoinHelper {
     private final TimeValue joinTimeout;
 
     final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = ConcurrentCollections.newConcurrentSet();
+
+    private volatile FailedJoinAttempt lastFailedJoinAttempt;
 
     JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
@@ -172,7 +176,57 @@ public class JoinHelper {
         return pendingOutgoingJoins.iterator().hasNext();
     }
 
-    void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
+    private static class FailedJoinAttempt {
+        private final DiscoveryNode destination;
+        private final JoinRequest joinRequest;
+        private final TransportException exception;
+        private final long timestamp;
+
+        FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, TransportException exception) {
+            this.destination = destination;
+            this.joinRequest = joinRequest;
+            this.exception = exception;
+            this.timestamp = System.nanoTime();
+        }
+
+        void maybeLogNow() {
+            if (isSuspiciousTransportException(exception)) {
+                logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exception);
+            } else {
+                logger.debug(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exception);
+            }
+        }
+
+        boolean isSuspiciousTransportException(TransportException e) {
+            if (e instanceof RemoteTransportException) {
+                Throwable cause = e.getCause();
+                if (cause != null &&
+                        cause instanceof CoordinationStateRejectedException  ||
+                        cause instanceof FailedToCommitClusterStateException ||
+                        cause instanceof NotMasterException) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        void logWarnWithTimestamp() {
+            logger.info(() -> new ParameterizedMessage("last failed join attempt was {} ms ago, failed to join {} with {}",
+                            TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - timestamp)),
+                            destination,
+                            joinRequest),
+                    exception);
+        }
+    }
+
+
+    void logLastFailedJoinAttempt() {
+        if (lastFailedJoinAttempt != null) {
+            lastFailedJoinAttempt.logWarnWithTimestamp();
+        }
+    }
+
+    public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
         assert destination.isMasterNode() : "trying to join master-ineligible " + destination;
         final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
@@ -190,12 +244,15 @@ public class JoinHelper {
                     public void handleResponse(Empty response) {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.debug("successfully joined {} with {}", destination, joinRequest);
+                        lastFailedJoinAttempt = null;
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
                         pendingOutgoingJoins.remove(dedupKey);
-                        logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
+                        FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
+                        attempt.maybeLogNow();
+                        lastFailedJoinAttempt = attempt;
                     }
 
                     @Override

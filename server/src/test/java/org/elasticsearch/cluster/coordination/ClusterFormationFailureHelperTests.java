@@ -71,7 +71,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 warningCount.incrementAndGet();
                 return new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 0L);
             },
-            deterministicTaskQueue.getThreadPool());
+            deterministicTaskQueue.getThreadPool(), () -> {});
 
         deterministicTaskQueue.runAllTasks();
         assertThat("should not schedule anything yet", warningCount.get(), is(0L));

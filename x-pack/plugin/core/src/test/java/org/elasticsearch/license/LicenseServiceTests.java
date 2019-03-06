@@ -34,7 +34,7 @@ public class LicenseServiceTests extends ESTestCase {
     }
 
     public void testLogExpirationWarningOnJdk8() {
-        assumeTrue("this is for JDK9+", JavaVersion.current().equals(JavaVersion.parse("8")));
+        assumeTrue("this is for JDK8 only", JavaVersion.current().equals(JavaVersion.parse("8")));
 
         long time = LocalDate.of(2018, 11, 15).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final boolean expired = randomBoolean();

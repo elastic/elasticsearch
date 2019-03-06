@@ -747,8 +747,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
             IndexInput input = super.openInput(name, context);
-            if (forceRamTermDict && input instanceof ByteBufferIndexInput) {
-                return new DeoptimizingIndexInput(input.toString(), input);
+            if (name.endsWith(".tip") || name.endsWith(".cfs")) {
+                // only do this if we are reading cfs or tip file - all other files don't need this.
+                if (forceRamTermDict && input instanceof ByteBufferIndexInput) {
+                    return new DeoptimizingIndexInput(input.toString(), input);
+                }
             }
             return input;
         }
@@ -1671,7 +1674,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         @Override
         public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-            return in.slice(sliceDescription, offset, length);
+            return new DeoptimizingIndexInput(sliceDescription, in.slice(sliceDescription, offset, length));
         }
 
         @Override

@@ -39,6 +39,7 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPlugin
@@ -50,6 +51,7 @@ import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
+import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
 import org.gradle.process.ExecSpec
@@ -211,6 +213,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.runtimeJavaHome = runtimeJavaHome
             project.rootProject.ext.compilerJavaVersion = compilerJavaVersionEnum
             project.rootProject.ext.runtimeJavaVersion = runtimeJavaVersionEnum
+            project.rootProject.ext.isRuntimeJavaHomeSet = compilerJavaHome.equals(runtimeJavaHome) == false
             project.rootProject.ext.javaVersions = javaVersions
             project.rootProject.ext.buildChecksDone = true
             project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
@@ -229,6 +232,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.runtimeJavaHome = project.rootProject.ext.runtimeJavaHome
         project.ext.compilerJavaVersion = project.rootProject.ext.compilerJavaVersion
         project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
+        project.ext.isRuntimeJavaHomeSet = project.rootProject.ext.isRuntimeJavaHomeSet
         project.ext.javaVersions = project.rootProject.ext.javaVersions
         project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
         project.ext.gradleJavaVersion = project.rootProject.ext.gradleJavaVersion
@@ -570,6 +574,14 @@ class BuildPlugin implements Plugin<Project> {
             patternLayout {
                 artifact "elasticsearch/[module]-[revision](-[classifier]).[ext]"
             }
+            // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
+            credentials(HttpHeaderCredentials) {
+                name = "X-Elastic-No-KPI"
+                value = "1"
+            }
+            authentication {
+                header(HttpHeaderAuthentication)
+            }
         }
         repos.maven {
             name "elastic"
@@ -581,7 +593,7 @@ class BuildPlugin implements Plugin<Project> {
             String revision = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
             repos.maven {
                 name 'lucene-snapshots'
-                url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+                url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
         }
     }

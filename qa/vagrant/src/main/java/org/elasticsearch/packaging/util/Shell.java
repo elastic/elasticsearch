@@ -105,6 +105,7 @@ public class Shell {
         ProcessBuilder builder = new ProcessBuilder();
         builder.command(command);
 
+
         if (workingDirectory != null) {
             setWorkingDirectory(builder, workingDirectory);
         }

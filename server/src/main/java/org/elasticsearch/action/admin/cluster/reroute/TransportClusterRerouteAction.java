@@ -148,13 +148,13 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     private void submitStateUpdate(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
         clusterService.submitStateUpdateTask("cluster_reroute (api)",
             new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request,
-                ActionListener.wrap(
+                ActionListener.map(listener,
                     response -> {
                         if (request.dryRun() == false) {
                             response.getExplanations().getYesDecisionMessages().forEach(logger::info);
                         }
-                        listener.onResponse(response);
-                    }, listener::onFailure)));
+                        return response;
+                    })));
     }
 
     static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask<ClusterRerouteResponse> {

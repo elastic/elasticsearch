@@ -36,7 +36,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -50,11 +49,6 @@ import static org.hamcrest.core.Is.is;
 // should be able to move these tests to run against a proper cluster instead. TODO do this.
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 public class Zen2RestApiIT extends ESNetty4IntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(TestZenDiscovery.USE_ZEN2.getKey(), true).build();
-    }
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -124,6 +118,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     public void testClearVotingTombstonesNotWaitingForRemoval() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(2);
         List<String> nodes = internalCluster().startNodes(3);
+        ensureStableCluster(3);
         RestClient restClient = getRestClient();
         Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" + nodes.get(2)));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
@@ -137,6 +132,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     public void testClearVotingTombstonesWaitingForRemoval() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(2);
         List<String> nodes = internalCluster().startNodes(3);
+        ensureStableCluster(3);
         RestClient restClient = getRestClient();
         String nodeToWithdraw = nodes.get(randomIntBetween(0, 2));
         Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" + nodeToWithdraw));
@@ -151,6 +147,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     public void testFailsOnUnknownNode() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(2);
         internalCluster().startNodes(3);
+        ensureStableCluster(3);
         RestClient restClient = getRestClient();
         try {
             restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/invalid"));
@@ -158,7 +155,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(400));
             assertThat(
-                e.getCause().getMessage(),
+                e.getMessage(),
                 Matchers.containsString("add voting config exclusions request for [invalid] matched no master-eligible nodes")
             );
         }

@@ -16,8 +16,6 @@ import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.document.RestGetAction;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -28,14 +26,12 @@ import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
-import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -44,9 +40,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -68,7 +62,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 // we increase the timeout here to 90 seconds to handle long waits for a green
                 // cluster health. the waits for green need to be longer than a minute to
                 // account for delayed shards
-                .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "90s")
                 .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
                 .build();
     }
@@ -77,7 +70,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * Tests that a single document survives. Super basic smoke test.
      */
     public void testSingleDoc() throws IOException {
-        String docLocation = "/testsingledoc/doc/1";
+        String docLocation = "/testsingledoc/_doc/1";
         String doc = "{\"test\": \"test\"}";
 
         if (isRunningAgainstOldCluster()) {
@@ -88,7 +81,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
 
         Request getRequest = new Request("GET", docLocation);
-        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(toStr(client().performRequest(getRequest)), containsString(doc));
     }
 
@@ -149,17 +141,21 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testWatcher() throws Exception {
         if (isRunningAgainstOldCluster()) {
             logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
-            Request createBwcWatch = new Request("PUT", "/_xpack/watcher/watch/bwc_watch");
+            Request createBwcWatch = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_watch");
+            Request createBwcThrottlePeriod = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_throttle_period");
+            if (getOldClusterVersion().onOrAfter(Version.V_7_0_0)) {
+                createBwcWatch.setOptions(expectWarnings(IndexAction.TYPES_DEPRECATION_MESSAGE));
+                createBwcThrottlePeriod.setOptions(expectWarnings(IndexAction.TYPES_DEPRECATION_MESSAGE));
+            }
             createBwcWatch.setJsonEntity(loadWatch("simple-watch.json"));
             client().performRequest(createBwcWatch);
 
             logger.info("Adding a watch with \"fun\" throttle periods on old cluster");
-            Request createBwcThrottlePeriod = new Request("PUT", "_xpack/watcher/watch/bwc_throttle_period");
             createBwcThrottlePeriod.setJsonEntity(loadWatch("throttle-period-watch.json"));
             client().performRequest(createBwcThrottlePeriod);
 
             logger.info("Adding a watch with \"fun\" read timeout on old cluster");
-            Request createFunnyTimeout = new Request("PUT", "_xpack/watcher/watch/bwc_funny_timeout");
+            Request createFunnyTimeout = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_funny_timeout");
             createFunnyTimeout.setJsonEntity(loadWatch("funny-timeout-watch.json"));
             client().performRequest(createFunnyTimeout);
 
@@ -247,7 +243,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             // index documents for the rollup job
             final StringBuilder bulk = new StringBuilder();
             for (int i = 0; i < numDocs; i++) {
-                bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"doc\"}}\n");
+                if (getOldClusterVersion().onOrAfter(Version.V_7_0_0)) {
+                    bulk.append("{\"index\":{\"_index\":\"rollup-docs\"}}\n");
+                } else {
+                    bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"doc\"}}\n");
+                }
                 String date = String.format(Locale.ROOT, "%04d-01-01T00:%02d:00Z", year, i);
                 bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
             }
@@ -258,7 +258,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(bulkRequest);
 
             // create the rollup job
-            final Request createRollupJobRequest = new Request("PUT", "/_xpack/rollup/job/rollup-job-test");
+            final Request createRollupJobRequest = new Request("PUT", getRollupEndpoint() + "/job/rollup-job-test");
+
             createRollupJobRequest.setJsonEntity("{"
                     + "\"index_pattern\":\"rollup-*\","
                     + "\"rollup_index\":\"results-rollup\","
@@ -279,7 +280,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             // start the rollup job
-            final Request startRollupJobRequest = new Request("POST", "/_xpack/rollup/job/rollup-job-test/_start");
+            final Request startRollupJobRequest = new Request("POST", getRollupEndpoint() + "/job/rollup-job-test/_start");
             Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -300,151 +301,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    public void testRollupIDSchemeAfterRestart() throws Exception {
-        assumeTrue("Rollup can be tested with 6.3.0 and onwards", getOldClusterVersion().onOrAfter(Version.V_6_3_0));
-        assumeTrue("Rollup ID scheme changed in 6.4", getOldClusterVersion().before(Version.V_6_4_0));
-        if (isRunningAgainstOldCluster()) {
-
-            final Request indexRequest = new Request("POST", "/id-test-rollup/doc/1");
-            indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-01T00:00:01\",\"value\":123}");
-            client().performRequest(indexRequest);
-
-            // create the rollup job
-            final Request createRollupJobRequest = new Request("PUT", "/_xpack/rollup/job/rollup-id-test");
-            createRollupJobRequest.setJsonEntity("{"
-                + "\"index_pattern\":\"id-test-rollup\","
-                + "\"rollup_index\":\"id-test-results-rollup\","
-                + "\"cron\":\"*/1 * * * * ?\","
-                + "\"page_size\":100,"
-                + "\"groups\":{"
-                + "    \"date_histogram\":{"
-                + "        \"field\":\"timestamp\","
-                + "        \"interval\":\"5m\""
-                + "      },"
-                +       "\"histogram\":{"
-                + "        \"fields\": [\"value\"],"
-                + "        \"interval\":1"
-                + "      },"
-                +       "\"terms\":{"
-                + "        \"fields\": [\"value\"]"
-                + "      }"
-                + "},"
-                + "\"metrics\":["
-                + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
-                + "]"
-                + "}");
-
-            Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
-            assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-
-            // start the rollup job
-            final Request startRollupJobRequest = new Request("POST", "/_xpack/rollup/job/rollup-id-test/_start");
-            Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
-            assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
-
-            assertRollUpJob("rollup-id-test");
-
-            assertBusy(() -> {
-                client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
-                final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
-                if (isRunningAgainstOldCluster() == false) {
-                    searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-                }
-                try {
-                    Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
-                    assertNotNull(ObjectPath.eval("hits.total", searchResponse));
-                    assertThat(ObjectPath.eval("hits.total", searchResponse), equalTo(1));
-                    assertThat(ObjectPath.eval("hits.hits.0._id", searchResponse), equalTo("3310683722"));
-                } catch (IOException e) {
-                    fail();
-                }
-            });
-
-            // After we've confirmed the doc, wait until we move back to STARTED so that we know the
-            // state was saved at the end
-            waitForRollUpJob("rollup-id-test", equalTo("started"));
-
-        } else {
-
-            final Request indexRequest = new Request("POST", "/id-test-rollup/doc/2");
-            indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-02T00:00:01\",\"value\":345}");
-            indexRequest.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
-            client().performRequest(indexRequest);
-
-            assertRollUpJob("rollup-id-test");
-
-            // stop the rollup job to force a state save, which will upgrade the ID
-            final Request stopRollupJobRequest = new Request("POST", "/_rollup/job/rollup-id-test/_stop");
-            Map<String, Object> stopRollupJobResponse = entityAsMap(client().performRequest(stopRollupJobRequest));
-            assertThat(stopRollupJobResponse.get("stopped"), equalTo(Boolean.TRUE));
-
-            waitForRollUpJob("rollup-id-test", equalTo("stopped"));
-
-            // start the rollup job again
-            final Request startRollupJobRequest = new Request("POST", "/_rollup/job/rollup-id-test/_start");
-            Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
-            assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
-
-            waitForRollUpJob("rollup-id-test", anyOf(equalTo("indexing"), equalTo("started")));
-
-            assertBusy(() -> {
-                client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
-                final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
-                if (isRunningAgainstOldCluster() == false) {
-                    searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-                }
-                try {
-                    Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
-                    assertNotNull(ObjectPath.eval("hits.total", searchResponse));
-                    assertThat(ObjectPath.eval("hits.total", searchResponse), equalTo(2));
-                    List<String> ids = new ArrayList<>(2);
-                    ids.add(ObjectPath.eval("hits.hits.0._id", searchResponse));
-                    ids.add(ObjectPath.eval("hits.hits.1._id", searchResponse));
-
-                    // should have both old and new ID formats
-                    assertThat(ids, containsInAnyOrder("3310683722", "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA"));
-
-                    List<Double> values = new ArrayList<>(2);
-                    Map<String, Object> doc = ObjectPath.eval("hits.hits.0._source", searchResponse);
-                    values.add((Double)doc.get("value.min.value"));
-                    doc = ObjectPath.eval("hits.hits.1._source", searchResponse);
-                    values.add((Double)doc.get("value.min.value"));
-
-                    assertThat(values, containsInAnyOrder(123.0, 345.0));
-                } catch (IOException e) {
-                    fail();
-                }
-            });
-        }
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34774")
-    public void testSqlFailsOnIndexWithTwoTypes() throws IOException {
-        // TODO this isn't going to trigger until we backport to 6.1
-        assumeTrue("It is only possible to build an index that sql doesn't like before 6.0.0",
-                getOldClusterVersion().before(Version.V_6_0_0_alpha1));
-        if (isRunningAgainstOldCluster()) {
-            Request doc1 = new Request("POST", "/testsqlfailsonindexwithtwotypes/type1");
-            doc1.setJsonEntity("{}");
-            client().performRequest(doc1);
-            Request doc2 = new Request("POST", "/testsqlfailsonindexwithtwotypes/type2");
-            doc2.setJsonEntity("{}");
-            client().performRequest(doc2);
-            return;
-        }
-        final Request sqlRequest;
-        if (isRunningAgainstOldCluster()) {
-            sqlRequest = new Request("POST", "/_xpack/sql");
-        } else {
-            sqlRequest = new Request("POST", "/_sql");
-        }
-        sqlRequest.setJsonEntity("{\"query\":\"SELECT * FROM testsqlfailsonindexwithtwotypes\"}");
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(sqlRequest));
-        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString(
-            "[testsqlfailsonindexwithtwotypes] contains more than one type [type1, type2] so it is incompatible with sql"));
-    }
-
     private String loadWatch(String watch) throws IOException {
         return StreamsUtils.copyToStringFromClasspath("/org/elasticsearch/xpack/restart/" + watch);
     }
@@ -459,8 +315,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void assertWatchIndexContentsWork() throws Exception {
         // Fetch a basic watch
         Request getRequest = new Request("GET", "_watcher/watch/bwc_watch");
-        getRequest.setOptions(expectWarnings(IndexAction.TYPES_DEPRECATION_MESSAGE,
-            WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE));
+        getRequest.setOptions(
+            expectWarnings(
+                IndexAction.TYPES_DEPRECATION_MESSAGE
+            )
+        );
+
         Map<String, Object> bwcWatch = entityAsMap(client().performRequest(getRequest));
 
         logger.error("-----> {}", bwcWatch);
@@ -476,8 +336,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Fetch a watch with "fun" throttle periods
         getRequest = new Request("GET", "_watcher/watch/bwc_throttle_period");
-        getRequest.setOptions(expectWarnings(IndexAction.TYPES_DEPRECATION_MESSAGE,
-            WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE));
+        getRequest.setOptions(
+            expectWarnings(
+                IndexAction.TYPES_DEPRECATION_MESSAGE
+            )
+        );
+
         bwcWatch = entityAsMap(client().performRequest(getRequest));
         assertThat(bwcWatch.get("found"), equalTo(true));
         source = (Map<String, Object>) bwcWatch.get("watch");
@@ -561,7 +425,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             try {
                 Map<String, Object> response = entityAsMap(client().performRequest(request));
                 Map<String, Object> hits = (Map<String, Object>) response.get("hits");
-                int total = (int) hits.get("total");
+                logger.info("Hits are: {}", hits);
+                int total;
+                if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
+                    total = (int) ((Map<String, Object>) hits.get("total")).get("value");
+                } else {
+                    total = (int) hits.get("total");
+                }
                 assertThat(total, greaterThanOrEqualTo(expectedHits));
             } catch (IOException ioe) {
                 if (ioe instanceof ResponseException) {
@@ -581,12 +451,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void createUser(final boolean oldCluster) throws Exception {
         final String id = oldCluster ? "preupgrade_user" : "postupgrade_user";
-        Request request;
-        if (oldCluster) {
-            request = new Request("PUT", "/_xpack/security/user/" + id);
-        } else {
-            request = new Request("PUT", "/_security/user/" + id);
-        }
+        Request request = new Request("PUT", getSecurityEndpoint() + "/user/" + id);
         request.setJsonEntity(
             "{\n" +
             "   \"password\" : \"j@rV1s\",\n" +
@@ -600,12 +465,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void createRole(final boolean oldCluster) throws Exception {
         final String id = oldCluster ? "preupgrade_role" : "postupgrade_role";
-        Request request;
-        if (oldCluster) {
-            request = new Request("PUT", "/_xpack/security/role/" + id);
-        } else {
-            request = new Request("PUT", "/_security/role/" + id);
-        }
+        Request request = new Request("PUT", getSecurityEndpoint() + "/role/" + id);
         request.setJsonEntity(
             "{\n" +
             "  \"run_as\": [ \"abc\" ],\n" +
@@ -626,20 +486,59 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void assertUserInfo(final boolean oldCluster) throws Exception {
         final String user = oldCluster ? "preupgrade_user" : "postupgrade_user";
-        Map<String, Object> response = oldCluster ?
-            entityAsMap(client().performRequest(new Request("GET", "/_xpack/security/user/" + user))) :
-            entityAsMap(client().performRequest(new Request("GET", "/_security/user/" + user)));
+        Request request = new Request("GET", getSecurityEndpoint() + "/user/" + user);;
+        Map<String, Object> response = entityAsMap(client().performRequest(request));
         @SuppressWarnings("unchecked") Map<String, Object> userInfo = (Map<String, Object>) response.get(user);
         assertEquals(user + "@example.com", userInfo.get("email"));
         assertNotNull(userInfo.get("full_name"));
         assertNotNull(userInfo.get("roles"));
     }
 
+    private String getSecurityEndpoint() {
+        String securityEndpoint;
+        if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
+            securityEndpoint = "/_security";
+        } else {
+            securityEndpoint = "/_xpack/security";
+        }
+        return securityEndpoint;
+    }
+
+    private String getSQLEndpoint() {
+        String securityEndpoint;
+        if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
+            securityEndpoint = "/_sql";
+        } else {
+            securityEndpoint = "/_xpack/sql";
+        }
+        return securityEndpoint;
+    }
+
+    private String getRollupEndpoint() {
+        String securityEndpoint;
+        if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
+            securityEndpoint = "/_rollup";
+        } else {
+            securityEndpoint = "/_xpack/rollup";
+        }
+        return securityEndpoint;
+    }
+
+    private String getWatcherEndpoint() {
+        String securityEndpoint;
+        if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
+            securityEndpoint = "/_watcher";
+        } else {
+            securityEndpoint = "/_xpack/watcher";
+        }
+        return securityEndpoint;
+    }
+
     private void assertRoleInfo(final boolean oldCluster) throws Exception {
         final String role = oldCluster ? "preupgrade_role" : "postupgrade_role";
-        @SuppressWarnings("unchecked") Map<String, Object> response = oldCluster ?
-            (Map<String, Object>) entityAsMap(client().performRequest(new Request("GET", "/_xpack/security/role/" + role))).get(role) :
-            (Map<String, Object>) entityAsMap(client().performRequest(new Request("GET", "/_security/role/" + role))).get(role);
+        @SuppressWarnings("unchecked") Map<String, Object> response = (Map<String, Object>) entityAsMap(
+            client().performRequest(new Request("GET", getSecurityEndpoint() + "/role/" + role))
+        ).get(role);
         assertNotNull(response.get("run_as"));
         assertNotNull(response.get("cluster"));
         assertNotNull(response.get("indices"));
@@ -651,17 +550,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         waitForRollUpJob(rollupJob, expectedStates);
 
         // check that the rollup job is started using the RollUp API
-        final Request getRollupJobRequest;
-        if (isRunningAgainstOldCluster()) {
-            getRollupJobRequest = new Request("GET", "/_xpack/rollup/job/" + rollupJob);
-        } else {
-            getRollupJobRequest = new Request("GET", "/_rollup/job/" + rollupJob);
-        }
+        final Request getRollupJobRequest = new Request("GET", getRollupEndpoint() + "/job/" + rollupJob);
         Map<String, Object> getRollupJobResponse = entityAsMap(client().performRequest(getRollupJobRequest));
         Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
-        if (job != null) {
-            assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
-        }
+        assertNotNull(job);
+        assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
 
         // check that the rollup job is started using the Tasks API
         final Request taskRequest = new Request("GET", "_tasks");
@@ -683,12 +576,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         for (Map<String, Object> task : rollupJobTasks) {
             if (ObjectPath.eval("id", task).equals(rollupJob)) {
                 hasRollupTask = true;
-
-                // Persistent task state field has been renamed in 6.4.0 from "status" to "state"
-                final String stateFieldName
-                    = (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_4_0)) ? "status" : "state";
-
-                final String jobStateField = "task.xpack/rollup/job." + stateFieldName + ".job_state";
+                final String jobStateField = "task.xpack/rollup/job.state.job_state";
                 assertThat("Expected field [" + jobStateField + "] to be started or indexing in " + task.get("id"),
                     ObjectPath.eval(jobStateField, task), expectedStates);
                 break;
@@ -697,24 +585,18 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (hasRollupTask == false) {
             fail("Expected persistent task for [" + rollupJob + "] but none found.");
         }
-
     }
 
     private void waitForRollUpJob(final String rollupJob, final Matcher<?> expectedStates) throws Exception {
         assertBusy(() -> {
-            final Request getRollupJobRequest;
-            if (isRunningAgainstOldCluster()) {
-                getRollupJobRequest = new Request("GET", "/_xpack/rollup/job/" + rollupJob);
-            } else {
-                getRollupJobRequest = new Request("GET", "/_rollup/job/" + rollupJob);
-            }
+            final Request getRollupJobRequest = new Request("GET", getRollupEndpoint() + "/job/" + rollupJob);
+
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
             Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
-            if (job != null) {
-                assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
-            }
+            assertNotNull(job);
+            assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
         }, 30L, TimeUnit.SECONDS);
     }
 

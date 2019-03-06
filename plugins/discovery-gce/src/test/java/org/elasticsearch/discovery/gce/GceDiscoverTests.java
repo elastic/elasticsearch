@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 0, numClientNodes = 0)
@@ -62,7 +63,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                         .put(super.nodeSettings(nodeOrdinal))
-                        .put("discovery.zen.hosts_provider", "gce")
+                        .put(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "gce")
                         .put("cloud.gce.project_id", "test")
                         .put("cloud.gce.zone", "test")
             .build();

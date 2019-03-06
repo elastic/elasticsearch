@@ -48,6 +48,7 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -74,7 +75,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -82,7 +82,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestCase {
@@ -439,17 +438,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
-    @TestLogging(
-            "_root:DEBUG,"
-                    + "org.elasticsearch.action.bulk:TRACE,"
-                    + "org.elasticsearch.action.get:TRACE,"
-                    + "org.elasticsearch.cluster.service:TRACE,"
-                    + "org.elasticsearch.discovery:TRACE,"
-                    + "org.elasticsearch.indices.cluster:TRACE,"
-                    + "org.elasticsearch.indices.recovery:TRACE,"
-                    + "org.elasticsearch.index.seqno:TRACE,"
-                    + "org.elasticsearch.index.shard:TRACE")
-    public void testWaitForPendingSeqNo() throws Exception {
+    public void testDoNotWaitForPendingSeqNo() throws Exception {
         IndexMetaData metaData = buildIndexMetaData(1);
 
         final int pendingDocs = randomIntBetween(1, 5);
@@ -499,16 +488,14 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
 
             CountDownLatch recoveryStart = new CountDownLatch(1);
-            AtomicBoolean opsSent = new AtomicBoolean(false);
+            AtomicBoolean recoveryDone = new AtomicBoolean(false);
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica, (indexShard, node) -> {
                 recoveryStart.countDown();
-                return new RecoveryTarget(indexShard, node, recoveryListener, l -> {
-                }) {
+                return new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
                     @Override
-                    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                                        long maxSeenAutoIdTimestamp, long msu, ActionListener<Long> listener) {
-                        opsSent.set(true);
-                        super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp, msu, listener);
+                    public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
+                        recoveryDone.set(true);
+                        super.finalizeRecovery(globalCheckpoint, listener);
                     }
                 };
             });
@@ -519,7 +506,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final int indexedDuringRecovery = shards.indexDocs(randomInt(5));
             docs += indexedDuringRecovery;
 
-            assertFalse("recovery should wait on pending docs", opsSent.get());
+            assertBusy(() -> assertTrue("recovery should not wait for on pending docs", recoveryDone.get()));
 
             primaryEngineFactory.releaseLatchedIndexers();
             pendingDocsDone.await();
@@ -528,10 +515,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             recoveryFuture.get();
 
             assertThat(newReplica.recoveryState().getIndex().fileDetails(), empty());
-            assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(),
-                // we don't know which of the inflight operations made it into the translog range we re-play
-                both(greaterThanOrEqualTo(docs-indexedDuringRecovery)).and(lessThanOrEqualTo(docs)));
-
             shards.assertAllEqual(docs);
         } finally {
             primaryEngineFactory.close();
@@ -575,9 +558,13 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     replica,
                     (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
                         @Override
-                        public void indexTranslogOperations(final List<Translog.Operation> operations, final int totalTranslogOps,
-                                                            final long maxAutoIdTimestamp, long maxSeqNoOfUpdates,
-                                                            ActionListener<Long> listener) {
+                        public void indexTranslogOperations(
+                                final List<Translog.Operation> operations,
+                                final int totalTranslogOps,
+                                final long maxAutoIdTimestamp,
+                                final long maxSeqNoOfUpdates,
+                                final RetentionLeases retentionLeases,
+                                final ActionListener<Long> listener) {
                             // index a doc which is not part of the snapshot, but also does not complete on replica
                             replicaEngineFactory.latchIndexers(1);
                             threadPool.generic().submit(() -> {
@@ -604,7 +591,13 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                             } catch (InterruptedException e) {
                                 throw new AssertionError(e);
                             }
-                            super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdates, listener);
+                            super.indexTranslogOperations(
+                                    operations,
+                                    totalTranslogOps,
+                                    maxAutoIdTimestamp,
+                                    maxSeqNoOfUpdates,
+                                    retentionLeases,
+                                    listener);
                         }
                     });
             pendingDocActiveWithExtraDocIndexed.await();
@@ -846,12 +839,17 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                            long maxAutoIdTimestamp, long maxSeqNoOfUpdates, ActionListener<Long> listener) {
+        public void indexTranslogOperations(
+                final List<Translog.Operation> operations,
+                final int totalTranslogOps,
+                final long maxAutoIdTimestamp,
+                final long maxSeqNoOfUpdates,
+                final RetentionLeases retentionLeases,
+                final ActionListener<Long> listener) {
             if (hasBlocked() == false) {
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
-            super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdates, listener);
+            super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdates, retentionLeases, listener);
         }
 
         @Override

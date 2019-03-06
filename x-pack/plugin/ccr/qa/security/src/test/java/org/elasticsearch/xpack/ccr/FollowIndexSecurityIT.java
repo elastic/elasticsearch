@@ -211,7 +211,6 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                         "\"leader_remote_cluster\":\"leader_cluster\"" +
                         "}";
                 request.setJsonEntity(requestBody);
-                logger.info(requestBody);
                 assertOK(leaderClient.performRequest(request));
 
                 final Request retentionLeasesRequest = new Request("GET", "/" + forgetLeader + "/_stats");

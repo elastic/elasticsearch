@@ -4,12 +4,6 @@ import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.VersionProperties
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 
-import javax.net.ssl.KeyManager
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManagerFactory
-import java.security.KeyStore
-import java.security.SecureRandom
-
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
@@ -17,11 +11,13 @@ configurations {
   dockerPlugins
   dockerSource
   ossDockerSource
+  restSpec
 }
 
 dependencies {
   dockerSource project(path: ":distribution:archives:linux-tar")
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
+  restSpec "org.elasticsearch:rest-api-spec:${version}"
 }
 
 ext.expansions = { oss ->
@@ -98,10 +94,12 @@ void addCopyDockerfileTask(final boolean oss) {
   }
 }
 
-Closure createAndSetWritable = {location ->
-  File file = file(location);
-  file.mkdirs()
-  file.setWritable(true, false)
+def createAndSetWritable (Object... locations) {
+  locations.each { location ->
+    File file = file(location)
+    file.mkdirs()
+    file.setWritable(true, false)
+  }
 }
 
 task copyKeystore(type: Sync) {
@@ -122,33 +120,29 @@ preProcessFixture {
   dependsOn copyKeystore
   doLast {
     // tests expect to have an empty repo
-    project.delete("${buildDir}/repo")
-    project.delete("${buildDir}/oss-repo")
-    createAndSetWritable("${buildDir}/repo")
-    createAndSetWritable("${buildDir}/oss-repo")
-    createAndSetWritable("${buildDir}/logs/default-1")
-    createAndSetWritable("${buildDir}/logs/default-2")
-    createAndSetWritable("${buildDir}/logs/oss-1")
-    createAndSetWritable("${buildDir}/logs/oss-2")
+    project.delete(
+            "${buildDir}/repo",
+            "${buildDir}/oss-repo"
+    )
+    createAndSetWritable(
+            "${buildDir}/repo",
+            "${buildDir}/oss-repo",
+            "${buildDir}/logs/default-1",
+            "${buildDir}/logs/default-2",
+            "${buildDir}/logs/oss-1",
+            "${buildDir}/logs/oss-2"
+    )
   }
-}
-
-configurations {
-  restSpec
-}
-dependencies {
-  restSpec "org.elasticsearch:rest-api-spec:${version}"
 }
 
 task copyRestTests(type: Sync) {
   from { zipTree(configurations.restSpec.singleFile) }
   from project(':x-pack:plugin:core')
           .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-  into sourceSets.test.output.resourcesDir
   if (System.getProperty("tests.distribution", "default") == "default") {
     from { project(':x-pack:plugin').sourceSets.test.resources }
-    into sourceSets.test.output.resourcesDir
   }
+  into sourceSets.test.output.resourcesDir
   dependsOn configurations.restSpec
   // FIXME: check why these tests fail
   exclude "**/data_frame/**"

@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.apache.logging.log4j.core.impl.ExtendedStackTraceElement;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -868,6 +869,12 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         ResizeRequest resizeRequest = new ResizeRequest(indices[0], indices[1]);
         resizeRequest.setResizeType(resizeType);
         Map<String, String> expectedParams = new HashMap<>();
+
+        if (ESTestCase.randomBoolean()) {
+            resizeRequest.setCopySettings(Boolean.TRUE);
+            expectedParams.put("copy_settings", "true");
+        }
+
         RequestConvertersTests.setRandomMasterTimeout(resizeRequest, expectedParams);
         RequestConvertersTests.setRandomTimeout(resizeRequest::timeout, resizeRequest.timeout(), expectedParams);
 

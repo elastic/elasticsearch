@@ -342,6 +342,7 @@ final class IndicesRequestConverters {
         params.withTimeout(resizeRequest.timeout());
         params.withMasterTimeout(resizeRequest.masterNodeTimeout());
         params.withWaitForActiveShards(resizeRequest.getTargetIndexRequest().waitForActiveShards(), ActiveShardCount.DEFAULT);
+        params.withCopySettings(resizeRequest.getCopySettings());
 
         request.setEntity(RequestConverters.createEntity(resizeRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;

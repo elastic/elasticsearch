@@ -51,23 +51,8 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
-    // TODO this settings are the same as in AbstractDisruptionTestCase, can we avoid copy-paste?
     private static final Settings DISRUPTION_TUNED_SETTINGS = Settings.builder()
-            .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
-            .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
-            .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
-            .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), 1) // for hitting simulated network failures quickly
-            .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
-            .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1) // for hitting simulated network failures quickly
-            .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
-            .put(JoinHelper.JOIN_TIMEOUT_SETTING.getKey(), "10s") // still long to induce failures but to long so test won't time out
-            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
-            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
-            .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
-            .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "2s") // ensure quick node reconnects
-            // value and the time of disruption and does not recover immediately
-            // when disruption is stop. We should make sure we recover faster
-            // then the default of 30s, causing ensureGreen and friends to time out
+            .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "2s")
             .build();
 
     /**
@@ -88,7 +73,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         side2.removeAll(side1);
         assertThat(side2.size(), greaterThanOrEqualTo(1));
         NetworkDisruption networkDisruption = new NetworkDisruption(new TwoPartitions(side1, side2),
-                new NetworkDisruption.NetworkUnresponsive());
+                new NetworkDisruption.NetworkDisconnect());
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 

@@ -3,8 +3,6 @@
 [[ccr-apis]]
 == Cross-cluster replication APIs
 
-beta[]
-
 You can use the following APIs to perform {ccr} operations.
 
 [float]

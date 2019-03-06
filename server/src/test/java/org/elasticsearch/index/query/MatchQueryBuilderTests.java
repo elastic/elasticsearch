@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CannedBinaryTokenStream;
+import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -31,6 +32,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -55,6 +57,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Arrays.asList;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.everyItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -401,21 +404,64 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     public void testBooleanPrefixQuery() throws Exception {
         final MatchQuery matchQuery = new MatchQuery(createShardContext());
         final Query query = matchQuery.parse(Type.BOOLEAN_PREFIX, STRING_FIELD_NAME, "foo bar baz");
-        assertThat(query, instanceOf(BooleanQuery.class));
-        final BooleanQuery booleanQuery = (BooleanQuery) query;
-        assertThat(booleanQuery.clauses(), hasSize(3));
-        assertThat(booleanQuery.clauses(), everyItem(hasProperty("occur", equalTo(BooleanClause.Occur.SHOULD))));
+//        assertThat(query, instanceOf(BooleanQuery.class));
+//        final BooleanQuery booleanQuery = (BooleanQuery) query;
+//        assertThat(booleanQuery.clauses(), hasSize(3));
+//        assertThat(booleanQuery.clauses(), everyItem(hasProperty("occur", equalTo(BooleanClause.Occur.SHOULD))));
+//
+//        final Query firstClause = booleanQuery.clauses().get(0).getQuery();
+//        assertThat(firstClause, instanceOf(TermQuery.class));
+//        assertThat(((TermQuery) firstClause).getTerm().text(), equalTo("foo"));
+//        final Query secondClause = booleanQuery.clauses().get(1).getQuery();
+//        assertThat(secondClause, instanceOf(TermQuery.class));
+//        assertThat(((TermQuery) secondClause).getTerm().text(), equalTo("bar"));
+//        final Query thirdClause = booleanQuery.clauses().get(2).getQuery();
+//        assertThat(thirdClause, instanceOf(PrefixQuery.class));
+//        assertThat(((PrefixQuery) thirdClause).getPrefix().text(), equalTo("baz"));
 
-        final Query firstClause = booleanQuery.clauses().get(0).getQuery();
-        assertThat(firstClause, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) firstClause).getTerm().text(), equalTo("foo"));
-        final Query secondClause = booleanQuery.clauses().get(1).getQuery();
-        assertThat(secondClause, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) secondClause).getTerm().text(), equalTo("bar"));
-        final Query thirdClause = booleanQuery.clauses().get(2).getQuery();
-        assertThat(thirdClause, instanceOf(PrefixQuery.class));
-        assertThat(((PrefixQuery) thirdClause).getPrefix().text(), equalTo("baz"));
+        assertBooleanQuery(query, asList(
+            new TermQuery(new Term(STRING_FIELD_NAME, "foo")),
+            new TermQuery(new Term(STRING_FIELD_NAME, "bar")),
+            new PrefixQuery(new Term(STRING_FIELD_NAME, "baz"))
+        ));
+    }
 
+    public void testBooleanPrefixQueryGraph() throws Exception {
+        final MatchQuery matchQuery = new MatchQuery(createShardContext());
+        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+        final Query query = matchQuery.parse(Type.BOOLEAN_PREFIX, STRING_FIELD_NAME, "fox dogs red");
+//        assertThat(query, instanceOf(BooleanQuery.class));
+//        final BooleanQuery booleanQuery = (BooleanQuery) query;
+//        assertThat(booleanQuery.clauses(), hasSize(3));
+//        assertThat(booleanQuery.clauses(), everyItem(hasProperty("occur", equalTo(BooleanClause.Occur.SHOULD))));
+//
+//        final Query firstClause = booleanQuery.clauses().get(0).getQuery();
+//        assertThat(firstClause, instanceOf(TermQuery.class));
+//        assertThat(((TermQuery) firstClause).getTerm().text(), equalTo("fox"));
+//        final Query secondClause = booleanQuery.clauses().get(1).getQuery();
+//        assertThat(secondClause, instanceOf(SynonymQuery.class));
+//        assertThat(((SynonymQuery) secondClause).getTerms(),
+//            containsInAnyOrder(new Term(STRING_FIELD_NAME, "dogs"), new Term(STRING_FIELD_NAME, "dog")));
+//        final Query thirdClause = booleanQuery.clauses().get(2).getQuery();
+//        assertThat(thirdClause, instanceOf(PrefixQuery.class));
+//        assertThat(((PrefixQuery) thirdClause).getPrefix().text(), equalTo("red"));
+        assertBooleanQuery(query, asList(
+            new TermQuery(new Term(STRING_FIELD_NAME, "fox")),
+            new SynonymQuery(new Term(STRING_FIELD_NAME, "dogs"), new Term(STRING_FIELD_NAME, "dog")),
+            new PrefixQuery(new Term(STRING_FIELD_NAME, "red"))
+        ));
+    }
+
+    private static void assertBooleanQuery(Query actual, List<Query> expectedClauseQueries) {
+        assertThat(actual, instanceOf(BooleanQuery.class));
+        final BooleanQuery actualBooleanQuery = (BooleanQuery) actual;
+        assertThat(actualBooleanQuery.clauses(), hasSize(expectedClauseQueries.size()));
+        assertThat(actualBooleanQuery.clauses(), everyItem(hasProperty("occur", equalTo(BooleanClause.Occur.SHOULD))));
+
+        for (int i = 0; i < actualBooleanQuery.clauses().size(); i++) {
+            final Query clauseQuery = actualBooleanQuery.clauses().get(i).getQuery();
+            assertThat(clauseQuery, equalTo(expectedClauseQueries.get(i)));
+        }
     }
 
     public void testMaxBooleanClause() {

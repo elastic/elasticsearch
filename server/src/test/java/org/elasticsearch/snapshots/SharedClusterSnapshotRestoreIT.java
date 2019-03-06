@@ -44,6 +44,7 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -233,7 +234,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true).setIndices(indicesToSnapshot).get();
+            .setWaitForCompletion(true).setIndicesOptions(IndicesOptions.lenientExpand()).setIndices(indicesToSnapshot).get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
@@ -1574,7 +1575,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true).setIndices("test-idx*").get();
+            .setWaitForCompletion(true).setIndices("test-idx*").setIndicesOptions(IndicesOptions.lenientExpand()).get();
         assertThat(createSnapshotResponse.getSnapshotInfo().indices().size(), equalTo(2));
         assertThat(createSnapshotResponse.getSnapshotInfo().shardFailures().size(), equalTo(0));
     }

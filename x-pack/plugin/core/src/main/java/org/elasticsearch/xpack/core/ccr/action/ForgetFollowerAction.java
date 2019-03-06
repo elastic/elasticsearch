@@ -19,8 +19,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 public class ForgetFollowerAction extends Action<BroadcastResponse> {
 
     public static final String ACTION_NAME = "indices:admin/xpack/ccr/forget_follower";

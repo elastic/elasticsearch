@@ -21,11 +21,12 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsAction.Request;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsAction.Response;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction.Request;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction.Response;
 import org.elasticsearch.xpack.dataframe.persistence.DataFramePersistentTaskUtils;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
-import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
 import java.util.Collections;

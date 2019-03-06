@@ -111,7 +111,6 @@ import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
-import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
@@ -250,6 +249,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
 public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, PersistentTaskPlugin {
     public static final String NAME = "ml";
@@ -650,7 +650,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
             try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
                 IndexTemplateMetaData notificationMessageTemplate = IndexTemplateMetaData.builder(AuditorField.NOTIFICATIONS_INDEX)
-                        .putMapping(AuditMessage.TYPE.getPreferredName(), Strings.toString(auditMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(auditMapping))
                         .patterns(Collections.singletonList(AuditorField.NOTIFICATIONS_INDEX))
                         .version(Version.CURRENT.id)
                         .settings(Settings.builder()
@@ -675,7 +675,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
                         .version(Version.CURRENT.id)
-                        .putMapping(MlMetaIndex.TYPE, Strings.toString(docMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
                         .build();
                 templates.put(MlMetaIndex.INDEX_NAME, metaTemplate);
             } catch (IOException e) {
@@ -694,7 +694,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
                                         AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW))
                         .version(Version.CURRENT.id)
-                        .putMapping(ElasticsearchMappings.DOC_TYPE, Strings.toString(configMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(configMapping))
                         .build();
                 templates.put(AnomalyDetectorsIndex.configIndexName(), configTemplate);
             } catch (IOException e) {
@@ -708,15 +708,16 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
-                        .putMapping(ElasticsearchMappings.DOC_TYPE, Strings.toString(stateMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(stateMapping))
                         .version(Version.CURRENT.id)
                         .build();
+
                 templates.put(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, stateTemplate);
             } catch (IOException e) {
                 logger.error("Error loading the template for the " + AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + " index", e);
             }
 
-            try (XContentBuilder docMapping = ElasticsearchMappings.resultsMapping()) {
+            try (XContentBuilder docMapping = ElasticsearchMappings.resultsMapping(SINGLE_MAPPING_NAME)) {
                 IndexTemplateMetaData jobResultsTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobResultsIndexPrefix())
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
                         .settings(Settings.builder()
@@ -728,7 +729,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async")
                                 // set the default all search field
                                 .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), ElasticsearchMappings.ALL_FIELD_VALUES))
-                        .putMapping(ElasticsearchMappings.DOC_TYPE, Strings.toString(docMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
                         .version(Version.CURRENT.id)
                         .build();
                 templates.put(AnomalyDetectorsIndex.jobResultsIndexPrefix(), jobResultsTemplate);

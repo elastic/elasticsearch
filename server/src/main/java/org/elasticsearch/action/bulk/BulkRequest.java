@@ -364,11 +364,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         XContent xContent = xContentType.xContent();
         int line = 0;
         int from = 0;
-        int length = data.length();
         byte marker = xContent.streamSeparator();
         boolean typesDeprecationLogged = false;
         while (true) {
-            int nextMarker = findNextMarker(marker, from, data, length);
+            int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
                 break;
             }
@@ -477,7 +476,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                     add(new DeleteRequest(index, type, id).routing(routing)
                         .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm), payload);
                 } else {
-                    nextMarker = findNextMarker(marker, from, data, length);
+                    nextMarker = findNextMarker(marker, from, data);
                     if (nextMarker == -1) {
                         break;
                     }
@@ -615,16 +614,16 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return globalRouting;
     }
 
-    private int findNextMarker(byte marker, int from, BytesReference data, int length) {
-        for (int i = from; i < length; i++) {
-            if (data.get(i) == marker) {
-                return i;
-            }
+    private static int findNextMarker(byte marker, int from, BytesReference data) {
+        final int res = data.indexOf(marker, from);
+        if (res != -1) {
+            assert res >= 0;
+            return res;
         }
-        if (from != length) {
+        if (from != data.length()) {
             throw new IllegalArgumentException("The bulk request must be terminated by a newline [\n]");
         }
-        return -1;
+        return res;
     }
 
     @Override

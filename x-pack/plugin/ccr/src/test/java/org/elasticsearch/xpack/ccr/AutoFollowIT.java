@@ -123,7 +123,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36761")
     public void testAutoFollowManyIndices() throws Exception {
         Settings leaderIndexSettings = Settings.builder()
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
@@ -132,40 +131,54 @@ public class AutoFollowIT extends CcrIntegTestCase {
             .build();
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
-        int numIndices = randomIntBetween(4, 32);
+        long numIndices = randomIntBetween(4, 32);
         for (int i = 0; i < numIndices; i++) {
             createLeaderIndex("logs-" + i, leaderIndexSettings);
         }
-        int expectedVal1 = numIndices;
-        assertBusy(() -> {
-            AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo((long) expectedVal1));
-        });
-
-        // Delete auto follow pattern and make sure that in the background the auto follower has stopped
-        // then the leader index created after that should never be auto followed:
-        deleteAutoFollowPatternSetting();
-        assertBusy(() -> {
-            AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getAutoFollowedClusters().size(), equalTo(0));
-        });
-        createLeaderIndex("logs-does-not-count", leaderIndexSettings);
-
-        putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
-        int i = numIndices;
-        numIndices = numIndices + randomIntBetween(4, 32);
-        for (; i < numIndices; i++) {
-            createLeaderIndex("logs-" + i, leaderIndexSettings);
-        }
-        int expectedVal2 = numIndices;
-
+        long expectedVal1 = numIndices;
         MetaData[] metaData = new MetaData[1];
         AutoFollowStats[] autoFollowStats = new AutoFollowStats[1];
         try {
             assertBusy(() -> {
                 metaData[0] = followerClient().admin().cluster().prepareState().get().getState().metaData();
                 autoFollowStats[0] = getAutoFollowStats();
-                int count = (int) Arrays.stream(metaData[0].getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
+                assertThat(autoFollowStats[0].getNumberOfSuccessfulFollowIndices(), equalTo(expectedVal1));
+            });
+        } catch (AssertionError ae) {
+            logger.warn("metadata={}", Strings.toString(metaData[0]));
+            logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
+            throw ae;
+        }
+
+        // Delete auto follow pattern and make sure that in the background the auto follower has stopped
+        // then the leader index created after that should never be auto followed:
+        deleteAutoFollowPatternSetting();
+        try {
+            assertBusy(() -> {
+                metaData[0] = followerClient().admin().cluster().prepareState().get().getState().metaData();
+                autoFollowStats[0] = getAutoFollowStats();
+                assertThat(autoFollowStats[0].getAutoFollowedClusters().size(), equalTo(0));
+            });
+        } catch (AssertionError ae) {
+            logger.warn("metadata={}", Strings.toString(metaData[0]));
+            logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
+            throw ae;
+        }
+        createLeaderIndex("logs-does-not-count", leaderIndexSettings);
+
+        putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
+        long i = numIndices;
+        numIndices = numIndices + randomIntBetween(4, 32);
+        for (; i < numIndices; i++) {
+            createLeaderIndex("logs-" + i, leaderIndexSettings);
+        }
+        long expectedVal2 = numIndices;
+
+        try {
+            assertBusy(() -> {
+                metaData[0] = followerClient().admin().cluster().prepareState().get().getState().metaData();
+                autoFollowStats[0] = getAutoFollowStats();
+                long count = Arrays.stream(metaData[0].getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
                 assertThat(count, equalTo(expectedVal2));
                 // Ensure that there are no auto follow errors:
                 // (added specifically to see that there are no leader indices auto followed multiple times)

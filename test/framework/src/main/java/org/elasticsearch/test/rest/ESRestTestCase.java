@@ -292,6 +292,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     @After
     public final void cleanUpCluster() throws Exception {
         if (preserveClusterUponCompletion() == false) {
+            ensureNoInitializingShards();
             wipeCluster();
             waitForClusterStateUpdatesToFinish();
             logIfThereAreRunningTasks();
@@ -806,7 +807,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         request.addParameter("wait_for_no_initializing_shards", "true");
         request.addParameter("timeout", "70s");
         request.addParameter("level", "shards");
-        client().performRequest(request);
+        adminClient().performRequest(request);
     }
 
     protected static void createIndex(String name, Settings settings) throws IOException {

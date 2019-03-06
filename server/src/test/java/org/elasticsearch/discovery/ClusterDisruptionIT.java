@@ -37,8 +37,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -52,6 +56,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -66,6 +71,7 @@ import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.not;
@@ -436,4 +442,46 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         assertFalse(client().admin().indices().prepareExists(idxName).get().isExists());
     }
 
+    public void testRestartNodeWhileIndexing() throws Exception {
+        startCluster(3);
+        String index = "restart_while_indexing";
+        assertAcked(client().admin().indices().prepareCreate(index).setSettings(Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, between(1, 2))));
+        AtomicBoolean stopped = new AtomicBoolean();
+        Thread[] threads = new Thread[between(1, 4)];
+        AtomicInteger docID = new AtomicInteger();
+        Set<String> ackedDocs = ConcurrentCollections.newConcurrentSet();
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                while (stopped.get() == false && docID.get() < 5000) {
+                    String id = Integer.toString(docID.incrementAndGet());
+                    try {
+                        IndexResponse response = client().prepareIndex(index, "_doc", id).setSource("{}", XContentType.JSON).get();
+                        assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
+                        logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
+                        ackedDocs.add(response.getId());
+                    } catch (ElasticsearchException ignore) {
+                        logger.info("--> fail to index id={}", id);
+                    }
+                }
+            });
+            threads[i].start();
+        }
+        ensureGreen(index);
+        assertBusy(() -> assertThat(docID.get(), greaterThanOrEqualTo(100)));
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback());
+        ensureGreen(index);
+        assertBusy(() -> assertThat(docID.get(), greaterThanOrEqualTo(200)));
+        stopped.set(true);
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        ClusterState clusterState = internalCluster().clusterService().state();
+        for (ShardRouting shardRouting : clusterState.routingTable().allShards(index)) {
+            String nodeName = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
+            IndexShard indexShard = indicesService.getShardOrNull(shardRouting.shardId());
+            assertThat(IndexShardTestCase.getShardDocUIDs(indexShard), equalTo(ackedDocs));
+        }
+    }
 }

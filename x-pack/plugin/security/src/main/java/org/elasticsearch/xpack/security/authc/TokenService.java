@@ -1344,8 +1344,8 @@ public final class TokenService {
 
     /**
      * Serializes a token to a String containing the version of the node that created the token and
-     * either an encrypted representation of the token id for versions earlier to 7.0.0 or the token ie
-     * itself for versions after 7.0.0
+     * either an encrypted representation of the token id for versions earlier to 7.1.0 or the token ie
+     * itself for versions after 7.1.0
      */
     public String getAccessTokenAsString(UserToken userToken) throws IOException, GeneralSecurityException {
         if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_1_0)) {

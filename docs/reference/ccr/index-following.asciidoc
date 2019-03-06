@@ -3,30 +3,30 @@
 [[index-following]]
 === Index following
 
-Index following is the primary feature provided by {ccr}. You can use the
-{ref}/ccr-put-follow.html[put follower API] to creating a follower index and
-initiate following.
+Index following is the core feature provided by {ccr}. You can use the
+{ref}/ccr-put-follow.html[create follower API] to create a follower index and
+initiate the following of a leader index on a remote cluster.
 
 === Initiating following
 
-When you submit a {ref}/ccr-put-follow.html[put follower request], the follower
+When you submit a {ref}/ccr-put-follow.html[create follower request], the follower
 index is created on the follower cluster. Once the follower index is created,
-the <<remote-recovery, remote recovery>> process bulk transfers all of the index
-data from the leader cluster to the follower cluster. By default this recovery
-process will be asynchronous in relationship to the
-{ref}/ccr-put-follow.html[put follower request]. The request will return prior
+the <<remote-recovery, remote recovery>> process bulk transfers all of the Lucene
+segment files from the leader cluster to the follower cluster. By default this
+recovery process will be asynchronous in relationship to the
+{ref}/ccr-put-follow.html[create follower request]. The request will return prior
 to the <<remote-recovery, remote recovery>> process being completed. If you
 would like to wait on the process to complete, you can use the
-`wait_for_active_shards`parameter to do so.
+`wait_for_active_shards` parameter to do so.
 
 === Index following operation
 
-Once the follower index is creating, <<remote-recovery, remote recovery>> is
+Once the follower index is created, <<remote-recovery, remote recovery>> is
 complete, and the shards are active, the normal following process begins. During
-the normal following process, the follower will request new operations from the
-leader as indexing occurs on the leader. The intricacies of how operations are
-requested from the leader are governed by settings that can be configured in the
-{ref}/ccr-put-follow.html[put follower request].
+the following process, the follower will request new operations from the leader
+as indexing occurs on the leader. The intricacies of how operations are requested
+from the leader are governed by settings that can be configured in the
+{ref}/ccr-put-follow.html[create follower request].
 
 The {ref}/ccr-get-follow-stats.html[get follow stats api] can be used to monitor
 the following process.
@@ -47,13 +47,13 @@ If the follower is unable to replicate operations from a leader for a period of
 time, the following process can fail due to the leader lacking a complete history
 of operations necessary for the follower to replicate.
 
-Operations are replicated to the follower are identified using a sequence number
+Operations replicated to the follower are identified using a sequence number
 generated when the operation was initially performed. Lucene segment files are
-occasionally merged in order to optimizing searching and save space. When these
+occasionally merged in order to optimize searches and save space. When these
 merges occur, it is possible for operations associated with deleted or updated
 documents to be pruned during the merge. When the follower requests the sequence
-number for this operation, the process will fail due to the operation missing on
-the leader.
+number for a pruned operation, the process will fail due to the operation missing
+on the leader.
 
 This scenario is not possible in an append-only workflow. As documents are never
 deleted or updated, the underlying operation will not be pruned.
@@ -75,10 +75,11 @@ problem can be remedied before the follower falls fatally behind.
 
 If a follower falls sufficiently behind a leader that it can no longer replicate
 operations this can be detected using the
-{ref}/ccr-get-follow-stats.html[get follow stats api].
+{ref}/ccr-get-follow-stats.html[get follow stats api]. It will be reported as a
+`indices[].fatal_exception`.
 
-In order to restart the follower, the following process paused, the follower index
-closed, and the put follow api called again.
+In order to restart the follower, the following process must be paused, the follower
+index closed, and the create follower api called again.
 
 ["source","js"]
 ----------------------------------------------------------------------
@@ -90,6 +91,8 @@ PUT /follower-index-name/_ccr/follow
 ----------------------------------------------------------------------
 // NOTCONSOLE
 
-Calling the put follow api is a destructive action. All of the existing Lucene segment
-files will be deleted on the follower cluster. The <<remote-recovery, remote recovery>>
-process will be used to copy the Lucene segment files from the leader again.
+Calling the create follower api is a destructive action. All of the existing Lucene
+segment files will be deleted on the follower cluster. The
+<<remote-recovery, remote recovery>> process will be used to copy the Lucene segment
+files from the leader again. After the follower index has been reinitialized, the
+following process will be started again.

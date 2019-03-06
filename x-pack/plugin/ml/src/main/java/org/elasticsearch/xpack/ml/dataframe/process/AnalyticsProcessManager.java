@@ -55,7 +55,7 @@ public class AnalyticsProcessManager {
             DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor(false);
             AnalyticsProcess process = createProcess(config.getId(), createProcessConfig(config, dataExtractor));
             processContextByAllocation.putIfAbsent(taskAllocationId, new ProcessContext());
-            ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
+            ExecutorService executorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
             DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(config.getId(), client,
                 dataExtractorFactory.newExtractor(true));
             AnalyticsResultProcessor resultProcessor = new AnalyticsResultProcessor(processContextByAllocation.get(taskAllocationId),
@@ -136,7 +136,7 @@ public class AnalyticsProcessManager {
 
     private AnalyticsProcess createProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig) {
         // TODO We should rename the thread pool to reflect its more general use now, e.g. JOB_PROCESS_THREAD_POOL_NAME
-        ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
+        ExecutorService executorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
         AnalyticsProcess process = processFactory.createAnalyticsProcess(jobId, analyticsProcessConfig, executorService);
         if (process.isProcessAlive() == false) {
             throw ExceptionsHelper.serverError("Failed to start data frame analytics process");

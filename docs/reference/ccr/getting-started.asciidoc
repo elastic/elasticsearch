@@ -3,8 +3,6 @@
 [[ccr-getting-started]]
 == Getting started with {ccr}
 
-beta[]
-
 This getting-started guide for {ccr} shows you how to:
 
 * <<ccr-getting-started-remote-cluster,Connect a local cluster to a remote

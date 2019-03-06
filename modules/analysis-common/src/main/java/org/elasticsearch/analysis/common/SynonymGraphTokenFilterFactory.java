@@ -26,7 +26,6 @@ import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -53,7 +52,6 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters, allFilters);
         final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
         final String name = name();
-        final AnalysisMode analysisMode = getAnalysisMode();
         return new TokenFilterFactory() {
             @Override
             public String name() {
@@ -65,10 +63,6 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
                 return synonyms.fst == null ? tokenStream : new SynonymGraphFilter(tokenStream, synonyms, false);
             }
 
-            @Override
-            public AnalysisMode getAnalysisMode() {
-                return analysisMode;
-            }
         };
     }
 

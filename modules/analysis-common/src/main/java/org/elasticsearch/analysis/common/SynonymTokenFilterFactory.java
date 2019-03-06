@@ -30,7 +30,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
-import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -51,7 +50,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean lenient;
     protected final Settings settings;
     protected final Environment environment;
-    private final boolean updateable;
 
     SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env,
                                       String name, Settings settings) {
@@ -67,13 +65,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.expand = settings.getAsBoolean("expand", true);
         this.lenient = settings.getAsBoolean("lenient", false);
         this.format = settings.get("format", "");
-        this.updateable = settings.getAsBoolean("updateable", false);
         this.environment = env;
-    }
-
-    @Override
-    public AnalysisMode getAnalysisMode() {
-        return this.updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
     }
 
     @Override
@@ -88,7 +80,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters, allFilters);
         final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
         final String name = name();
-        final AnalysisMode analysisMode = getAnalysisMode();
         return new TokenFilterFactory() {
             @Override
             public String name() {
@@ -108,10 +99,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 return IDENTITY_FILTER;
             }
 
-            @Override
-            public AnalysisMode getAnalysisMode() {
-                return analysisMode;
-            }
         };
     }
 

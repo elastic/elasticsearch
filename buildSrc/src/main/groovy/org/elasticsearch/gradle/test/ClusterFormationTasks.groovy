@@ -641,7 +641,13 @@ class ClusterFormationTasks {
     static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs) {
         return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) { Exec exec ->
             exec.workingDir node.cwd
-            exec.environment 'JAVA_HOME', node.getJavaHome()
+            // TODO: this must change to 7.0.0 after bundling java has been backported
+            if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("8.0.0"))) {
+                exec.environment.put('JAVA_HOME', project.runtimeJavaHome)
+            } else {
+                // force JAVA_HOME to *not* be set
+                exec.environment.remove('JAVA_HOME')
+            }
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 exec.executable 'cmd'
                 exec.args '/C', 'call'
@@ -658,8 +664,12 @@ class ClusterFormationTasks {
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
-            ant.exec(executable: node.executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
+            ant.exec(executable: node.executable, spawn: node.config.daemonize, newenvironment: true,
+                     dir: node.cwd, taskname: 'elasticsearch') {
                 node.env.each { key, value -> env(key: key, value: value) }
+                if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("8.0.0"))) {
+                    env(key: 'JAVA_HOME', value: project.runtimeJavaHome)
+                }
                 node.args.each { arg(value: it) }
             }
         }

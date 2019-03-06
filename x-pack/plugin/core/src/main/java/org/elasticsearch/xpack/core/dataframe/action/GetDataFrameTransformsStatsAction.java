@@ -34,7 +34,7 @@ import java.util.Objects;
 public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransformsStatsAction.Response> {
 
     public static final GetDataFrameTransformsStatsAction INSTANCE = new GetDataFrameTransformsStatsAction();
-    public static final String NAME = "cluster:monitor/data_frame_stats/get";
+    public static final String NAME = "cluster:monitor/data_frame/stats/get";
     public GetDataFrameTransformsStatsAction() {
         super(NAME);
     }

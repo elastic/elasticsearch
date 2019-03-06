@@ -48,7 +48,6 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 

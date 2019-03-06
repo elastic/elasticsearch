@@ -196,7 +196,8 @@ public class Packages {
             "elasticsearch",
             "elasticsearch-plugin",
             "elasticsearch-keystore",
-            "elasticsearch-shard"
+            "elasticsearch-shard",
+            "elasticsearch-node"
         ).forEach(executable -> assertThat(es.bin(executable), file(File, "root", "root", p755)));
 
         Stream.of(
@@ -280,6 +281,15 @@ public class Packages {
             sh.run("systemctl status elasticsearch.service");
         } else {
             sh.run("service elasticsearch status");
+        }
+    }
+
+    public static void stopElasticsearch() throws IOException {
+        final Shell sh = new Shell();
+        if (isSystemd()) {
+            sh.run("systemctl stop elasticsearch.service");
+        } else {
+            sh.run("service elasticsearch stop");
         }
     }
 }

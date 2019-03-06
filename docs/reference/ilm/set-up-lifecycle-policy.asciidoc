@@ -73,7 +73,7 @@ initial index which will be managed by our policy:
 
 [source,js]
 -----------------------
-PUT test-000001?include_type_name=true
+PUT test-000001
 {
   "aliases": {
     "test-alias":{
@@ -96,7 +96,7 @@ request so {ilm} immediately starts managing the index:
 
 [source,js]
 -----------------------
-PUT test-index?include_type_name=true
+PUT test-index
 {
   "settings": {
     "number_of_shards": 1,
@@ -107,7 +107,8 @@ PUT test-index?include_type_name=true
 -----------------------
 // CONSOLE
 
-IMPORTANT: Its recommended not to use the create index API with a policy that
+IMPORTANT: Do not to use the create index API with a policy that
 defines a rollover action. If you do so, the new index as the result of the
-rollover will not carry forward the policy. Always use index templates to
-define policies with rollover actions.
+rollover will not carry forward the policy. Always use
+<<applying-policy-to-template, index templates>> to define policies with rollover
+actions.

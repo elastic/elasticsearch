@@ -46,9 +46,9 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.document.RestBulkAction;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -364,11 +364,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         XContent xContent = xContentType.xContent();
         int line = 0;
         int from = 0;
-        int length = data.length();
         byte marker = xContent.streamSeparator();
         boolean typesDeprecationLogged = false;
         while (true) {
-            int nextMarker = findNextMarker(marker, from, data, length);
+            int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
                 break;
             }
@@ -477,7 +476,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                     add(new DeleteRequest(index, type, id).routing(routing)
                         .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm), payload);
                 } else {
-                    nextMarker = findNextMarker(marker, from, data, length);
+                    nextMarker = findNextMarker(marker, from, data);
                     if (nextMarker == -1) {
                         break;
                     }
@@ -501,8 +500,12 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 .create(true).setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                     } else if ("update".equals(action)) {
+                        if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
+                            throw new IllegalArgumentException("Update requests do not support versioning. " +
+                                "Please use `if_seq_no` and `if_primary_term` instead");
+                        }
                         UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).retryOnConflict(retryOnConflict)
-                                .version(version).versionType(versionType)
+                                .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .routing(routing);
                         // EMPTY is safe here because we never call namedObject
                         try (InputStream dataStream = sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType).streamInput();
@@ -515,14 +518,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                         }
                         IndexRequest upsertRequest = updateRequest.upsertRequest();
                         if (upsertRequest != null) {
-                            upsertRequest.version(version);
-                            upsertRequest.versionType(versionType);
                             upsertRequest.setPipeline(defaultPipeline);
-                        }
-                        IndexRequest doc = updateRequest.doc();
-                        if (doc != null) {
-                            doc.version(version);
-                            doc.versionType(versionType);
                         }
 
                         internalAdd(updateRequest, payload);
@@ -618,16 +614,16 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return globalRouting;
     }
 
-    private int findNextMarker(byte marker, int from, BytesReference data, int length) {
-        for (int i = from; i < length; i++) {
-            if (data.get(i) == marker) {
-                return i;
-            }
+    private static int findNextMarker(byte marker, int from, BytesReference data) {
+        final int res = data.indexOf(marker, from);
+        if (res != -1) {
+            assert res >= 0;
+            return res;
         }
-        if (from != length) {
+        if (from != data.length()) {
             throw new IllegalArgumentException("The bulk request must be terminated by a newline [\n]");
         }
-        return -1;
+        return res;
     }
 
     @Override

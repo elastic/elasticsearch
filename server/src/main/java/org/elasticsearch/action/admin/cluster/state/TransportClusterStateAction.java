@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -41,8 +42,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.function.Predicate;
-
-import static org.elasticsearch.discovery.zen.PublishClusterStateAction.serializeFullClusterState;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
@@ -155,6 +154,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.metaData()) {
             if (request.indices().length > 0) {
+                mdBuilder.version(currentState.metaData().version());
                 String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
@@ -183,7 +183,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             }
         }
         listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(),
-            serializeFullClusterState(currentState, Version.CURRENT).length(), false));
+            PublicationTransportHandler.serializeFullClusterState(currentState, Version.CURRENT).length(), false));
     }
 
 

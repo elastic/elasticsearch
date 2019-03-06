@@ -141,7 +141,7 @@ INTERVAL 1 DAY + INTERVAL 53 MINUTES
 ;
 
 datePlusIntervalInline
-SELECT CAST('1969-05-13T12:34:56' AS DATE) + INTERVAL 49 YEARS AS result;
+SELECT CAST('1969-05-13T12:34:56' AS DATETIME) + INTERVAL 49 YEARS AS result;
 
        result       
 --------------------
@@ -183,7 +183,7 @@ SELECT -2 * INTERVAL '1 23:45' DAY TO MINUTES AS result;
 ;
 
 dateMinusInterval
-SELECT CAST('2018-05-13T12:34:56' AS DATE) - INTERVAL '2-8' YEAR TO MONTH AS result; 
+SELECT CAST('2018-05-13T12:34:56' AS DATETIME) - INTERVAL '2-8' YEAR TO MONTH AS result;
 
        result       
 --------------------

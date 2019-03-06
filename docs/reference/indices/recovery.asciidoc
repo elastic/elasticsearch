@@ -24,7 +24,7 @@ indices recovery result.
 [source,js]
 --------------------------------------------------
 # create the index
-PUT index1?include_type_name=true
+PUT index1
 {"settings": {"index.number_of_shards": 1}}
 
 # create the repository

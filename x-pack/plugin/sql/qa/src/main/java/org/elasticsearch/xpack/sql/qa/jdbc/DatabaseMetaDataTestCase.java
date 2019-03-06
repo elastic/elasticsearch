@@ -71,12 +71,12 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    public void testGetTableTypes() throws Exception {
+    public void testGetTypeOfTables() throws Exception {
         index("test1", body -> body.field("name", "bob"));
         index("test2", body -> body.field("name", "bob"));
 
         try (Connection h2 = LocalH2.anonymousDb(); Connection es = esJdbc()) {
-            h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_table_types.sql'");
+            h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_types_of_table.sql'");
 
             CheckedSupplier<ResultSet, SQLException> all = () -> h2.createStatement()
                     .executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
@@ -85,6 +85,23 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
                     h2.createStatement()
                             .executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock WHERE TABLE_NAME = 'test1'"),
                     es.getMetaData().getTables("%", "%", "test1", new String[] { "BASE TABLE" }));
+        }
+    }
+
+    public void testGetTableTypes() throws Exception {
+        index("test1", body -> body.field("name", "bob"));
+        index("test2", body -> body.field("name", "bob"));
+
+        try (Connection h2 = LocalH2.anonymousDb(); Connection es = esJdbc()) {
+            h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_table_types.sql'");
+            assertResultSets(h2.createStatement().executeQuery("SELECT * FROM mock"), es.getMetaData().getTableTypes());
+        }
+    }
+
+    public void testGetCatalogs() throws Exception {
+        try (Connection h2 = LocalH2.anonymousDb(); Connection es = esJdbc()) {
+            assertResultSets(h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT"),
+                    es.getMetaData().getCatalogs());
         }
     }
 

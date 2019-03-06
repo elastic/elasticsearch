@@ -457,13 +457,13 @@ public final class TimestampFormatFinder {
          * and possibly also a "format" setting.
          */
         public Map<String, String> getEsDateMappingTypeWithFormat() {
-            if (jodaTimestampFormats.contains("TAI64N")) {
+            if (javaTimestampFormats.contains("TAI64N")) {
                 // There's no format for TAI64N in the timestamp formats used in mappings
                 return Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword");
             }
             Map<String, String> mapping = new LinkedHashMap<>();
             mapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
-            String formats = jodaTimestampFormats.stream().flatMap(format -> {
+            String formats = javaTimestampFormats.stream().flatMap(format -> {
                 switch (format) {
                     case "ISO8601":
                         return Stream.empty();

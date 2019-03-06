@@ -17,14 +17,12 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "is_published": {
-          "type": "boolean"
-        }
+    "properties": {
+      "is_published": {
+        "type": "boolean"
       }
     }
   }

@@ -130,8 +130,8 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
             c.preparePutRole(rname)
                     .cluster("all", "none")
                     .runAs("root", "nobody")
-                    .addIndices(new String[]{"index"}, new String[]{"read"},
-                            new String[]{"body", "title"}, null, new BytesArray("{\"query\": {\"match_all\": {}}}"))
+                    .addIndices(new String[] { "index" }, new String[] { "read" }, new String[] { "body", "title" }, null,
+                            new BytesArray("{\"query\": {\"match_all\": {}}}"), randomBoolean())
                     .get();
             addedRoles.add(rname);
         }

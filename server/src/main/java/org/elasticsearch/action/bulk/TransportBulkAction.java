@@ -351,7 +351,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         case INDEX:
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                             final IndexMetaData indexMetaData = metaData.index(concreteIndex);
-                            MappingMetaData mappingMd = indexMetaData.mappingOrDefault(indexRequest.type());
+                            MappingMetaData mappingMd = indexMetaData.mappingOrDefault();
                             Version indexCreated = indexMetaData.getCreationVersion();
                             indexRequest.resolveRouting(metaData);
                             indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
@@ -635,10 +635,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
             if (itemResponses.isEmpty()) {
-                return ActionListener.wrap(
-                        response -> actionListener.onResponse(new BulkResponse(response.getItems(),
-                                response.getTook().getMillis(), ingestTookInMillis)),
-                        actionListener::onFailure);
+                return ActionListener.map(actionListener,
+                    response -> new BulkResponse(response.getItems(), response.getTook().getMillis(), ingestTookInMillis));
             } else {
                 return new IngestBulkResponseListener(ingestTookInMillis, originalSlots, itemResponses, actionListener);
             }

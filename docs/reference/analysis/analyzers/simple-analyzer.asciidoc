@@ -135,7 +135,7 @@ a starting point for further customization:
 
 [source,js]
 ----------------------------------------------------
-PUT /simple_example?include_type_name=true
+PUT /simple_example
 {
   "settings": {
     "analysis": {

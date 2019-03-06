@@ -14,7 +14,6 @@ setup:
   - do:
       index:
           index:  test_1
-          type:   _doc
           id:     id_1
           body:   { foo: bar, title: howdy }
 
@@ -64,4 +63,3 @@ setup:
           id:     id_1
           body:
             match_all: {}
-

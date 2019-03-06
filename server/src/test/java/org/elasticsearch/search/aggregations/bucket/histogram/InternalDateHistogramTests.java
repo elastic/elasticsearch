@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -28,8 +28,8 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
-import org.joda.time.DateTime;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -104,7 +104,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         TreeMap<Long, Long> expectedCounts = new TreeMap<>();
         for (Histogram histogram : inputs) {
             for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                expectedCounts.compute(((DateTime) bucket.getKey()).getMillis(),
+                expectedCounts.compute(((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli(),
                         (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
             }
         }
@@ -139,7 +139,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
 
         Map<Long, Long> actualCounts = new TreeMap<>();
         for (Histogram.Bucket bucket : reduced.getBuckets()) {
-            actualCounts.compute(((DateTime) bucket.getKey()).getMillis(),
+            actualCounts.compute(((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli(),
                     (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);

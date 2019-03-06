@@ -13,18 +13,16 @@ Create an index with two fields:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index?include_type_name=true
+PUT /my-index
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "message": {
-                    "type": "text"
-                },
-                "query": {
-                    "type": "percolator"
-                }
-            }
+        "properties": {
+             "message": {
+                 "type": "text"
+             },
+             "query": {
+                 "type": "percolator"
+             }
         }
     }
 }

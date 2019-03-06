@@ -62,7 +62,6 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
 
         // enable auditing
         settingsBuilder.put("xpack.security.audit.enabled", "true");
-        settingsBuilder.put("xpack.security.audit.outputs", "logfile");
         // add only startup filter policies
         settingsBuilder.put(startupFilterSettings);
         return settingsBuilder.build();

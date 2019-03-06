@@ -69,35 +69,33 @@ could use the following template:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "integers": {
-            "match_mapping_type": "long",
-            "mapping": {
-              "type": "integer"
-            }
+    "dynamic_templates": [
+      {
+        "integers": {
+          "match_mapping_type": "long",
+          "mapping": {
+            "type": "integer"
           }
-        },
-        {
-          "strings": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "text",
-              "fields": {
-                "raw": {
-                  "type":  "keyword",
-                  "ignore_above": 256
-                }
+        }
+      },
+      {
+        "strings": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "text",
+            "fields": {
+              "raw": {
+                "type":  "keyword",
+                "ignore_above": 256
               }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 
@@ -125,23 +123,21 @@ fields:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "longs_as_strings": {
-            "match_mapping_type": "string",
-            "match":   "long_*",
-            "unmatch": "*_text",
-            "mapping": {
-              "type": "long"
-            }
+    "dynamic_templates": [
+      {
+        "longs_as_strings": {
+          "match_mapping_type": "string",
+          "match":   "long_*",
+          "unmatch": "*_text",
+          "mapping": {
+            "type": "long"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 
@@ -181,23 +177,21 @@ top-level `full_name` field, except for the `middle` field:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "full_name": {
-            "path_match":   "name.*",
-            "path_unmatch": "*.middle",
-            "mapping": {
-              "type":       "text",
-              "copy_to":    "full_name"
-            }
+    "dynamic_templates": [
+      {
+        "full_name": {
+          "path_match":   "name.*",
+          "path_unmatch": "*.middle",
+          "mapping": {
+            "type":       "text",
+            "copy_to":    "full_name"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 
@@ -222,32 +216,30 @@ field, and disables <<doc-values,`doc_values`>> for all non-string fields:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "named_analyzers": {
-            "match_mapping_type": "string",
-            "match": "*",
-            "mapping": {
-              "type": "text",
-              "analyzer": "{name}"
-            }
-          }
-        },
-        {
-          "no_doc_values": {
-            "match_mapping_type":"*",
-            "mapping": {
-              "type": "{dynamic_type}",
-              "doc_values": false
-            }
+    "dynamic_templates": [
+      {
+        "named_analyzers": {
+          "match_mapping_type": "string",
+          "match": "*",
+          "mapping": {
+            "type": "text",
+            "analyzer": "{name}"
           }
         }
-      ]
-    }
+      },
+      {
+        "no_doc_values": {
+          "match_mapping_type":"*",
+          "mapping": {
+            "type": "{dynamic_type}",
+            "doc_values": false
+          }
+        }
+      }
+    ]
   }
 }
 
@@ -276,21 +268,19 @@ you will have to search on the exact same value that was indexed.
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "strings_as_keywords": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "keyword"
-            }
+    "dynamic_templates": [
+      {
+        "strings_as_keywords": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "keyword"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 --------------------------------------------------
@@ -306,21 +296,19 @@ before 5.0):
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "strings_as_text": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "text"
-            }
+    "dynamic_templates": [
+      {
+        "strings_as_text": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "text"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 --------------------------------------------------
@@ -334,28 +322,26 @@ disable the storage of these scoring factors in the index and save some space.
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "strings_as_keywords": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "text",
-              "norms": false,
-              "fields": {
-                "keyword": {
-                  "type": "keyword",
-                  "ignore_above": 256
-                }
+    "dynamic_templates": [
+      {
+        "strings_as_keywords": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "text",
+            "norms": false,
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "ignore_above": 256
               }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 --------------------------------------------------
@@ -375,31 +361,29 @@ maybe gain some indexing speed:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "unindexed_longs": {
-            "match_mapping_type": "long",
-            "mapping": {
-              "type": "long",
-              "index": false
-            }
-          }
-        },
-        {
-          "unindexed_doubles": {
-            "match_mapping_type": "double",
-            "mapping": {
-              "type": "float", <1>
-              "index": false
-            }
+    "dynamic_templates": [
+      {
+        "unindexed_longs": {
+          "match_mapping_type": "long",
+          "mapping": {
+            "type": "long",
+            "index": false
           }
         }
-      ]
-    }
+      },
+      {
+        "unindexed_doubles": {
+          "match_mapping_type": "double",
+          "mapping": {
+            "type": "float", <1>
+            "index": false
+          }
+        }
+      }
+    ]
   }
 }
 --------------------------------------------------

@@ -62,7 +62,7 @@ public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<
 
         long millis = System.currentTimeMillis();
         Bucket bucket = new TestBucket(singletonMap(extractor.key(), millis), randomLong(), new Aggregations(emptyList()));
-        assertEquals(DateUtils.of(millis, extractor.zoneId()), extractor.extract(bucket));
+        assertEquals(DateUtils.asDateTime(millis, extractor.zoneId()), extractor.extract(bucket));
     }
 
     public void testExtractIncorrectDateKey() {

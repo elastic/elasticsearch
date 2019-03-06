@@ -154,7 +154,7 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
             .query("SELECT * FROM test").get();
         SearchSourceBuilder source = response.source();
         assertThat(source.docValueFields(), Matchers.contains(
-                new DocValueFieldsContext.FieldAndFormat("count", DocValueFieldsContext.USE_DEFAULT_FORMAT)));
+                new DocValueFieldsContext.FieldAndFormat("count", null)));
         FetchSourceContext fetchSource = source.fetchSource();
         assertThat(fetchSource.includes(), Matchers.arrayContaining("data"));
     }

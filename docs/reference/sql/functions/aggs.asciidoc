@@ -3,8 +3,6 @@
 [[sql-functions-aggs]]
 === Aggregate Functions
 
-beta[]
-
 Functions for computing a _single_ result from a set of input values.
 {es-sql} supports aggregate functions only alongside <<sql-syntax-group-by,grouping>> (implicit or explicit).
 
@@ -113,6 +111,196 @@ Returns the total number of _distinct non-null_ values in input values.
 include-tagged::{sql-specs}/docs.csv-spec[aggCountDistinct]
 --------------------------------------------------
 
+[[sql-functions-aggs-first]]
+===== `FIRST/FIRST_VALUE`
+
+.Synopsis:
+[source, sql]
+----------------------------------------------
+FIRST(field_name<1>[, ordering_field_name]<2>)
+----------------------------------------------
+
+*Input*:
+
+<1> target field for the aggregation
+<2> optional field used for ordering
+
+*Output*: same type as the input
+
+.Description:
+
+Returns the first **non-NULL** value (if such exists) of the `field_name` input column sorted by
+the `ordering_field_name` column. If `ordering_field_name` is not provided, only the `field_name`
+column is used for the sorting. E.g.:
+
+[cols="<,<"]
+|===
+s| a    | b
+
+ | 100  | 1
+ | 200  | 1
+ | 1    | 2
+ | 2    | 2
+ | 10   | null
+ | 20   | null
+ | null | null
+|===
+
+[source, sql]
+----------------------
+SELECT FIRST(a) FROM t
+----------------------
+
+will result in:
+[cols="<"]
+|===
+s| FIRST(a)
+ | 1
+|===
+
+and
+
+[source, sql]
+-------------------------
+SELECT FIRST(a, b) FROM t
+-------------------------
+
+will result in:
+[cols="<"]
+|===
+s| FIRST(a, b)
+ | 100
+|===
+
+
+["source","sql",subs="attributes,macros"]
+-----------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[firstWithOneArg]
+-----------------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[firstWithOneArgAndGroupBy]
+--------------------------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+-----------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[firstWithTwoArgs]
+-----------------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+---------------------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[firstWithTwoArgsAndGroupBy]
+---------------------------------------------------------------------
+
+`FIRST_VALUE` is a name alias and can be used instead of `FIRST`, e.g.:
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[firstValueWithTwoArgsAndGroupBy]
+--------------------------------------------------------------------------
+
+[NOTE]
+`FIRST` cannot be used in a HAVING clause.
+[NOTE]
+`FIRST` cannot be used with columns of type <<text, `text`>> unless
+the field is also <<before-enabling-fielddata,saved as a keyword>>.
+
+[[sql-functions-aggs-last]]
+===== `LAST/LAST_VALUE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+LAST(field_name<1>[, ordering_field_name]<2>)
+--------------------------------------------------
+
+*Input*:
+
+<1> target field for the aggregation
+<2> optional field used for ordering
+
+*Output*: same type as the input
+
+.Description:
+
+It's the inverse of <<sql-functions-aggs-first>>. Returns the last **non-NULL** value (if such exists) of the
+`field_name`input column sorted descending by the `ordering_field_name` column. If `ordering_field_name` is not
+provided, only the `field_name` column is used for the sorting. E.g.:
+
+[cols="<,<"]
+|===
+s| a    | b
+
+ | 10   | 1
+ | 20   | 1
+ | 1    | 2
+ | 2    | 2
+ | 100  | null
+ | 200  | null
+ | null | null
+|===
+
+[source, sql]
+------------------------
+SELECT LAST(a) FROM t
+------------------------
+
+will result in:
+[cols="<"]
+|===
+s| LAST(a)
+ | 200
+|===
+
+and
+
+[source, sql]
+------------------------
+SELECT LAST(a, b) FROM t
+------------------------
+
+will result in:
+[cols="<"]
+|===
+s| LAST(a, b)
+ | 2
+|===
+
+
+["source","sql",subs="attributes,macros"]
+-----------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[lastWithOneArg]
+-----------------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+-------------------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[lastWithOneArgAndGroupBy]
+-------------------------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+-----------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[lastWithTwoArgs]
+-----------------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[lastWithTwoArgsAndGroupBy]
+--------------------------------------------------------------------
+
+`LAST_VALUE` is a name alias and can be used instead of `LAST`, e.g.:
+
+["source","sql",subs="attributes,macros"]
+-------------------------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[lastValueWithTwoArgsAndGroupBy]
+-------------------------------------------------------------------------
+
+[NOTE]
+`LAST` cannot be used in `HAVING` clause.
+[NOTE]
+`LAST` cannot be used with columns of type <<text, `text`>> unless
+the field is also <<before-enabling-fielddata,`saved as a keyword`>>.
+
 [[sql-functions-aggs-max]]
 ===== `MAX`
 
@@ -137,6 +325,10 @@ Returns the maximum value across input values in the field `field_name`.
 include-tagged::{sql-specs}/docs.csv-spec[aggMax]
 --------------------------------------------------
 
+[NOTE]
+`MAX` on a field of type <<text, `text`>> or <<keyword, `keyword`>> is translated into
+<<sql-functions-aggs-last>> and therefore, it cannot be used in `HAVING` clause.
+
 [[sql-functions-aggs-min]]
 ===== `MIN`
 
@@ -160,6 +352,10 @@ Returns the minimum value across input values in the field `field_name`.
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[aggMin]
 --------------------------------------------------
+
+[NOTE]
+`MIN` on a field of type <<text, `text`>> or <<keyword, `keyword`>> is translated into
+<<sql-functions-aggs-first>> and therefore, it cannot be used in `HAVING` clause.
 
 [[sql-functions-aggs-sum]]
 ===== `SUM`

@@ -30,11 +30,13 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final TimeValue pageTimeout;
     @Nullable
     private final ToXContent filter;
+    private final Boolean columnar;
     private final List<SqlTypedParamValue> params;
 
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize,
-                           TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, String cursor, RequestInfo requestInfo) {
+                           TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, Boolean columnar,
+                           String cursor, RequestInfo requestInfo) {
         super(requestInfo);
         this.query = query;
         this.params = params;
@@ -43,17 +45,18 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
         this.filter = filter;
+        this.columnar = columnar;
         this.cursor = cursor;
     }
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ToXContent filter, ZoneId zoneId,
-                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
-        this(query, params, zoneId, fetchSize, requestTimeout, pageTimeout, filter, null, requestInfo);
+                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, boolean columnar, RequestInfo requestInfo) {
+        this(query, params, zoneId, fetchSize, requestTimeout, pageTimeout, filter, columnar, null, requestInfo);
     }
 
     public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
         this("", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
-             null, cursor, requestInfo);
+             null, false, cursor, requestInfo);
     }
 
     /**
@@ -113,6 +116,14 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     public ToXContent filter() {
         return filter;
     }
+    
+    /**
+     * Optional setting for returning the result values in a columnar fashion (as opposed to rows of values).
+     * Each column will have all its values in a list. Defaults to false.
+     */
+    public Boolean columnar() {
+        return columnar;
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -133,12 +144,13 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             Objects.equals(requestTimeout, that.requestTimeout) &&
             Objects.equals(pageTimeout, that.pageTimeout) &&
             Objects.equals(filter, that.filter) &&
+            Objects.equals(columnar,  that.columnar) &&
             Objects.equals(cursor, that.cursor);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout, filter, cursor);
+        return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout, filter, columnar, cursor);
     }
 
     @Override
@@ -172,6 +184,9 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         if (filter != null) {
             builder.field("filter");
             filter.toXContent(builder, params);
+        }
+        if (columnar != null) {
+            builder.field("columnar", columnar);
         }
         if (cursor != null) {
             builder.field("cursor", cursor);

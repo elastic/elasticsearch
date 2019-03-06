@@ -35,12 +35,12 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -64,13 +64,9 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.PeerFinder;
-import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.FaultDetection;
-import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.discovery.SeedHostsResolver;
+import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
@@ -199,7 +195,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING,
                     FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,
                     FsRepository.REPOSITORIES_CHUNK_SIZE_SETTING,
-                    FsRepository.REPOSITORIES_COMPRESS_SETTING,
                     FsRepository.REPOSITORIES_LOCATION_SETTING,
                     IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                     IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
@@ -229,10 +224,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,
                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
                     DestructiveOperations.REQUIRES_NAME_SETTING,
-                    DiscoverySettings.PUBLISH_TIMEOUT_SETTING,
-                    DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING,
-                    DiscoverySettings.COMMIT_TIMEOUT_SETTING,
-                    DiscoverySettings.NO_MASTER_BLOCK_SETTING,
+                    NoMasterBlockService.NO_MASTER_BLOCK_SETTING,
                     GatewayService.EXPECTED_DATA_NODES_SETTING,
                     GatewayService.EXPECTED_MASTER_NODES_SETTING,
                     GatewayService.EXPECTED_NODES_SETTING,
@@ -290,7 +282,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ClusterService.USER_DEFINED_META_DATA,
                     SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                     SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
-                    ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
                     TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                     RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
                     RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS,
@@ -385,26 +376,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Environment.PATH_SHARED_DATA_SETTING,
                     Environment.PIDFILE_SETTING,
                     NodeEnvironment.NODE_ID_SEED_SETTING,
-                    DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING,
+                    Node.INITIAL_STATE_TIMEOUT_SETTING,
                     DiscoveryModule.DISCOVERY_TYPE_SETTING,
-                    DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING,
-                    FaultDetection.PING_RETRIES_SETTING,
-                    FaultDetection.PING_TIMEOUT_SETTING,
-                    FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING,
-                    FaultDetection.PING_INTERVAL_SETTING,
-                    FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING,
-                    ZenDiscovery.PING_TIMEOUT_SETTING,
-                    ZenDiscovery.JOIN_TIMEOUT_SETTING,
-                    ZenDiscovery.JOIN_RETRY_ATTEMPTS_SETTING,
-                    ZenDiscovery.JOIN_RETRY_DELAY_SETTING,
-                    ZenDiscovery.MAX_PINGS_FROM_ANOTHER_MASTER_SETTING,
-                    ZenDiscovery.SEND_LEAVE_REQUEST_SETTING,
-                    ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING,
-                    ZenDiscovery.MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING,
-                    ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING,
-                    SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
-                    UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING,
-                    UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT,
+                    DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING,
+                    SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING,
+                    SeedHostsResolver.DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING,
+                    SeedHostsResolver.DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING,
                     SearchService.DEFAULT_KEEPALIVE_SETTING,
                     SearchService.KEEPALIVE_INTERVAL_SETTING,
                     SearchService.MAX_KEEPALIVE_SETTING,
@@ -487,9 +464,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
                     ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
                     ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
-                    LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
-                    DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING,
-                    DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING
+                    LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING
             )));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(

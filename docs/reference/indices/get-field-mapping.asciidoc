@@ -9,19 +9,17 @@ For example, consider the following mapping:
 
 [source,js]
 --------------------------------------------------
-PUT publications?include_type_name=true
+PUT publications
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "id": { "type": "text" },
-                "title":  { "type": "text"},
-                "abstract": { "type": "text"},
-                "author": {
-                    "properties": {
-                        "id": { "type": "text" },
-                        "name": { "type": "text" }
-                    }
+        "properties": {
+            "id": { "type": "text" },
+            "title":  { "type": "text"},
+            "abstract": { "type": "text"},
+            "author": {
+                "properties": {
+                    "id": { "type": "text" },
+                    "name": { "type": "text" }
                 }
             }
         }

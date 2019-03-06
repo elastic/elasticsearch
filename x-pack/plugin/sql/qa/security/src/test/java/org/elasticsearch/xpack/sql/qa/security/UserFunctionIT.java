@@ -37,6 +37,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.randomMode;
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 
 public class UserFunctionIT extends ESRestTestCase {
 
@@ -104,7 +105,6 @@ public class UserFunctionIT extends ESRestTestCase {
         assertResponse(expected, actual);
     }
     
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35980")
     public void testSingleRandomUserWithWhereEvaluatingFalse() throws IOException {
         index("{\"test\":\"doc1\"}",
               "{\"test\":\"doc2\"}",
@@ -178,7 +178,7 @@ public class UserFunctionIT extends ESRestTestCase {
     }
     
     private Map<String, Object> runSql(String asUser, HttpEntity entity) throws IOException {
-        Request request = new Request("POST", "/_sql");
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         if (asUser != null) {
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("es-security-runas-user", asUser);

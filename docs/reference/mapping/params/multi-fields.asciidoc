@@ -8,17 +8,15 @@ search, and as a `keyword` field for sorting or aggregations:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "city": {
-          "type": "text",
-          "fields": {
-            "raw": { <1>
-              "type":  "keyword"
-            }
+    "properties": {
+      "city": {
+        "type": "text",
+        "fields": {
+          "raw": { <1>
+            "type":  "keyword"
           }
         }
       }
@@ -76,18 +74,16 @@ which stems words into their root form:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "text": { <1>
-          "type": "text",
-          "fields": {
-            "english": { <2>
-              "type":     "text",
-              "analyzer": "english"
-            }
+    "properties": {
+      "text": { <1>
+        "type": "text",
+        "fields": {
+          "english": { <2>
+            "type":     "text",
+            "analyzer": "english"
           }
         }
       }

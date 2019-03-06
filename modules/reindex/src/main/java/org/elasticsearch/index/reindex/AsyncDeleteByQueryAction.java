@@ -23,27 +23,18 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * Implementation of delete-by-query using scrolling and bulk.
  */
-public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest> {
-    public AsyncDeleteByQueryAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                                    ThreadPool threadPool, DeleteByQueryRequest request, ScriptService scriptService,
-                                    ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
-        super(task, logger, client, threadPool, request, scriptService, clusterState, listener);
-    }
+public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
 
-    @Override
-    protected boolean needsSourceDocumentVersions() {
-        /*
-         * We always need the version of the source document so we can report a version conflict if we try to delete it and it has been
-         * changed.
-         */
-        return true;
+    public AsyncDeleteByQueryAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+                                    ThreadPool threadPool, TransportDeleteByQueryAction action, DeleteByQueryRequest request,
+                                    ScriptService scriptService, ActionListener<BulkByScrollResponse> listener) {
+        super(task, false, true, logger, client, threadPool, action, request, listener);
     }
 
     @Override
@@ -59,7 +50,8 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
         delete.index(doc.getIndex());
         delete.type(doc.getType());
         delete.id(doc.getId());
-        delete.version(doc.getVersion());
+        delete.setIfSeqNo(doc.getSeqNo());
+        delete.setIfPrimaryTerm(doc.getPrimaryTerm());
         return wrap(delete);
     }
 

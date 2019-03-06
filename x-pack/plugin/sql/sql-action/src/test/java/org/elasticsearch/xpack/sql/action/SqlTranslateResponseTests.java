@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.sql.action.SqlTranslateResponse;
 
@@ -20,7 +19,7 @@ public class SqlTranslateResponseTests extends AbstractStreamableTestCase<SqlTra
         if (randomBoolean()) {
             long docValues = iterations(5, 10);
             for (int i = 0; i < docValues; i++) {
-                s.docValueField(randomAlphaOfLength(10), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+                s.docValueField(randomAlphaOfLength(10));
             }
         }
 

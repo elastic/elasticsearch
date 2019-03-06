@@ -47,7 +47,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {field1: "value1"}
@@ -55,7 +54,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.field1: "value1" }
   - match: { _source._executed: true }
@@ -105,7 +103,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {field1: "value1"}
@@ -113,7 +110,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.field1: "value1" }
   - match: { _source.foofield: "exists" }
@@ -202,7 +198,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {}
@@ -210,6 +205,5 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.field: "value" }

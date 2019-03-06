@@ -25,6 +25,7 @@ import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
@@ -87,7 +88,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
         if (installTemplates()) {
             List<String> templates = new ArrayList<>();
             templates.addAll(Arrays.asList(AuditorField.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
-                    AnomalyDetectorsIndex.jobStateIndexName(),
+                    AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                     AnomalyDetectorsIndex.jobResultsIndexPrefix(),
                     AnomalyDetectorsIndex.configIndexName()));
 
@@ -104,13 +105,13 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
         if (isWatcherTest()) {
             assertBusy(() -> {
                 ClientYamlTestResponse response =
-                    getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
+                    getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
                 String state = (String) response.evaluate("stats.0.watcher_state");
 
                 switch (state) {
                     case "stopped":
                         ClientYamlTestResponse startResponse =
-                            getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+                            getAdminExecutionContext().callApi("watcher.start", emptyMap(), emptyList(), emptyMap());
                         boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
                         assertThat(isAcknowledged, is(true));
                         throw new AssertionError("waiting until stopped state reached started state");

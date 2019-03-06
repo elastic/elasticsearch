@@ -63,11 +63,14 @@ public class TransportBulkShardOperationsAction
     @Override
     protected WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
             final BulkShardOperationsRequest request, final IndexShard primary) throws Exception {
+        if (logger.isTraceEnabled()) {
+            logger.trace("index [{}] on the following primary shard {}", request.getOperations(), primary.routingEntry());
+        }
         return shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(), request.getOperations(),
             request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
     }
 
-    static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
+    public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
         final Translog.Operation operationWithPrimaryTerm;
         switch (operation.opType()) {
             case INDEX:
@@ -134,6 +137,10 @@ public class TransportBulkShardOperationsAction
                     // replicated to replicas but with the existing primary term (not the current primary term) in order
                     // to guarantee the consistency between the primary and replicas, and between translog and Lucene index.
                     final AlreadyProcessedFollowingEngineException failure = (AlreadyProcessedFollowingEngineException) result.getFailure();
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("operation [{}] was processed before on following primary shard {} with existing term {}",
+                            targetOp, primary.routingEntry(), failure.getExistingPrimaryTerm());
+                    }
                     assert failure.getSeqNo() == targetOp.seqNo() : targetOp.seqNo() + " != " + failure.getSeqNo();
                     if (failure.getExistingPrimaryTerm().isPresent()) {
                         appliedOperations.add(rewriteOperationWithPrimaryTerm(sourceOp, failure.getExistingPrimaryTerm().getAsLong()));
@@ -156,6 +163,9 @@ public class TransportBulkShardOperationsAction
     @Override
     protected WriteReplicaResult<BulkShardOperationsRequest> shardOperationOnReplica(
             final BulkShardOperationsRequest request, final IndexShard replica) throws Exception {
+        if (logger.isTraceEnabled()) {
+            logger.trace("index [{}] on the following replica shard {}", request.getOperations(), replica.routingEntry());
+        }
         return shardOperationOnReplica(request, replica, logger);
     }
 

@@ -10,15 +10,14 @@
 [id="{upid}-{api}-request"]
 ==== Get Mappings Request
 
-A +{request}+ can have an optional list of indices and optional list of types:
+A +{request}+ can have an optional list of indices:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> An empty request that will return all indices and types
+<1> An empty request that will return all indices
 <2> Setting the indices to fetch mapping for
-<3> The types to be returned
 
 ==== Optional arguments
 The following arguments can also optionally be provided:
@@ -28,7 +27,6 @@ The following arguments can also optionally be provided:
 include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
-<2> Timeout to connect to the master node as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -49,5 +47,5 @@ executed operation as follows:
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Returning all indices' mappings
-<2> Retrieving the mappings for a particular index and type
+<2> Retrieving the mappings for a particular index
 <3> Getting the mappings as a Java Map

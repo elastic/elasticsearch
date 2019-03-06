@@ -67,7 +67,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
                     } catch (Exception ex) {
                         throw new RuntimeException(ex);
                     }
-                };
+                }
             };
             thread[i].start();
         }
@@ -120,7 +120,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
                     } catch (Exception ex) {
                         throw new RuntimeException(ex);
                     }
-                };
+                }
             };
             thread[i].start();
         }

@@ -27,9 +27,11 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
+import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskState;
 
 import java.io.File;
@@ -39,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -98,7 +101,23 @@ public class TestClustersPlugin implements Plugin<Project> {
             // the clusters will look for artifacts there based on the naming conventions.
             // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
             // the build.
-            rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, SyncTestClustersConfiguration.class);
+            rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, Sync.class, sync -> {
+                sync.from((Callable<List<FileTree>>) () ->
+                    helperConfiguration.getFiles()
+                        .stream()
+                        .map(file -> {
+                          if (file.getName().endsWith(".zip")) {
+                              return project.zipTree(file);
+                          } else if (file.getName().endsWith("tar.gz")) {
+                              return project.tarTree(file);
+                          } else {
+                              throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
+                          }
+                        })
+                        .collect(Collectors.toList())
+                );
+                sync.into(getTestClustersConfigurationExtractDir(project));
+            });
 
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
             // that are defined in the build script and the ones that will actually be used in this invocation of gradle
@@ -129,7 +148,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 project.getPath(),
                 name,
                 GradleServicesAdapter.getInstance(project),
-                SyncTestClustersConfiguration.getTestClustersConfigurationExtractDir(project),
+                getTestClustersConfigurationExtractDir(project),
                 new File(project.getBuildDir(), "testclusters")
             )
         );
@@ -249,8 +268,8 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    static File getTestClustersBuildDir(Project project) {
-        return new File(project.getRootProject().getBuildDir(), "testclusters");
+    static File getTestClustersConfigurationExtractDir(Project project) {
+        return new File(project.getRootProject().getBuildDir(), "testclusters/extract");
     }
 
     /**
@@ -276,9 +295,11 @@ public class TestClustersPlugin implements Plugin<Project> {
         project.afterEvaluate(ip -> container.forEach(esNode -> {
             // declare dependencies against artifacts needed by cluster formation.
             String dependency = String.format(
-                "org.elasticsearch.distribution.zip:%s:%s@zip",
-                esNode.getDistribution().getFileName(),
-                esNode.getVersion()
+                "unused:%s:%s:%s@%s",
+                esNode.getDistribution().getArtifactName(),
+                esNode.getVersion(),
+                esNode.getDistribution().getClassifier(),
+                esNode.getDistribution().getFileExtension()
             );
             logger.info("Cluster {} depends on {}", esNode.getName(), dependency);
             rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
@@ -332,7 +353,9 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
     private static void shutDownAllClusters() {
-        logger.info("Shutting down all test clusters", new RuntimeException());
+        if (logger.isDebugEnabled()) {
+            logger.debug("Shutting down all test clusters", new RuntimeException());
+        }
         synchronized (runningClusters) {
             runningClusters.forEach(each -> each.stop(true));
             runningClusters.clear();

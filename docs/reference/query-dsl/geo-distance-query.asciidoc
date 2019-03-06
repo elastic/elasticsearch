@@ -7,16 +7,14 @@ document:
 
 [source,js]
 --------------------------------------------------
-PUT /my_locations?include_type_name=true
+PUT /my_locations
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "pin": {
-                    "properties": {
-                        "location": {
-                            "type": "geo_point"
-                        }
+        "properties": {
+            "pin": {
+                "properties": {
+                    "location": {
+                        "type": "geo_point"
                     }
                 }
             }

@@ -61,7 +61,7 @@ public class IndexResolver {
     public enum IndexType {
 
         INDEX("BASE TABLE"),
-        ALIAS("ALIAS"),
+        ALIAS("VIEW"),
         // value for user types unrecognized
         UNKNOWN("UNKNOWN");
 
@@ -324,7 +324,9 @@ public class IndexResolver {
                 // if the name wasn't added before
                 final InvalidMappedField invalidF = invalidField;
                 final FieldCapabilities fieldCapab = fieldCap;
-                if (!flattedMapping.containsKey(name)) {
+                
+                EsField esField = flattedMapping.get(name);
+                if (esField == null || (invalidF != null && (esField instanceof InvalidMappedField) == false)) {
                     createField(name, fieldCaps, hierarchicalMapping, flattedMapping, s -> {
                         return invalidF != null ? invalidF : createField(s, fieldCapab.getType(), emptyMap(), fieldCapab.isAggregatable());
                     });
@@ -384,7 +386,7 @@ public class IndexResolver {
                 // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
                 boolean normalized = false;
                 return new KeywordEsField(fieldName, props, isAggregateable, length, normalized);
-            case DATE:
+            case DATETIME:
                 return new DateEsField(fieldName, props, isAggregateable);
             case UNSUPPORTED:
                 return new UnsupportedEsField(fieldName, typeName);

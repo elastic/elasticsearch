@@ -191,7 +191,7 @@ public class NativePrivilegeStore {
                         .map(NativePrivilegeStore::nameFromDocId)
                         .collect(TUPLES_TO_MAP);
                     clearRolesCache(listener, createdNames);
-                }, listener::onFailure), privileges.size(), Collections.emptyList());
+                }, listener::onFailure), privileges.size());
             for (ApplicationPrivilegeDescriptor privilege : privileges) {
                 innerPutPrivilege(privilege, refreshPolicy, groupListener);
             }
@@ -232,7 +232,7 @@ public class NativePrivilegeStore {
                             .map(NativePrivilegeStore::nameFromDocId)
                             .collect(TUPLES_TO_MAP);
                         clearRolesCache(listener, deletedNames);
-                    }, listener::onFailure), names.size(), Collections.emptyList());
+                    }, listener::onFailure), names.size());
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                         client.prepareDelete(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, toDocId(application, name))

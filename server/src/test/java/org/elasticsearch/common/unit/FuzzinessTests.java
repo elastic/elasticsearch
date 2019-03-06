@@ -242,21 +242,21 @@ public class FuzzinessTests extends ESTestCase {
     }
 
     public void testAsDistanceString() {
-        Fuzziness fuzziness = Fuzziness.build("0");
+        Fuzziness fuzziness = Fuzziness.fromEdits(0);
         assertEquals(0, fuzziness.asDistance(randomAlphaOfLengthBetween(0, 10)));
-        fuzziness = Fuzziness.build("1");
+        fuzziness = Fuzziness.fromEdits(1);
         assertEquals(1, fuzziness.asDistance(randomAlphaOfLengthBetween(0, 10)));
-        fuzziness = Fuzziness.build("2");
+        fuzziness = Fuzziness.fromEdits(2);
         assertEquals(2, fuzziness.asDistance(randomAlphaOfLengthBetween(0, 10)));
 
-        fuzziness = Fuzziness.build("AUTO");
+        fuzziness = Fuzziness.fromString("AUTO");
         assertEquals(0, fuzziness.asDistance(""));
         assertEquals(0, fuzziness.asDistance("ab"));
         assertEquals(1, fuzziness.asDistance("abc"));
         assertEquals(1, fuzziness.asDistance("abcde"));
         assertEquals(2, fuzziness.asDistance("abcdef"));
 
-        fuzziness = Fuzziness.build("AUTO:5,7");
+        fuzziness = Fuzziness.fromString("AUTO:5,7");
         assertEquals(0, fuzziness.asDistance(""));
         assertEquals(0, fuzziness.asDistance("abcd"));
         assertEquals(1, fuzziness.asDistance("abcde"));

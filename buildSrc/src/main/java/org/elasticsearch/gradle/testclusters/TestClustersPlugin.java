@@ -304,7 +304,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         // We need afterEvaluate here despite the fact that container is a domain object, we can't implement this with
         // all because fields can change after the fact.
         project.afterEvaluate(ip -> container.forEach(esNode -> {
-            final VersionCollection bwcVersions;
+            VersionCollection.UnreleasedVersionInfo unreleasedInfo;
             final List<Version> unreleased;
             {
                 ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
@@ -314,18 +314,16 @@ public class TestClustersPlugin implements Plugin<Project> {
                         throw new IllegalStateException("Expected project.bwcVersions to be of type VersionCollection " +
                             "but instead it was " + bwcVersionsObj.getClass());
                     }
-                    bwcVersions = (VersionCollection) bwcVersionsObj;
+                    final VersionCollection bwcVersions = (VersionCollection) bwcVersionsObj;
                     unreleased = ((VersionCollection) bwcVersionsObj).getUnreleased();
+                    unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(esNode.getVersion()));
                 } else {
                     logger.info("No version information available, assuming all versions used are released");
                     unreleased = Collections.emptyList();
-                    bwcVersions = null;
+                    unreleasedInfo = null;
                 }
             }
             if (unreleased.contains(Version.fromString(esNode.getVersion()))) {
-                VersionCollection.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(
-                    Version.fromString(esNode.getVersion())
-                );
                 Map<String, Object> projectNotation = new HashMap<>();
                 projectNotation.put("path", unreleasedInfo.gradleProjectPath);
                 projectNotation.put("configuration", esNode.getDistribution().getLiveConfiguration());

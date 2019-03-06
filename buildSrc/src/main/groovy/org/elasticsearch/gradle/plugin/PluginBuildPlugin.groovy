@@ -58,24 +58,24 @@ public class PluginBuildPlugin extends BuildPlugin {
             configurePublishing(project)
 
             if (project.plugins.hasPlugin(TestClustersPlugin.class) == false) {
-                project.integTestCluster.dependsOn(project.bundlePlugin)
+                project.integTestCluster.dependsOn(project.tasks.bundlePlugin)
                 if (isModule) {
                     project.integTestCluster.module(project)
                 } else {
                     project.integTestCluster.plugin(project.path)
                 }
             } else {
-                project.tasks.integTest.dependsOn(project.bundlePlugin)
+                project.tasks.integTest.dependsOn(project.tasks.bundlePlugin)
                 if (isModule) {
                     throw new RuntimeException("Testclusters does not support modules yet");
                 } else {
                     project.testClusters.integTestCluster.plugin(
-                            project.file(project.bundlePlugin.archiveFile)
+                            project.file(project.tasks.bundlePlugin.archiveFile)
                     )
                 }
             }
 
-            project.tasks.run.dependsOn(project.bundlePlugin)
+            project.tasks.run.dependsOn(project.tasks.bundlePlugin)
             if (isModule) {
                 project.tasks.run.clusterConfig.module(project)
                 project.tasks.run.clusterConfig.distribution = System.getProperty(
@@ -233,7 +233,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     protected void addNoticeGeneration(Project project) {
         File licenseFile = project.pluginProperties.extension.licenseFile
         if (licenseFile != null) {
-            project.bundlePlugin.from(licenseFile.parentFile) {
+            project.tasks.bundlePlugin.from(licenseFile.parentFile) {
                 include(licenseFile.name)
                 rename { 'LICENSE.txt' }
             }
@@ -242,7 +242,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         if (noticeFile != null) {
             NoticeTask generateNotice = project.tasks.create('generateNotice', NoticeTask.class)
             generateNotice.inputFile = noticeFile
-            project.bundlePlugin.from(generateNotice)
+            project.tasks.bundlePlugin.from(generateNotice)
         }
     }
 }

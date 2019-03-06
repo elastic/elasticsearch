@@ -1348,7 +1348,7 @@ public final class TokenService {
      * itself for versions after 7.0.0
      */
     public String getAccessTokenAsString(UserToken userToken) throws IOException, GeneralSecurityException {
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_8_0_0)) {
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_1_0)) {
             try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
                  OutputStream base64 = Base64.getEncoder().wrap(os);
                  StreamOutput out = new OutputStreamStreamOutput(base64)) {

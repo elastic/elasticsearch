@@ -194,7 +194,7 @@ class ClusterFormationTasks {
         }
         Version version = Version.fromString(elasticsearchVersion)
         String os = getOs()
-        String classifier = "${os}-x86_64"
+        String classifier = "-${os}-x86_64"
         String packaging = os.equals('windows') ? 'zip' : 'tar.gz'
         String artifactName = 'elasticsearch'
         if (distro.equals('oss') && Version.fromString(elasticsearchVersion).onOrAfter('6.3.0')) {
@@ -225,7 +225,7 @@ class ClusterFormationTasks {
                 classifier = "" // for bwc, before we had classifiers
             }
             // group does not matter as it is not used when we pull from the ivy repo that points to the download service
-            dependency = "dnm:${artifactName}:${elasticsearchVersion}-${classifier}@${packaging}"
+            dependency = "dnm:${artifactName}:${elasticsearchVersion}${classifier}@${packaging}"
         }
         project.dependencies.add(configuration.name, dependency)
     }

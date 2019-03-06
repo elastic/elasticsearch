@@ -436,12 +436,12 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         final String leaderCluster = "local";
 
         // tag::ccr-forget-follower-request
-        final ForgetFollowerRequest request = new ForgetFollowerRequest( // <1>
-                followerCluster,
-                followerIndex,
-                followerIndexUUID,
-                leaderCluster,
-                leaderIndex);
+        final ForgetFollowerRequest request = new ForgetFollowerRequest(
+                followerCluster, // <1>
+                followerIndex, // <2>
+                followerIndexUUID, // <3>
+                leaderCluster, // <4>
+                leaderIndex); // <5>
         // end::ccr-forget-follower-request
 
         // tag::ccr-forget-follower-execute
@@ -452,11 +452,11 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::ccr-forget-follower-response
         final BroadcastResponse.Shards shards = response.shards(); // <1>
-        final int total = shards.total();
-        final int successful = shards.successful();
-        final int skipped = shards.skipped();
-        final int failed = shards.failed();
-        shards.failures().forEach(failure -> {});
+        final int total = shards.total(); // <2>
+        final int successful = shards.successful(); // <3>
+        final int skipped = shards.skipped(); // <4>
+        final int failed = shards.failed(); // <5>
+        shards.failures().forEach(failure -> {}); // <6>
         // end::ccr-forget-follower-response
 
         // tag::ccr-forget-follower-execute-listener

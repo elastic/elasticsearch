@@ -82,10 +82,10 @@ public class JoinHelper {
 
     final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = ConcurrentCollections.newConcurrentSet();
 
-    public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
-                      TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
-                      BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
-                      Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators) {
+    JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
+               TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
+               BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
+               Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators) {
         this.masterService = masterService;
         this.transportService = transportService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
@@ -167,12 +167,12 @@ public class JoinHelper {
         };
     }
 
-    public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
-        sendJoinRequest(destination, optionalJoin, () -> {
-        });
+    boolean isJoinPending() {
+        // cannot use pendingOutgoingJoins.isEmpty() because it's not properly synchronized.
+        return pendingOutgoingJoins.iterator().hasNext();
     }
 
-    public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin, Runnable onCompletion) {
+    void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
         assert destination.isMasterNode() : "trying to join master-ineligible " + destination;
         final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
@@ -190,14 +190,12 @@ public class JoinHelper {
                     public void handleResponse(Empty response) {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.debug("successfully joined {} with {}", destination, joinRequest);
-                        onCompletion.run();
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
-                        onCompletion.run();
                     }
 
                     @Override

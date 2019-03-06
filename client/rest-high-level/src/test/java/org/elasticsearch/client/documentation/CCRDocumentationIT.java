@@ -423,6 +423,10 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue((putFollowResponse.isFollowIndexShardsAcked()));
         assertTrue(putFollowResponse.isIndexFollowingStarted());
 
+        final PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
+        AcknowledgedResponse pauseFollowResponse = client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+        assertTrue(pauseFollowResponse.isAcknowledged());
+
         final String followerCluster = highLevelClient().info(RequestOptions.DEFAULT).getClusterName().value();
         final Request statsRequest = new Request("GET", "/follower/_stats");
         final Response statsResponse = client().performRequest(statsRequest);
@@ -452,8 +456,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         final int successful = shards.successful();
         final int skipped = shards.skipped();
         final int failed = shards.failed();
-        final Collection<DefaultShardOperationFailedException> failures =
-                shards.failures();
+        shards.failures().forEach(failure -> {});
         // end::ccr-forget-follower-response
 
         // tag::ccr-forget-follower-execute-listener

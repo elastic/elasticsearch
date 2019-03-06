@@ -133,14 +133,20 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
         assertEquals(actual.status(), RestStatus.TOO_MANY_REQUESTS);
     }
 
+    public void testPhaseFailureWithoutSearchShardFailureAndCause() {
+        final ShardSearchFailure[] searchShardFailures = new ShardSearchFailure[0];
+        final String phase = randomFrom("fetch", "search", "other");
+        SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures", null, searchShardFailures);
+
+        assertEquals(actual.status(), RestStatus.SERVICE_UNAVAILABLE);
+    }
+
     public void testPhaseFailureWithSearchShardFailure() {
         final ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[randomIntBetween(1, 5)];
         for (int i = 0; i < shardSearchFailures.length; i++) {
             Exception cause = randomFrom(
                 new ParsingException(1, 2, "foobar", null),
-                new InvalidIndexTemplateException("foo", "bar"),
-                new TimestampParsingException("foo", null),
-                new NullPointerException()
+                new InvalidIndexTemplateException("foo", "bar")
             );
             shardSearchFailures[i] = new ShardSearchFailure(cause, new SearchShardTarget("node_" + i,
                 new ShardId("test", "_na_", i), null, OriginalIndices.NONE));
@@ -150,6 +156,6 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
         SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures",
             new EsRejectedExecutionException("ES rejected execution of fetch phase"), shardSearchFailures);
 
-        assertNotEquals(actual.status(), RestStatus.TOO_MANY_REQUESTS);
+        assertEquals(actual.status(), RestStatus.BAD_REQUEST);
     }
 }

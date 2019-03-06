@@ -57,22 +57,19 @@
             number_of_shards: "5"
             number_of_replicas: "0"
           mappings:
-            doc:
-              properties:
-                my_field:
-                  type: annotated_text
+            properties:
+              my_field:
+                type: annotated_text
 
   - do:
       index:
         index: annotated
-        type: doc
         id: 1
         body: 
             "my_field" : "[A](~MARK0&~MARK0) [B](~MARK1)"
   - do:
       index:
         index: annotated
-        type: doc
         id: 2
         body: 
             "my_field" : "[A](~MARK0) [C](~MARK2)"

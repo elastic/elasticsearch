@@ -555,8 +555,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         })
                 );
             } else {
-                transportService.sendRequest(
-                    transportService.getLocalNode(), UPDATE_SNAPSHOT_STATUS_ACTION_NAME_V6,
+                transportService.sendRequest(masterNode, UPDATE_SNAPSHOT_STATUS_ACTION_NAME_V6,
                     new UpdateSnapshotStatusRequestV6(snapshot, shardId, status), INSTANCE_SAME);
             }
         } catch (Exception e) {

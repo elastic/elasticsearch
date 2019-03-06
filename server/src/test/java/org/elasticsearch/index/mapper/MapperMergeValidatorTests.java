@@ -39,9 +39,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateMapperStructure(
                 singletonList(objectMapper),
                 emptyList(),
-                singletonList(aliasMapper),
-                emptyMap(),
-                new FieldTypeLookup()));
+                singletonList(aliasMapper)));
         assertEquals("Field [some.path] is defined both as an object and a field.", e.getMessage());
     }
 

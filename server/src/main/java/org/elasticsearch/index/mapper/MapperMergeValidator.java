@@ -40,26 +40,10 @@ class MapperMergeValidator {
      * @param objectMappers The newly added object mappers.
      * @param fieldMappers The newly added field mappers.
      * @param fieldAliasMappers The newly added field alias mappers.
-     * @param fullPathObjectMappers All object mappers, indexed by their full path.
-     * @param fieldTypes All field and field alias mappers, collected into a lookup structure.
      */
     public static void validateMapperStructure(Collection<ObjectMapper> objectMappers,
                                                Collection<FieldMapper> fieldMappers,
-                                               Collection<FieldAliasMapper> fieldAliasMappers,
-                                               Map<String, ObjectMapper> fullPathObjectMappers,
-                                               FieldTypeLookup fieldTypes) {
-        checkFieldUniqueness(objectMappers, fieldMappers,
-            fieldAliasMappers, fullPathObjectMappers, fieldTypes);
-        checkObjectsCompatibility(objectMappers, fullPathObjectMappers);
-    }
-
-    private static void checkFieldUniqueness(Collection<ObjectMapper> objectMappers,
-                                             Collection<FieldMapper> fieldMappers,
-                                             Collection<FieldAliasMapper> fieldAliasMappers,
-                                             Map<String, ObjectMapper> fullPathObjectMappers,
-                                             FieldTypeLookup fieldTypes) {
-
-        // first check within mapping
+                                               Collection<FieldAliasMapper> fieldAliasMappers) {
         Set<String> objectFullNames = new HashSet<>();
         for (ObjectMapper objectMapper : objectMappers) {
             String fullPath = objectMapper.fullPath();
@@ -78,33 +62,6 @@ class MapperMergeValidator {
                     throw new IllegalArgumentException("Field [" + name + "] is defined twice.");
                 }
             });
-
-        // then check other types
-        for (String fieldName : fieldNames) {
-            if (fullPathObjectMappers.containsKey(fieldName)) {
-                throw new IllegalArgumentException("[" + fieldName + "] is defined as a field but this name is " +
-                    "already used for an object");
-            }
-        }
-
-        for (String objectPath : objectFullNames) {
-            if (fieldTypes.get(objectPath) != null) {
-                throw new IllegalArgumentException("[" + objectPath + "] is defined as an object " +
-                    "but this name is already used for a field in other types");
-            }
-        }
-    }
-
-    private static void checkObjectsCompatibility(Collection<ObjectMapper> objectMappers,
-                                                  Map<String, ObjectMapper> fullPathObjectMappers) {
-        for (ObjectMapper newObjectMapper : objectMappers) {
-            ObjectMapper existingObjectMapper = fullPathObjectMappers.get(newObjectMapper.fullPath());
-            if (existingObjectMapper != null) {
-                // simulate a merge and ignore the result, we are just interested
-                // in exceptions here
-                existingObjectMapper.merge(newObjectMapper);
-            }
-        }
     }
 
     /**

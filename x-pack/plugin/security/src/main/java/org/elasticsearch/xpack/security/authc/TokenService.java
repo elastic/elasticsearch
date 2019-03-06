@@ -710,8 +710,7 @@ public final class TokenService {
      * Performs an asynchronous search request for the token document that contains the {@code refreshToken} and calls the listener with the
      * {@link SearchResponse}. In case of recoverable errors the SearchRequest is retried using an exponential backoff policy.
      */
-    private void findTokenFromRefreshToken(String refreshToken, Iterator<TimeValue> backoff,
-                                           ActionListener<SearchHit> listener) {
+    private void findTokenFromRefreshToken(String refreshToken, Iterator<TimeValue> backoff, ActionListener<SearchHit> listener) {
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("find token by refresh token", refreshToken, ex));
         final Consumer<Exception> maybeRetryOnFailure = ex -> {
             if (backoff.hasNext()) {
@@ -766,307 +765,288 @@ public final class TokenService {
     }
 
     /**
-     * Performs the actual refresh of the token with retries in case of certain exceptions that may be recoverable. The
-     * refresh involves two steps:
-     * First, we check if the token document is still valid for refresh ({@link TokenService#checkTokenDocForRefresh(Map, Authentication)}
-     * Then, in the case that the token has been refreshed within the previous 30 seconds (see
-     * {@link TokenService#checkLenientlyIfTokenAlreadyRefreshed(Map, Authentication)}), we do not create a new token document
-     * but instead retrieve the one that was created by the original refresh and return a user token and
-     * refresh token based on that ( see {@link TokenService#reIssueTokens(Map, String, ActionListener)} ).
-     * Otherwise this token document gets its refresh_token marked as refreshed, while also storing the Instant when it was
-     * refreshed along with a pointer to the new token document that holds the refresh_token that supersedes this one. The new
-     * document that contains the new access token and refresh token is created and finally the new access token and refresh token are
-     * returned to the listener.
+     * Performs the actual refresh of the token with retries in case of certain exceptions that may be recoverable. The refresh involves two
+     * steps: First, we check if the token document is still valid for refresh
+     * ({@link TokenService#checkTokenDocForRefresh(Map, Authentication)} Then, in the case that the token has been refreshed within the
+     * previous 30 seconds (see {@link TokenService#checkLenientlyIfTokenAlreadyRefreshed(Map, Authentication)}), we do not create a new
+     * token document but instead retrieve the one that was created by the original refresh and return a user token and refresh token based
+     * on that. Otherwise this token document gets its refresh_token marked as refreshed, while also storing the Instant when it was
+     * refreshed along with a pointer to the new token document that holds the refresh_token that supersedes this one. The new document that
+     * contains the new access token and refresh token is created and finally the new access token and refresh token are returned to the
+     * listener.
      */
     private void innerRefresh(String tokenDocId, Map<String, Object> source, long seqNo, long primaryTerm, Authentication clientAuth,
                               Iterator<TimeValue> backoff, Instant refreshRequested, ActionListener<Tuple<UserToken, String>> listener) {
         logger.debug("Attempting to refresh token [{}]", tokenDocId);
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
-        final Optional<ElasticsearchSecurityException> invalidSource = checkTokenDocForRefresh(source, clientAuth);
-        if (invalidSource.isPresent()) {
-            onFailure.accept(invalidSource.get());
-        } else {
-            if (eligibleForMultiRefresh(source, refreshRequested)) {
-                final Map<String, Object> refreshTokenSrc = (Map<String, Object>) source.get("refresh_token");
-                final String supersedingTokenDocId = (String) refreshTokenSrc.get("superseded_by");
-                logger.debug("Token document [{}] was recently refreshed, attempting to reuse [{}] for returning an " +
-                    "access token and refresh token", tokenDocId, supersedingTokenDocId);
-                final ActionListener<GetResponse> getSupersedingListener = new ActionListener<GetResponse>() {
-                    private final Consumer<Exception> maybeRetryOnFailure = ex -> {
-                        if (backoff.hasNext()) {
-                            final TimeValue backofTimeValue = backoff.next();
-                            logger.debug("retrying after [" + backofTimeValue + "] back off");
-                            final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                    .preserveContext(() -> getTokenDocAsync(supersedingTokenDocId, this));
-                            client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);
-                        } else {
-                            logger.warn("back off retries exhausted");
-                            onFailure.accept(ex);
-                        }
-                    };
+        final String refreshedNewTokenId;
+        try {
+            refreshedNewTokenId = checkTokenDocForRefresh(source, clientAuth);
+        } catch (ElasticsearchSecurityException e) {
+            onFailure.accept(e);
+            return;
+        }
+        if (refreshedNewTokenId != null) {
+            logger.debug("Token document [{}] was recently refreshed, when a new token document [{}] was generated. Reusing that result.",
+                    tokenDocId, refreshedNewTokenId);
+            getTokenDocAsync(refreshedNewTokenId, new ActionListener<GetResponse>() {
+                private final Consumer<Exception> maybeRetryOnFailure = ex -> {
+                    if (backoff.hasNext()) {
+                        final TimeValue backofTimeValue = backoff.next();
+                        logger.debug("retrying after [" + backofTimeValue + "] back off");
+                        final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
+                                .preserveContext(() -> getTokenDocAsync(refreshedNewTokenId, this));
+                        client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);
+                    } else {
+                        logger.warn("back off retries exhausted");
+                        onFailure.accept(ex);
+                    }
+                };
 
-                    @Override
-                    public void onResponse(GetResponse response) {
-                        if (response.isExists()) {
-                            logger.debug("Found superseding token document [{}] ", supersedingTokenDocId);
+                @Override
+                public void onResponse(GetResponse response) {
+                    if (response.isExists()) {
+                        logger.debug("found superseding token document [{}] for token document [{}]", refreshedNewTokenId, tokenDocId);
+                        final Tuple<UserToken, String> parsedTokens;
+                        try {
+                            parsedTokens = parseTokensFromDocument(response.getSource(), null);
+                        } catch (IOException e) {
+                            logger.error("unable to decode existing user token", e);
+                            listener.onFailure(invalidGrantException("could not refresh the requested token"));
+                            return;
+                        }
+                        listener.onResponse(parsedTokens);
+                    } else {
+                        // We retry this since the creation of the superseding token document might already be in flight but not
+                        // yet completed, triggered by a refresh request that came a few milliseconds ago
+                        logger.info("could not find superseding token document [{}] for token document [{}], retrying",
+                                refreshedNewTokenId, tokenDocId);
+                        maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (isShardNotAvailableException(e)) {
+                        logger.info("could not find superseding token document [{}] for refresh, retrying", refreshedNewTokenId);
+                        maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
+                    } else {
+                        logger.warn("could not find superseding token document [{}] for refresh", refreshedNewTokenId);
+                        onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                    }
+                }
+            });
+        } else {
+            final String newUserTokenId = UUIDs.randomBase64UUID();
+            final Map<String, Object> updateMap = new HashMap<>();
+            updateMap.put("refreshed", true);
+            updateMap.put("refresh_time", clock.instant().toEpochMilli());
+            updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
+            assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
+            assert primaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
+            final UpdateRequestBuilder updateRequest = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
+                    .setDoc("refresh_token", updateMap)
+                    .setFetchSource(true)
+                    .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                    .setIfSeqNo(seqNo)
+                    .setIfPrimaryTerm(primaryTerm);
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
+                    ActionListener.<UpdateResponse>wrap(updateResponse -> {
+                        if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
+                            logger.debug("updated the original token document to {}", updateResponse.getGetResult().sourceAsMap());
                             final Tuple<UserToken, String> parsedTokens;
                             try {
-                                parsedTokens = parseTokensFromDocument(response.getSource(), null);
+                                parsedTokens = parseTokensFromDocument(source, null);
                             } catch (IOException e) {
-                                logger.error("Unable to decode existing user token", e);
+                                logger.error("unable to decode the user token from document [{}]", tokenDocId);
                                 listener.onFailure(invalidGrantException("could not refresh the requested token"));
                                 return;
                             }
-                            listener.onResponse(parsedTokens);
-                        } else {
-                            // We retry this since the creation of the superseding token document might already be in flight but not
-                            // yet completed, triggered by a refresh request that came a few milliseconds ago
-                            logger.info("could not find superseding token document [{}] for token document [{}], retrying",
-                                    supersedingTokenDocId, tokenDocId);
-                            maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (isShardNotAvailableException(e)) {
-                            logger.info("could not find superseding token document [{}] for refresh, retrying", supersedingTokenDocId);
-                            maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
-                        } else {
-                            logger.warn("could not find superseding token document [{}] for refresh", supersedingTokenDocId);
-                            onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                        }
-                    }
-                };
-                getTokenDocAsync(supersedingTokenDocId, getSupersedingListener);
-            } else {
-                final Map<String, Object> userTokenSource = (Map<String, Object>)
-                    ((Map<String, Object>) source.get("access_token")).get("user_token");
-                final String authString = (String) userTokenSource.get("authentication");
-                final Integer version = (Integer) userTokenSource.get("version");
-                final Map<String, Object> metadata = (Map<String, Object>) userTokenSource.get("metadata");
-                Version authVersion = Version.fromId(version);
-                Authentication authentication;
-                try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(authString))) {
-                    in.setVersion(authVersion);
-                    authentication = new Authentication(in);
-                } catch (IOException e) {
-                    logger.error("failed to decode the authentication stored with token document [{}]", tokenDocId);
-                    onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                    return;
-                }
-                final String newUserTokenId = UUIDs.randomBase64UUID();
-                final Instant refreshTime = clock.instant();
-                Map<String, Object> updateMap = new HashMap<>();
-                updateMap.put("refreshed", true);
-                updateMap.put("refresh_time", refreshTime.toEpochMilli());
-                updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
-                UpdateRequestBuilder updateRequest =
-                    client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
-                        .setDoc("refresh_token", updateMap)
-                        .setFetchSource(true)
-                        .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-                assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
-                updateRequest.setIfSeqNo(seqNo);
-                assert primaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
-                updateRequest.setIfPrimaryTerm(primaryTerm);
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
-                    ActionListener.<UpdateResponse>wrap(
-                        updateResponse -> {
-                            if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
-                                logger.debug("updated the original token document to {}", updateResponse.getGetResult().sourceAsMap());
-                                createUserToken(newUserTokenId, authentication, clientAuth, metadata, true, listener);
-                            } else if (backoff.hasNext()) {
-                                logger.info("failed to update the original token document [{}], the update result was [{}]. Retrying",
+                            final UserToken toRefreshUserToken = parsedTokens.v1();
+                            createUserToken(newUserTokenId, toRefreshUserToken.getAuthentication(), clientAuth,
+                                    toRefreshUserToken.getMetadata(), true, listener);
+                        } else if (backoff.hasNext()) {
+                            logger.info("failed to update the original token document [{}], the update result was [{}]. Retrying",
                                     tokenDocId, updateResponse.getResult());
+                            final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
+                                    .preserveContext(() -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, backoff,
+                                            refreshRequested, listener));
+                            client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
+                        } else {
+                            logger.info("failed to update the original token document [{}] after all retries, "
+                                    + "the update result was [{}]. ", tokenDocId, updateResponse.getResult());
+                            listener.onFailure(invalidGrantException("could not refresh the requested token"));
+                        }
+                    }, e -> {
+                        Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        if (cause instanceof VersionConflictEngineException) {
+                            // The document has been updated by another thread, get it again.
+                            logger.debug("version conflict while updating document [{}], attempting to get it again", tokenDocId);
+                            getTokenDocAsync(tokenDocId, new ActionListener<GetResponse>() {
+                                @Override
+                                public void onResponse(GetResponse response) {
+                                    if (response.isExists()) {
+                                        innerRefresh(tokenDocId, response.getSource(), response.getSeqNo(), response.getPrimaryTerm(),
+                                                clientAuth, backoff, refreshRequested, listener);
+                                    } else {
+                                        logger.warn("could not find token document [{}] for refresh", tokenDocId);
+                                        onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    if (isShardNotAvailableException(e)) {
+                                        if (backoff.hasNext()) {
+                                            logger.info("could not get token document [{}] for refresh, retrying", tokenDocId);
+                                            final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
+                                                    .preserveContext(() -> getTokenDocAsync(tokenDocId, this));
+                                            client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
+                                        } else {
+                                            logger.warn("could not get token document [{}] for refresh after all retries", tokenDocId);
+                                            onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                                        }
+                                    } else {
+                                        onFailure.accept(e);
+                                    }
+                                }
+                            });
+                        } else if (isShardNotAvailableException(e)) {
+                            if (backoff.hasNext()) {
+                                logger.debug("failed to update the original token document [{}], retrying", tokenDocId);
                                 final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
                                         .preserveContext(() -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, backoff,
                                                 refreshRequested, listener));
                                 client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                             } else {
-                                logger.info("failed to update the original token document [{}] after all retries, " +
-                                    "the update result was [{}]. ", tokenDocId, updateResponse.getResult());
-                                listener.onFailure(invalidGrantException("could not refresh the requested token"));
+                                logger.warn("failed to update the original token document [{}], after all retries", tokenDocId);
+                                onFailure.accept(invalidGrantException("could not refresh the requested token"));
                             }
-                        }, e -> {
-                            Throwable cause = ExceptionsHelper.unwrapCause(e);
-                            if (cause instanceof VersionConflictEngineException) {
-                                //The document has been updated by another thread, get it again.
-                                logger.debug("version conflict while updating document [{}], attempting to get it again", tokenDocId);
-                                final ActionListener<GetResponse> getListener = new ActionListener<GetResponse>() {
-                                    @Override
-                                    public void onResponse(GetResponse response) {
-                                        if (response.isExists()) {
-                                            innerRefresh(tokenDocId, response.getSource(), response.getSeqNo(), response.getPrimaryTerm(),
-                                                    clientAuth, backoff, refreshRequested, listener);
-                                        } else {
-                                            logger.warn("could not find token document [{}] for refresh", tokenDocId);
-                                            onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                                        }
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        if (isShardNotAvailableException(e)) {
-                                            if (backoff.hasNext()) {
-                                                logger.info("could not get token document [{}] for refresh, retrying", tokenDocId);
-                                                final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                                        .preserveContext(() -> getTokenDocAsync(tokenDocId, this));
-                                                client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
-                                            } else {
-                                                logger.warn("could not get token document [{}] for refresh after all retries", tokenDocId);
-                                                onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                                            }
-                                        } else {
-                                            onFailure.accept(e);
-                                        }
-                                    }
-                                };
-                                getTokenDocAsync(tokenDocId, getListener);
-                            } else if (isShardNotAvailableException(e)) {
-                                if (backoff.hasNext()) {
-                                    logger.debug("failed to update the original token document [{}], retrying", tokenDocId);
-                                    final Runnable retryWithContextRunnable = client.threadPool().getThreadContext().preserveContext(
-                                            () -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, backoff, refreshRequested,
-                                                    listener));
-                                    client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
-                                } else {
-                                    logger.warn("failed to update the original token document [{}], after all retries", tokenDocId);
-                                    onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                                }
-                            } else {
-                                onFailure.accept(e);
-                            }
-                        }),
-                    client::update);
-            }
+                        } else {
+                            onFailure.accept(e);
+                        }
+                    }), client::update);
         }
+    }
+
+    /**
+     * Performs checks on the retrieved doc source and returns the id for the document containing the superseding - after the refresh -
+     * token, or {@code null} if the token was not refreshed. If the token cannot be refreshed an exception is thrown.
+     */
+    private String checkTokenDocForRefresh(Map<String, Object> source, Authentication clientAuth) throws ElasticsearchSecurityException {
+        checkRefreshTokenExpired(source);
+        final Map<String, Object> refreshTokenSource = getRefreshTokenSource(source);
+        checkRefreshTokenInvalidated(refreshTokenSource);
+        checkClientCanRefresh(refreshTokenSource, clientAuth);
+        final Map<String, Object> userTokenSource = getUserTokenSource(source);
+        return checkRepeatedRefreshes(refreshTokenSource, userTokenSource);
     }
 
     private void getTokenDocAsync(String tokenDocId, ActionListener<GetResponse> listener) {
-        GetRequest getRequest =
-            client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId).request();
+        GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
+                .setFetchSource(true)
+                .request();
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get);
     }
 
-    /**
-     * Performs checks on the retrieved source and returns an {@link Optional} with the exception
-     * if there is an issue that makes the retrieved token unsuitable to be refreshed
-     */
-    private Optional<ElasticsearchSecurityException> checkTokenDocForRefresh(Map<String, Object> source, Authentication clientAuth) {
-        final Map<String, Object> refreshTokenSrc = (Map<String, Object>) source.get("refresh_token");
-        final Map<String, Object> accessTokenSrc = (Map<String, Object>) source.get("access_token");
-        if (refreshTokenSrc == null || refreshTokenSrc.isEmpty()) {
-            return Optional.of(invalidGrantException("token document is missing the refresh_token object"));
-        } else if (accessTokenSrc == null || accessTokenSrc.isEmpty()) {
-            return Optional.of(invalidGrantException("token document is missing the access_token object"));
+    private void checkRefreshTokenExpired(Map<String, Object> source) throws ElasticsearchSecurityException {
+        final Long creationEpochMilli = (Long) source.get("creation_time");
+        if (creationEpochMilli == null) {
+            throw invalidGrantException("token document is missing creation time value");
         } else {
-            final Boolean refreshed = (Boolean) refreshTokenSrc.get("refreshed");
-            final Boolean invalidated = (Boolean) refreshTokenSrc.get("invalidated");
-            final Long creationEpochMilli = (Long) source.get("creation_time");
             final Instant creationTime = creationEpochMilli == null ? null : Instant.ofEpochMilli(creationEpochMilli);
-            final Map<String, Object> userTokenSrc = (Map<String, Object>) accessTokenSrc.get("user_token");
-            if (refreshed == null) {
-                return Optional.of(invalidGrantException("token document is missing refreshed value"));
-            } else if (invalidated == null) {
-                return Optional.of(invalidGrantException("token document is missing invalidated value"));
-            } else if (creationEpochMilli == null) {
-                return Optional.of(invalidGrantException("token document is missing creation time value"));
-            } else if (invalidated) {
-                return Optional.of(invalidGrantException("token has been invalidated"));
-            } else if (clock.instant().isAfter(creationTime.plus(24L, ChronoUnit.HOURS))) {
-                return Optional.of(invalidGrantException("refresh token is expired"));
-            } else if (userTokenSrc == null || userTokenSrc.isEmpty()) {
-                return Optional.of(invalidGrantException("token document is missing the user token info"));
-            } else if (userTokenSrc.get("authentication") == null) {
-                return Optional.of(invalidGrantException("token is missing authentication info"));
-            } else if (userTokenSrc.get("version") == null) {
-                return Optional.of(invalidGrantException("token is missing version value"));
-            } else if (userTokenSrc.get("metadata") == null) {
-                return Optional.of(invalidGrantException("token is missing metadata"));
-            } else {
-                return checkLenientlyIfTokenAlreadyRefreshed(source, clientAuth);
+            if (clock.instant().isAfter(creationTime.plus(24L, ChronoUnit.HOURS))) {
+                throw invalidGrantException("refresh token has expired");
             }
         }
     }
 
-    private Optional<ElasticsearchSecurityException> checkClient(Map<String, Object> refreshTokenSource, Authentication clientAuth) {
-        Map<String, Object> clientInfo = (Map<String, Object>) refreshTokenSource.get("client");
-        if (clientInfo == null) {
-            return Optional.of(invalidGrantException("token is missing client information"));
-        } else if (clientAuth.getUser().principal().equals(clientInfo.get("user")) == false) {
-            logger.warn("Token was originally created by [{}] but [{}] attempted to refresh it", clientInfo.get("user"),
-                clientAuth.getUser().principal());
-            return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
-        } else if (clientAuth.getAuthenticatedBy().getName().equals(clientInfo.get("realm")) == false) {
-            logger.warn("[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
-                clientInfo.get("user"), clientInfo.get("realm"), clientAuth.getAuthenticatedBy().getName());
-            return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
-        } else {
-            return Optional.empty();
+    private Map<String, Object> getRefreshTokenSource(Map<String, Object> source) throws ElasticsearchSecurityException {
+        final Map<String, Object> refreshTokenSource = (Map<String, Object>) source.get("refresh_token");
+        if (refreshTokenSource == null || refreshTokenSource.isEmpty()) {
+            throw invalidGrantException("token document is missing the refresh_token object");
+        }
+        return refreshTokenSource;
+    }
+
+    private void checkRefreshTokenInvalidated(Map<String, Object> refreshTokenSource) throws ElasticsearchSecurityException {
+        final Boolean invalidated = (Boolean) refreshTokenSource.get("invalidated");
+        if (invalidated == null) {
+            throw invalidGrantException("token document is missing invalidated value");
+        } else if(invalidated) {
+            throw invalidGrantException("token has already been invalidated");
         }
     }
 
+    private Map<String, Object> getUserTokenSource(Map<String, Object> source) throws ElasticsearchSecurityException {
+        final Map<String, Object> accessTokenSource = (Map<String, Object>) source.get("access_token");
+        if (accessTokenSource == null || accessTokenSource.isEmpty()) {
+            throw invalidGrantException("token document is missing the access_token object");
+        }
+        final Map<String, Object> userTokenSource = (Map<String, Object>) accessTokenSource.get("user_token");
+        if (userTokenSource == null || userTokenSource.isEmpty()) {
+            throw invalidGrantException("token document is missing the user token info");
+        }
+        return userTokenSource;
+    }
+
     /**
-     * Checks if the retrieved refresh token is already refreshed taking into consideration that we allow refresh tokens
-     * to be refreshed multiple times for a very small time window in order to gracefully handle multiple concurrent requests
-     * from clients
+     * If the token has been refreshed recently, returns the id of the doc containing the superseding token.
+     * If the token has not been refreshed returns {@code null}. Otherwise throws exception.
      */
-    @SuppressWarnings("unchecked")
-    private Optional<ElasticsearchSecurityException> checkLenientlyIfTokenAlreadyRefreshed(Map<String, Object> source,
-                                                                                           Authentication userAuth) {
-        final Map<String, Object> refreshTokenSrc = (Map<String, Object>) source.get("refresh_token");
-        final Map<String, Object> userTokenSource = (Map<String, Object>)
-            ((Map<String, Object>) source.get("access_token")).get("user_token");
-        final Integer version = (Integer) userTokenSource.get("version");
-        Version authVersion = Version.fromId(version);
-        final Boolean refreshed = (Boolean) refreshTokenSrc.get("refreshed");
+    private String checkRepeatedRefreshes(Map<String, Object> refreshTokenSource, Map<String, Object> userTokenSource)
+            throws ElasticsearchSecurityException {
+        final Boolean refreshed = (Boolean) refreshTokenSource.get("refreshed");
+        if (refreshed == null) {
+            throw invalidGrantException("token document is missing refreshed value");
+        }
+        final Integer versionInteger = (Integer) userTokenSource.get("version");
+        if (versionInteger == null) {
+            throw invalidGrantException("token is missing version value");
+        }
+        final Version authVersion = Version.fromId((Integer) userTokenSource.get("version"));
         if (refreshed) {
-            if (authVersion.onOrAfter(Version.V_8_0_0)) {
-                final Long refreshedEpochMilli = (Long) refreshTokenSrc.get("refresh_time");
-                final Instant refreshTime = refreshedEpochMilli == null ? null : Instant.ofEpochMilli(refreshedEpochMilli);
-                final String supersededBy = (String) refreshTokenSrc.get("superseded_by");
-                if (supersededBy == null) {
-                    return Optional.of(invalidGrantException("token document is missing superseded by value"));
-                } else if (refreshTime == null) {
-                    return Optional.of(invalidGrantException("token document is missing refresh time value"));
+            if (authVersion.onOrAfter(Version.V_7_1_0)) {
+                final Long refreshEpochMilli = (Long) refreshTokenSource.get("refresh_time");
+                final Instant refreshTime = refreshEpochMilli == null ? null : Instant.ofEpochMilli(refreshEpochMilli);
+                if (refreshTime == null) {
+                    throw invalidGrantException("token document is missing refresh time value");
                 } else if (clock.instant().isAfter(refreshTime.plus(30L, ChronoUnit.SECONDS))) {
-                    return Optional.of(invalidGrantException("token has already been refreshed more than 30 seconds in the past"));
+                    throw invalidGrantException("token has already been refreshed more than 30 seconds in the past");
+                } else if (clock.instant().isBefore(refreshTime.minus(30L, ChronoUnit.SECONDS))) {
+                    throw invalidGrantException("token has been refreshed more than 30 seconds in the future. clock skew too great.");
                 }
+                final String supersededBy = (String) refreshTokenSource.get("superseded_by");
+                if (supersededBy == null) {
+                    throw invalidGrantException("token document is missing superseded by value");
+                }
+                // token refreshed recently so we return the doc id for the containing doc
+                return supersededBy;
             } else {
-                return Optional.of(invalidGrantException("token has already been refreshed"));
+                // token refreshed and does not support multiple refreshes
+                throw invalidGrantException("token has already been refreshed");
             }
         }
-        return checkClient(refreshTokenSrc, userAuth);
+        return null;
     }
 
-    /**
-     * Checks if a refreshed token is eligible to be refreshed again. This is only allowed for versions after 7.1.0 and
-     * when the refresh_token contains the refresh_time and superseded_by fields and it has been refreshed in a specific
-     * time period of 60 seconds. The period is defined as 30 seconds before the token was refreshed until 30 seconds after. The
-     * time window needs to handle instants before the request time as we capture an instant early on in
-     * {@link TokenService#refreshToken(String, ActionListener)} and in the case of multiple concurrent requests,
-     * the {@code refreshRequested} when dealing with one of the subsequent requests might well be <em>before</em> the instant when
-     * the first of the requests refreshed the token.
-     *
-     * @param source The source of the token document that contains the originally refreshed token
-     * @param refreshRequested The instant when the this refresh request was acknowledged by the TokenService
-     */
-    private boolean eligibleForMultiRefresh(Map<String, Object> source, Instant refreshRequested) {
-        final Map<String, Object> refreshTokenSrc = (Map<String, Object>) source.get("refresh_token");
-        final Map<String, Object> userTokenSource = (Map<String, Object>)
-            ((Map<String, Object>) source.get("access_token")).get("user_token");
-        final Integer version = (Integer) userTokenSource.get("version");
-        Version authVersion = Version.fromId(version);
-        final Long refreshedEpochMilli = (Long) refreshTokenSrc.get("refresh_time");
-        final Instant refreshTime = refreshedEpochMilli == null ? null : Instant.ofEpochMilli(refreshedEpochMilli);
-        final String supersededBy = (String) refreshTokenSrc.get("superseded_by");
-        return authVersion.onOrAfter(Version.V_8_0_0)
-            && supersededBy != null
-            && refreshTime != null
-            && refreshRequested.isBefore(refreshTime.plus(30L, ChronoUnit.SECONDS))
-            && refreshRequested.isAfter(refreshTime.minus(30L, ChronoUnit.SECONDS));
+    private void checkClientCanRefresh(Map<String, Object> refreshTokenSource, Authentication clientAuth) throws ElasticsearchSecurityException {
+        final Map<String, Object> clientInfo = (Map<String, Object>) refreshTokenSource.get("client");
+        if (clientInfo == null) {
+            throw invalidGrantException("token is missing client information");
+        }
+        if (clientAuth.getUser().principal().equals(clientInfo.get("user")) == false) {
+            logger.warn("Token was originally created by [{}] but [{}] attempted to refresh it", clientInfo.get("user"),
+                    clientAuth.getUser().principal());
+            throw invalidGrantException("tokens must be refreshed by the creating client");
+        }
+        if (clientAuth.getAuthenticatedBy().getName().equals(clientInfo.get("realm")) == false) {
+            logger.warn("[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
+                    clientInfo.get("user"), clientInfo.get("realm"), clientAuth.getAuthenticatedBy().getName());
+            throw invalidGrantException("tokens must be refreshed by the creating client");
+        }
     }
+
 
     /**
      * Find stored refresh and access tokens that have not been invalidated or expired, and were issued against

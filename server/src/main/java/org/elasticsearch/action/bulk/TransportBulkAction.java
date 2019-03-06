@@ -185,11 +185,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         List<IndexTemplateMetaData> templates = MetaDataIndexTemplateService.findTemplates(metaData, indexRequest.index());
                         assert (templates != null);
                         String defaultPipeline = IngestService.NOOP_PIPELINE_NAME;
-                        // apply templates, here, in reverse order, since first ones are better matching
-                        for (int i = templates.size() - 1; i >= 0; i--) {
-                            Settings settings = templates.get(i).settings();
-                            if(IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
+                        // order of templates are highest order first, break if we find a default_pipeline
+                        for (IndexTemplateMetaData template : templates) {
+                            final Settings settings = template.settings();
+                            if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
                                 defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
+                                break;
                             }
                         }
                         indexRequest.setPipeline(defaultPipeline);

@@ -1321,6 +1321,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(7, countResponse.getCount());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39754")
     public void testCountAllIndicesNoQuery() throws IOException {
         CountRequest countRequest = new CountRequest();
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);

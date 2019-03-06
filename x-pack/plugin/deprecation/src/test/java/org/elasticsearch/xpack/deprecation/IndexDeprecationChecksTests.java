@@ -63,6 +63,23 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertEquals(singletonList(expected), issues);
     }
 
+    public void testUnupgradedWatcherIndexCheck() {
+        Version createdWith = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+            VersionUtils.getPreviousVersion(Version.V_6_0_0));
+        IndexMetaData indexMetaData = IndexMetaData.builder(".watches")
+            .settings(settings(createdWith))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            ".watches was not properly upgraded before upgrading to Elasticsearch 6",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-upgrade.html",
+            "The .watches index was created before version 6.0, and was not properly upgraded in 5.6. " +
+                "Please upgrade this index using the Migration Upgrade API.");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        assertEquals(singletonList(expected), issues);
+    }
+
     public void testMultipleTypesCheckWithDefaultMapping() throws IOException {
         String mappingName1 = randomAlphaOfLengthBetween(2, 5);
         String mappingJson1 = "{\n" +

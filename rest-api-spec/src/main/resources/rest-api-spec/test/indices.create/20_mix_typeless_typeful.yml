@@ -121,9 +121,22 @@
                               type: keyword
 
  - do:
-      catch: /the final mapping would have more than 1 type/
       index:
           index: test-1
           type: _doc
           body: { bar: 42 }
 
+# This cluster health call guarantees that changes are visible to the get-mappings API
+ - do:
+      cluster.health:
+          wait_for_events: normal
+
+ - do:
+      indices.get_mapping:
+          include_type_name: true
+          index: test-1
+
+ - is_true: test-1.mappings.my_type # the template is honored
+ - is_false: test-1.mappings._doc
+ - is_true: test-1.mappings.my_type.properties.foo
+ - is_true: test-1.mappings.my_type.properties.bar

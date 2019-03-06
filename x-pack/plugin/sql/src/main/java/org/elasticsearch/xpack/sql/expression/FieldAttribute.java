@@ -81,12 +81,13 @@ public class FieldAttribute extends TypedAttribute {
         return nestedParent;
     }
 
-    public boolean isInexact() {
-        return field.isExact() == false;
+    public EsField.Exact getExactInfo() {
+        return field.getExactInfo();
     }
 
     public FieldAttribute exactAttribute() {
-        if (field.isExact() == false) {
+        EsField exactField = field.getExactField();
+        if (exactField.equals(field) == false) {
             return innerField(field.getExactField());
         }
         return this;

@@ -1044,7 +1044,7 @@ public final class TokenService {
         Version authVersion = Version.fromId(version);
         final Boolean refreshed = (Boolean) refreshTokenSrc.get("refreshed");
         if (refreshed) {
-            if (authVersion.onOrAfter(Version.V_8_0_0)) {
+            if (authVersion.onOrAfter(Version.V_7_1_0)) {
                 final Long refreshedEpochMilli = (Long) refreshTokenSrc.get("refresh_time");
                 final Instant refreshTime = refreshedEpochMilli == null ? null : Instant.ofEpochMilli(refreshedEpochMilli);
                 final String supersededBy = (String) refreshTokenSrc.get("superseded_by");
@@ -1083,7 +1083,7 @@ public final class TokenService {
         final Long refreshedEpochMilli = (Long) refreshTokenSrc.get("refresh_time");
         final Instant refreshTime = refreshedEpochMilli == null ? null : Instant.ofEpochMilli(refreshedEpochMilli);
         final String supersededBy = (String) refreshTokenSrc.get("superseded_by");
-        return authVersion.onOrAfter(Version.V_8_0_0)
+        return authVersion.onOrAfter(Version.V_7_1_0)
             && supersededBy != null
             && refreshTime != null
             && refreshRequested.isBefore(refreshTime.plus(30L, ChronoUnit.SECONDS))

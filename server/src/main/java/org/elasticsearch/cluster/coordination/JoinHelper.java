@@ -189,6 +189,11 @@ public class JoinHelper {
         };
     }
 
+    boolean isJoinPending() {
+        // cannot use pendingOutgoingJoins.isEmpty() because it's not properly synchronized.
+        return pendingOutgoingJoins.iterator().hasNext();
+    }
+
     public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
         sendJoinRequest(destination, optionalJoin, () -> {
         });

@@ -59,13 +59,12 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
 
     @Override
     protected ClusterBlockException checkBlock(CreateSnapshotRequest request, ClusterState state) {
-        // We are reading the cluster metadata and indices - so we need to check both blocks
+        // We only check metadata block, as we want to snapshot closed indices (which have a read block)
         ClusterBlockException clusterBlockException = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
         if (clusterBlockException != null) {
             return clusterBlockException;
         }
-        return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return null;
     }
 
     @Override

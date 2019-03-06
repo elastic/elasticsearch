@@ -283,4 +283,13 @@ public class Packages {
             sh.run("service elasticsearch status");
         }
     }
+
+    public static void stopElasticsearch() throws IOException {
+        final Shell sh = new Shell();
+        if (isSystemd()) {
+            sh.run("systemctl stop elasticsearch.service");
+        } else {
+            sh.run("service elasticsearch stop");
+        }
+    }
 }

@@ -70,7 +70,8 @@ public class TypeParsersTests extends ESTestCase {
         analyzers = new HashMap<>();
         analyzers.put("my_analyzer", new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX,
                 createAnalyzerWithMode("my_analyzer", mode)));
-        indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null, null, analyzers, null, null);
+        indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null, null, analyzers,
+                null, null);
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         MapperException ex = expectThrows(MapperException.class,
                 () -> TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext));

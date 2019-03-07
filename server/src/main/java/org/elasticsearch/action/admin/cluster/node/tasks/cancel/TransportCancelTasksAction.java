@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -63,23 +62,17 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
 
     @Inject
-    public TransportCancelTasksAction(Settings settings, ClusterService clusterService,
-                                      TransportService transportService, ActionFilters actionFilters) {
-        super(settings, CancelTasksAction.NAME, clusterService, transportService, actionFilters,
-            CancelTasksRequest::new, CancelTasksResponse::new, ThreadPool.Names.MANAGEMENT);
-        transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, BanParentTaskRequest::new, ThreadPool.Names.SAME, new
-            BanParentRequestHandler());
+    public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        super(CancelTasksAction.NAME, clusterService, transportService, actionFilters,
+            CancelTasksRequest::new, CancelTasksResponse::new, TaskInfo::new, ThreadPool.Names.MANAGEMENT);
+        transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, ThreadPool.Names.SAME, BanParentTaskRequest::new,
+            new BanParentRequestHandler());
     }
 
     @Override
     protected CancelTasksResponse newResponse(CancelTasksRequest request, List<TaskInfo> tasks, List<TaskOperationFailure>
         taskOperationFailures, List<FailedNodeException> failedNodeExceptions) {
         return new CancelTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
-    }
-
-    @Override
-    protected TaskInfo readTaskResponse(StreamInput in) throws IOException {
-        return new TaskInfo(in);
     }
 
     protected void processTasks(CancelTasksRequest request, Consumer<CancellableTask> operation) {
@@ -235,11 +228,9 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
     private static class BanParentTaskRequest extends TransportRequest {
 
-        private TaskId parentTaskId;
-
-        private boolean ban;
-
-        private String reason;
+        private final TaskId parentTaskId;
+        private final boolean ban;
+        private final String reason;
 
         static BanParentTaskRequest createSetBanParentTaskRequest(TaskId parentTaskId, String reason) {
             return new BanParentTaskRequest(parentTaskId, reason);
@@ -258,19 +249,14 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         private BanParentTaskRequest(TaskId parentTaskId) {
             this.parentTaskId = parentTaskId;
             this.ban = false;
+            this.reason = null;
         }
 
-        BanParentTaskRequest() {
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        private BanParentTaskRequest(StreamInput in) throws IOException {
+            super(in);
             parentTaskId = TaskId.readFromStream(in);
             ban = in.readBoolean();
-            if (ban) {
-                reason = in.readString();
-            }
+            reason = ban ? in.readString() : null;
         }
 
         @Override

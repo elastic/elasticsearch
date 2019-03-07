@@ -74,7 +74,6 @@ public final class Netty4CorsConfigBuilder {
     Optional<Set<String>> origins;
     Optional<Pattern> pattern;
     final boolean anyOrigin;
-    boolean allowNullOrigin;
     boolean enabled = true;
     boolean allowCredentials;
     long maxAge;

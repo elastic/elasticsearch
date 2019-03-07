@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -25,7 +27,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -61,6 +62,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -74,11 +76,13 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
  * No caching is done by this class, it is handled at a higher level and no polling for changes is done by this class. Modification
  * operations make a best effort attempt to clear the cache on all nodes for the user that was modified.
  */
-public class NativeUsersStore extends AbstractComponent {
+public class NativeUsersStore {
 
-    public static final String INDEX_TYPE = "doc";
     static final String USER_DOC_TYPE = "user";
     public static final String RESERVED_USER_TYPE = "reserved-user";
+    private static final Logger logger = LogManager.getLogger(NativeUsersStore.class);
+
+    private final Settings settings;
     private final Client client;
     private final ReservedUserInfo disabledDefaultUserInfo;
     private final ReservedUserInfo enabledDefaultUserInfo;
@@ -86,7 +90,7 @@ public class NativeUsersStore extends AbstractComponent {
     private final SecurityIndexManager securityIndex;
 
     public NativeUsersStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
-        super(settings);
+        this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
         final char[] emptyPasswordHash = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings)).
@@ -139,7 +143,7 @@ public class NativeUsersStore extends AbstractComponent {
                     query = QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), USER_DOC_TYPE);
                 } else {
                     final String[] users = Arrays.stream(userNames).map(s -> getIdForUser(USER_DOC_TYPE, s)).toArray(String[]::new);
-                    query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(INDEX_TYPE).addIds(users));
+                    query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery().addIds(users));
                 }
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
@@ -171,11 +175,12 @@ public class NativeUsersStore extends AbstractComponent {
                     client.prepareSearch(SECURITY_INDEX_NAME)
                         .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), USER_DOC_TYPE))
                         .setSize(0)
+                        .setTrackTotalHits(true)
                         .request(),
                     new ActionListener<SearchResponse>() {
                         @Override
                         public void onResponse(SearchResponse response) {
-                            listener.onResponse(response.getHits().getTotalHits());
+                            listener.onResponse(response.getHits().getTotalHits().value);
                         }
 
                         @Override
@@ -201,8 +206,7 @@ public class NativeUsersStore extends AbstractComponent {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                            client.prepareGet(SECURITY_INDEX_NAME,
-                                    INDEX_TYPE, getIdForUser(USER_DOC_TYPE, user)).request(),
+                            client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForUser(USER_DOC_TYPE, user)).request(),
                             new ActionListener<GetResponse>() {
                                 @Override
                                 public void onResponse(GetResponse response) {
@@ -242,7 +246,7 @@ public class NativeUsersStore extends AbstractComponent {
 
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(docType, username))
+                    client.prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForUser(docType, username))
                             .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.PASSWORD.getPreferredName(),
                                     String.valueOf(request.passwordHash()))
                             .setRefreshPolicy(request.getRefreshPolicy()).request(),
@@ -280,11 +284,9 @@ public class NativeUsersStore extends AbstractComponent {
     private void createReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, ActionListener<Void> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SECURITY_INDEX_NAME, INDEX_TYPE,
-                            getIdForUser(RESERVED_USER_TYPE, username))
-                            .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash),
-                                    Fields.ENABLED.getPreferredName(), true,
-                                    Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
+                    client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForUser(RESERVED_USER_TYPE, username))
+                            .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(),
+                                    true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                             .setRefreshPolicy(refresh).request(),
                     new ActionListener<IndexResponse>() {
                         @Override
@@ -322,8 +324,7 @@ public class NativeUsersStore extends AbstractComponent {
         // We must have an existing document
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE,
-                            getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
+                    client.prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
                             .setDoc(Requests.INDEX_CONTENT_TYPE,
                                     Fields.USERNAME.getPreferredName(), putUserRequest.username(),
                                     Fields.ROLES.getPreferredName(), putUserRequest.roles(),
@@ -337,7 +338,9 @@ public class NativeUsersStore extends AbstractComponent {
                     new ActionListener<UpdateResponse>() {
                         @Override
                         public void onResponse(UpdateResponse updateResponse) {
-                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                                || updateResponse.getResult() == DocWriteResponse.Result.NOOP
+                                : "Expected 'UPDATED' or 'NOOP' result [" + updateResponse + "] for request [" + putUserRequest + "]";
                             clearRealmCache(putUserRequest.username(), listener, false);
                         }
 
@@ -365,8 +368,7 @@ public class NativeUsersStore extends AbstractComponent {
         assert putUserRequest.passwordHash() != null;
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SECURITY_INDEX_NAME, INDEX_TYPE,
-                            getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
+                    client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
                             .setSource(Fields.USERNAME.getPreferredName(), putUserRequest.username(),
                                     Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
                                     Fields.ROLES.getPreferredName(), putUserRequest.roles(),
@@ -409,8 +411,7 @@ public class NativeUsersStore extends AbstractComponent {
                             final ActionListener<Void> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE,
-                            getIdForUser(USER_DOC_TYPE, username))
+                    client.prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForUser(USER_DOC_TYPE, username))
                             .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
                             .setRefreshPolicy(refreshPolicy)
                             .request(),
@@ -444,8 +445,7 @@ public class NativeUsersStore extends AbstractComponent {
                                         boolean clearCache, final ActionListener<Void> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE,
-                            getIdForUser(RESERVED_USER_TYPE, username))
+                    client.prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForUser(RESERVED_USER_TYPE, username))
                             .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
                             .setUpsert(XContentType.JSON,
                                     Fields.PASSWORD.getPreferredName(), "",
@@ -479,8 +479,9 @@ public class NativeUsersStore extends AbstractComponent {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                DeleteRequest request = client.prepareDelete(SECURITY_INDEX_NAME,
-                    INDEX_TYPE, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username())).request();
+                DeleteRequest request = client
+                        .prepareDelete(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username()))
+                        .request();
                 request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                     new ActionListener<DeleteResponse>() {
@@ -526,8 +527,8 @@ public class NativeUsersStore extends AbstractComponent {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                            client.prepareGet(SECURITY_INDEX_NAME, INDEX_TYPE,
-                                    getIdForUser(RESERVED_USER_TYPE, username)).request(),
+                            client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForUser(RESERVED_USER_TYPE, username))
+                                .request(),
                             new ActionListener<GetResponse>() {
                                 @Override
                                 public void onResponse(GetResponse getResponse) {
@@ -572,13 +573,14 @@ public class NativeUsersStore extends AbstractComponent {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareSearch(SECURITY_INDEX_NAME)
+                        .setTrackTotalHits(true)
                         .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE))
                         .setFetchSource(true).request(),
                     new ActionListener<SearchResponse>() {
                         @Override
                         public void onResponse(SearchResponse searchResponse) {
                             Map<String, ReservedUserInfo> userInfos = new HashMap<>();
-                            assert searchResponse.getHits().getTotalHits() <= 10 :
+                            assert searchResponse.getHits().getTotalHits().value <= 10 :
                                 "there are more than 10 reserved users we need to change this to retrieve them all!";
                             for (SearchHit searchHit : searchResponse.getHits().getHits()) {
                                 Map<String, Object> sourceMap = searchHit.getSourceAsMap();

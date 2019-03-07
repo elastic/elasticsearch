@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -21,10 +19,18 @@ import static java.util.Collections.emptyMap;
 
 public final class Expressions {
 
+    public enum ParamOrdinal {
+        DEFAULT,
+        FIRST,
+        SECOND,
+        THIRD,
+        FOURTH
+    }
+
     private Expressions() {}
 
     public static NamedExpression wrapAsNamed(Expression exp) {
-        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.location(), exp.nodeName(), exp);
+        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.source(), exp.sourceText(), exp);
     }
 
     public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {
@@ -59,13 +65,17 @@ public final class Expressions {
         return false;
     }
 
-    public static boolean nullable(List<? extends Expression> exps) {
+    public static boolean match(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
         for (Expression exp : exps) {
-            if (!exp.nullable()) {
-                return false;
+            if (predicate.test(exp)) {
+                return true;
             }
         }
-        return true;
+        return false;
+    }
+
+    public static Nullability nullable(List<? extends Expression> exps) {
+        return Nullability.and(exps.stream().map(Expression::nullable).toArray(Nullability[]::new));
     }
 
     public static boolean foldable(List<? extends Expression> exps) {
@@ -91,6 +101,10 @@ public final class Expressions {
 
     public static String name(Expression e) {
         return e instanceof NamedExpression ? ((NamedExpression) e).name() : e.nodeName();
+    }
+
+    public static boolean isNull(Expression e) {
+        return e.dataType() == DataType.NULL || (e.foldable() && e.fold() == null);
     }
 
     public static List<String> names(Collection<? extends Expression> e) {
@@ -127,22 +141,11 @@ public final class Expressions {
         throw new SqlIllegalArgumentException("Cannot create pipe for {}", e);
     }
 
-    public static TypeResolution typeMustBe(Expression e, Predicate<Expression> predicate, String message) {
-        return predicate.test(e) ? TypeResolution.TYPE_RESOLVED : new TypeResolution(message);
-    }
-
-    public static TypeResolution typeMustBeNumeric(Expression e) {
-        return e.dataType().isNumeric() ? TypeResolution.TYPE_RESOLVED : new TypeResolution(incorrectTypeErrorMessage(e, "numeric"));
-    }
-
-    public static TypeResolution typeMustBeNumericOrDate(Expression e) {
-        return e.dataType().isNumeric() || e.dataType() == DataType.DATE ?
-            TypeResolution.TYPE_RESOLVED :
-                new TypeResolution(incorrectTypeErrorMessage(e, "numeric", "date"));
-    }
-    
-    private static String incorrectTypeErrorMessage(Expression e, String...acceptedTypes) {
-        return "Argument required to be " + Strings.arrayToDelimitedString(acceptedTypes, " or ")
-                + " ('" + Expressions.name(e) + "' type is '" + e.dataType().esType + "')";
+    public static List<Pipe> pipe(List<Expression> expressions) {
+        List<Pipe> pipes = new ArrayList<>(expressions.size());
+        for (Expression e : expressions) {
+            pipes.add(pipe(e));
+        }
+        return pipes;
     }
 }

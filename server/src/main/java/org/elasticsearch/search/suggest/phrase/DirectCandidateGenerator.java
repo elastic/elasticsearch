@@ -25,7 +25,7 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.codecs.TermStats;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -72,7 +72,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader,
             double nonErrorLikelihood, int numCandidates) throws IOException {
         this(spellchecker, field, suggestMode, reader, nonErrorLikelihood,
-                numCandidates, null, null, MultiFields.getTerms(reader, field));
+                numCandidates, null, null, MultiTerms.getTerms(reader, field));
     }
 
     public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader,

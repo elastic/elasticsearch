@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
@@ -26,9 +25,9 @@ public class TransportGetCalendarsAction extends HandledTransportAction<GetCalen
     private final JobResultsProvider jobResultsProvider;
 
     @Inject
-    public TransportGetCalendarsAction(Settings settings, TransportService transportService,
-                                       ActionFilters actionFilters, JobResultsProvider jobResultsProvider) {
-        super(settings, GetCalendarsAction.NAME, transportService, actionFilters,
+    public TransportGetCalendarsAction(TransportService transportService, ActionFilters actionFilters,
+                                       JobResultsProvider jobResultsProvider) {
+        super(GetCalendarsAction.NAME, transportService, actionFilters,
             GetCalendarsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
     }

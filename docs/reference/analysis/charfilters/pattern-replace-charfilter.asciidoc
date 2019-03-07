@@ -125,12 +125,10 @@ PUT my_index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "analyzer": "my_analyzer"
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "analyzer": "my_analyzer"
       }
     }
   }
@@ -241,7 +239,10 @@ The output from the above is:
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.2876821,
     "hits": [
       {

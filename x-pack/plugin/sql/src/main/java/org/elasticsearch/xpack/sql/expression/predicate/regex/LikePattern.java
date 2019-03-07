@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.regex;
 
-import org.elasticsearch.xpack.sql.expression.LeafExpression;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Objects;
@@ -21,7 +17,7 @@ import java.util.Objects;
  *
  * To prevent conflicts with ES, the string and char must be validated to not contain '*'.
  */
-public class LikePattern extends LeafExpression {
+public class LikePattern {
 
     private final String pattern;
     private final char escape;
@@ -30,19 +26,13 @@ public class LikePattern extends LeafExpression {
     private final String wildcard;
     private final String indexNameWildcard;
 
-    public LikePattern(Location location, String pattern, char escape) {
-        super(location);
+    public LikePattern(String pattern, char escape) {
         this.pattern = pattern;
         this.escape = escape;
         // early initialization to force string validation
         this.regex = StringUtils.likeToJavaPattern(pattern, escape);
         this.wildcard = StringUtils.likeToLuceneWildcard(pattern, escape);
         this.indexNameWildcard = StringUtils.likeToIndexWildcard(pattern, escape);
-    }
-
-    @Override
-    protected NodeInfo<LikePattern> info() {
-        return NodeInfo.create(this, LikePattern::new, pattern, escape);
     }
 
     public String pattern() {
@@ -72,16 +62,6 @@ public class LikePattern extends LeafExpression {
      */
     public String asIndexNameWildcard() {
         return indexNameWildcard;
-    }
-
-    @Override
-    public boolean nullable() {
-        return false;
-    }
-
-    @Override
-    public DataType dataType() {
-        return DataType.KEYWORD;
     }
 
     @Override

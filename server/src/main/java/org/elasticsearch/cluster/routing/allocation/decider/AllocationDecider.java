@@ -24,24 +24,13 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 
 /**
  * {@link AllocationDecider} is an abstract base class that allows to make
  * dynamic cluster- or index-wide shard allocation decisions on a per-node
  * basis.
  */
-public abstract class AllocationDecider extends AbstractComponent {
-
-    /**
-     * Initializes a new {@link AllocationDecider}
-     * @param settings {@link Settings} used by this {@link AllocationDecider}
-     */
-    protected AllocationDecider(Settings settings) {
-        super(settings);
-    }
-
+public abstract class AllocationDecider {
     /**
      * Returns a {@link Decision} whether the given shard routing can be
      * re-balanced to the given allocation. The default is

@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.settings.Settings;
@@ -73,16 +74,18 @@ public class S3BlobStoreTests extends ESBlobStoreTestCase {
         assertThat(S3BlobStore.initStorageClass(null), equalTo(StorageClass.Standard));
         assertThat(S3BlobStore.initStorageClass(""), equalTo(StorageClass.Standard));
 
-        // it should accept [standard, standard_ia, reduced_redundancy]
+        // it should accept [standard, standard_ia, reduced_redundancy, intelligent_tiering]
         assertThat(S3BlobStore.initStorageClass("standard"), equalTo(StorageClass.Standard));
         assertThat(S3BlobStore.initStorageClass("standard_ia"), equalTo(StorageClass.StandardInfrequentAccess));
         assertThat(S3BlobStore.initStorageClass("reduced_redundancy"), equalTo(StorageClass.ReducedRedundancy));
+        assertThat(S3BlobStore.initStorageClass("intelligent_tiering"), equalTo(StorageClass.IntelligentTiering));
     }
 
     public void testCaseInsensitiveStorageClass() {
         assertThat(S3BlobStore.initStorageClass("sTandaRd"), equalTo(StorageClass.Standard));
         assertThat(S3BlobStore.initStorageClass("sTandaRd_Ia"), equalTo(StorageClass.StandardInfrequentAccess));
         assertThat(S3BlobStore.initStorageClass("reduCED_redundancy"), equalTo(StorageClass.ReducedRedundancy));
+        assertThat(S3BlobStore.initStorageClass("intelLigeNt_tieriNG"), equalTo(StorageClass.IntelligentTiering));
     }
 
     public void testInvalidStorageClass() {
@@ -115,15 +118,14 @@ public class S3BlobStoreTests extends ESBlobStoreTestCase {
             storageClass = randomValueOtherThan(StorageClass.Glacier, () -> randomFrom(StorageClass.values())).toString();
         }
 
-        final String theClientName = randomAlphaOfLength(4);
         final AmazonS3 client = new MockAmazonS3(new ConcurrentHashMap<>(), bucket, serverSideEncryption, cannedACL, storageClass);
-        final S3Service service = new S3Service(Settings.EMPTY) {
+        final S3Service service = new S3Service() {
             @Override
-            public synchronized AmazonS3Reference client(String clientName) {
-                assert theClientName.equals(clientName);
+            public synchronized AmazonS3Reference client(RepositoryMetaData repositoryMetaData) {
                 return new AmazonS3Reference(client);
             }
         };
-        return new S3BlobStore(Settings.EMPTY, service, theClientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
+        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass,
+            new RepositoryMetaData(bucket, "s3", Settings.EMPTY));
     }
 }

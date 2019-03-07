@@ -1,0 +1,140 @@
+//
+// DateTime
+//
+
+//
+// Time NOT IMPLEMENTED in H2 on TIMESTAMP WITH TIME ZONE - hence why these are moved to CSV
+//
+
+// WEEK_OF_YEAR moved to CSV tests, because H2 builds its Calendar with the local Locale,
+// we consider ROOT as the default Locale. This has implications on the results, which could
+// change given specific locales where the rules for determining the start of a year are different.
+
+//
+// DateTime
+//
+
+dateTimeDay
+SELECT DAY(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+dateTimeDayOfMonth
+SELECT DAY_OF_MONTH(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+dateTimeMonth
+SELECT MONTH(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+dateTimeYear
+SELECT YEAR(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+monthNameFromStringDateTime
+SELECT MONTHNAME(CAST('2018-09-03' AS TIMESTAMP)) month FROM "test_emp" limit 1;
+
+dayNameFromStringDateTime
+SELECT DAYNAME(CAST('2018-09-03' AS TIMESTAMP)) day FROM "test_emp" limit 1;
+
+dateTimeQuarter
+SELECT QUARTER(hire_date) q, hire_date FROM test_emp ORDER BY hire_date LIMIT 15;
+
+dateTimeDayOfWeek
+SELECT DAY_OF_WEEK(birth_date) day, birth_date FROM test_emp ORDER BY DAY_OF_WEEK(birth_date);
+
+//
+// Filter
+//
+
+dateTimeFilterDayOfMonth
+SELECT DAY_OF_MONTH(birth_date) AS d, last_name l FROM "test_emp" WHERE DAY_OF_MONTH(birth_date) <= 10 ORDER BY emp_no LIMIT 5;
+
+dateTimeFilterMonth
+SELECT MONTH(birth_date) AS d, last_name l FROM "test_emp" WHERE MONTH(birth_date) <= 5 ORDER BY emp_no LIMIT 5;
+
+dateTimeFilterYear
+SELECT YEAR(birth_date) AS d, last_name l FROM "test_emp" WHERE YEAR(birth_date) <= 1960 ORDER BY emp_no LIMIT 5;
+
+monthNameFilterWithFirstLetter
+SELECT MONTHNAME(hire_date) AS m, hire_date FROM "test_emp" WHERE LEFT(MONTHNAME(hire_date), 1) = 'J' ORDER BY hire_date LIMIT 10;
+
+monthNameFilterWithFullName
+SELECT MONTHNAME(hire_date) AS m, hire_date FROM "test_emp" WHERE MONTHNAME(hire_date) = 'August' ORDER BY hire_date LIMIT 10;
+
+dayNameFilterWithFullName
+SELECT DAYNAME(hire_date) AS d, hire_date FROM "test_emp" WHERE DAYNAME(hire_date) = 'Sunday' ORDER BY hire_date LIMIT 10;
+
+dayNameAndMonthNameAsFilter
+SELECT first_name, last_name FROM "test_emp" WHERE DAYNAME(hire_date) = 'Sunday' AND MONTHNAME(hire_date) = 'January' ORDER BY hire_date LIMIT 10;
+
+quarterWithFilter
+SELECT QUARTER(hire_date) quarter, hire_date FROM test_emp WHERE QUARTER(hire_date) > 2 ORDER BY hire_date LIMIT 15;
+
+dayOfWeekWithFilter
+SELECT DAY_OF_WEEK(birth_date) day, birth_date FROM test_emp WHERE DAY_OF_WEEK(birth_date) IN (6,7) ORDER BY DAY_OF_WEEK(birth_date);
+
+//
+// Aggregate
+//
+
+dateTimeAggByYear
+SELECT YEAR(birth_date) AS d, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY YEAR(birth_date) ORDER BY YEAR(birth_date) LIMIT 13;
+
+dateTimeAggByMonthWithOrderBy
+SELECT MONTH(birth_date) AS d, COUNT(*) AS c, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY MONTH(birth_date) ORDER BY MONTH(birth_date) DESC;
+
+dateTimeAggByDayOfMonthWithOrderBy
+SELECT DAY_OF_MONTH(birth_date) AS d, COUNT(*) AS c, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY DAY_OF_MONTH(birth_date) ORDER BY DAY_OF_MONTH(birth_date) DESC;
+
+monthNameWithGroupBy
+SELECT MONTHNAME("hire_date") AS month, COUNT(*) AS count FROM "test_emp" GROUP BY MONTHNAME("hire_date"), MONTH("hire_date") ORDER BY MONTH("hire_date");
+
+monthNameWithDoubleGroupByAndOrderBy
+SELECT MONTHNAME("hire_date") AS month, COUNT(*) AS count FROM "test_emp" GROUP BY MONTHNAME("hire_date"), MONTH("hire_date") ORDER BY MONTHNAME("hire_date") DESC;
+
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/33519
+// monthNameWithGroupByOrderByAndHaving
+// SELECT CAST(MAX("salary") AS DOUBLE) max_salary, MONTHNAME("hire_date") month_name FROM "test_emp" GROUP BY MONTHNAME("hire_date") HAVING MAX("salary") > 50000 ORDER BY MONTHNAME(hire_date);
+// dayNameWithHaving
+// SELECT DAYNAME("hire_date") FROM "test_emp" GROUP BY DAYNAME("hire_date") HAVING MAX("emp_no") > ASCII(DAYNAME("hire_date"));
+
+dayNameGroupBy
+SELECT DAYNAME(birth_date) AS dn FROM test_emp GROUP BY DAYNAME(birth_date) ORDER BY DAYNAME(birth_date) ASC NULLS FIRST LIMIT 10;
+
+monthNameGroupBy
+SELECT MONTHNAME(birth_date) AS mn FROM test_emp GROUP BY MONTHNAME(birth_date) ORDER BY MONTHNAME(birth_date) ASC NULLS FIRST LIMIT 10;
+
+quarterGroupBy
+SELECT QUARTER(birth_date) AS q FROM test_emp GROUP BY QUARTER(birth_date) ORDER BY QUARTER(birth_date) ASC NULLS FIRST LIMIT 10;
+
+
+dayNameWithDoubleGroupByAndOrderBy
+SELECT COUNT(*) c, DAYNAME(hire_date) day_name, DAY(hire_date) day FROM test_emp WHERE MONTHNAME(hire_date) = 'August' GROUP BY DAYNAME(hire_date), DAY(hire_date) ORDER BY DAYNAME(hire_date), DAY(hire_date);
+
+dayNameWithGroupByOrderByAndHaving
+SELECT CAST(MAX(salary) AS DOUBLE) max_salary, DAYNAME(hire_date) day_name FROM test_emp GROUP BY DAYNAME(hire_date) HAVING MAX(salary) > 50000 ORDER BY DAYNAME("hire_date");
+
+quarterWithGroupByAndOrderBy
+SELECT QUARTER(hire_date) quarter, COUNT(*) hires FROM test_emp GROUP BY QUARTER(hire_date) ORDER BY QUARTER(hire_date);
+
+dayOfWeekGroupBy
+SELECT DAY_OF_WEEK(birth_date) day, COUNT(*) c FROM test_emp WHERE DAY_OF_WEEK(birth_date) < 6 GROUP BY day ORDER BY DAY_OF_WEEK(birth_date);
+
+// current
+currentTimestampYear
+SELECT YEAR(CURRENT_TIMESTAMP()) AS result;
+
+orderByCurrentTimestamp
+SELECT first_name FROM test_emp ORDER BY NOW(), first_name NULLS LAST LIMIT 5;
+
+groupByCurrentTimestamp
+SELECT MAX(salary) AS max FROM test_emp GROUP BY NOW();
+
+//
+// H2 uses the local timezone instead of the specified one
+//
+currentTimestampMonth-Ignore
+SELECT MONTH(CURRENT_TIMESTAMP()) AS result;
+
+currentTimestampHour-Ignore
+SELECT HOUR(CURRENT_TIMESTAMP()) AS result;
+
+currentTimestampMinute-Ignore
+SELECT MINUTE(CURRENT_TIMESTAMP()) AS result;
+

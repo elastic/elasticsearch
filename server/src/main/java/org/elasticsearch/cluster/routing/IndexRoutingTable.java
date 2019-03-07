@@ -140,12 +140,19 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 }
 
                 if (shardRouting.primary() && shardRouting.initializing() &&
-                    shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE &&
-                    inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false)
-                    throw new IllegalStateException("a primary shard routing " + shardRouting + " is a primary that is recovering from " +
-                        "a known allocation id but has no corresponding entry in the in-sync " +
-                        "allocation set " + inSyncAllocationIds);
-
+                    shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
+                    if (inSyncAllocationIds.contains(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID)) {
+                        if (inSyncAllocationIds.size() != 1) {
+                            throw new IllegalStateException("a primary shard routing " + shardRouting
+                                + " is a primary that is recovering from a stale primary has unexpected allocation ids in in-sync " +
+                                "allocation set " + inSyncAllocationIds);
+                        }
+                    } else if (inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
+                        throw new IllegalStateException("a primary shard routing " + shardRouting
+                            + " is a primary that is recovering from a known allocation id but has no corresponding entry in the in-sync " +
+                            "allocation set " + inSyncAllocationIds);
+                    }
+                }
             }
         }
         return true;
@@ -349,6 +356,13 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          */
         public Builder initializeAsFromCloseToOpen(IndexMetaData indexMetaData) {
             return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, null));
+        }
+
+        /**
+         * Initializes a new empty index, as as a result of closing an opened index.
+         */
+        public Builder initializeAsFromOpenToClose(IndexMetaData indexMetaData) {
+            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, null));
         }
 
         /**

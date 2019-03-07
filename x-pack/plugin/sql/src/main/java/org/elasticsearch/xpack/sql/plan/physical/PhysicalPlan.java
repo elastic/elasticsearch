@@ -10,7 +10,7 @@ import java.util.List;
 import org.elasticsearch.xpack.sql.plan.QueryPlan;
 import org.elasticsearch.xpack.sql.session.Executable;
 import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.Schema;
 
 /**
@@ -23,8 +23,8 @@ public abstract class PhysicalPlan extends QueryPlan<PhysicalPlan> implements Ex
 
     private Schema lazySchema;
 
-    public PhysicalPlan(Location location, List<PhysicalPlan> children) {
-        super(location, children);
+    public PhysicalPlan(Source source, List<PhysicalPlan> children) {
+        super(source, children);
     }
 
     public Schema schema() {

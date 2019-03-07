@@ -228,7 +228,8 @@ public class DynamicTemplate implements ToXContentObject {
                 try {
                     matchType.matches(regex, "");
                 } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Pattern [" + regex + "] of type [" + matchType + "] is invalid. Cannot create dynamic template [" + name + "].", e);
+                    throw new IllegalArgumentException("Pattern [" + regex + "] of type [" + matchType
+                        + "] is invalid. Cannot create dynamic template [" + name + "].", e);
                 }
             }
         }
@@ -320,14 +321,16 @@ public class DynamicTemplate implements ToXContentObject {
     private Map<String, Object> processMap(Map<String, Object> map, String name, String dynamicType) {
         Map<String, Object> processedMap = new HashMap<>();
         for (Map.Entry<String, Object> entry : map.entrySet()) {
-            String key = entry.getKey().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+            String key = entry.getKey().replace("{name}", name).replace("{dynamic_type}", dynamicType)
+                .replace("{dynamicType}", dynamicType);
             Object value = entry.getValue();
             if (value instanceof Map) {
                 value = processMap((Map<String, Object>) value, name, dynamicType);
             } else if (value instanceof List) {
                 value = processList((List) value, name, dynamicType);
             } else if (value instanceof String) {
-                value = value.toString().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+                value = value.toString().replace("{name}", name).replace("{dynamic_type}", dynamicType)
+                    .replace("{dynamicType}", dynamicType);
             }
             processedMap.put(key, value);
         }
@@ -342,7 +345,9 @@ public class DynamicTemplate implements ToXContentObject {
             } else if (value instanceof List) {
                 value = processList((List) value, name, dynamicType);
             } else if (value instanceof String) {
-                value = value.toString().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+                value = value.toString().replace("{name}", name)
+                    .replace("{dynamic_type}", dynamicType)
+                    .replace("{dynamicType}", dynamicType);
             }
             processedList.add(value);
         }

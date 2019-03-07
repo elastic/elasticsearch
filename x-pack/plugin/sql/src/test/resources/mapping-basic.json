@@ -17,6 +17,9 @@
         },
         "salary" : {
             "type" : "integer"
+        },
+        "_meta_field": {
+            "type" : "keyword"
         }
     }
 }

@@ -8,7 +8,7 @@
           wait_for_status: yellow
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "token_user"
         body:  >
           {
@@ -18,7 +18,7 @@
           }
 
   - do:
-      xpack.security.get_token:
+      security.get_token:
         body:
           grant_type: "password"
           username: "token_user"
@@ -33,7 +33,7 @@
   - do:
       headers:
         Authorization: Bearer ${token}
-      xpack.security.authenticate: {}
+      security.authenticate: {}
 
   - match: { username: "token_user" }
   - match: { roles.0:  "superuser" }
@@ -69,6 +69,7 @@
       headers:
         Authorization: Bearer ${token}
       search:
+        rest_total_hits_as_int: true
         index: token_index
 
   - match: { hits.total: 5 }

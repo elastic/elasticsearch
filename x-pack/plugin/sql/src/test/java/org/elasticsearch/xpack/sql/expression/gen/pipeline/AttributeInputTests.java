@@ -20,9 +20,9 @@ public class AttributeInputTests extends ESTestCase {
         Expression expression = mock(Expression.class);
         Attribute attribute = mock(Attribute.class);
 
-        ReferenceInput expected = new ReferenceInput(expression.location(), expression, column);
+        ReferenceInput expected = new ReferenceInput(expression.source(), expression, column);
 
-        assertEquals(expected, new AttributeInput(expression.location(), expression, attribute).resolveAttributes(a -> {
+        assertEquals(expected, new AttributeInput(expression.source(), expression, attribute).resolveAttributes(a -> {
             assertSame(attribute, a);
             return column;
         }));

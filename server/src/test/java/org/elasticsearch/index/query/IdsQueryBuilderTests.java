@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -48,7 +49,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 type = randomAlphaOfLengthBetween(1, 10);
             }
         } else if (randomBoolean()) {
-                type = MetaData.ALL;
+            type = MetaData.ALL;
         } else {
             type = null;
         }
@@ -151,5 +152,17 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         parsed = (IdsQueryBuilder) parseQuery(json);
         assertThat(parsed.ids(), contains("1","100","4"));
         assertEquals(json, 0, parsed.types().length);
+    }
+
+    @Override
+    protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
+        QueryBuilder query = super.parseQuery(parser);
+        assertThat(query, instanceOf(IdsQueryBuilder.class));
+
+        IdsQueryBuilder idsQuery = (IdsQueryBuilder) query;
+        if (idsQuery.types().length > 0) {
+            assertWarnings(IdsQueryBuilder.TYPES_DEPRECATION_MESSAGE);
+        }
+        return query;
     }
 }

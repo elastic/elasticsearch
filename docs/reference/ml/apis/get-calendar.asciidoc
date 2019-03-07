@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-calendar]]
-=== Get Calendars API
+=== Get calendars API
 ++++
-<titleabbrev>Get Calendars</titleabbrev>
+<titleabbrev>Get calendars</titleabbrev>
 ++++
 
 Retrieves configuration information for calendars.
@@ -11,9 +11,9 @@ Retrieves configuration information for calendars.
 
 ==== Request
 
-`GET _xpack/ml/calendars/<calendar_id>` +
+`GET _ml/calendars/<calendar_id>` +
 
-`GET _xpack/ml/calendars/_all`
+`GET _ml/calendars/_all`
 
 
 ===== Description
@@ -60,7 +60,7 @@ calendar:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/calendars/planned-outages
+GET _ml/calendars/planned-outages
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:calendar_outages_addjob]

@@ -7,6 +7,7 @@ setup:
 "Check Status":
   - do:
       msearch:
+        rest_total_hits_as_int: true
         body:
           - index: test_2
           - query:

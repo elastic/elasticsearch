@@ -19,6 +19,18 @@ import static org.mockito.Mockito.when;
 
 public class MachineLearningTests extends ESTestCase {
 
+    public void testMaxOpenWorkersSetting_givenDefault() {
+        int maxOpenWorkers = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(Settings.EMPTY);
+        assertEquals(20, maxOpenWorkers);
+    }
+
+    public void testMaxOpenWorkersSetting_givenSetting() {
+        Settings.Builder settings = Settings.builder();
+        settings.put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), 7);
+        int maxOpenWorkers = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings.build());
+        assertEquals(7, maxOpenWorkers);
+    }
+
     public void testNoAttributes_givenNoClash() {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {

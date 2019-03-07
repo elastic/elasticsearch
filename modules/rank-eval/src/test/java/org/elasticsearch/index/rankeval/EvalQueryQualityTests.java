@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
@@ -56,7 +57,7 @@ public class EvalQueryQualityTests extends ESTestCase {
         for (int i = 0; i < numberOfSearchHits; i++) {
             RatedSearchHit ratedSearchHit = RatedSearchHitTests.randomRatedSearchHit();
             // we need to associate each hit with an index name otherwise rendering will not work
-            ratedSearchHit.getSearchHit().shard(new SearchShardTarget("_na_", new Index("index", "_na_"), 0, null));
+            ratedSearchHit.getSearchHit().shard(new SearchShardTarget("_na_", new ShardId("index", "_na_", 0), null, OriginalIndices.NONE));
             ratedHits.add(ratedSearchHit);
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAlphaOfLength(10),

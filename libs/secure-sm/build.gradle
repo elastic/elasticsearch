@@ -63,6 +63,11 @@ if (isEclipse) {
 // JAR hell is part of core which we do not want to add as a dependency
 jarHell.enabled = false
 
-namingConventions {
-    testClass = 'junit.framework.TestCase'
+testingConventions {
+    naming.clear()
+    naming {
+        Tests {
+            baseClass 'junit.framework.TestCase'
+        }
+    }
 }

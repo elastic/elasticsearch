@@ -65,6 +65,9 @@ import org.mockito.ArgumentCaptor;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -256,11 +259,11 @@ public class TransportWriteActionTests extends ESTestCase {
 
     public void testReplicaProxy() throws InterruptedException, ExecutionException {
         CapturingTransport transport = new CapturingTransport();
-        TransportService transportService = transport.createCapturingTransportService(clusterService.getSettings(), threadPool,
+        TransportService transportService = transport.createTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        ShardStateAction shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null, threadPool);
+        ShardStateAction shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
         TestAction action = new TestAction(Settings.EMPTY, "internal:testAction", transportService,
                 clusterService, shardStateAction, threadPool);
         final String index = "test";
@@ -308,11 +311,9 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         AtomicReference<Object> failure = new AtomicReference<>();
-        AtomicReference<Object> ignoredFailure = new AtomicReference<>();
         AtomicBoolean success = new AtomicBoolean();
         proxy.failShardIfNeeded(replica, "test", new ElasticsearchException("simulated"),
-                () -> success.set(true), failure::set, ignoredFailure::set
-        );
+            ActionListener.wrap(r -> success.set(true), failure::set));
         CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();
         // A write replication action proxy should fail the shard
         assertEquals(1, shardFailedRequests.length);
@@ -326,8 +327,6 @@ public class TransportWriteActionTests extends ESTestCase {
             transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
             assertTrue(success.get());
             assertNull(failure.get());
-            assertNull(ignoredFailure.get());
-
         } else if (randomBoolean()) {
             // simulate the primary has been demoted
             transport.handleRemoteError(shardFailedRequest.requestId,
@@ -335,16 +334,58 @@ public class TransportWriteActionTests extends ESTestCase {
                     "shard-failed-test"));
             assertFalse(success.get());
             assertNotNull(failure.get());
-            assertNull(ignoredFailure.get());
-
         } else {
-            // simulated an "ignored" exception
+            // simulated a node closing exception
             transport.handleRemoteError(shardFailedRequest.requestId,
                 new NodeClosedException(state.nodes().getLocalNode()));
             assertFalse(success.get());
-            assertNull(failure.get());
-            assertNotNull(ignoredFailure.get());
+            assertNotNull(failure.get());
         }
+    }
+
+    public void testConcurrentWriteReplicaResultCompletion() throws InterruptedException {
+        IndexShard replica = mock(IndexShard.class);
+        when(replica.getTranslogDurability()).thenReturn(Translog.Durability.ASYNC);
+        TestRequest request = new TestRequest();
+        request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+        TransportWriteAction.WriteReplicaResult<TestRequest> replicaResult = new TransportWriteAction.WriteReplicaResult<>(
+            request, new Translog.Location(0, 0, 0), null, replica, logger);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        Runnable waitForBarrier = () -> {
+            try {
+                barrier.await();
+            } catch (InterruptedException | BrokenBarrierException e) {
+                throw new AssertionError(e);
+            }
+        };
+        CountDownLatch completionLatch = new CountDownLatch(1);
+        threadPool.generic().execute(() -> {
+            waitForBarrier.run();
+            replicaResult.respond(new ActionListener<TransportResponse.Empty>() {
+                @Override
+                public void onResponse(TransportResponse.Empty empty) {
+                    completionLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    completionLatch.countDown();
+                }
+            });
+        });
+        if (randomBoolean()) {
+            threadPool.generic().execute(() -> {
+                waitForBarrier.run();
+                replicaResult.onFailure(null);
+            });
+        } else {
+            threadPool.generic().execute(() -> {
+                waitForBarrier.run();
+                replicaResult.onSuccess(false);
+            });
+        }
+
+        assertTrue(completionLatch.await(30, TimeUnit.SECONDS));
     }
 
     private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {
@@ -360,7 +401,7 @@ public class TransportWriteActionTests extends ESTestCase {
             super(Settings.EMPTY, "internal:test",
                     new TransportService(Settings.EMPTY, mock(Transport.class), null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                         x -> null, null, Collections.emptySet()), null, null, null, null,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), TestRequest::new,
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), TestRequest::new,
                     TestRequest::new, ThreadPool.Names.SAME);
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
@@ -370,7 +411,7 @@ public class TransportWriteActionTests extends ESTestCase {
                              ClusterService clusterService, ShardStateAction shardStateAction, ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService,
                     mockIndicesService(clusterService), threadPool, shardStateAction,
-                    new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
+                    new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),
                     TestRequest::new, TestRequest::new, ThreadPool.Names.SAME);
             this.withDocumentFailureOnPrimary = false;
             this.withDocumentFailureOnReplica = false;

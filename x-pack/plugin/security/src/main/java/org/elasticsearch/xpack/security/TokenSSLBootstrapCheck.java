@@ -18,8 +18,8 @@ final class TokenSSLBootstrapCheck implements BootstrapCheck {
 
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
-        final Boolean httpsEnabled = XPackSettings.HTTP_SSL_ENABLED.get(context.settings);
-        final Boolean tokenServiceEnabled = XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(context.settings);
+        final Boolean httpsEnabled = XPackSettings.HTTP_SSL_ENABLED.get(context.settings());
+        final Boolean tokenServiceEnabled = XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(context.settings());
         if (httpsEnabled == false && tokenServiceEnabled) {
             final String message = String.format(
                     Locale.ROOT,

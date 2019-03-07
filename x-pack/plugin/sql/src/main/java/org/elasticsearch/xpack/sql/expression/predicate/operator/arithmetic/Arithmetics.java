@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
+import java.time.Duration;
+import java.time.Period;
+import java.time.ZonedDateTime;
+
 /**
  * Arithmetic operation using the type widening rules of the JLS 5.6.2 namely
  * widen to double or float or long or int in this order.
@@ -29,6 +33,22 @@ public abstract class Arithmetics {
         return Integer.valueOf(Math.addExact(l.intValue(), r.intValue()));
     }
 
+    static ZonedDateTime add(ZonedDateTime l, Period r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        return l.plus(r);
+    }
+
+    static ZonedDateTime add(ZonedDateTime l, Duration r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        return l.plus(r);
+    }
+
     static Number sub(Number l, Number r) {
         if (l == null || r == null) {
             return null;
@@ -45,6 +65,22 @@ public abstract class Arithmetics {
         }
 
         return Integer.valueOf(Math.subtractExact(l.intValue(), r.intValue()));
+    }
+
+    static ZonedDateTime sub(ZonedDateTime l, Period r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        return l.minus(r);
+    }
+
+    static ZonedDateTime sub(ZonedDateTime l, Duration r) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        return l.minus(r);
     }
 
     static Number mul(Number l, Number r) {
@@ -88,17 +124,17 @@ public abstract class Arithmetics {
             return null;
         }
 
-        if (l instanceof Long || r instanceof Long) {
-            return Long.valueOf(Math.floorMod(l.longValue(), r.longValue()));
-        }
         if (l instanceof Double || r instanceof Double) {
             return Double.valueOf(l.doubleValue() % r.doubleValue());
         }
         if (l instanceof Float || r instanceof Float) {
             return Float.valueOf(l.floatValue() % r.floatValue());
         }
+        if (l instanceof Long || r instanceof Long) {
+            return Long.valueOf(l.longValue() % r.longValue());
+        }
 
-        return Math.floorMod(l.intValue(), r.intValue());
+        return l.intValue() % r.intValue();
     }
 
     static Number negate(Number n) {

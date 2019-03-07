@@ -109,7 +109,7 @@ public class MaxBucketIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                         .extendedBounds(minRandomValue, maxRandomValue))
-                .addAggregation(maxBucket("max_bucket", "histo>_count")).execute().actionGet();
+                .addAggregation(maxBucket("max_bucket", "histo>_count")).get();
 
         assertSearchResponse(response);
 
@@ -152,7 +152,7 @@ public class MaxBucketIT extends ESIntegTestCase {
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(maxBucket("max_bucket", "histo>_count"))).execute().actionGet();
+                                .subAggregation(maxBucket("max_bucket", "histo>_count"))).get();
 
         assertSearchResponse(response);
 
@@ -199,7 +199,7 @@ public class MaxBucketIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(maxBucket("max_bucket", "terms>sum")).execute().actionGet();
+                .addAggregation(maxBucket("max_bucket", "terms>sum")).get();
 
         assertSearchResponse(response);
 
@@ -245,7 +245,7 @@ public class MaxBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(maxBucket("max_bucket", "histo>sum"))).execute().actionGet();
+                                .subAggregation(maxBucket("max_bucket", "histo>sum"))).get();
 
         assertSearchResponse(response);
 
@@ -301,7 +301,7 @@ public class MaxBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(maxBucket("max_bucket", "histo>sum"))).execute().actionGet();
+                                .subAggregation(maxBucket("max_bucket", "histo>sum"))).get();
 
         assertSearchResponse(response);
 
@@ -351,7 +351,7 @@ public class MaxBucketIT extends ESIntegTestCase {
                                 .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                 .subAggregation(maxBucket("max_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -400,7 +400,7 @@ public class MaxBucketIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field("tag").includeExclude(new IncludeExclude(null, "tag.*"))
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(maxBucket("max_bucket", "terms>sum")).execute().actionGet();
+                .addAggregation(maxBucket("max_bucket", "terms>sum")).get();
 
         assertSearchResponse(response);
 
@@ -428,7 +428,7 @@ public class MaxBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .extendedBounds(minRandomValue, maxRandomValue))
                                 .subAggregation(maxBucket("max_histo_bucket", "histo>_count")))
-                .addAggregation(maxBucket("max_terms_bucket", "terms>max_histo_bucket")).execute().actionGet();
+                .addAggregation(maxBucket("max_terms_bucket", "terms>max_histo_bucket")).get();
 
         assertSearchResponse(response);
 

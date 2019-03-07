@@ -38,8 +38,8 @@ public class ExpressionRoleMappingTests extends ESTestCase {
 
     @Before
     public void setupMapping() throws Exception {
-        realm = new RealmConfig("ldap1", Settings.EMPTY, Settings.EMPTY, Mockito.mock(Environment.class),
-                new ThreadContext(Settings.EMPTY));
+        realm = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ldap1"),
+                Settings.EMPTY, Mockito.mock(Environment.class), new ThreadContext(Settings.EMPTY));
     }
 
     public void testParseValidJson() throws Exception {

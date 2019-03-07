@@ -11,14 +11,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xpack.core.ccr.action.StatsAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
-import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
-import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.Objects;
@@ -65,13 +65,13 @@ public class CcrClient {
         return listener;
     }
 
-    public void stats(final StatsAction.Request request,
-                      final ActionListener<StatsAction.Response> listener) {
-        client.execute(StatsAction.INSTANCE, request, listener);
+    public void stats(final CcrStatsAction.Request request,
+                      final ActionListener<CcrStatsAction.Response> listener) {
+        client.execute(CcrStatsAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<StatsAction.Response> stats(final StatsAction.Request request) {
-        final PlainActionFuture<StatsAction.Response> listener = PlainActionFuture.newFuture();
+    public ActionFuture<CcrStatsAction.Response> stats(final CcrStatsAction.Request request) {
+        final PlainActionFuture<CcrStatsAction.Response> listener = PlainActionFuture.newFuture();
         stats(request, listener);
         return listener;
     }

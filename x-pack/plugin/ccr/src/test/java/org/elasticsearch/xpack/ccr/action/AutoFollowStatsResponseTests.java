@@ -5,30 +5,33 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.StatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 
 import static org.elasticsearch.xpack.ccr.action.AutoFollowStatsTests.randomReadExceptions;
+import static org.elasticsearch.xpack.ccr.action.AutoFollowStatsTests.randomTrackingClusters;
 import static org.elasticsearch.xpack.ccr.action.StatsResponsesTests.createStatsResponse;
 
-public class AutoFollowStatsResponseTests extends AbstractStreamableTestCase<StatsAction.Response> {
+public class AutoFollowStatsResponseTests extends AbstractWireSerializingTestCase<CcrStatsAction.Response> {
 
     @Override
-    protected StatsAction.Response createBlankInstance() {
-        return new StatsAction.Response();
+    protected Writeable.Reader<CcrStatsAction.Response> instanceReader() {
+        return CcrStatsAction.Response::new;
     }
 
     @Override
-    protected StatsAction.Response createTestInstance() {
+    protected CcrStatsAction.Response createTestInstance() {
         AutoFollowStats autoFollowStats = new AutoFollowStats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomReadExceptions()
+            randomReadExceptions(),
+            randomTrackingClusters()
         );
         FollowStatsAction.StatsResponses statsResponse = createStatsResponse();
-        return new StatsAction.Response(autoFollowStats, statsResponse);
+        return new CcrStatsAction.Response(autoFollowStats, statsResponse);
     }
 }

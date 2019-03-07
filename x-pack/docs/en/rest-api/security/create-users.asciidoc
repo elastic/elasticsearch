@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-put-user]]
 === Create or update users API
+++++
+<titleabbrev>Create or update users</titleabbrev>
+++++
 
 Adds and updates users in the native realm. These users are commonly referred 
 to as _native users_.
@@ -8,9 +11,9 @@ to as _native users_.
 
 ==== Request
 
-`POST /_xpack/security/user/<username>` +
+`POST /_security/user/<username>` +
 
-`PUT /_xpack/security/user/<username>` 
+`PUT /_security/user/<username>` 
 
 
 ==== Description
@@ -35,6 +38,12 @@ printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_bloc
 
 --
 
+==== Query Parameters
+
+`refresh`::
+    (string) One of `true`, `false`, or `wait_for`.
+    These values have the same meaning as in the <<docs-refresh, Index API>>,
+    but the default value for this API (Put User) is `true`.
 
 ==== Request Body
 
@@ -52,8 +61,26 @@ The following parameters can be specified in the body of a POST or PUT request:
 `metadata`::
 (object) Arbitrary metadata that you want to associate with the user.
 
-`password` (required)::
-(string) The user's password. Passwords must be at least 6 characters long. 
+`password` ::
+(string) The user's password. Passwords must be at least 6 characters long.
++
+When adding a user, one of `password` or `password_hash` is required.
+When updating an existing user, the password is optional, so that other
+fields on the user (such as their roles) may be updated without modifying
+the user's password.
+
+`password_hash` ::
+(string) A _hash_ of the user's password. This must be produced using the
+same hashing algorithm as has been configured for password storage. For more
+details, see the explanation of the
+`xpack.security.authc.password_hashing.algorithm` setting in
+<<hashing-settings>>.
++
+Using this parameter allows the client to pre-hash the password for
+performance and/or confidentiality reasons.
++
+The `password` parameter and the `password_hash` parameter cannot be
+used in the same request.
 
 `roles` (required)::
 (list) A set of roles the user has. The roles determine the user's access 
@@ -71,7 +98,7 @@ The following example creates a user `jacknich`:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/security/user/jacknich
+POST /_security/user/jacknich
 {
   "password" : "j@rV1s",
   "roles" : [ "admin", "other_role1" ],

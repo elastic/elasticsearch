@@ -14,17 +14,15 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportGetTrialStatusAction extends TransportMasterNodeReadAction<GetTrialStatusRequest, GetTrialStatusResponse> {
 
     @Inject
-    public TransportGetTrialStatusAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetTrialStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
+    public TransportGetTrialStatusAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(GetTrialStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 GetTrialStatusRequest::new, indexNameExpressionResolver);
     }
 

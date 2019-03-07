@@ -7,12 +7,13 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Arrays;
@@ -20,6 +21,8 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunctionProcessor.doProcess;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -34,10 +37,10 @@ public class Locate extends ScalarFunction {
 
     private final Expression pattern, source, start;
     
-    public Locate(Location location, Expression pattern, Expression source, Expression start) {
-        super(location, start != null ? Arrays.asList(pattern, source, start) : Arrays.asList(pattern, source));
+    public Locate(Source source, Expression pattern, Expression src, Expression start) {
+        super(source, start != null ? Arrays.asList(pattern, src, start) : Arrays.asList(pattern, src));
         this.pattern = pattern;
-        this.source = source;
+        this.source = src;
         this.start = start;
     }
     
@@ -47,22 +50,22 @@ public class Locate extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution patternResolution = StringFunctionUtils.resolveStringInputType(pattern.dataType(), functionName());
-        if (patternResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution patternResolution = isStringAndExact(pattern, sourceText(), ParamOrdinal.FIRST);
+        if (patternResolution.unresolved()) {
             return patternResolution;
         }
         
-        TypeResolution sourceResolution = StringFunctionUtils.resolveStringInputType(source.dataType(), functionName());
-        if (sourceResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution sourceResolution = isStringAndExact(source, sourceText(), ParamOrdinal.SECOND);
+        if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
-        
-        return start == null ? TypeResolution.TYPE_RESOLVED : StringFunctionUtils.resolveNumericInputType(start.dataType(), functionName());
+
+        return start == null ? TypeResolution.TYPE_RESOLVED : isNumeric(start, sourceText(), ParamOrdinal.THIRD);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new LocateFunctionPipe(location(), this,
+        return new LocateFunctionPipe(source(), this,
             Expressions.pipe(pattern),
             Expressions.pipe(source),
             start == null ? null : Expressions.pipe(start));
@@ -77,7 +80,7 @@ public class Locate extends ScalarFunction {
     public boolean foldable() {
         return pattern.foldable()
                 && source.foldable()
-                && (start == null? true : start.foldable());
+                && (start == null || start.foldable());
     }
 
     @Override
@@ -119,7 +122,7 @@ public class Locate extends ScalarFunction {
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),
-                paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
+                paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }
 
@@ -134,6 +137,6 @@ public class Locate extends ScalarFunction {
             throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
         }
 
-        return new Locate(location(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Locate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 }

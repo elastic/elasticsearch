@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,10 +43,10 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
     };
 
     @Inject
-    public TransportWatcherServiceAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportWatcherServiceAction(TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, WatcherServiceRequest::new);
     }
 

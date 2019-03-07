@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 
@@ -84,14 +83,9 @@ public final class ExternalTestCluster extends TestCluster {
         if (addMockTcpTransport) {
             String transport = getTestTransportType();
             clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, transport);
-            if (pluginClasses.contains(MockTcpTransportPlugin.class) == false &&
-                pluginClasses.contains(MockNioTransportPlugin.class) == false) {
+            if (pluginClasses.contains(MockNioTransportPlugin.class) == false) {
                 pluginClasses = new ArrayList<>(pluginClasses);
-                if (transport.equals(MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME)) {
-                    pluginClasses.add(MockNioTransportPlugin.class);
-                } else {
-                    pluginClasses.add(MockTcpTransportPlugin.class);
-                }
+                pluginClasses.add(MockNioTransportPlugin.class);
             }
         }
         Settings clientSettings = clientSettingsBuilder.build();

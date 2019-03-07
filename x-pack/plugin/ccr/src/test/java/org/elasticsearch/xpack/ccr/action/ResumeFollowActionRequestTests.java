@@ -6,11 +6,14 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
@@ -19,16 +22,29 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ResumeFollowActionRequestTests extends AbstractStreamableXContentTestCase<ResumeFollowAction.Request> {
+public class ResumeFollowActionRequestTests extends AbstractSerializingTestCase<ResumeFollowAction.Request> {
 
     @Override
-    protected ResumeFollowAction.Request createBlankInstance() {
-        return new ResumeFollowAction.Request();
+    protected Writeable.Reader<ResumeFollowAction.Request> instanceReader() {
+        return ResumeFollowAction.Request::new;
     }
 
     @Override
     protected ResumeFollowAction.Request createTestInstance() {
-        return createTestRequest();
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        request.setFollowerIndex(randomAlphaOfLength(4));
+
+        generateFollowParameters(request.getParameters());
+        return request;
+    }
+
+    @Override
+    protected ResumeFollowAction.Request createXContextTestInstance(XContentType type) {
+        // follower index parameter is not part of the request body and is provided in the url path.
+        // So this field cannot be used for creating a test instance for xcontent testing.
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        generateFollowParameters(request.getParameters());
+        return request;
     }
 
     @Override
@@ -41,57 +57,54 @@ public class ResumeFollowActionRequestTests extends AbstractStreamableXContentTe
         return false;
     }
 
-    static ResumeFollowAction.Request createTestRequest() {
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setFollowerIndex(randomAlphaOfLength(4));
+    static void generateFollowParameters(FollowParameters followParameters) {
         if (randomBoolean()) {
-            request.setMaxReadRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
+            followParameters.setMaxReadRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxOutstandingReadRequests(randomIntBetween(1, Integer.MAX_VALUE));
+            followParameters.setMaxOutstandingReadRequests(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxOutstandingWriteRequests(randomIntBetween(1, Integer.MAX_VALUE));
+            followParameters.setMaxOutstandingWriteRequests(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            followParameters.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
-            request.setMaxWriteBufferCount(randomIntBetween(1, Integer.MAX_VALUE));
+            followParameters.setMaxWriteBufferCount(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxWriteRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
+            followParameters.setMaxWriteRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+            followParameters.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            followParameters.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
-            request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
+            followParameters.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setReadPollTimeout(TimeValue.timeValueMillis(500));
+            followParameters.setReadPollTimeout(TimeValue.timeValueMillis(500));
         }
-        return request;
     }
 
     public void testValidate() {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
         request.setFollowerIndex("index2");
-        request.setMaxRetryDelay(TimeValue.ZERO);
+        request.getParameters().setMaxRetryDelay(TimeValue.ZERO);
 
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be positive but was [0ms]"));
 
-        request.setMaxRetryDelay(TimeValue.timeValueMinutes(10));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMinutes(10));
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be less than [5m] but was [10m]"));
 
-        request.setMaxRetryDelay(TimeValue.timeValueMinutes(1));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMinutes(1));
         validationException = request.validate();
         assertThat(validationException, nullValue());
     }

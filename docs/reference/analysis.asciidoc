@@ -42,12 +42,10 @@ Each <<text,`text`>> field in a mapping can specify its own
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "title": {
-          "type":     "text",
-          "analyzer": "standard"
-        }
+    "properties": {
+      "title": {
+        "type":     "text",
+        "analyzer": "standard"
       }
     }
   }

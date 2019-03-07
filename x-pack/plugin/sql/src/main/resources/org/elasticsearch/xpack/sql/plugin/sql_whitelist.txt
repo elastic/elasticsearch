@@ -6,6 +6,12 @@
 
 # This file contains a whitelist for SQL specific utilities available inside SQL scripting
 
+class org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime {
+}
+
+class org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth {
+}
+
 class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
 
 #
@@ -20,10 +26,13 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 # Comparison
 #
   Boolean eq(Object, Object)
+  Boolean nulleq(Object, Object)
+  Boolean neq(Object, Object)
   Boolean lt(Object, Object)
   Boolean lte(Object, Object)
   Boolean gt(Object, Object)
   Boolean gte(Object, Object)
+  Boolean in(Object, java.util.List)
 
 #
 # Logical
@@ -31,7 +40,16 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Boolean and(Boolean, Boolean)
   Boolean or(Boolean, Boolean)
   Boolean not(Boolean)
-  Boolean notNull(Object)    
+  Boolean isNull(Object)
+  Boolean isNotNull(Object)
+
+#
+# Null
+#
+  def coalesce(java.util.List)
+  def greatest(java.util.List)
+  def least(java.util.List)
+  def nullif(Object, Object)
 
 #
 # Regex
@@ -41,12 +59,12 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 #
 # Math
 #
-  Number add(Number, Number)
-  Number div(Number, Number)
-  Number mod(Number, Number)
-  Number mul(Number, Number)
+  def add(Object, Object)
+  def sub(Object, Object)
+  def div(Object, Object)
+  def mod(Object, Object)
+  def mul(Object, Object)
   Number neg(Number)
-  Number sub(Number, Number)
   Number round(Number, Number)
   Number truncate(Number, Number)
   
@@ -80,8 +98,13 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 #
   Integer dateTimeChrono(Object, String, String)
   String  dayName(Object, String)
+  Integer dayOfWeek(Object, String)
   String  monthName(Object, String)
   Integer quarter(Object, String)
+  Integer weekOfYear(Object, String)
+  IntervalDayTime intervalDayTime(String, String)
+  IntervalYearMonth intervalYearMonth(String, String)
+  ZonedDateTime asDateTime(Object)
 
 #
 # ASCII Functions
@@ -107,4 +130,9 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String  space(Number)
   String  substring(String, Number, Number)
   String  ucase(String)
+  
+#
+# Casting
+#
+  def cast(Object, String)
 }

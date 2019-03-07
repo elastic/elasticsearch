@@ -128,6 +128,16 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         }
     }
 
+    public void testIgnoreTypesWarnings() {
+        String legitimateWarning = DeprecationLogger.formatWarning("warning");
+        String typesWarning = DeprecationLogger.formatWarning("[types removal] " +
+            "The endpoint /{index}/{type}/_count is deprecated, use /{index}/_count instead.");
+
+        DoSection section = new DoSection(new XContentLocation(1, 1));
+        section.setExpectedWarningHeaders(singletonList("warning"));
+        section.checkWarningHeaders(Arrays.asList(legitimateWarning, typesWarning), Version.CURRENT);
+    }
+
     public void testParseDoSectionNoBody() throws Exception {
         parser = createParser(YamlXContent.yamlXContent,
                 "get:\n" +

@@ -21,7 +21,7 @@ dependencies {
     }
     compile xpackProject('plugin:sql:sql-proto')
     compile "org.apache.lucene:lucene-core:${versions.lucene}"
-    compile 'joda-time:joda-time:2.10'
+    compile "joda-time:joda-time:${versions.joda}"
     runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
     runtime "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     runtime "org.apache.logging.log4j:log4j-core:${versions.log4j}"
@@ -42,7 +42,7 @@ dependencyLicenses {
     ignoreSha 'elasticsearch-core'
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
         'com.fasterxml.jackson.dataformat.yaml.YAMLFactory',
         'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
 
@@ -138,4 +138,4 @@ thirdPartyAudit.excludes = [
         'org.zeromq.ZMQ$Context',
         'org.zeromq.ZMQ$Socket',
         'org.zeromq.ZMQ'
-]
+)

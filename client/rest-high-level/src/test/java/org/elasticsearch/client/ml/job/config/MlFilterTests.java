@@ -38,10 +38,10 @@ public class MlFilterTests extends AbstractXContentTestCase<MlFilter> {
     }
 
     public static MlFilter createRandom() {
-        return createRandom(randomAlphaOfLength(10));
+        return createRandomBuilder(randomAlphaOfLength(10)).build();
     }
 
-    public static MlFilter createRandom(String filterId) {
+    public static MlFilter.Builder createRandomBuilder(String filterId) {
         String description = null;
         if (randomBoolean()) {
             description = randomAlphaOfLength(20);
@@ -52,7 +52,7 @@ public class MlFilterTests extends AbstractXContentTestCase<MlFilter> {
         for (int i = 0; i < size; i++) {
             items.add(randomAlphaOfLengthBetween(1, 20));
         }
-        return MlFilter.builder(filterId).setDescription(description).setItems(items).build();
+        return MlFilter.builder(filterId).setDescription(description).setItems(items);
     }
 
     @Override

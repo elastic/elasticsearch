@@ -142,7 +142,8 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         return builder;
     }
 
-    private static final ObjectParser<RestoreInfo, Void> PARSER = new ObjectParser<>(RestoreInfo.class.getName(), true, RestoreInfo::new);
+    private static final ObjectParser<RestoreInfo, Void> PARSER = new ObjectParser<>(RestoreInfo.class.getName(),
+        true, RestoreInfo::new);
 
     static {
         ObjectParser<RestoreInfo, Void> shardsParser = new ObjectParser<>("shards", true, null);
@@ -181,18 +182,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
         }
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
-    }
-
-    /**
-     * Reads restore info from {@link StreamInput}
-     *
-     * @param in stream input
-     * @return restore info
-     */
-    public static RestoreInfo readRestoreInfo(StreamInput in) throws IOException {
-        RestoreInfo snapshotInfo = new RestoreInfo();
-        snapshotInfo.readFrom(in);
-        return snapshotInfo;
     }
 
     /**

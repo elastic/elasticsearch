@@ -175,7 +175,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                             address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
                                 Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT)));
                         ((TransportResponseHandler<ClusterStateResponse>) handler)
-                                .handleResponse(new ClusterStateResponse(cluster1, builder.build(), 0L));
+                                .handleResponse(new ClusterStateResponse(cluster1, builder.build(), 0L, false));
                         clusterStateLatch.countDown();
                     } else if (TransportService.HANDSHAKE_ACTION_NAME .equals(action)) {
                         ((TransportResponseHandler<TransportService.HandshakeResponse>) handler).handleResponse(

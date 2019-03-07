@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-category]]
-=== Get Categories API
+=== Get categories API
 ++++
-<titleabbrev>Get Categories</titleabbrev>
+<titleabbrev>Get categories</titleabbrev>
 ++++
 
 Retrieves job results for one or more categories.
@@ -11,9 +11,9 @@ Retrieves job results for one or more categories.
 
 ==== Request
 
-`GET _xpack/ml/anomaly_detectors/<job_id>/results/categories` +
+`GET _ml/anomaly_detectors/<job_id>/results/categories` +
 
-`GET _xpack/ml/anomaly_detectors/<job_id>/results/categories/<category_id>`
+`GET _ml/anomaly_detectors/<job_id>/results/categories/<category_id>`
 
 ==== Description
 
@@ -65,7 +65,7 @@ The following example gets information about one category for the
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/anomaly_detectors/esxi_log/results/categories
+GET _ml/anomaly_detectors/esxi_log/results/categories
 {
   "page":{
     "size": 1

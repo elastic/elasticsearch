@@ -189,7 +189,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
                     stage = SnapshotIndexShardStage.valueOf(rawStage);
                 } catch (IllegalArgumentException iae) {
                     throw new ElasticsearchParseException(
-                        "failed to parse snapshot index shard status [{}][{}], unknonwn stage [{}]",
+                        "failed to parse snapshot index shard status [{}][{}], unknown stage [{}]",
                         shard.getIndex().getName(), shard.getId(), rawStage);
                 }
                 return new SnapshotIndexShardStatus(shard, stage, stats, nodeId, failure);

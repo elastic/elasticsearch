@@ -95,7 +95,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     public void testFieldAlias() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("distance", "route_length_miles")
-            .execute().actionGet();
+            .get();
 
         // Ensure the response has entries for both requested fields.
         assertTrue(response.get().containsKey("distance"));
@@ -127,7 +127,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     public void testFieldAliasWithWildcard() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("route*")
-            .execute().actionGet();
+            .get();
 
         assertEquals(1, response.get().size());
         assertTrue(response.get().containsKey("route_length_miles"));
@@ -136,7 +136,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     public void testFieldAliasFiltering() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields(
             "secret-soundtrack", "route_length_miles")
-            .execute().actionGet();
+            .get();
         assertEquals(1, response.get().size());
         assertTrue(response.get().containsKey("route_length_miles"));
     }
@@ -144,7 +144,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     public void testFieldAliasFilteringWithWildcard() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps()
             .setFields("distance", "secret*")
-            .execute().actionGet();
+            .get();
         assertEquals(1, response.get().size());
         assertTrue(response.get().containsKey("distance"));
     }

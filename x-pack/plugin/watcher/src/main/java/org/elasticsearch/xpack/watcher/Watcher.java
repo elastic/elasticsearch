@@ -82,8 +82,6 @@ import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
 import org.elasticsearch.xpack.watcher.actions.email.EmailActionFactory;
-import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
-import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatActionFactory;
 import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.index.IndexActionFactory;
 import org.elasticsearch.xpack.watcher.actions.jira.JiraAction;
@@ -135,7 +133,6 @@ import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttach
 import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAttachementParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser;
 import org.elasticsearch.xpack.watcher.notification.email.support.BodyPartSource;
-import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
@@ -176,12 +173,12 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.WeeklySchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.YearlySchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -233,14 +230,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     protected final Settings settings;
     protected final boolean transportClient;
     protected final boolean enabled;
-    protected final Environment env;
     protected List<NotificationService> reloadableServices = new ArrayList<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;
         this.transportClient = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
-        env = transportClient ? null : new Environment(settings, null);
 
         if (enabled && transportClient == false) {
             validAutoCreateIndex(settings, logger);
@@ -272,25 +267,23 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             throw new UncheckedIOException(e);
         }
 
-        new WatcherIndexTemplateRegistry(settings, clusterService, threadPool, client);
+        new WatcherIndexTemplateRegistry(clusterService, threadPool, client, xContentRegistry);
 
         // http client
-        httpClient = new HttpClient(settings, getSslService(), cryptoService);
+        httpClient = new HttpClient(settings, getSslService(), cryptoService, clusterService);
 
         // notification
         EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());
-        HipChatService hipChatService = new HipChatService(settings, httpClient, clusterService.getClusterSettings());
         JiraService jiraService = new JiraService(settings, httpClient, clusterService.getClusterSettings());
         SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
         PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());
 
         reloadableServices.add(emailService);
-        reloadableServices.add(hipChatService);
         reloadableServices.add(jiraService);
         reloadableServices.add(slackService);
         reloadableServices.add(pagerDutyService);
 
-        TextTemplateEngine templateEngine = new TextTemplateEngine(settings, scriptService);
+        TextTemplateEngine templateEngine = new TextTemplateEngine(scriptService);
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, templateEngine));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
@@ -317,7 +310,6 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(httpClient, templateEngine));
         actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
         actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(templateEngine));
-        actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(templateEngine, hipChatService));
         actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(templateEngine, jiraService));
         actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(templateEngine, slackService));
         actionFactoryMap.put(PagerDutyAction.TYPE, new PagerDutyActionFactory(templateEngine, pagerDutyService));
@@ -376,7 +368,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
             .build();
 
-        HistoryStore historyStore = new HistoryStore(settings, bulkProcessor);
+        HistoryStore historyStore = new HistoryStore(bulkProcessor);
 
         // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
@@ -395,15 +387,15 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         final Set<TriggerEngine> triggerEngines = new HashSet<>();
         triggerEngines.add(manualTriggerEngine);
         triggerEngines.add(configuredTriggerEngine);
-        final TriggerService triggerService = new TriggerService(settings, triggerEngines);
+        final TriggerService triggerService = new TriggerService(triggerEngines);
 
-        final TriggeredWatch.Parser triggeredWatchParser = new TriggeredWatch.Parser(settings, triggerService);
+        final TriggeredWatch.Parser triggeredWatchParser = new TriggeredWatch.Parser(triggerService);
         final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser, bulkProcessor);
 
         final WatcherSearchTemplateService watcherSearchTemplateService =
-                new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
+                new WatcherSearchTemplateService(scriptService, xContentRegistry);
         final WatchExecutor watchExecutor = getWatchExecutor(threadPool);
-        final WatchParser watchParser = new WatchParser(settings, triggerService, registry, inputRegistry, cryptoService, getClock());
+        final WatchParser watchParser = new WatchParser(triggerService, registry, inputRegistry, cryptoService, getClock());
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
                 getClock(), watchParser, clusterService, client, threadPool.generic());
@@ -415,14 +407,14 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
                 watchParser, client);
 
         final WatcherLifeCycleService watcherLifeCycleService =
-                new WatcherLifeCycleService(settings, clusterService, watcherService);
+                new WatcherLifeCycleService(clusterService, watcherService);
 
-        listener = new WatcherIndexingListener(settings, watchParser, getClock(), triggerService);
+        listener = new WatcherIndexingListener(watchParser, getClock(), triggerService);
         clusterService.addListener(listener);
 
         return Arrays.asList(registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
                 watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
-                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService, hipChatService);
+                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService);
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
@@ -483,7 +475,6 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         settings.addAll(SlackService.getSettings());
         settings.addAll(EmailService.getSettings());
         settings.addAll(HtmlSanitizer.getSettings());
-        settings.addAll(HipChatService.getSettings());
         settings.addAll(JiraService.getSettings());
         settings.addAll(PagerDutyService.getSettings());
         settings.add(ReportingAttachmentParser.RETRIES_SETTING);
@@ -583,11 +574,9 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         }
 
         assert listener != null;
-        // for now, we only add this index operation listener to indices starting with .watches
-        // this also means, that aliases pointing to this index have to follow this notation
-        if (module.getIndex().getName().startsWith(Watch.INDEX)) {
-            module.addIndexOperationListener(listener);
-        }
+        // Attach a listener to every index so that we can react to alias changes.
+        // This listener will be a no-op except on the index pointed to by .watches
+        module.addIndexOperationListener(listener);
     }
 
     static void validAutoCreateIndex(Settings settings, Logger logger) {
@@ -611,7 +600,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         List<String> indices = new ArrayList<>();
         indices.add(".watches");
         indices.add(".triggered_watches");
-        DateTime now = new DateTime(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         indices.add(HistoryStoreField.getHistoryIndexNameForTime(now));
         indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1)));
         indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1)));
@@ -647,7 +636,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. " +
                 " for the next 6 months daily history indices are allowed to be created, but please make sure" +
                 " that any future history indices after 6 months with the pattern " +
-                "[.watcher-history-YYYY.MM.dd] are allowed to be created", value);
+                "[.watcher-history-yyyy.MM.dd] are allowed to be created", value);
     }
 
     // These are all old templates from pre 6.0 era, that need to be deleted
@@ -661,7 +650,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
-        return Collections.singletonList(new EncryptSensitiveDataBootstrapCheck(env));
+        return Collections.singletonList(new EncryptSensitiveDataBootstrapCheck());
     }
 
     @Override
@@ -671,10 +660,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public void close() throws IOException {
-        bulkProcessor.flush();
+        if (enabled) {
+            bulkProcessor.flush();
+        }
         IOUtils.closeWhileHandlingException(httpClient);
         try {
-            if (bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
+            if (enabled && bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
                 logger.warn("failed to properly close watcher bulk processor");
             }
         } catch (InterruptedException e) {

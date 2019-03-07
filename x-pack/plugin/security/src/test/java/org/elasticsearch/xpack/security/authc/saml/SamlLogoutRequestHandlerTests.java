@@ -5,15 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.time.Clock;
-import java.util.Arrays;
-import java.util.Collections;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
@@ -27,6 +18,15 @@ import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.xmlsec.signature.support.SignatureConstants;
+
+import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.util.Arrays;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -208,10 +208,10 @@ public class SamlLogoutRequestHandlerTests extends SamlTestCase {
         final SpConfiguration sp = new SpConfiguration("https://sp.test/", "https://sp.test/saml/asc", LOGOUT_URL,
             signingConfiguration, Arrays.asList(spCredential), Collections.emptyList());
         return new SamlLogoutRequestHandler(
-                clock,
-                idp,
-                sp,
-                TimeValue.timeValueSeconds(1)
+            clock,
+            idp,
+            sp,
+            TimeValue.timeValueSeconds(1)
         );
     }
 

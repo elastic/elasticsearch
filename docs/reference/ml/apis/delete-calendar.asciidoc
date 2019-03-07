@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-calendar]]
-=== Delete Calendar API
+=== Delete calendar API
 ++++
-<titleabbrev>Delete Calendar</titleabbrev>
+<titleabbrev>Delete calendar</titleabbrev>
 ++++
 
 Deletes a calendar.
@@ -11,7 +11,7 @@ Deletes a calendar.
 
 ==== Request
 
-`DELETE _xpack/ml/calendars/<calendar_id>`
+`DELETE _ml/calendars/<calendar_id>`
 
 
 ==== Description
@@ -38,7 +38,7 @@ The following example deletes the `planned-outages` calendar:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/ml/calendars/planned-outages
+DELETE _ml/calendars/planned-outages
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:calendar_outages]

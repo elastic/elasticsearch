@@ -67,13 +67,16 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
         logger.info("Adding one node and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertEquals(1, clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(ShardRoutingState.INITIALIZING));
-        assertEquals(byteSize, clusterState.getRoutingTable().shardsWithState(ShardRoutingState.INITIALIZING).get(0).getExpectedShardSize());
+        assertEquals(1, clusterState.getRoutingNodes().node("node1")
+            .numberOfShardsWithState(ShardRoutingState.INITIALIZING));
+        assertEquals(byteSize, clusterState.getRoutingTable()
+            .shardsWithState(ShardRoutingState.INITIALIZING).get(0).getExpectedShardSize());
         logger.info("Start the primary shard");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
@@ -82,11 +85,14 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         assertEquals(1, clusterState.getRoutingNodes().unassigned().size());
 
         logger.info("Add another one node and reroute");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertEquals(1, clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING));
-        assertEquals(byteSize, clusterState.getRoutingTable().shardsWithState(ShardRoutingState.INITIALIZING).get(0).getExpectedShardSize());
+        assertEquals(1, clusterState.getRoutingNodes()
+            .node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING));
+        assertEquals(byteSize, clusterState.getRoutingTable()
+            .shardsWithState(ShardRoutingState.INITIALIZING).get(0).getExpectedShardSize());
     }
 
     public void testExpectedSizeOnMove() {
@@ -107,10 +113,12 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("adding two nodes and performing rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+            .add(newNode("node1")).add(newNode("node2"))).build();
         clusterState = allocation.reroute(clusterState, "reroute");
 
         logger.info("start primary shard");
@@ -125,7 +133,8 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
             toNodeId = "node1";
         }
         AllocationService.CommandsResult commandsResult =
-            allocation.reroute(clusterState, new AllocationCommands(new MoveAllocationCommand("test", 0, existingNodeId, toNodeId)), false, false);
+            allocation.reroute(clusterState, new AllocationCommands(
+                new MoveAllocationCommand("test", 0, existingNodeId, toNodeId)), false, false);
         assertThat(commandsResult.getClusterState(), not(equalTo(clusterState)));
         clusterState = commandsResult.getClusterState();
         assertEquals(clusterState.getRoutingNodes().node(existingNodeId).iterator().next().state(), ShardRoutingState.RELOCATING);

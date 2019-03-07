@@ -27,7 +27,7 @@ esplugin {
 }
 
 // No unit tests in this example
-test.enabled = false
+unitTest.enabled = false
 
 task exampleFixture(type: org.elasticsearch.gradle.test.AntFixture) {
   dependsOn testClasses
@@ -41,4 +41,10 @@ integTestCluster {
 }
 integTestRunner {
   systemProperty 'external.address', "${ -> exampleFixture.addressAndPort }"
+}
+
+testingConventions.naming {
+  IT {
+    baseClass 'org.elasticsearch.test.ESTestCase'
+  }
 }

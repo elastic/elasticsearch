@@ -19,6 +19,10 @@ There are several thread pools, but the important ones include:
     `int((# of available_processors * 3) / 2) + 1`, and initial queue_size of
     `1000`.
 
+[[search-throttled]]`search_throttled`::
+    For count/search/suggest/get operations on `search_throttled indices`. Thread pool type is
+    `fixed_auto_queue_size` with a size of `1`, and initial queue_size of `100`.
+
 `get`::
     For get operations. Thread pool type is `fixed`
     with a size of `# of available processors`,

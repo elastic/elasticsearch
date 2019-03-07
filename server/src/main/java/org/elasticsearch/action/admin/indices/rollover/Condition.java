@@ -71,6 +71,14 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
         return "[" + name + ": " + value + "]";
     }
 
+    public T value() {
+        return value;
+    }
+
+    public String name() {
+        return name;
+    }
+
     /**
      * Holder for index stats used to evaluate conditions
      */

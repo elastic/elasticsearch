@@ -52,7 +52,8 @@ import java.util.Objects;
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
  */
-public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>> implements NamedWriteable, ToXContentObject {
+public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.geo.geometry.Geometry,
+    E extends ShapeBuilder<T, G, E>> implements NamedWriteable, ToXContentObject {
 
     protected static final Logger LOGGER = LogManager.getLogger(ShapeBuilder.class);
 
@@ -211,7 +212,14 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
      * the builder looses its validity. So this method should only be called once on a builder
      * @return new {@link Shape} defined by the builder
      */
-    public abstract T build();
+    public abstract T buildS4J();
+
+    /**
+     * build lucene geometry.
+     *
+     * @return GeoPoint, double[][], Line, Line[], Polygon, Polygon[], Rectangle, Object[]
+     */
+    public abstract G buildGeometry();
 
     protected static Coordinate shift(Coordinate coordinate, double dateline) {
         if (dateline == 0) {
@@ -477,7 +485,7 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
         if (this == o) return true;
         if (!(o instanceof ShapeBuilder)) return false;
 
-        ShapeBuilder<?,?> that = (ShapeBuilder<?,?>) o;
+        ShapeBuilder<?,?,?> that = (ShapeBuilder<?,?,?>) o;
 
         return Objects.equals(coordinates, that.coordinates);
     }

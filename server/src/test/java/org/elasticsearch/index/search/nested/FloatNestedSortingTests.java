@@ -51,7 +51,8 @@ public class FloatNestedSortingTests extends DoubleNestedSortingTests {
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createFieldComparator(String fieldName, MultiValueMode sortMode, Object missingValue, Nested nested) {
+    protected IndexFieldData.XFieldComparatorSource createFieldComparator(String fieldName, MultiValueMode sortMode,
+                                                                                Object missingValue, Nested nested) {
         IndexNumericFieldData fieldData = getForField(fieldName);
         return new FloatValuesComparatorSource(fieldData, missingValue, sortMode, nested);
     }
@@ -61,11 +62,14 @@ public class FloatNestedSortingTests extends DoubleNestedSortingTests {
         return new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(value));
     }
 
-    protected void assertAvgScoreMode(Query parentFilter, IndexSearcher searcher, IndexFieldData.XFieldComparatorSource innerFieldComparator) throws IOException {
+    protected void assertAvgScoreMode(Query parentFilter, IndexSearcher searcher,
+                                            IndexFieldData.XFieldComparatorSource innerFieldComparator) throws IOException {
         MultiValueMode sortMode = MultiValueMode.AVG;
         Query childFilter = Queries.not(parentFilter);
-        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127, createNested(searcher, parentFilter, childFilter));
-        Query query = new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter), new QueryBitSetProducer(parentFilter), ScoreMode.None);
+        XFieldComparatorSource nestedComparatorSource =
+            createFieldComparator("field2", sortMode, -127, createNested(searcher, parentFilter, childFilter));
+        Query query =
+            new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter), new QueryBitSetProducer(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopDocs topDocs = searcher.search(query, 5, sort);
         assertThat(topDocs.totalHits.value, equalTo(7L));

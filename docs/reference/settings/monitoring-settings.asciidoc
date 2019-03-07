@@ -43,14 +43,14 @@ to `true`. Its default value is `false`.
 The `xpack.monitoring.collection` settings control how data is collected from
 your Elasticsearch nodes.
 
-`xpack.monitoring.collection.enabled`:: (<<cluster-update-settings,Dynamic>>)
+`xpack.monitoring.collection.enabled` (<<cluster-update-settings,Dynamic>>)::
 
 added[6.3.0] Set to `true` to enable the collection of monitoring data. When
 this setting is `false` (default), {es} monitoring data is not collected and
 all monitoring data from other sources such as {kib}, Beats, and Logstash is
 ignored.
 
-`xpack.monitoring.collection.interval`:: (<<cluster-update-settings,Dynamic>>) 
+`xpack.monitoring.collection.interval` (<<cluster-update-settings,Dynamic>>):: 
 
 Setting to `-1` to disable data collection is no longer supported beginning with
 7.0.0. deprecated[6.3.0, Use `xpack.monitoring.collection.enabled` set to
@@ -60,7 +60,7 @@ Controls how often data samples are collected. Defaults to `10s`. If you
 modify the collection interval, set the `xpack.monitoring.min_interval_seconds`
 option in `kibana.yml` to the same value.
 
-`xpack.monitoring.elasticsearch.collection.enabled`:: (<<cluster-update-settings,Dynamic>>) 
+`xpack.monitoring.elasticsearch.collection.enabled` (<<cluster-update-settings,Dynamic>>)::
 
 Controls whether statistics about your {es} cluster should be collected. Defaults to `true`.
 This is different from xpack.monitoring.collection.enabled, which allows you to enable or disable
@@ -72,13 +72,14 @@ to pass through this cluster.
 
 Sets the timeout for collecting the cluster statistics. Defaults to `10s`.
 
-`xpack.monitoring.collection.indices`:: (<<cluster-update-settings,Dynamic>>) 
+`xpack.monitoring.collection.indices` (<<cluster-update-settings,Dynamic>>)::
 
 Controls which indices Monitoring collects data from. Defaults to all indices. Specify the index names
 as a comma-separated list, for example `test1,test2,test3`. Names can include wildcards, for
-example `test*`. You can explicitly include or exclude indices by prepending
-`+` to include the index, or `-` to exclude the index. For example, to include all indices that
-start with `test` except `test3`, you could specify `+test*,-test3`.
+example `test*`. You can explicitly exclude indices by prepending `-`. For example `test*,-test3` will
+monitor all indexes that start with `test` except for `test3`. System indices like .security* or .kibana*
+always start with a `.`, and generally should be monitored. Consider adding `.*` to the list of indices
+ensure monitoring of system indices. For example `.*,test*,-test3`
 
 `xpack.monitoring.collection.index.stats.timeout`::
 
@@ -104,11 +105,6 @@ being monitored, and it cannot be disabled.
 
 IMPORTANT: This setting currently only impacts `local`-type exporters. Indices created using
 the `http` exporter will not be deleted automatically.
-
-If both {monitoring} and {watcher} are enabled, you can use this setting to
-affect the {watcher} cleaner service too. For more information, see the
-`xpack.watcher.history.cleaner_service.enabled` setting in the
-<<notification-settings>>.
 --
 
 `xpack.monitoring.exporters`::

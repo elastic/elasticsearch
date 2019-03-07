@@ -47,10 +47,10 @@ a message indicating that they are waiting for the resources to be set up.
 
 One benefit of the `local` exporter is that it lives within the cluster and
 therefore no extra configuration is required when the cluster is secured with
-{security}. All operations, including indexing operations, that occur from a 
-`local` exporter make use of the internal transport mechanisms within {es}. This 
-behavior enables the exporter to be used without providing any user credentials 
-when {security} is enabled. 
+{stack} {security-features}. All operations, including indexing operations, that
+occur from a `local` exporter make use of the internal transport mechanisms
+within {es}. This behavior enables the exporter to be used without providing any
+user credentials when {security-features} are enabled. 
 
 For more information about the configuration options for the `local` exporter, 
 see <<local-exporter-settings>>.

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class Truncate extends BinaryNumericFunction {
     
-    public Truncate(Location location, Expression left, Expression right) {
-        super(location, left, right == null ? Literal.of(left.location(), 0) : right, BinaryMathOperation.TRUNCATE);
+    public Truncate(Source source, Expression left, Expression right) {
+        super(source, left, right == null ? Literal.of(left.source(), 0) : right, BinaryMathOperation.TRUNCATE);
     }
 
     @Override
@@ -31,7 +31,7 @@ public class Truncate extends BinaryNumericFunction {
 
     @Override
     protected Truncate replaceChildren(Expression newLeft, Expression newRight) {
-        return new Truncate(location(), newLeft, newRight);
+        return new Truncate(source(), newLeft, newRight);
     }
 
     @Override

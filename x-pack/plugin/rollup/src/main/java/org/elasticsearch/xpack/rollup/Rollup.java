@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -79,8 +81,6 @@ import static java.util.Collections.emptyList;
 
 public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
-    public static final String BASE_PATH = "/_xpack/rollup/";
-
     // Introduced in ES version 6.3
     public static final int ROLLUP_VERSION_V1 = 1;
     // Introduced in ES Version 6.4
@@ -105,6 +105,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
 
 
+    private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
     private final Settings settings;
     private final boolean enabled;
     private final boolean transportClientMode;
@@ -189,17 +190,26 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                       ThreadPool threadPool, Client client) {
+                                                                       ThreadPool threadPool,
+                                                                       Client client,
+                                                                       SettingsModule settingsModule) {
         if (enabled == false || transportClientMode ) {
             return emptyList();
         }
 
-        SchedulerEngine schedulerEngine = new SchedulerEngine(settings, getClock());
-        return Collections.singletonList(new RollupJobTask.RollupJobPersistentTasksExecutor(settings, client, schedulerEngine, threadPool));
+        schedulerEngine.set(new SchedulerEngine(settings, getClock()));
+        return Collections.singletonList(new RollupJobTask.RollupJobPersistentTasksExecutor(client, schedulerEngine.get(), threadPool));
     }
 
     // overridable by tests
     protected Clock getClock() {
         return Clock.systemUTC();
+    }
+
+    @Override
+    public void close() {
+        if (schedulerEngine.get() != null) {
+            schedulerEngine.get().stop();
+        }
     }
 }

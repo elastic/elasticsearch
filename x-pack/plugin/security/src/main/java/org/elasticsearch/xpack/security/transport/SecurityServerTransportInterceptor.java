@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -33,7 +33,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
+import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -49,7 +49,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
-public class SecurityServerTransportInterceptor extends AbstractComponent implements TransportInterceptor {
+public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
     private static final Function<String, Setting<String>> TRANSPORT_TYPE_SETTING_TEMPLATE = key -> new Setting<>(key, "node", v -> {
         if (v.equals("node") || v.equals("client")) {
@@ -58,6 +58,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
         throw new IllegalArgumentException("type must be one of [client, node]");
     }, Setting.Property.NodeScope);
     private static final String TRANSPORT_TYPE_SETTING_KEY = "xpack.security.type";
+    private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
 
     public static final Setting.AffixSetting<String> TRANSPORT_TYPE_PROFILE_SETTING = Setting.affixKeySetting("transport.profiles.",
             TRANSPORT_TYPE_SETTING_KEY, TRANSPORT_TYPE_SETTING_TEMPLATE);
@@ -83,7 +84,6 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                                               SecurityContext securityContext,
                                               DestructiveOperations destructiveOperations,
                                               ClusterService clusterService) {
-        super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;
@@ -172,10 +172,9 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                 licenseState, threadPool);
     }
 
-    protected Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
-        final SSLConfiguration transportSslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl"));
-        final Map<String, SSLConfiguration> profileConfigurations = SecurityNetty4Transport.getTransportProfileConfigurations(settings,
-            sslService, transportSslConfiguration);
+    private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl"));
+        final Map<String, SSLConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, sslConfiguration);
 
         Map<String, ServerTransportFilter> profileFilters = new HashMap<>(profileConfigurations.size() + 1);
 
@@ -188,12 +187,12 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                 case "client":
                     profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService,
                             threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
-                            securityContext));
+                            securityContext, licenseState));
                     break;
                 case "node":
                     profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService,
                             threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
-                            securityContext));
+                            securityContext, licenseState));
                     break;
                 default:
                    throw new IllegalStateException("unknown profile type: " + type);

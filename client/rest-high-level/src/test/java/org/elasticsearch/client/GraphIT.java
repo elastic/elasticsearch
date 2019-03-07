@@ -23,11 +23,11 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
-import org.elasticsearch.protocol.xpack.graph.Hop;
-import org.elasticsearch.protocol.xpack.graph.Vertex;
-import org.elasticsearch.protocol.xpack.graph.VertexRequest;
+import org.elasticsearch.client.graph.GraphExploreRequest;
+import org.elasticsearch.client.graph.GraphExploreResponse;
+import org.elasticsearch.client.graph.Hop;
+import org.elasticsearch.client.graph.Vertex;
+import org.elasticsearch.client.graph.VertexRequest;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -41,23 +41,23 @@ public class GraphIT extends ESRestHighLevelClientTestCase {
     @Before
     public void indexDocuments() throws IOException {
         // Create chain of doc IDs across indices 1->2->3
-        Request doc1 = new Request(HttpPut.METHOD_NAME, "/index1/type/1");
+        Request doc1 = new Request(HttpPut.METHOD_NAME, "/index1/_doc/1");
         doc1.setJsonEntity("{ \"num\":[1], \"const\":\"start\"}");
         client().performRequest(doc1);
         
-        Request doc2 = new Request(HttpPut.METHOD_NAME, "/index2/type/1");
+        Request doc2 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/1");
         doc2.setJsonEntity("{\"num\":[1,2], \"const\":\"foo\"}");
         client().performRequest(doc2);
         
-        Request doc3 = new Request(HttpPut.METHOD_NAME, "/index2/type/2");
+        Request doc3 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/2");
         doc3.setJsonEntity("{\"num\":[2,3], \"const\":\"foo\"}");
         client().performRequest(doc3);        
 
-        Request doc4 = new Request(HttpPut.METHOD_NAME, "/index_no_field_data/type/2");
+        Request doc4 = new Request(HttpPut.METHOD_NAME, "/index_no_field_data/_doc/2");
         doc4.setJsonEntity("{\"num\":\"string\", \"const\":\"foo\"}");
         client().performRequest(doc4);        
         
-        Request doc5 = new Request(HttpPut.METHOD_NAME, "/index_no_field_data/type/2");
+        Request doc5 = new Request(HttpPut.METHOD_NAME, "/index_no_field_data/_doc/2");
         doc5.setJsonEntity("{\"num\":[2,4], \"const\":\"foo\"}");
         client().performRequest(doc5);        
 

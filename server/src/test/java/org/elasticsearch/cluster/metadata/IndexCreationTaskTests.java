@@ -83,7 +83,7 @@ import static org.mockito.Mockito.when;
 public class IndexCreationTaskTests extends ESTestCase {
 
     private final IndicesService indicesService = mock(IndicesService.class);
-    private final AliasValidator aliasValidator = new AliasValidator(Settings.EMPTY);
+    private final AliasValidator aliasValidator = new AliasValidator();
     private final NamedXContentRegistry xContentRegistry = mock(NamedXContentRegistry.class);
     private final CreateIndexClusterStateUpdateRequest request = mock(CreateIndexClusterStateUpdateRequest.class);
     private final Logger logger = mock(Logger.class);
@@ -308,6 +308,32 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         Exception exception = expectThrows(IllegalStateException.class, () -> executeTask());
         assertThat(exception.getMessage(), startsWith("alias [alias1] has more than one write index ["));
+    }
+
+    public void testTypelessTemplateWithTypedIndexCreation() throws Exception {
+        addMatchingTemplate(builder -> builder.putMapping("type", "{\"type\": {}}"));
+        setupRequestMapping(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent("{\"_doc\":{}}"));
+        executeTask();
+        assertThat(getMappingsFromResponse(), Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
+    }
+
+    public void testTypedTemplateWithTypelessIndexCreation() throws Exception {
+        addMatchingTemplate(builder -> builder.putMapping(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\": {}}"));
+        setupRequestMapping("type", new CompressedXContent("{\"type\":{}}"));
+        executeTask();
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("type"));
+    }
+
+    public void testTypedTemplate() throws Exception {
+        addMatchingTemplate(builder -> builder.putMapping("type", "{\"type\": {}}"));
+        executeTask();
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("type"));
+    }
+
+    public void testTypelessTemplate() throws Exception {
+        addMatchingTemplate(builder -> builder.putMapping(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\": {}}"));
+        executeTask();
+        assertThat(getMappingsFromResponse(), Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 
     private IndexRoutingTable createIndexRoutingTableWithStartedShards(Index index) {

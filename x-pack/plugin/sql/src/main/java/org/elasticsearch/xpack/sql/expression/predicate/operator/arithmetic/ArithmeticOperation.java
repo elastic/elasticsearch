@@ -10,21 +10,23 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
-public abstract class ArithmeticOperation extends BinaryOperator<Number, Number, Number, BinaryArithmeticOperation> {
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
 
-    protected ArithmeticOperation(Location location, Expression left, Expression right, BinaryArithmeticOperation operation) {
-        super(location, left, right, operation);
+public abstract class ArithmeticOperation extends BinaryOperator<Object, Object, Object, BinaryArithmeticOperation> {
+
+    private DataType dataType;
+
+    protected ArithmeticOperation(Source source, Expression left, Expression right, BinaryArithmeticOperation operation) {
+        super(source, left, right, operation);
     }
     
     @Override
-    protected TypeResolution resolveInputType(DataType inputType) {
-        return inputType.isNumeric() ?
-                TypeResolution.TYPE_RESOLVED :
-                new TypeResolution("'%s' requires a numeric type, received %s", symbol(), inputType.esType);
+    protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
+        return isNumeric(e, sourceText(), paramOrdinal);
     }
 
     @Override
@@ -34,11 +36,14 @@ public abstract class ArithmeticOperation extends BinaryOperator<Number, Number,
 
     @Override
     public DataType dataType() {
-        return DataTypeConversion.commonType(left().dataType(), right().dataType());
+        if (dataType == null) {
+            dataType = DataTypeConversion.commonType(left().dataType(), right().dataType());
+        }
+        return dataType;
     }
 
     @Override
     protected Pipe makePipe() {
-        return new BinaryArithmeticPipe(location(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
+        return new BinaryArithmeticPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
     }
 }

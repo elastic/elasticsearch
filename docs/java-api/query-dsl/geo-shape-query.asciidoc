@@ -51,7 +51,6 @@ include-tagged::{query-dsl-test}[indexed_geo_shape]
 --------------------------------------------------
 <1> field
 <2> The ID of the document that containing the pre-indexed shape.
-<3> Index type where the pre-indexed shape is.
-<4> relation
-<5> Name of the index where the pre-indexed shape is. Defaults to 'shapes'.
-<6> The field specified as path containing the pre-indexed shape. Defaults to 'shape'.
+<3> relation
+<4> Name of the index where the pre-indexed shape is. Defaults to 'shapes'.
+<5> The field specified as path containing the pre-indexed shape. Defaults to 'shape'.

@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -35,16 +37,22 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * Rest endpoint to add one or more {@link ApplicationPrivilege} objects to the security index
  */
 public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutPrivilegesAction.class));
 
     public RestPutPrivilegesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(PUT, "/_xpack/security/privilege/", this);
-        controller.registerHandler(POST, "/_xpack/security/privilege/", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            PUT, "/_security/privilege/", this,
+            PUT, "/_xpack/security/privilege/", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            POST, "/_security/privilege/", this,
+            POST, "/_xpack/security/privilege/", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_put_privileges_action";
+        return "security_put_privileges_action";
     }
 
     @Override

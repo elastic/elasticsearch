@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -14,7 +16,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -55,6 +56,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -74,14 +76,13 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
  * is done by this class. Modification operations make a best effort attempt to clear the cache
  * on all nodes for the user that was modified.
  */
-public class NativeRoleMappingStore extends AbstractComponent implements UserRoleMapper {
+public class NativeRoleMappingStore implements UserRoleMapper {
 
+    private static final Logger logger = LogManager.getLogger(NativeRoleMappingStore.class);
     static final String DOC_TYPE_FIELD = "doc_type";
     static final String DOC_TYPE_ROLE_MAPPING = "role-mapping";
 
     private static final String ID_PREFIX = DOC_TYPE_ROLE_MAPPING + "_";
-
-    private static final String SECURITY_GENERIC_TYPE = "doc";
 
     private static final ActionListener<Object> NO_OP_ACTION_LISTENER = new ActionListener<Object>() {
         @Override
@@ -95,12 +96,13 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
         }
     };
 
+    private final Settings settings;
     private final Client client;
     private final SecurityIndexManager securityIndex;
     private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
-        super(settings);
+        this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
     }
@@ -130,7 +132,6 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
             SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
                     .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                    .setTypes(SECURITY_GENERIC_TYPE)
                     .setQuery(query)
                     .setSize(1000)
                     .setFetchSource(true)
@@ -200,7 +201,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
                 return;
             }
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SECURITY_INDEX_NAME, SECURITY_GENERIC_TYPE, getIdForName(mapping.getName()))
+                    client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForName(mapping.getName()))
                             .setSource(xContentBuilder)
                             .setRefreshPolicy(request.getRefreshPolicy())
                             .request(),
@@ -229,7 +230,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareDelete(SECURITY_INDEX_NAME, SECURITY_GENERIC_TYPE, getIdForName(request.getName()))
+                        client.prepareDelete(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForName(request.getName()))
                         .setRefreshPolicy(request.getRefreshPolicy())
                         .request(),
                     new ActionListener<DeleteResponse>() {

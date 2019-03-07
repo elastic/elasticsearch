@@ -55,3 +55,4 @@ cd /d "%ES_HOME%"
 
 endlocal
 endlocal
+exit /b %ERRORLEVEL%

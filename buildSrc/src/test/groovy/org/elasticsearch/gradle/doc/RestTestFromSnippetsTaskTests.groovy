@@ -59,6 +59,6 @@ class RestTestFromSnippetsTaskTests extends GradleUnitTestCase {
     void testIsDocWriteRequest() {
         assertTrue(shouldAddShardFailureCheck("doc-index/_search"));
         assertFalse(shouldAddShardFailureCheck("_cat"))
-        assertFalse(shouldAddShardFailureCheck("_xpack/ml/datafeeds/datafeed-id/_preview"));
+        assertFalse(shouldAddShardFailureCheck("_ml/datafeeds/datafeed-id/_preview"));
     }
 }

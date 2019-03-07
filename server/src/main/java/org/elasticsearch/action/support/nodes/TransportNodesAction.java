@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
@@ -62,11 +61,11 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
     final String transportNodeAction;
 
-    protected TransportNodesAction(Settings settings, String actionName, ThreadPool threadPool,
+    protected TransportNodesAction(String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                    Supplier<NodesRequest> request, Supplier<NodeRequest> nodeRequest, String nodeExecutor,
                                    Class<NodeResponse> nodeResponseClass) {
-        super(settings, actionName, transportService, actionFilters, request);
+        super(actionName, transportService, actionFilters, request);
         this.threadPool = threadPool;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
@@ -81,10 +80,6 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
     @Override
     protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
         new AsyncAction(task, request, listener).start();
-    }
-
-    protected boolean transportCompress() {
-        return false;
     }
 
     /**
@@ -174,7 +169,6 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             if (request.timeout() != null) {
                 builder.withTimeout(request.timeout());
             }
-            builder.withCompress(transportCompress());
             for (int i = 0; i < nodes.length; i++) {
                 final int idx = i;
                 final DiscoveryNode node = nodes[i];

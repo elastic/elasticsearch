@@ -52,13 +52,13 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
 
     @Before
     public void indexDocuments() throws IOException {
-        Request berlin = new Request("PUT", "/index/doc/berlin");
+        Request berlin = new Request("PUT", "/index/_doc/berlin");
         berlin.setJsonEntity("{\"text\":\"berlin\"}");
         client().performRequest(berlin);
         for (int i = 0; i < 6; i++) {
             // add another index to test basic multi index support
             String index = i == 0 ? "index2" : "index";
-            Request amsterdam = new Request("PUT", "/" + index + "/doc/amsterdam" + i);
+            Request amsterdam = new Request("PUT", "/" + index + "/_doc/amsterdam" + i);
             amsterdam.setJsonEntity("{\"text\":\"amsterdam\"}");
             client().performRequest(amsterdam);
         }
@@ -108,7 +108,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
 
         // now try this when test2 is closed
         client().performRequest(new Request("POST", "index2/_close"));
-        rankEvalRequest.indicesOptions(IndicesOptions.fromParameters(null, "true", null, SearchRequest.DEFAULT_INDICES_OPTIONS));
+        rankEvalRequest.indicesOptions(IndicesOptions.fromParameters(null, "true", null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = execute(rankEvalRequest, highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
     }
 

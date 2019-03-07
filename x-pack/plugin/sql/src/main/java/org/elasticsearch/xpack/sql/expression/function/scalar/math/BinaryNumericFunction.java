@@ -7,20 +7,23 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
 
 public abstract class BinaryNumericFunction extends BinaryScalarFunction {
 
     private final BinaryMathOperation operation;
 
-    protected BinaryNumericFunction(Location location, Expression left, Expression right, BinaryMathOperation operation) {
-        super(location, left, right);
+    BinaryNumericFunction(Source source, Expression left, Expression right, BinaryMathOperation operation) {
+        super(source, left, right);
         this.operation = operation;
     }
 
@@ -35,18 +38,12 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = resolveInputType(left().dataType());
+        TypeResolution resolution = isNumeric(left(), sourceText(), ParamOrdinal.FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
 
-        if (resolution == TypeResolution.TYPE_RESOLVED) {
-            return resolveInputType(right().dataType());
         }
-        return resolution;
-    }
-
-    protected TypeResolution resolveInputType(DataType inputType) {
-        return inputType.isNumeric() ?
-                TypeResolution.TYPE_RESOLVED :
-                new TypeResolution("'%s' requires a numeric type, received %s", scriptMethodName(), inputType.esType);
+        return isNumeric(right(), sourceText(), ParamOrdinal.SECOND);
     }
 
     @Override
@@ -56,7 +53,7 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new BinaryMathPipe(location(), this, Expressions.pipe(left()), Expressions.pipe(right()), operation);
+        return new BinaryMathPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), operation);
     }
 
     @Override

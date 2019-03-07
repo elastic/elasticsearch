@@ -12,10 +12,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * This class executes a script against the ctx payload and returns a boolean
@@ -58,10 +56,6 @@ public final class ScriptCondition implements ExecutableCondition {
     }
 
     public Result doExecute(WatchExecutionContext ctx) {
-        Map<String, Object> parameters = Variables.createCtxParamsMap(ctx, ctx.payload());
-        if (script.getParams() != null && !script.getParams().isEmpty()) {
-            parameters.putAll(script.getParams());
-        }
         WatcherConditionScript conditionScript = scriptFactory.newInstance(script.getParams(), ctx);
         return conditionScript.execute() ? MET : UNMET;
     }

@@ -7,14 +7,14 @@ setup:
 ---
 teardown:
   - do:
-      xpack.watcher.delete_watch:
+      watcher.delete_watch:
         id: "test_watch"
         ignore: 404
 
 ---
 "Test execute watch api with configured trigger data timestamps":
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "test_watch"
         body:  >
           {
@@ -33,7 +33,6 @@ teardown:
               "indexme" : {
                 "index" : {
                   "index" : "my_test_index",
-                  "doc_type" : "my-type",
                   "doc_id": "my-id"
                 }
               }
@@ -43,7 +42,7 @@ teardown:
   - match: { created: true }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "test_watch"
         body: >
           {
@@ -68,7 +67,7 @@ teardown:
 "Test execute watch API with user supplied watch":
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body: >
           {
             "watch" : {
@@ -87,7 +86,6 @@ teardown:
                 "indexme" : {
                   "index" : {
                     "index" : "my_test_index",
-                    "doc_type" : "my-type",
                     "doc_id": "my-id"
                   }
                 }
@@ -106,7 +104,7 @@ teardown:
 "Execute unknown watch results in 404":
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "non-existent-watch"
       catch: missing
 
@@ -114,7 +112,7 @@ teardown:
 "Test execute watch with alternative input":
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "test_watch"
         body:  >
           {
@@ -130,7 +128,6 @@ teardown:
               "indexme" : {
                 "index" : {
                   "index" : "my_test_index",
-                  "doc_type" : "my-type",
                   "refresh" : "wait_for",
                   "doc_id": "my-id"
                 }
@@ -141,7 +138,7 @@ teardown:
   - match: { created: true }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "test_watch"
         body: >
           {
@@ -160,5 +157,6 @@ teardown:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: my_test_index
   - match: { hits.total : 1 }

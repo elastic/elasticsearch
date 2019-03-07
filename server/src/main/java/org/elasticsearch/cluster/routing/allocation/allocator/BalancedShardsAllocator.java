@@ -19,12 +19,12 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -78,7 +77,9 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
  * These parameters are combined in a {@link WeightFunction} that allows calculation of node weights which
  * are used to re-balance shards based on global as well as per-index factors.
  */
-public class BalancedShardsAllocator extends AbstractComponent implements ShardsAllocator {
+public class BalancedShardsAllocator implements ShardsAllocator {
+
+    private static final Logger logger = LogManager.getLogger(BalancedShardsAllocator.class);
 
     public static final Setting<Float> INDEX_BALANCE_FACTOR_SETTING =
         Setting.floatSetting("cluster.routing.allocation.balance.index", 0.55f, 0.0f, Property.Dynamic, Property.NodeScope);
@@ -97,7 +98,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
     @Inject
     public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         setWeightFunction(INDEX_BALANCE_FACTOR_SETTING.get(settings), SHARD_BALANCE_FACTOR_SETTING.get(settings));
         setThreshold(THRESHOLD_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);
@@ -448,28 +448,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             }
         }
 
-        public Map<DiscoveryNode, Float> weighShard(ShardRouting shard) {
-            final ModelNode[] modelNodes = sorter.modelNodes;
-            final float[] weights = sorter.weights;
-
-            buildWeightOrderedIndices();
-            Map<DiscoveryNode, Float> nodes = new HashMap<>(modelNodes.length);
-            float currentNodeWeight = 0.0f;
-            for (int i = 0; i < modelNodes.length; i++) {
-                if (modelNodes[i].getNodeId().equals(shard.currentNodeId())) {
-                    // If a node was found with the shard, use that weight instead of 0.0
-                    currentNodeWeight = weights[i];
-                    break;
-                }
-            }
-
-            for (int i = 0; i < modelNodes.length; i++) {
-                final float delta = currentNodeWeight - weights[i];
-                nodes.put(modelNodes[i].getRoutingNode().node(), delta);
-            }
-            return nodes;
-        }
-
         /**
          * Balances the nodes on the cluster model according to the weight
          * function. The configured threshold is the minimum delta between the
@@ -781,7 +759,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final PriorityComparator secondaryComparator = PriorityComparator.getAllocationComparator(allocation);
             final Comparator<ShardRouting> comparator = (o1, o2) -> {
                 if (o1.primary() ^ o2.primary()) {
-                    return o1.primary() ? -1 : o2.primary() ? 1 : 0;
+                    return o1.primary() ? -1 : 1;
                 }
                 final int indexCmp;
                 if ((indexCmp = o1.getIndexName().compareTo(o2.getIndexName())) == 0) {
@@ -951,7 +929,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             updateMinNode = ((((nodeHigh > repId && minNodeHigh > repId)
                                                    || (nodeHigh < repId && minNodeHigh < repId))
                                                   && (nodeHigh < minNodeHigh))
-                                                 || (nodeHigh > minNodeHigh && nodeHigh > repId && minNodeHigh < repId));
+                                                 || (nodeHigh > repId && minNodeHigh < repId));
                         } else {
                             updateMinNode = currentDecision.type() == Type.YES;
                         }

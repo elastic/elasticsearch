@@ -37,7 +37,8 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
 
     protected static final ParseField INCLUDE_NEGATIVES_FIELD = new ParseField("include_negatives");
 
-    protected static final String SCORE_ERROR_MESSAGE = ", does your background filter not include all documents in the bucket? If so and it is intentional, set \"" + BACKGROUND_IS_SUPERSET.getPreferredName() + "\": false";
+    protected static final String SCORE_ERROR_MESSAGE = ", does your background filter not include all documents in the bucket? " +
+            "If so and it is intentional, set \"" + BACKGROUND_IS_SUPERSET.getPreferredName() + "\": false";
 
     protected final boolean backgroundIsSuperset;
 
@@ -176,7 +177,8 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
                     parser.nextToken();
                     backgroundIsSuperset = parser.booleanValue();
                 } else {
-                    throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown field [{}]", givenName, parser.currentName());
+                    throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown field [{}]",
+                            givenName, parser.currentName());
                 }
                 token = parser.nextToken();
             }

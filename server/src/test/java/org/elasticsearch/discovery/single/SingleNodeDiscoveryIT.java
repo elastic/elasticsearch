@@ -19,33 +19,18 @@
 
 package org.elasticsearch.discovery.single;
 
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.NodeConfigurationSource;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Stack;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -69,53 +54,6 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 .build();
     }
 
-    public void testDoesNotRespondToZenPings() throws Exception {
-        final Settings settings =
-                Settings.builder().put("cluster.name", internalCluster().getClusterName()).build();
-        final Version version = Version.CURRENT;
-        final Stack<Closeable> closeables = new Stack<>();
-        final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
-        try {
-            final MockTransportService pingTransport =
-                    MockTransportService.createNewService(settings, version, threadPool, null);
-            pingTransport.start();
-            closeables.push(pingTransport);
-            final TransportService nodeTransport =
-                    internalCluster().getInstance(TransportService.class);
-            // try to ping the single node directly
-            final UnicastHostsProvider provider =
-                hostsResolver -> Collections.singletonList(nodeTransport.getLocalNode().getAddress());
-            final CountDownLatch latch = new CountDownLatch(1);
-            final DiscoveryNodes nodes = DiscoveryNodes.builder()
-                    .add(nodeTransport.getLocalNode())
-                    .add(pingTransport.getLocalNode())
-                    .localNodeId(pingTransport.getLocalNode().getId())
-                    .build();
-            final ClusterName clusterName = new ClusterName(internalCluster().getClusterName());
-            final ClusterState state = ClusterState.builder(clusterName).nodes(nodes).build();
-            final UnicastZenPing unicastZenPing =
-                new UnicastZenPing(settings, threadPool, pingTransport, provider, () -> state) {
-                    @Override
-                    protected void finishPingingRound(PingingRound pingingRound) {
-                        latch.countDown();
-                        super.finishPingingRound(pingingRound);
-                    }
-                };
-            unicastZenPing.start();
-            closeables.push(unicastZenPing);
-            final CompletableFuture<ZenPing.PingCollection> responses = new CompletableFuture<>();
-            unicastZenPing.ping(responses::complete, TimeValue.timeValueSeconds(3));
-            latch.await();
-            responses.get();
-            assertThat(responses.get().size(), equalTo(0));
-        } finally {
-            while (!closeables.isEmpty()) {
-                IOUtils.closeWhileHandlingException(closeables.pop());
-            }
-            terminate(threadPool);
-        }
-    }
-
     public void testSingleNodesDoNotDiscoverEachOther() throws IOException, InterruptedException {
         final TransportService service = internalCluster().getInstance(TransportService.class);
         final int port = service.boundAddress().publishAddress().getPort();
@@ -130,7 +68,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                          * We align the port ranges of the two as then with zen discovery these two
                          * nodes would find each other.
                          */
-                        .put("transport.tcp.port", port + "-" + (port + 5 - 1))
+                        .put("transport.port", port + "-" + (port + 5 - 1))
                         .build();
             }
 
@@ -165,6 +103,12 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                     first.metaData().clusterUUID(),
                     not(equalTo(second.metaData().clusterUUID())));
         }
+    }
+
+    public void testStatePersistence() throws Exception {
+        createIndex("test");
+        internalCluster().fullRestart();
+        assertTrue(client().admin().indices().prepareExists("test").get().isExists());
     }
 
 }

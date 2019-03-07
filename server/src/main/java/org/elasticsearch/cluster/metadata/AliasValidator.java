@@ -22,8 +22,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,12 +41,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
  * Validator for an alias, to be used before adding an alias to the index metadata
  * and make sure the alias is valid
  */
-public class AliasValidator extends AbstractComponent {
-
-    public AliasValidator(Settings settings) {
-        super(settings);
-    }
-
+public class AliasValidator {
     /**
      * Allows to validate an {@link org.elasticsearch.action.admin.indices.alias.Alias} and make sure
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
@@ -146,6 +139,6 @@ public class AliasValidator extends AbstractComponent {
     private static void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
         QueryBuilder queryBuilder = Rewriteable.rewrite(parseInnerQueryBuilder, queryShardContext, true);
-        queryBuilder.toFilter(queryShardContext);
+        queryBuilder.toQuery(queryShardContext);
     }
 }

@@ -80,7 +80,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     public void setupReservedPasswords(RestClient restClient) throws IOException {
         logger.info("setting up reserved passwords for test");
         {
-            Request request = new Request("PUT", "/_xpack/security/user/elastic/_password");
+            Request request = new Request("PUT", "/_security/user/elastic/_password");
             request.setJsonEntity("{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}");
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, BOOTSTRAP_PASSWORD));
@@ -94,7 +94,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
         final List<String> usernames = Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME,
             RemoteMonitoringUser.NAME);
         for (String username : usernames) {
-            Request request = new Request("PUT", "/_xpack/security/user/" + username + "/_password");
+            Request request = new Request("PUT", "/_security/user/" + username + "/_password");
             request.setJsonEntity("{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}");
             request.setOptions(options);
             restClient.performRequest(request);

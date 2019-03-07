@@ -63,7 +63,7 @@ public final class IndexPrivilege extends Privilege {
             ExplainLifecycleAction.NAME);
     private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(PutFollowAction.NAME, UnfollowAction.NAME,
         CloseIndexAction.NAME + "*");
-    private static final Automaton MANAGE_LEADER_INDEX_AUTOMATON = patterns(ForgetFollowerAction.NAME);
+    private static final Automaton MANAGE_LEADER_INDEX_AUTOMATON = patterns(ForgetFollowerAction.NAME + "*");
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("indices:admin/ilm/*");
 
     public static final IndexPrivilege NONE =                new IndexPrivilege("none",                Automatons.EMPTY);

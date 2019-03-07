@@ -77,7 +77,7 @@ DELETE /_security/api_key
   "id" : "VuaCfGcBCdbkQm-e5aOx"
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TEST[continued]
 
@@ -90,7 +90,7 @@ DELETE /_security/api_key
   "name" : "my-api-key"
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TEST
 
 The following example invalidates all API keys for the `native1` realm
@@ -103,7 +103,7 @@ DELETE /_security/api_key
   "realm_name" : "native1"
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TEST
 
 The following example invalidates all API keys for the user `myuser` in all
@@ -116,7 +116,7 @@ DELETE /_security/api_key
   "username" : "myuser"
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TEST
 
 Finally, the following example invalidates all API keys for the user `myuser` in
@@ -130,7 +130,7 @@ DELETE /_security/api_key
   "realm_name" : "native1"
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TEST
 
 A successful call returns a JSON structure that contains the ids of the API keys that were invalidated, the ids

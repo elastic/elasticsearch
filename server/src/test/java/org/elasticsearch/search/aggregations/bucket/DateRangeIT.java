@@ -45,6 +45,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -301,8 +302,8 @@ public class DateRangeIT extends ESIntegTestCase {
         ZoneId timezone = ZoneOffset.UTC;
         int timeZoneOffset = timezone.getRules().getOffset(date(2, 15).toInstant()).getTotalSeconds();
         //there is a daylight saving time change on 11th March so suffix will be different
-        String feb15Suffix = timeZoneOffset == 0 ? "Z" : date(2,15, timezone).format(DateTimeFormatter.ofPattern("xxx"));
-        String mar15Suffix = timeZoneOffset == 0 ? "Z" : date(3,15, timezone).format(DateTimeFormatter.ofPattern("xxx"));
+        String feb15Suffix = timeZoneOffset == 0 ? "Z" : date(2,15, timezone).format(DateTimeFormatter.ofPattern("xxx", Locale.ROOT));
+        String mar15Suffix = timeZoneOffset == 0 ? "Z" : date(3,15, timezone).format(DateTimeFormatter.ofPattern("xxx", Locale.ROOT));
         long expectedFirstBucketCount = timeZoneOffset < 0 ? 3L : 2L;
 
         SearchResponse response = client().prepareSearch("idx")

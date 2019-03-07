@@ -376,6 +376,7 @@ Audit::
 * Fix NPE in Logfile Audit Filter {pull}38120[#38120] (issue: {issue}38097[#38097])
 
 Authentication::
+* Fix security index auto-create and state recovery race {pull}39582[#39582]
 * Use consistent view of realms for authentication {pull}38815[#38815] (issue: {issue}30301[#30301])
 *  Enhance parsing of StatusCode in SAML Responses {pull}38628[#38628]
 * Limit token expiry to 1 hour maximum {pull}38244[#38244]
@@ -403,6 +404,8 @@ CRUD::
 * Fix Reindex from remote query logic {pull}36908[#36908]
 
 Distributed::
+* Use cause to determine if node with primary is closing {pull}39723[#39723] (issue: {issue}39584[#39584])
+* Don’t ack if unable to remove failing replica {pull}39584[#39584] (issue: {issue}39467[#39467])
 * Ignore waitForActiveShards when syncing leases {pull}39224[#39224] (issue: {issue}39089[#39089])
 * Fix synchronization in LocalCheckpointTracker#contains {pull}38755[#38755] (issues: {issue}33871[#33871], {issue}38633[#38633])
 * TransportVerifyShardBeforeCloseAction should force a flush {pull}38401[#38401] (issues: {issue}33888[#33888], {issue}37961[#37961])
@@ -417,6 +420,7 @@ Engine::
 * Advance max_seq_no before add operation to Lucene {pull}38879[#38879] (issue: {issue}31629[#31629])
 
 Features/Features::
+* Check for .watches that wasn't upgraded properly {pull}39609[#39609]
 * Link to 7.0 documentation in deprecation checks {pull}39194[#39194]
 * Handle Null in FetchSourceContext#fetchSource {pull}36839[#36839] (issue: {issue}29293[#29293])
 
@@ -454,11 +458,15 @@ Features/Monitoring::
 * Allow built-in monitoring_user role to call GET _xpack API {pull}38060[#38060] (issue: {issue}37970[#37970])
 
 Features/Watcher::
+* Use any index specified by .watches for Watcher {pull}39541[#39541] (issue: {issue}39478[#39478])
 * Resolve concurrency with watcher trigger service {pull}39092[#39092] (issue: {issue}39087[#39087])
 * Only flush Watcher's bulk processor if Watcher is enabled {pull}38803[#38803] (issue: {issue}38798[#38798])
 
 Geo::
 * Geo: Do not normalize the longitude with value -180 for Lucene shapes {pull}37299[#37299] (issue: {issue}37297[#37297])
+
+Highlighting::
+* Bug fix for AnnotatedTextHighlighter {pull}39525[#39525] (issue: {issue}39395[#39395])
 
 Infra/Core::
 * Correct name of basic_date_time_no_millis {pull}39367[#39367]
@@ -514,6 +522,7 @@ Recovery::
 * RecoveryMonitor#lastSeenAccessTime should be volatile {pull}36781[#36781]
 
 SQL::
+* SQL: Don't allow inexact fields for MIN/MAX {pull}39563[#39563] (issue: {issue}39427[#39427])
 * SQL: Fix merging of incompatible multi-fields {pull}39560[#39560] (issue: {issue}39547[#39547])
 * SQL: fix COUNT DISTINCT column name {pull}39537[#39537] (issue: {issue}39511[#39511])
 * SQL: ignore UNSUPPORTED fields for JDBC and ODBC modes in 'SYS COLUMNS' {pull}39518[#39518] (issue: {issue}39471[#39471])
@@ -544,6 +553,7 @@ SQL::
 * SQL: normalized keywords shouldn't be allowed for groupings and sorting [ISSUE] {pull}35203[#35203]
 
 Search::
+* Fix Fuzziness#asDistance(String) {pull}39643[#39643] (issue: {issue}39614[#39614])
 * Fix simple query string serialization conditional {pull}38960[#38960] (issues: {issue}21504[#21504], {issue}38889[#38889])
 * Ensure that maxConcurrentShardRequests is never defaulted to 0 {pull}38734[#38734]
 * Look up connection using the right cluster alias when releasing contexts {pull}38570[#38570]
@@ -570,6 +580,7 @@ Task Management::
 * Un-assign persistent tasks as nodes exit the cluster {pull}37656[#37656]
 
 ZenDiscovery::
+* Fixing the custom object serialization bug in diffable utils. {pull}39544[#39544]
 * Always return metadata version if metadata is requested {pull}37674[#37674]
 
 

@@ -106,9 +106,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -124,6 +121,7 @@ import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -187,8 +185,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.client.Requests.syncedFlushRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -203,7 +199,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -466,6 +461,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     RandomNumbers.randomIntBetween(random, 1, 15) + "ms");
         }
 
+        if (randomBoolean()) {
+            builder.put(Store.FORCE_RAM_TERM_DICT.getKey(), true);
+        }
+
         return builder;
     }
 
@@ -562,29 +561,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());
 
                         final Set<String> transientKeys = new HashSet<>(metaData.transientSettings().keySet());
-                        if (isInternalCluster() && internalCluster().getAutoManageMinMasterNode()) {
-                            // this is set by the test infra
-                            transientKeys.remove(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());
-                        }
                         assertThat("test leaves transient cluster metadata behind", transientKeys, empty());
                     }
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
-                    if (isInternalCluster()) {
-                        // check no pending cluster states are leaked
-                        for (Discovery discovery : internalCluster().getInstances(Discovery.class)) {
-                            if (discovery instanceof ZenDiscovery) {
-                                final ZenDiscovery zenDiscovery = (ZenDiscovery) discovery;
-                                assertBusy(() -> {
-                                    final ClusterState[] states = zenDiscovery.pendingClusterStates();
-                                    assertThat(zenDiscovery.clusterState().nodes().getLocalNode().getName() +
-                                            " still having pending states:\n" +
-                                            Stream.of(states).map(ClusterState::toString).collect(Collectors.joining("\n")),
-                                        states, emptyArray());
-                                });
-                            }
-                        }
-                    }
                     beforeIndexDeletion();
                     cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {
@@ -1667,8 +1647,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         boolean supportsDedicatedMasters() default true;
 
         /**
-         * The cluster automatically manages the {@link ElectMasterService#DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING} by default
-         * as nodes are started and stopped. Set this to false to manage the setting manually.
+         * The cluster automatically manages the bootstrap voting configuration. Set this to false to manage the setting manually.
          */
         boolean autoMinMasterNodes() default true;
 

@@ -7,6 +7,20 @@ dependencies {
 }
 
 integTestCluster {
-  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
+
+  setupCommand 'setupDummyUser',
+          'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+
+  waitCondition = { node, ant ->
+      File tmpFile = new File(node.cwd, 'wait.success')
+      ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+              dest: tmpFile.toString(),
+              username: 'x_pack_rest_user',
+              password: 'x-pack-test-password',
+              ignoreerrors: true,
+              retries: 10)
+      return tmpFile.exists()
+  }
 }

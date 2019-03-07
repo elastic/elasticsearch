@@ -19,12 +19,18 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiCollector;
@@ -125,6 +131,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             }
         }
 
+        @Override
         Collector create(Collector in) {
             assert in == null;
             return collector;
@@ -355,6 +362,29 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             int count = 0;
             for (LeafReaderContext context : reader.leaves()) {
                 count += context.reader().docFreq(term);
+            }
+            return count;
+        } else if (query.getClass() == DocValuesFieldExistsQuery.class && reader.hasDeletions() == false) {
+            final String field = ((DocValuesFieldExistsQuery) query).getField();
+            int count = 0;
+            for (LeafReaderContext context : reader.leaves()) {
+                FieldInfos fieldInfos = context.reader().getFieldInfos();
+                FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
+                if (fieldInfo != null) {
+                    if (fieldInfo.getPointIndexDimensionCount() > 0) {
+                        PointValues points = context.reader().getPointValues(field);
+                        if (points != null) {
+                            count += points.getDocCount();
+                        }
+                    } else if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
+                        Terms terms = context.reader().terms(field);
+                        if (terms != null) {
+                            count += terms.getDocCount();
+                        }
+                    } else {
+                        return -1; // no shortcut possible for fields that are not indexed
+                    }
+                }
             }
             return count;
         } else {

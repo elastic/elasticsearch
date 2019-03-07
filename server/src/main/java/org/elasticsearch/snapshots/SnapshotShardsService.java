@@ -514,9 +514,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     void sendSnapshotShardUpdate(Snapshot snapshot, ShardId shardId, ShardSnapshotStatus status, DiscoveryNode masterNode) {
         try {
             if (masterNode.getVersion().onOrAfter(Version.V_6_1_0)) {
-                UpdateIndexShardSnapshotStatusRequest request = new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status);
-                transportService.sendRequest(transportService.getLocalNode(), UPDATE_SNAPSHOT_STATUS_ACTION_NAME, request, INSTANCE_SAME);
-            } else {
                 remoteFailedRequestDeduplicator.executeOnce(
                     new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status),
                     new ActionListener<Void>() {
@@ -557,6 +554,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             }
                         })
                 );
+            } else {
+                transportService.sendRequest(masterNode, UPDATE_SNAPSHOT_STATUS_ACTION_NAME_V6,
+                    new UpdateSnapshotStatusRequestV6(snapshot, shardId, status), INSTANCE_SAME);
             }
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to update snapshot state", snapshot, status), e);

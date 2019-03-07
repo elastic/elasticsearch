@@ -579,6 +579,7 @@ subprojects {
 ['archives:windows-zip','archives:oss-windows-zip',
  'archives:darwin-tar','archives:oss-darwin-tar',
  'archives:linux-tar', 'archives:oss-linux-tar',
+ 'archives:integ-test-zip',
  'packages:rpm', 'packages:deb',
  'packages:oss-rpm', 'packages:oss-deb',
 ].forEach { subName ->

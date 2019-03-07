@@ -157,10 +157,20 @@ class ClusterFormationTasks {
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro, Configuration configuration, String elasticsearchVersion) {
+        boolean internalBuild = project.hasProperty('bwcVersions')
         if (distro.equals("integ-test-zip")) {
             // short circuit integ test so it doesn't complicate the rest of the distribution setup below
-            project.dependencies.add(configuration.name,
-                    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${elasticsearchVersion}@zip")
+            if (internalBuild) {
+                project.dependencies.add(
+                        configuration.name,
+                        project.dependencies.project(path: ":distribution", configuration: 'integ-test-zip')
+                )
+            } else {
+                project.dependencies.add(
+                        configuration.name,
+                        "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${elasticsearchVersion}@zip"
+                )
+            }
             return
         }
         // TEMP HACK
@@ -191,8 +201,9 @@ class ClusterFormationTasks {
         if (distro.equals("oss")) {
             snapshotProject = "oss-" + snapshotProject
         }
-        boolean internalBuild = project.hasProperty('bwcVersions')
+        
         BwcVersions.UnreleasedVersionInfo unreleasedInfo = null
+
         if (project.hasProperty('bwcVersions')) {
             // NOTE: leniency is needed for external plugin authors using build-tools. maybe build the version compat info into build-tools?
             unreleasedInfo = project.bwcVersions.unreleasedInfo(version)

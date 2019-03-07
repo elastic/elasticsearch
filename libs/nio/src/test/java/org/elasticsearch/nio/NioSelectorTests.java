@@ -107,6 +107,23 @@ public class NioSelectorTests extends ESTestCase {
         verify(eventHandler).handleClose(context);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public void testCloseException() throws IOException {
+        IOException ioException = new IOException();
+        NioChannel channel = mock(NioChannel.class);
+        ChannelContext context = mock(ChannelContext.class);
+        when(channel.getContext()).thenReturn(context);
+        when(context.getSelector()).thenReturn(selector);
+
+        selector.queueChannelClose(channel);
+
+        doThrow(ioException).when(eventHandler).handleClose(context);
+
+        selector.singleLoop();
+
+        verify(eventHandler).closeException(context, ioException);
+    }
+
     public void testNioDelayedTasksAreExecuted() throws IOException {
         AtomicBoolean isRun = new AtomicBoolean(false);
         long nanoTime = System.nanoTime() - 1;
@@ -116,6 +133,23 @@ public class NioSelectorTests extends ESTestCase {
         selector.singleLoop();
         verify(rawSelector).selectNow();
         assertTrue(isRun.get());
+    }
+
+    public void testTaskExceptionsAreHandled() {
+        RuntimeException taskException = new RuntimeException();
+        long nanoTime = System.nanoTime() - 1;
+        Runnable task = () -> {
+            throw taskException;
+        };
+        selector.getTaskScheduler().scheduleAtRelativeTime(task, nanoTime);
+
+        doAnswer((a) -> {
+            task.run();
+            return null;
+        }).when(eventHandler).handleTask(same(task));
+
+        selector.singleLoop();
+        verify(eventHandler).taskException(taskException);
     }
 
     public void testDefaultSelectorTimeoutIsUsedIfNoTaskSooner() throws IOException {

@@ -30,6 +30,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.mockito.Matchers.same;
@@ -243,9 +244,15 @@ public class EventHandlerTests extends ESTestCase {
         assertEquals(SelectionKey.OP_READ, key.interestOps());
     }
 
-    public void testExecuteTaskWillHandleException() throws Exception {
+    public void testHandleTaskWillRunTask() throws Exception {
+        AtomicBoolean isRun = new AtomicBoolean(false);
+        handler.handleTask(() -> isRun.set(true));
+        assertTrue(isRun.get());
+    }
+
+    public void testTaskExceptionWillCallExceptionHandler() throws Exception {
         RuntimeException exception = new RuntimeException();
-        handler.handleTask(() -> {throw exception;});
+        handler.taskException(exception);
         verify(genericExceptionHandler).accept(exception);
     }
 

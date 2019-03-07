@@ -22,8 +22,10 @@ package org.elasticsearch.transport.nio;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.nio.ChannelContext;
 import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.NioSelector;
+import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
 
 import java.io.IOException;
@@ -38,10 +40,51 @@ public class TestingSocketEventHandler extends EventHandler {
 
     private static final Logger logger = LogManager.getLogger(TestingSocketEventHandler.class);
 
-    private Set<SocketChannelContext> hasConnectedMap = Collections.newSetFromMap(new WeakHashMap<>());
+    private final Set<SocketChannelContext> hasConnectedMap = Collections.newSetFromMap(new WeakHashMap<>());
+    private final Set<SocketChannelContext> hasConnectExceptionMap = Collections.newSetFromMap(new WeakHashMap<>());
 
-    public TestingSocketEventHandler(Consumer<Exception> exceptionHandler, Supplier<NioSelector> selectorSupplier) {
+    TestingSocketEventHandler(Consumer<Exception> exceptionHandler, Supplier<NioSelector> selectorSupplier) {
         super(exceptionHandler, selectorSupplier);
+    }
+
+    @Override
+    protected void acceptChannel(ServerChannelContext context) throws IOException {
+        long startTime = System.nanoTime();
+        try {
+            super.acceptChannel(context);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
+    }
+
+    @Override
+    protected void acceptException(ServerChannelContext context, Exception exception) {
+        long startTime = System.nanoTime();
+        try {
+            super.acceptException(context, exception);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
+    }
+
+    @Override
+    protected void handleRegistration(ChannelContext<?> context) throws IOException {
+        long startTime = System.nanoTime();
+        try {
+            super.handleRegistration(context);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
+    }
+
+    @Override
+    protected void registrationException(ChannelContext<?> context, Exception exception) {
+        long startTime = System.nanoTime();
+        try {
+            super.registrationException(context, exception);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
     }
 
     public void handleConnect(SocketChannelContext context) throws IOException {
@@ -57,12 +100,15 @@ public class TestingSocketEventHandler extends EventHandler {
         }
     }
 
-    private Set<SocketChannelContext> hasConnectExceptionMap = Collections.newSetFromMap(new WeakHashMap<>());
-
     public void connectException(SocketChannelContext context, Exception e) {
         assert hasConnectExceptionMap.contains(context) == false : "connectException should only called at maximum once per channel";
         hasConnectExceptionMap.add(context);
-        super.connectException(context, e);
+        long startTime = System.nanoTime();
+        try {
+            super.connectException(context, e);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
     }
 
     @Override
@@ -70,6 +116,16 @@ public class TestingSocketEventHandler extends EventHandler {
         long startTime = System.nanoTime();
         try {
             super.handleRead(context);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
+    }
+
+    @Override
+    protected void readException(SocketChannelContext context, Exception exception) {
+        long startTime = System.nanoTime();
+        try {
+            super.readException(context, exception);
         } finally {
             maybeLogElapsedTime(startTime);
         }
@@ -86,6 +142,16 @@ public class TestingSocketEventHandler extends EventHandler {
     }
 
     @Override
+    protected void writeException(SocketChannelContext context, Exception exception) {
+        long startTime = System.nanoTime();
+        try {
+            super.writeException(context, exception);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
+    }
+
+    @Override
     protected void handleTask(Runnable task) {
         long startTime = System.nanoTime();
         try {
@@ -95,7 +161,47 @@ public class TestingSocketEventHandler extends EventHandler {
         }
     }
 
-    private static final long WARN_THRESHOLD = 200;
+    @Override
+    protected void taskException(Exception exception) {
+        long startTime = System.nanoTime();
+        try {
+            super.taskException(exception);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
+    }
+
+    @Override
+    protected void handleClose(ChannelContext<?> context) throws IOException {
+        long startTime = System.nanoTime();
+        try {
+            super.handleClose(context);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
+    }
+
+    @Override
+    protected void closeException(ChannelContext<?> context, Exception exception) {
+        long startTime = System.nanoTime();
+        try {
+            super.closeException(context, exception);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
+    }
+
+    @Override
+    protected void genericChannelException(ChannelContext<?> context, Exception exception) {
+        long startTime = System.nanoTime();
+        try {
+            super.genericChannelException(context, exception);
+        } finally {
+            maybeLogElapsedTime(startTime);
+        }
+    }
+
+    private static final long WARN_THRESHOLD = 150;
 
     private void maybeLogElapsedTime(long startTime) {
         long elapsedTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);

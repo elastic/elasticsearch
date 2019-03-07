@@ -232,7 +232,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByAliasedInSelectAllowed() {
-        LogicalPlan lp = accept("SELECT text t FROM test GROUP BY text ORDER BY t");
+        LogicalPlan lp = accept("SELECT int i FROM test GROUP BY int ORDER BY i");
         assertNotNull(lp);
     }
 
@@ -265,6 +265,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertNotNull(accept("SELECT dep.* FROM test"));
     }
 
+    public void testGroupByOnInexact() {
+        assertEquals("1:36: Field of data type [text] cannot be used for grouping; " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT COUNT(*) FROM test GROUP BY text"));
+    }
+
     public void testGroupByOnNested() {
         assertEquals("1:38: Grouping isn't (yet) compatible with nested fields [dep.dep_id]",
                 error("SELECT dep.dep_id FROM test GROUP BY dep.dep_id"));
@@ -295,6 +301,18 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT * FROM test WHERE unsupported > 1"));
     }
 
+    public void testTermEqualityOnInexact() {
+        assertEquals("1:26: [==] cannot operate on first argument field of data type [text]: " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT * FROM test WHERE text = 'value'"));
+    }
+
+    public void testTermEqualityOnAmbiguous() {
+        assertEquals("1:26: [==] cannot operate on first argument field of data type [text]: " +
+                "Multiple exact keyword candidates available for [ambiguous]; specify which one to use",
+            error("SELECT * FROM test WHERE some.ambiguous = 'value'"));
+    }
+
     public void testUnsupportedTypeInFunction() {
         assertEquals("1:12: Cannot use field [unsupported] type [ip_range] as is unsupported",
                 error("SELECT ABS(unsupported) FROM test"));
@@ -307,7 +325,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testGroupByOrderByNonKey() {
         assertEquals("1:52: Cannot order by non-grouped column [a], expected [bool]",
-                error("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a"));
+            error("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a"));
+    }
+
+    public void testInexactFieldInOrder() {
+        assertEquals("1:29: ORDER BY cannot be applied to field of data type [text]: " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT * FROM test ORDER BY text"));
     }
 
     public void testGroupByOrderByFunctionOverKey() {
@@ -382,69 +406,110 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testNotSupportedAggregateOnDate() {
-        assertEquals("1:8: [AVG] argument must be [numeric], found value [date] type [date]",
-            error("SELECT AVG(date) FROM test"));
+            assertEquals("1:8: argument of [AVG] must be [numeric], found value [date] type [date]",
+                error("SELECT AVG(date) FROM test"));
     }
 
     public void testNotSupportedAggregateOnString() {
-        assertEquals("1:8: [MAX] argument must be [numeric or date], found value [keyword] type [keyword]",
+        assertEquals("1:8: argument of [MAX] must be [date or numeric], found value [keyword] type [keyword]",
             error("SELECT MAX(keyword) FROM test"));
     }
 
-    public void testInvalidTypeForStringFunction_WithOneArg() {
-        assertEquals("1:8: [LENGTH] argument must be [string], found value [1] type [integer]",
+    public void testInvalidTypeForStringFunction_WithOneArgString() {
+        assertEquals("1:8: argument of [LENGTH] must be [string], found value [1] type [integer]",
             error("SELECT LENGTH(1)"));
     }
 
+    public void testInvalidTypeForStringFunction_WithOneArgNumeric() {
+        assertEquals("1:8: argument of [CHAR] must be [integer], found value [foo] type [keyword]",
+            error("SELECT CHAR('foo')"));
+    }
+
+    public void testInvalidTypeForNestedStringFunctions_WithOneArg() {
+        assertEquals("1:14: argument of [CHAR] must be [integer], found value [foo] type [keyword]",
+            error("SELECT ASCII(CHAR('foo'))"));
+    }
+
     public void testInvalidTypeForNumericFunction_WithOneArg() {
-        assertEquals("1:8: [COS] argument must be [numeric], found value [foo] type [keyword]",
+        assertEquals("1:8: argument of [COS] must be [numeric], found value [foo] type [keyword]",
             error("SELECT COS('foo')"));
     }
 
     public void testInvalidTypeForBooleanFunction_WithOneArg() {
-        assertEquals("1:8: [NOT] argument must be [boolean], found value [foo] type [keyword]",
+        assertEquals("1:8: argument of [NOT] must be [boolean], found value [foo] type [keyword]",
             error("SELECT NOT 'foo'"));
     }
 
     public void testInvalidTypeForStringFunction_WithTwoArgs() {
-        assertEquals("1:8: [CONCAT] first argument must be [string], found value [1] type [integer]",
+        assertEquals("1:8: first argument of [CONCAT] must be [string], found value [1] type [integer]",
             error("SELECT CONCAT(1, 'bar')"));
-        assertEquals("1:8: [CONCAT] second argument must be [string], found value [2] type [integer]",
+        assertEquals("1:8: second argument of [CONCAT] must be [string], found value [2] type [integer]",
             error("SELECT CONCAT('foo', 2)"));
     }
 
     public void testInvalidTypeForNumericFunction_WithTwoArgs() {
-        assertEquals("1:8: [TRUNCATE] first argument must be [numeric], found value [foo] type [keyword]",
+        assertEquals("1:8: first argument of [TRUNCATE] must be [numeric], found value [foo] type [keyword]",
             error("SELECT TRUNCATE('foo', 2)"));
-        assertEquals("1:8: [TRUNCATE] second argument must be [numeric], found value [bar] type [keyword]",
+        assertEquals("1:8: second argument of [TRUNCATE] must be [numeric], found value [bar] type [keyword]",
             error("SELECT TRUNCATE(1.2, 'bar')"));
     }
 
     public void testInvalidTypeForBooleanFuntion_WithTwoArgs() {
-        assertEquals("1:8: [OR] first argument must be [boolean], found value [1] type [integer]",
+        assertEquals("1:8: first argument of [OR] must be [boolean], found value [1] type [integer]",
             error("SELECT 1 OR true"));
-        assertEquals("1:8: [OR] second argument must be [boolean], found value [2] type [integer]",
+        assertEquals("1:8: second argument of [OR] must be [boolean], found value [2] type [integer]",
             error("SELECT true OR 2"));
     }
 
-    public void testInvalidTypeForFunction_WithThreeArgs() {
-        assertEquals("1:8: [REPLACE] first argument must be [string], found value [1] type [integer]",
-            error("SELECT REPLACE(1, 'foo', 'bar')"));
-        assertEquals("1:8: [REPLACE] second argument must be [string], found value [2] type [integer]",
-            error("SELECT REPLACE('text', 2, 'bar')"));
-        assertEquals("1:8: [REPLACE] third argument must be [string], found value [3] type [integer]",
-            error("SELECT REPLACE('text', 'foo', 3)"));
+    public void testInvalidTypeForFunction_WithFourArgs() {
+        assertEquals("1:8: first argument of [INSERT] must be [string], found value [1] type [integer]",
+            error("SELECT INSERT(1, 1, 2, 'new')"));
+        assertEquals("1:8: second argument of [INSERT] must be [numeric], found value [foo] type [keyword]",
+            error("SELECT INSERT('text', 'foo', 2, 'new')"));
+        assertEquals("1:8: third argument of [INSERT] must be [numeric], found value [bar] type [keyword]",
+            error("SELECT INSERT('text', 1, 'bar', 'new')"));
+        assertEquals("1:8: fourth argument of [INSERT] must be [string], found value [3] type [integer]",
+            error("SELECT INSERT('text', 1, 2, 3)"));
     }
 
-    public void testInvalidTypeForFunction_WithFourArgs() {
-        assertEquals("1:8: [INSERT] first argument must be [string], found value [1] type [integer]",
-            error("SELECT INSERT(1, 1, 2, 'new')"));
-        assertEquals("1:8: [INSERT] second argument must be [numeric], found value [foo] type [keyword]",
-            error("SELECT INSERT('text', 'foo', 2, 'new')"));
-        assertEquals("1:8: [INSERT] third argument must be [numeric], found value [bar] type [keyword]",
-            error("SELECT INSERT('text', 1, 'bar', 'new')"));
-        assertEquals("1:8: [INSERT] fourth argument must be [string], found value [3] type [integer]",
-            error("SELECT INSERT('text', 1, 2, 3)"));
+    public void testInvalidTypeForReplace() {
+        assertEquals("1:8: first argument of [REPLACE] must be [string], found value [1] type [integer]",
+            error("SELECT REPLACE(1, 'foo', 'bar')"));
+        assertEquals("1:8: [REPLACE] cannot operate on first argument field of data type [text]: " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT REPLACE(text, 'foo', 'bar') FROM test"));
+
+        assertEquals("1:8: second argument of [REPLACE] must be [string], found value [2] type [integer]",
+            error("SELECT REPLACE('foo', 2, 'bar')"));
+        assertEquals("1:8: [REPLACE] cannot operate on second argument field of data type [text]: " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT REPLACE('foo', text, 'bar') FROM test"));
+
+        assertEquals("1:8: third argument of [REPLACE] must be [string], found value [3] type [integer]",
+            error("SELECT REPLACE('foo', 'bar', 3)"));
+        assertEquals("1:8: [REPLACE] cannot operate on third argument field of data type [text]: " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT REPLACE('foo', 'bar', text) FROM test"));
+    }
+
+    public void testInvalidTypeForSubString() {
+        assertEquals("1:8: first argument of [SUBSTRING] must be [string], found value [1] type [integer]",
+            error("SELECT SUBSTRING(1, 2, 3)"));
+        assertEquals("1:8: [SUBSTRING] cannot operate on first argument field of data type [text]: " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT SUBSTRING(text, 2, 3) FROM test"));
+
+        assertEquals("1:8: second argument of [SUBSTRING] must be [integer], found value [bar] type [keyword]",
+            error("SELECT SUBSTRING('foo', 'bar', 3)"));
+
+        assertEquals("1:8: third argument of [SUBSTRING] must be [integer], found value [bar] type [keyword]",
+            error("SELECT SUBSTRING('foo', 2, 'bar')"));
+    }
+
+    public void testInvalidTypeForRegexMatch() {
+        assertEquals("1:31: [LIKE] cannot operate on field of data type [text]: " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT * FROM test WHERE text LIKE 'foo'"));
     }
     
     public void testAllowCorrectFieldsInIncompatibleMappings() {
@@ -577,12 +642,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
-        assertEquals("1:8: Second argument of PERCENTILE must be a constant, received [ABS(int)]",
+        assertEquals("1:8: second argument of [PERCENTILE] must be a constant, received [ABS(int)]",
             error("SELECT PERCENTILE(int, ABS(int)) FROM test"));
     }
 
     public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
-        assertEquals("1:8: Second argument of PERCENTILE_RANK must be a constant, received [ABS(int)]",
+        assertEquals("1:8: second argument of [PERCENTILE_RANK] must be a constant, received [ABS(int)]",
             error("SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"));
     }
 }

@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
-import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
@@ -37,6 +36,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
+import org.elasticsearch.xpack.sql.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
@@ -107,16 +107,6 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("value", tq.value());
     }
 
-    public void testTermEqualityAnalyzerAmbiguous() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE some.ambiguous = 'value'");
-        assertTrue(p instanceof Project);
-        p = ((Project) p).child();
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        // the message is checked elsewhere (in FieldAttributeTests)
-        expectThrows(MappingException.class, () -> QueryTranslator.toQuery(condition, false));
-    }
-
     public void testTermEqualityNotAnalyzed() {
         LogicalPlan p = plan("SELECT some.string FROM test WHERE int = 5");
         assertTrue(p instanceof Project);
@@ -181,6 +171,19 @@ public class QueryTranslatorTests extends ESTestCase {
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
         assertEquals(DateUtils.of("1969-05-13T12:34:56Z"), rq.lower());
+    }
+
+    public void testLikeOnInexact() {
+        LogicalPlan p = plan("SELECT * FROM test WHERE some.string LIKE '%a%'");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation qt = QueryTranslator.toQuery(condition, false);
+        assertEquals(QueryStringQuery.class, qt.query.getClass());
+        QueryStringQuery qsq = ((QueryStringQuery) qt.query);
+        assertEquals(1, qsq.fields().size());
+        assertEquals("some.string.typical", qsq.fields().keySet().iterator().next());
     }
     
     public void testLikeConstructsNotSupported() {

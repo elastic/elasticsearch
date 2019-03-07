@@ -31,7 +31,7 @@ PUT products/_doc/1567
 // CONSOLE
 
 You can see the assigned sequence number and primary term in the 
-the `_seq_no` and `_primary_term` fields of the response:
+`_seq_no` and `_primary_term` fields of the response:
 
 [source,js]
 --------------------------------------------------
@@ -53,8 +53,8 @@ the `_seq_no` and `_primary_term` fields of the response:
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 2/"_primary_term" : $body._primary_term/]
 
 
-Elasticsearch keeps tracks of the sequence number and primary of the last
-operation to have changed each of the document it stores. The sequence number
+Elasticsearch keeps tracks of the sequence number and primary term of the last
+operation to have changed each of the documents it stores. The sequence number
 and primary term are returned in the `_seq_no` and `_primary_term` fields in
 the response of the <<docs-get,GET API>>:
 

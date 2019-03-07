@@ -774,7 +774,6 @@ public class RecoverySourceHandler {
         }
 
         synchronized FileChunk readChunk(final byte[] buffer) throws Exception {
-            cancellableThreads.checkForCancel();
             if (readerClosed) {
                 throw new IllegalStateException("chunk reader was closed");
             }

@@ -17,10 +17,7 @@ of the failed node.
 Each node stores its data in the data directories defined by the
 <<path-settings,`path.data` setting>>. This means that in a disaster you can
 also restart a node by moving its data directories to another host, presuming
-that those data directories can be recovered from the faulty host. Note that it
-is not possible to restore the data directory from a backup because this will
-lead to data corruption. Backups of an {es} cluster can only be taken using
-<<modules-snapshots>>.
+that those data directories can be recovered from the faulty host.
 
 {es} <<modules-discovery-quorums,requires a response from a majority of the
 master-eligible nodes>> in order to elect a master and to update the cluster
@@ -37,18 +34,21 @@ ingested since that snapshot was taken.
 However, if the disaster is serious enough then it may not be possible to
 recover from a recent snapshot either. Unfortunately in this case there is no
 way forward that does not risk data loss, but it may be possible to use the
-`elasticsearch-node` tool to unsafely bring the cluster back online.
+`elasticsearch-node` tool to construct a new cluster that contains some of the
+data from the failed cluster.
 
-This tool has two modes, depending on whether there are any master-eligible
-nodes remaining or not:
+This tool has two modes:
 
 * `elastisearch-node unsafe-bootstap` can be used if there is at least one
   remaining master-eligible node. It allows you to force one of the remaining
-  nodes to become the elected master on its own.
+  nodes to form a brand-new cluster on its own, which is known as _unsafe
+  cluster bootstrapping_.
 
-* `elastisearch-node detach-cluster` can be used if there are no remaining
-  master-eligible nodes. It allows you to detach any remaining data nodes from
-  the old, failed, cluster so they can join a new cluster.
+* `elastisearch-node detach-cluster` allows you to move nodes from one cluster
+  to another. This can be used to move nodes into the new cluster created with
+  the `elastisearch-node unsafe-bootstap` command above. It also allows you to
+  move nodes into a brand-new cluster if unsafe cluster bootstrapping was not
+  possible.
 
 [float]
 === Unsafe cluster bootstrapping
@@ -197,8 +197,72 @@ Master node was successfully bootstrapped
 ----
 
 [float]
-=== Detach cluster
-Sample tool output
+=== Detaching nodes from their cluster
+
+It is not normally a good idea for nodes to move between clusters, because
+different clusters have completely different cluster metadata and there is no
+way to safely merge the metadata from two clusters together.
+
+To protect against inadvertently joining the wrong cluster, each cluster
+creates a unique identifier, known as the _cluster UUID_, when it first starts
+up. Every node records the UUID of its cluster and will refuse to join a
+cluster with a different UUID in future.
+
+However, if a node's cluster has permanently failed then it may be desirable to
+try and move it into a new cluster. The `elasticsearch-node detach-cluster`
+command lets you detach a node from its cluster by resetting its cluster UUID,
+so that it can join another cluster with a different UUID.
+
+For example, after unsafe cluster bootstrapping you will need to detach all the
+other surviving nodes from their old cluster so they can join the new,
+unsafely-bootstrapped cluster.
+
+Unsafe cluster bootstrapping is only possible if there is at least one
+surviving master-eligible node. If there are no remaining master-eligible nodes
+then the cluster metadata is completely lost. However, the individual data
+nodes also contain a copy of the index metadata corresponding with their
+shards. This sometimes allows a new cluster to import these shards as
+<<modules-gateway-dangling-indices,dangling indices>>. You can sometimes
+recover from the loss of all master-eligible nodes in a cluster by creating a
+new cluster and then using the `elasticsearch-node detach-cluster` command to
+move any surviving nodes into this new cluster.
+
+There is a risk of data loss when importing a dangling index because data nodes
+may not have the most recent copy of the index metadata and do not have any
+information about <<docs-replication,which shard copies are in-sync>>. This
+means that a stale shard copy may be selected to be the primary, and some of
+the shards may be incompatible with the imported mapping.
+
+[WARNING]
+Execution of this command can lead to arbitrary data loss. Only run this tool
+if you understand and accept the possible consequences and have exhausted all
+other possibilities for recovery of your cluster.
+
+The sequence of operations for using this tool are as follows:
+
+1. Make sure you have really lost access to every one of the master-eligible
+nodes in the cluster, and they cannot be repaired or recovered by moving their
+data paths to healthy hardware.
+2. Start a new cluster of empty master-eligible nodes and verify that it is
+healthy.
+3. Disable allocation in this cluster by setting
+`cluster.routing.allocation.enable: none`.
+4. Stop **all** remaining data nodes.
+5. On each data node, run the `elasticsearch-node detach-cluster` tool as shown
+below. Verify that the tool reported `Node was successfully detached from the
+cluster`.
+6. If necessary, configure each data node to
+<<modules-discovery-hosts-providers,discover the new cluster>>.
+7. Start each data node and verify that it has joined the new cluster.
+8. Enable allocation in this cluster by setting
+`cluster.routing.allocation.enable: all`.
+9. Wait for all recoveries to have completed, and investigate the data in the
+cluster to discover if any was lost during this process.
+
+[NOTE]
+The message `Node was successfully detached from the cluster` does not mean
+that there has been no data loss, it just means that tool was able to complete
+its job.
 
 [source, txt]
 ----

@@ -40,6 +40,7 @@ import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
+
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -842,8 +843,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      */
     public void testSnapshotRestore() throws IOException {
         int count;
-        Version oldClusterVersion = getOldClusterVersion();
-        if (isRunningAgainstOldCluster() && oldClusterVersion.major < 8) {
+        if (isRunningAgainstOldCluster()) {
             // Create the index
             count = between(200, 300);
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
@@ -863,7 +863,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // Stick a routing attribute into to cluster settings so we can see it after the restore
         Request addRoutingSettings = new Request("PUT", "/_cluster/settings");
         addRoutingSettings.setJsonEntity(
-                    "{\"persistent\": {\"cluster.routing.allocation.exclude.test_attr\": \"" + oldClusterVersion + "\"}}");
+                    "{\"persistent\": {\"cluster.routing.allocation.exclude.test_attr\": \"" + getOldClusterVersion() + "\"}}");
         client().performRequest(addRoutingSettings);
 
         // Stick a template into the cluster so we can see it after the restore
@@ -894,7 +894,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             templateBuilder.startObject("alias2"); {
                 templateBuilder.startObject("filter"); {
                     templateBuilder.startObject("term"); {
-                        templateBuilder.field("version", isRunningAgainstOldCluster() ? oldClusterVersion : Version.CURRENT);
+                        templateBuilder.field("version", isRunningAgainstOldCluster() ? getOldClusterVersion() : Version.CURRENT);
                     }
                     templateBuilder.endObject();
                 }
@@ -930,7 +930,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
         client().performRequest(createSnapshot);
 
-        checkSnapshot("old_snap", count, oldClusterVersion);
+        checkSnapshot("old_snap", count, getOldClusterVersion());
         if (false == isRunningAgainstOldCluster()) {
             checkSnapshot("new_snap", count, Version.CURRENT);
         }

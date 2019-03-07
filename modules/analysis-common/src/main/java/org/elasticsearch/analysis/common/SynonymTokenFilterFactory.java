@@ -98,7 +98,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 // which doesn't support stacked input tokens
                 return IDENTITY_FILTER;
             }
-
         };
     }
 

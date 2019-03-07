@@ -62,7 +62,6 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
             public TokenStream create(TokenStream tokenStream) {
                 return synonyms.fst == null ? tokenStream : new SynonymGraphFilter(tokenStream, synonyms, false);
             }
-
         };
     }
 

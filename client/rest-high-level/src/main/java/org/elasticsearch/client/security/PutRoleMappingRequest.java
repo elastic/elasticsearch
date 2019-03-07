@@ -20,6 +20,8 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
+import org.elasticsearch.client.security.rolemapping.RoleName;
+import org.elasticsearch.client.security.rolemapping.StaticRoleName;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -39,14 +41,21 @@ public final class PutRoleMappingRequest implements Validatable, ToXContentObjec
 
     private final String name;
     private final boolean enabled;
-    private final List<String> roles;
+    private final List<RoleName> roles;
     private final RoleMapperExpression rules;
 
     private final Map<String, Object> metadata;
     private final RefreshPolicy refreshPolicy;
 
+    @Deprecated
     public PutRoleMappingRequest(final String name, final boolean enabled, final List<String> roles, final RoleMapperExpression rules,
-            @Nullable final Map<String, Object> metadata, @Nullable final RefreshPolicy refreshPolicy) {
+                                 @Nullable final Map<String, Object> metadata, @Nullable final RefreshPolicy refreshPolicy) {
+        this(name, StaticRoleName.list(roles), rules, enabled, metadata, refreshPolicy);
+    }
+
+    public PutRoleMappingRequest(final String name, final List<? extends RoleName> roles, final RoleMapperExpression rules,
+                                 final boolean enabled, @Nullable final Map<String, Object> metadata,
+                                 @Nullable final RefreshPolicy refreshPolicy) {
         if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("role-mapping name is missing");
         }
@@ -69,7 +78,7 @@ public final class PutRoleMappingRequest implements Validatable, ToXContentObjec
         return enabled;
     }
 
-    public List<String> getRoles() {
+    public List<RoleName> getRoles() {
         return roles;
     }
 
@@ -120,5 +129,4 @@ public final class PutRoleMappingRequest implements Validatable, ToXContentObjec
         builder.field("metadata", metadata);
         return builder.endObject();
     }
-
 }

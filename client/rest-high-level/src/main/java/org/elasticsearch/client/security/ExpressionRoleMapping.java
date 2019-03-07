@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.security;
 
+import org.elasticsearch.client.security.rolemapping.RoleName;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.parser.RoleMapperExpressionParser;
 import org.elasticsearch.common.ParseField;
@@ -42,20 +43,21 @@ public final class ExpressionRoleMapping {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ExpressionRoleMapping, String> PARSER = new ConstructingObjectParser<>("role-mapping", true,
-            (args, name) -> new ExpressionRoleMapping(name, (RoleMapperExpression) args[0], (List<String>) args[1],
+            (args, name) -> new ExpressionRoleMapping(name, (RoleMapperExpression) args[0], (List<RoleName>) args[1],
                     (Map<String, Object>) args[2], (boolean) args[3]));
 
     static {
         PARSER.declareField(constructorArg(), (parser, context) -> RoleMapperExpressionParser.fromXContent(parser), Fields.RULES,
                 ObjectParser.ValueType.OBJECT);
-        PARSER.declareStringArray(constructorArg(), Fields.ROLES);
+        PARSER.declareFieldArray(constructorArg(), (parser, context) -> RoleName.fromXContent(parser), Fields.ROLES,
+            ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
         PARSER.declareField(constructorArg(), XContentParser::map, Fields.METADATA, ObjectParser.ValueType.OBJECT);
         PARSER.declareBoolean(constructorArg(), Fields.ENABLED);
     }
 
     private final String name;
     private final RoleMapperExpression expression;
-    private final List<String> roles;
+    private final List<RoleName> roles;
     private final Map<String, Object> metadata;
     private final boolean enabled;
 
@@ -69,7 +71,7 @@ public final class ExpressionRoleMapping {
      * to the user
      * @param enabled a flag when {@code true} signifies the role mapping is active
      */
-    public ExpressionRoleMapping(final String name, final RoleMapperExpression expr, final List<String> roles,
+    public ExpressionRoleMapping(final String name, final RoleMapperExpression expr, final List<RoleName> roles,
             final Map<String, Object> metadata, boolean enabled) {
         this.name = name;
         this.expression = expr;
@@ -86,7 +88,7 @@ public final class ExpressionRoleMapping {
         return expression;
     }
 
-    public List<String> getRoles() {
+    public List<RoleName> getRoles() {
         return roles;
     }
 

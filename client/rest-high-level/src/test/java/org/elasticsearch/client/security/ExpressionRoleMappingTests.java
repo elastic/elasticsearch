@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.security;
 
+import org.elasticsearch.client.security.rolemapping.StaticRoleName;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -60,13 +61,13 @@ public class ExpressionRoleMappingTests extends ESTestCase {
                     }
                 }, json), "example-role-mapping");
         final ExpressionRoleMapping expectedRoleMapping = new ExpressionRoleMapping("example-role-mapping", FieldRoleMapperExpression
-                .ofKeyValues("realm.name", "kerb1"), Collections.singletonList("superuser"), null, true);
+                .ofKeyValues("realm.name", "kerb1"), Collections.singletonList(new StaticRoleName("superuser")), null, true);
         assertThat(expressionRoleMapping, equalTo(expectedRoleMapping));
     }
 
     public void testEqualsHashCode() {
         final ExpressionRoleMapping expressionRoleMapping = new ExpressionRoleMapping("kerberosmapping", FieldRoleMapperExpression
-                .ofKeyValues("realm.name", "kerb1"), Collections.singletonList("superuser"), null, true);
+                .ofKeyValues("realm.name", "kerb1"), Collections.singletonList(new StaticRoleName("superuser")), null, true);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(expressionRoleMapping, (original) -> {
             return new ExpressionRoleMapping(original.getName(), original.getExpression(), original.getRoles(), original.getMetadata(),
                     original.isEnabled());
@@ -81,26 +82,26 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         ExpressionRoleMapping mutated = null;
         switch (randomIntBetween(0, 4)) {
         case 0:
-            mutated = new ExpressionRoleMapping("namechanged", FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"), Collections
-                    .singletonList("superuser"), null, true);
+            mutated = new ExpressionRoleMapping("namechanged", FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
+                Collections.singletonList(new StaticRoleName("superuser")), null, true);
             break;
         case 1:
-            mutated = new ExpressionRoleMapping("kerberosmapping", FieldRoleMapperExpression.ofKeyValues("changed", "changed"), Collections
-                    .singletonList("superuser"), null, true);
+            mutated = new ExpressionRoleMapping("kerberosmapping", FieldRoleMapperExpression.ofKeyValues("changed", "changed"),
+                Collections.singletonList(new StaticRoleName("superuser")), null, true);
             break;
         case 2:
-            mutated = new ExpressionRoleMapping("kerberosmapping", FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"), Collections
-                    .singletonList("changed"), null, true);
+            mutated = new ExpressionRoleMapping("kerberosmapping", FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
+                Collections.singletonList(new StaticRoleName("changed")), null, true);
             break;
         case 3:
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("a", "b");
-            mutated = new ExpressionRoleMapping("kerberosmapping", FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"), Collections
-                    .singletonList("superuser"), metadata, true);
+            mutated = new ExpressionRoleMapping("kerberosmapping", FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
+                Collections.singletonList(new StaticRoleName("superuser")), metadata, true);
             break;
         case 4:
-            mutated = new ExpressionRoleMapping("kerberosmapping", FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"), Collections
-                    .singletonList("superuser"), null, false);
+            mutated = new ExpressionRoleMapping("kerberosmapping", FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
+                Collections.singletonList(new StaticRoleName("superuser")), null, false);
             break;
         }
         return mutated;

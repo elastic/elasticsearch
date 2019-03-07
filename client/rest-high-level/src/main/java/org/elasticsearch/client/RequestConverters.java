@@ -910,7 +910,7 @@ final class RequestConverters {
         }
 
         /**
-         * @deprecated <code>copy_settings</code> can not be set to false. If unset, behaves as <code>false</code> and wont copy settings.
+         * @deprecated <code>copy_settings</code> can not be set to false. If unset, behaves as <code>false</code> and won't copy settings.
          */
         @Deprecated
         Params withCopySettings(Boolean setCopySettings) {

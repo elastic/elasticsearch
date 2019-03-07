@@ -1683,9 +1683,13 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.setWaitForActiveShards(2); // <1>
         request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::shrink-index-request-waitForActiveShards
+        // tag::shrink-index-request-copySettings
+        request.setCopySettings(Boolean.TRUE); // <1>
+        // end::shrink-index-request-copySettings
         // tag::shrink-index-request-settings
         request.getTargetIndexRequest().settings(Settings.builder()
-                .put("index.number_of_shards", 2)); // <1>
+                .put("index.number_of_shards", 2) // <1>
+                .putNull("index.routing.allocation.require._name")); // <2>
         // end::shrink-index-request-settings
         // tag::shrink-index-request-aliases
         request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>

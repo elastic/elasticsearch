@@ -49,10 +49,19 @@ returns a response, as an `ActiveShardCount`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-copySettings]
+--------------------------------------------------
+<1> Use `Boolean.TRUE` to copy the settings from the source index to the target
+index. This cannot be `Boolean.FALSE`. If this method is not used, default behavior is not to copy.
+This parameter will be removed in 8.0.0.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-settings]
 --------------------------------------------------
 <1> The settings to apply to the target index, which include the number of
 shards to create for it
+<2> Remove the allocation requirement copied from the source index
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

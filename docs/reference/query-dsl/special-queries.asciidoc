@@ -31,7 +31,7 @@ able to efficiently skip non-competitive hits.
 <<query-dsl-distance-feature-query,`distance_feature` query>>::
 
 A query that computes scores based on the dynamically computed distances
-between the origin and documents' long numeric, geo or distance fields.
+between the origin and documents' date, date_nanos and geo_point fields.
 It is able to efficiently skip non-competitive hits.
 
 <<query-dsl-wrapper-query,`wrapper` query>>::

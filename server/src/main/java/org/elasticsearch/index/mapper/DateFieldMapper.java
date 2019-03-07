@@ -308,6 +308,10 @@ public final class DateFieldMapper extends FieldMapper {
             return dateTimeFormatter;
         }
 
+        public Resolution resolution() {
+            return resolution;
+        }
+
         void setDateTimeFormatter(DateFormatter formatter) {
             checkIfFrozen();
             this.dateTimeFormatter = formatter;

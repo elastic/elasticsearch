@@ -545,7 +545,18 @@ public class GeoUtils {
         }
     }
 
-    public static GeoPoint parseFromString(String val){
+    /**
+     * Parse a {@link GeoPoint} from a string. The string must have one of the following forms:
+     *
+     * <ul>
+     *     <li>Latitude, Longitude form: <pre>&quot;<i>&lt;latitude&gt;</i>,<i>&lt;longitude&gt;</i>&quot;</pre></li>
+     *     <li>Geohash form:: <pre>&quot;<i>&lt;geohash&gt;</i>&quot;</pre></li>
+     * </ul>
+     *
+     * @param val a String to parse the value from
+     * @return new parsed {@link GeoPoint}
+     */
+    public static GeoPoint parseFromString(String val) {
         GeoPoint point = new GeoPoint();
         boolean ignoreZValue = false;
         if (val.contains(",")) {

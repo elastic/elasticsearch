@@ -32,31 +32,38 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
+import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import static org.elasticsearch.common.time.DateUtils.toLong;
+
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<DistanceFeatureQueryBuilder> {
     @Override
     protected DistanceFeatureQueryBuilder doCreateTestQueryBuilder() {
-        String field = randomFrom(LONG_FIELD_NAME, DATE_FIELD_NAME, GEO_POINT_FIELD_NAME);
-        Object origin;
-        Object pivot;
+        String field = randomFrom(DATE_FIELD_NAME, DATE_NANOS_FIELD_NAME, GEO_POINT_FIELD_NAME);
+        Origin origin;
+        String pivot;
         switch (field) {
             case GEO_POINT_FIELD_NAME:
-                origin = new GeoPoint(randomDouble(), randomDouble());
-                origin = randomBoolean()? origin : ((GeoPoint) origin).geohash();
+                GeoPoint point = new GeoPoint(randomDouble(), randomDouble());
+                origin = randomBoolean() ? new Origin(point) : new Origin(point.geohash());
                 pivot = randomFrom(DistanceUnit.values()).toString(randomDouble());
                 break;
             case DATE_FIELD_NAME:
-                long randomDateMills = System.currentTimeMillis() - randomIntBetween(0, 1000000);
-                origin = randomBoolean() ? randomDateMills : new DateTime(randomDateMills).toString();
+                long randomDateMills = System.currentTimeMillis() - randomLongBetween(0, 1_000_000);
+                origin = randomBoolean() ? new Origin(randomDateMills) : new Origin(new DateTime(randomDateMills).toString());
                 pivot = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
                 break;
-            default: // LONG_FIELD_NAME
-                origin = randomLongBetween(1, Long.MAX_VALUE);
-                pivot = randomLongBetween(1, Long.MAX_VALUE);
+            default: // DATE_NANOS_FIELD_NAME
+                Instant randomDateNanos = Instant.now().minus(Duration.ofNanos(randomLongBetween(0, 100_000_000)));
+                origin = randomBoolean() ? new Origin(toLong(randomDateNanos)) : new Origin(randomDateNanos.toString());
+                pivot = randomTimeValue(1, 100_000_000, "nanos");
                 break;
         }
         return new DistanceFeatureQueryBuilder(field, origin, pivot);
@@ -65,45 +72,30 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
     @Override
     protected void doAssertLuceneQuery(DistanceFeatureQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         String fieldName = expectedFieldName(queryBuilder.fieldName());
-        Object origin = queryBuilder.origin();
-        Object pivot = queryBuilder.pivot();
+        Object origin = queryBuilder.origin().origin();
+        String pivot = queryBuilder.pivot();
         float boost = queryBuilder.boost;
         final Query expectedQuery;
         if (fieldName.equals(GEO_POINT_FIELD_NAME)) {
             GeoPoint originGeoPoint = (origin instanceof GeoPoint)? (GeoPoint) origin : GeoUtils.parseFromString((String) origin);
-            double pivotDouble = DistanceUnit.DEFAULT.parse((String) pivot, DistanceUnit.DEFAULT);
+            double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
             expectedQuery = LatLonPoint.newDistanceFeatureQuery(fieldName, boost, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
-        } else if (fieldName.equals(DATE_FIELD_NAME)) {
+        } else { // if (fieldName.equals(DATE_FIELD_NAME))
             MapperService mapperService = context.getQueryShardContext().getMapperService();
             MappedFieldType fieldType = mapperService.fullName(fieldName);
             long originLong = (origin instanceof Long) ? (Long) origin :
-                ((DateFieldMapper.DateFieldType) fieldType).parseToLong(origin, true, null, null, context.getQueryShardContext());
-            TimeValue val = TimeValue.parseTimeValue((String)pivot, TimeValue.timeValueHours(24),
+                ((DateFieldType) fieldType).parseToLong(origin, true, null, null, context.getQueryShardContext());
+            TimeValue pivotVal = TimeValue.parseTimeValue(pivot, TimeValue.timeValueHours(24),
                 DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
-            long pivotLong = val.getMillis();
-            expectedQuery = LongPoint.newDistanceFeatureQuery(fieldName, boost, originLong, pivotLong);
-        } else {
-            long originLong = (Long) origin;
-            long pivotLong = (Long) pivot;
+            long pivotLong;
+            if (((DateFieldType) fieldType).resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
+                pivotLong = pivotVal.getMillis();
+            } else { // NANOSECONDS
+                pivotLong = pivotVal.getNanos();
+            }
             expectedQuery = LongPoint.newDistanceFeatureQuery(fieldName, boost, originLong, pivotLong);
         }
         assertEquals(expectedQuery, query);
-    }
-
-    public void testFromJsonLongFieldType() throws IOException {
-        String json = "{\n" +
-            "    \"distance_feature\" : {\n" +
-            "            \"field\": \""+ LONG_FIELD_NAME + "\",\n" +
-            "            \"origin\": 40,\n" +
-            "            \"pivot\" : 10,\n" +
-            "            \"boost\" : 2.0\n" +
-            "    }\n" +
-            "}";
-        DistanceFeatureQueryBuilder parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, parsed);
-        assertEquals(json, 40L, parsed.origin());
-        assertEquals(json, 10L, parsed.pivot());
-        assertEquals(json, 2.0, parsed.boost(), 0.0001);
     }
 
     public void testFromJsonDateFieldType() throws IOException {
@@ -120,7 +112,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             "}";
         DistanceFeatureQueryBuilder parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-        assertEquals(json, origin, parsed.origin());
+        assertEquals(json, origin, parsed.origin().origin());
         assertEquals(json, pivot, parsed.pivot());
         assertEquals(json, 1.0, parsed.boost(), 0.0001);
 
@@ -135,7 +127,39 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             "    }\n" +
             "}";
         parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
-        assertEquals(json, originLong, parsed.origin());
+        assertEquals(json, originLong, parsed.origin().origin());
+    }
+
+    public void testFromJsonDateNanosFieldType() throws IOException {
+        // origin as string
+        String origin = "2018-01-01T13:10:30.323456789Z";
+        String pivot = "100000000nanos";
+        String json = "{\n" +
+            "    \"distance_feature\" : {\n" +
+            "            \"field\": \""+ DATE_NANOS_FIELD_NAME + "\",\n" +
+            "            \"origin\": \"" + origin + "\",\n" +
+            "            \"pivot\" : \"" + pivot + "\",\n" +
+            "            \"boost\" : 1.0\n" +
+            "    }\n" +
+            "}";
+        DistanceFeatureQueryBuilder parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, origin, parsed.origin().origin());
+        assertEquals(json, pivot, parsed.pivot());
+        assertEquals(json, 1.0, parsed.boost(), 0.0001);
+
+        // origin as long
+        long originLong = 1517443200323456789L;
+        json = "{\n" +
+            "    \"distance_feature\" : {\n" +
+            "            \"field\": \""+ DATE_NANOS_FIELD_NAME + "\",\n" +
+            "            \"origin\": " + originLong + ",\n" +
+            "            \"pivot\" : \"" + pivot + "\",\n" +
+            "            \"boost\" : 1.0\n" +
+            "    }\n" +
+            "}";
+        parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
+        assertEquals(json, originLong, parsed.origin().origin());
     }
 
     public void testFromJsonGeoFieldType() throws IOException {
@@ -153,7 +177,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             "}";
         DistanceFeatureQueryBuilder parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-        assertEquals(json, origin.toString(), parsed.origin());
+        assertEquals(json, origin.toString(), parsed.origin().origin());
         assertEquals(json, pivot, parsed.pivot());
         assertEquals(json, 2.0, parsed.boost(), 0.0001);
 
@@ -167,7 +191,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             "    }\n" +
             "}";
         parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
-        assertEquals(json, origin, parsed.origin());
+        assertEquals(json, origin, parsed.origin().origin());
 
         // origin as object
         json = "{\n" +
@@ -179,15 +203,15 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             "    }\n" +
             "}";
         parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
-        assertEquals(json, origin, parsed.origin());
+        assertEquals(json, origin, parsed.origin().origin());
     }
 
     public void testQueryFailsWithUnmappedField() {
         String query = "{\n" +
             "    \"distance_feature\" : {\n" +
             "            \"field\": \"random_unmapped_field\",\n" +
-            "            \"origin\": 40,\n" +
-            "            \"pivot\" : 10\n" +
+            "            \"origin\": \"random_string\",\n" +
+            "            \"pivot\" : \"random_string\"\n" +
             "    }\n" +
             "}";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
@@ -199,10 +223,10 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             "    \"distance_feature\" : {\n" +
             "            \"field\": \""+ INT_FIELD_NAME + "\",\n" +
             "            \"origin\": 40,\n" +
-            "            \"pivot\" : 10\n" +
+            "            \"pivot\" : \"random_string\"\n" +
             "    }\n" +
             "}";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("query can only be run on a long, date or geo-point data type!"));
+        assertThat(e.getMessage(), containsString("query can only be run on a date, date_nanos or geo_point field type!"));
     }
 }

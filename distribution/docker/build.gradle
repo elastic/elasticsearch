@@ -136,6 +136,7 @@ preProcessFixture {
 }
 
 processTestResources {
+  inputs.property "distribution", System.getProperty("tests.distribution", "default")
   from { zipTree(configurations.restSpec.singleFile) }
   from project(':x-pack:plugin:core')
           .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')

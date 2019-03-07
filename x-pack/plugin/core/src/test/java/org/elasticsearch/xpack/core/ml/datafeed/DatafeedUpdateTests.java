@@ -294,16 +294,12 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             builder.setIndices(indices);
             break;
         case 5:
-            try {
-                BoolQueryBuilder query = new BoolQueryBuilder();
-                if (instance.getQuery() != null) {
-                    query.must(instance.getParsedQuery(xContentRegistry()));
-                }
-                query.filter(new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
-                builder.setQuery(QueryProvider.fromParsedQuery(query));
-            } catch (IOException ex) {
-                fail(ex.getMessage());
+            BoolQueryBuilder query = new BoolQueryBuilder();
+            if (instance.getQuery() != null) {
+                query.must(instance.getParsedQuery(xContentRegistry()));
             }
+            query.filter(new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+            builder.setQuery(QueryProvider.fromParsedQuery(query));
             break;
         case 6:
             if (instance.hasAggregations()) {

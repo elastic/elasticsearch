@@ -890,10 +890,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             
             assertEquals(results.getTime("test_date"), new java.sql.Time(c.getTimeInMillis()));
             assertEquals(results.getTime(9), new java.sql.Time(c.getTimeInMillis()));
-            assertEquals(results.getObject("test_date", java.sql.Time.class),
-                    new java.sql.Time(randomLongDate % 86400000L));
-            assertEquals(results.getObject(9, java.sql.Time.class),
-                    new java.sql.Time(randomLongDate % 86400000L));
+            assertEquals(results.getObject("test_date", java.sql.Timestamp.class),
+                    new java.sql.Timestamp(randomLongDate));
+            assertEquals(results.getObject(9, java.sql.Timestamp.class),
+                    new java.sql.Timestamp(randomLongDate));
             
             validateErrorsForDateTimeTestsWithoutCalendar(results::getTime);
         });

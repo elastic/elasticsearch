@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.time.OffsetTime;
+
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
@@ -62,6 +64,11 @@ public interface ScriptWeaver {
             IntervalDayTime idt = (IntervalDayTime) fold;
             return new ScriptTemplate(processScript("{sql}.intervalDayTime({},{})"),
                     paramsBuilder().variable(idt.interval().toString()).variable(idt.dataType().name()).build(),
+                    dataType());
+        } else if (fold instanceof OffsetTime) {
+            OffsetTime ot = (OffsetTime) fold;
+            return new ScriptTemplate(processScript("{sql}.asTime({})"),
+                    paramsBuilder().variable(ot.toString()).build(),
                     dataType());
         }
 

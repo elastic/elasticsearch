@@ -260,6 +260,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             if (EsType.DATE == type) {
                 return utcMillisRemoveTime(asMillisSinceEpoch(val.toString()));
             }
+            if (EsType.TIME == type) {
+                return asMillisSinceEpoch(val.toString());
+            }
             return val == null ? null : (Long) val;
         } catch (ClassCastException cce) {
             throw new SQLException(

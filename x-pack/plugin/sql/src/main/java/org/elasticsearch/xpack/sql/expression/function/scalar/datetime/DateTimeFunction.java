@@ -13,9 +13,12 @@ import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.time.Instant;
+import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
+import java.time.temporal.Temporal;
 
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -33,12 +36,17 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
         return dateTimeChrono(dateTime, extractor.chronoField());
     }
 
+    public static Integer dateTimeChrono(OffsetTime time, String tzId, String chronoName) {
+        return dateTimeChrono(time.withOffsetSameInstant(ZoneId.of(tzId).getRules().getOffset(Instant.now())),
+            ChronoField.valueOf(chronoName));
+    }
+
     public static Integer dateTimeChrono(ZonedDateTime dateTime, String tzId, String chronoName) {
         ZonedDateTime zdt = dateTime.withZoneSameInstant(ZoneId.of(tzId));
         return dateTimeChrono(zdt, ChronoField.valueOf(chronoName));
     }
 
-    private static Integer dateTimeChrono(ZonedDateTime dateTime, ChronoField field) {
+    private static Integer dateTimeChrono(Temporal dateTime, ChronoField field) {
         return Integer.valueOf(dateTime.get(field));
     }
     
@@ -68,4 +76,8 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
 
     // used for applying ranges
     public abstract String dateTimeFormat();
+
+    protected DateTimeExtractor extractor() {
+        return extractor;
+    }
 }

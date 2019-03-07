@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.Duration;
+import java.time.OffsetTime;
 import java.time.Period;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -307,6 +308,9 @@ public final class InternalSqlScriptUtils {
         if (dateTime == null || tzId == null || chronoName == null) {
             return null;
         }
+        if (dateTime instanceof OffsetTime) {
+            return DateTimeFunction.dateTimeChrono((OffsetTime) dateTime, tzId, chronoName);
+        }
         return DateTimeFunction.dateTimeChrono(asDateTime(dateTime), tzId, chronoName);
     }
     
@@ -382,6 +386,10 @@ public final class InternalSqlScriptUtils {
         }
 
         return new IntervalYearMonth(Period.parse(text), DataType.fromTypeName(typeName));
+    }
+
+    public static OffsetTime asTime(String time) {
+        return OffsetTime.parse(time);
     }
 
     //

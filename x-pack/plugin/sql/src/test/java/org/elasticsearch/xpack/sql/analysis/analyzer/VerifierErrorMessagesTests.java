@@ -203,10 +203,27 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Invalid datetime field [ABS]. Use any datetime function.", error("SELECT EXTRACT(ABS FROM date) FROM test"));
     }
 
+    public void testValidDateTimeFunctionsOnTime() {
+        accept("SELECT HOUR_OF_DAY(CAST(date AS TIME)) FROM test");
+        accept("SELECT MINUTE_OF_HOUR(CAST(date AS TIME)) FROM test");
+        accept("SELECT MINUTE_OF_DAY(CAST(date AS TIME)) FROM test");
+        accept("SELECT SECOND_OF_MINUTE(CAST(date AS TIME)) FROM test");
+    }
+
+    public void testInvalidDateTimeFunctionsOnTime() {
+        assertEquals("1:8: argument of [DAY_OF_YEAR(CAST(date AS TIME))] must be [date or datetime], " +
+                "found value [CAST(date AS TIME)] type [time]",
+            error("SELECT DAY_OF_YEAR(CAST(date AS TIME)) FROM test"));
+    }
+
     public void testSubtractFromInterval() {
         assertEquals("1:8: Cannot subtract a datetime[CAST('2000-01-01' AS DATETIME)] " +
                 "from an interval[INTERVAL 1 MONTH]; do you mean the reverse?",
             error("SELECT INTERVAL 1 MONTH - CAST('2000-01-01' AS DATETIME)"));
+
+        assertEquals("1:8: Cannot subtract a time[CAST('12:23:56.789' AS TIME)] " +
+                "from an interval[INTERVAL 1 MONTH]; do you mean the reverse?",
+            error("SELECT INTERVAL 1 MONTH - CAST('12:23:56.789' AS TIME)"));
     }
 
     public void testMultipleColumns() {

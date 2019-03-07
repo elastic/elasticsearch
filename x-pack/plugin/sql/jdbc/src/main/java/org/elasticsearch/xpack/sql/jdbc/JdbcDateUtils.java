@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.sql.jdbc;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -28,8 +30,10 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 final class JdbcDateUtils {
     
     private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000;
+    // Not available in Java 8
+    public static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
     
-    static final DateTimeFormatter ISO_WITH_MILLIS = new DateTimeFormatterBuilder()
+    static final DateTimeFormatter ISO_DATE_WITH_MILLIS = new DateTimeFormatterBuilder()
         .parseCaseInsensitive()
         .append(ISO_LOCAL_DATE)
         .appendLiteral('T')
@@ -42,8 +46,23 @@ final class JdbcDateUtils {
         .appendOffsetId()
         .toFormatter(Locale.ROOT);
 
+    static final DateTimeFormatter ISO_WITH_MILLIS = new DateTimeFormatterBuilder()
+        .parseCaseInsensitive()
+        .appendValue(HOUR_OF_DAY, 2)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2)
+        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .appendOffsetId()
+        .toFormatter(Locale.ROOT);
+
     static long asMillisSinceEpoch(String date) {
-        return ISO_WITH_MILLIS.parse(date, ZonedDateTime::from).toInstant().toEpochMilli();
+        return ISO_DATE_WITH_MILLIS.parse(date, ZonedDateTime::from).toInstant().toEpochMilli();
+    }
+
+    static long timeAsMillisSinceEpoch(String date) {
+        return ISO_WITH_MILLIS.parse(date, OffsetTime::from).atDate(EPOCH).toInstant().toEpochMilli();
     }
     
     static Date asDate(String date) {
@@ -51,7 +70,7 @@ final class JdbcDateUtils {
     }
     
     static Time asTime(String date) {
-        return new Time(utcMillisRemoveDate(asMillisSinceEpoch(date)));
+        return new Time(utcMillisRemoveDate(timeAsMillisSinceEpoch(date)));
     }
     
     static Timestamp asTimestamp(String date) {

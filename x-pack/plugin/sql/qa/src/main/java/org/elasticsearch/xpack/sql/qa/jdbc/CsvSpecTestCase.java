@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 
@@ -37,6 +36,7 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
         tests.addAll(readScriptSpec("/agg.csv-spec", parser));
         tests.addAll(readScriptSpec("/columns.csv-spec", parser));
         tests.addAll(readScriptSpec("/date.csv-spec", parser));
+        tests.addAll(readScriptSpec("/time.csv-spec", parser));
         tests.addAll(readScriptSpec("/datetime.csv-spec", parser));
         tests.addAll(readScriptSpec("/alias.csv-spec", parser));
         tests.addAll(readScriptSpec("/null.csv-spec", parser));

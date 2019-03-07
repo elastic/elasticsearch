@@ -12,18 +12,24 @@ import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
+import static java.time.format.DateTimeFormatter.ISO_TIME;
 
 public final class DateUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");
     public static final String DATE_PARSE_FORMAT = "epoch_millis";
+    // Not available in Java 8
+    public static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
+    public static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
 
     private static final DateTimeFormatter DATE_TIME_ESCAPED_LITERAL_FORMATTER = new DateTimeFormatterBuilder()
         .append(ISO_LOCAL_DATE)
@@ -33,8 +39,6 @@ public final class DateUtils {
 
     private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(UTC);
 
-    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
-
     private DateUtils() {}
 
     /**
@@ -42,6 +46,13 @@ public final class DateUtils {
      */
     public static ZonedDateTime asDateOnly(long millis) {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC).toLocalDate().atStartOfDay(UTC);
+    }
+
+    /**
+     * Creates an date for SQL TIME type from the millis since epoch.
+     */
+    public static OffsetTime asTimeOnly(long millis) {
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC).toLocalTime().atOffset(ZoneOffset.UTC);
     }
 
     /**
@@ -69,6 +80,10 @@ public final class DateUtils {
         return zdt.toLocalDate().atStartOfDay(zdt.getZone());
     }
 
+    public static OffsetTime asTimeOnly(String timeFormat) {
+        return DateFormatters.from(ISO_TIME.parse(timeFormat)).toOffsetDateTime().toOffsetTime();
+    }
+
     /**
      * Parses the given string into a DateTime using UTC as a default timezone.
      */
@@ -88,10 +103,21 @@ public final class DateUtils {
         return date.format(ISO_LOCAL_DATE);
     }
 
+    public static String toTimeString(OffsetTime time) {
+        return time.format(ISO_LOCAL_TIME);
+    }
+
     public static long minDayInterval(long l) {
         if (l < DAY_IN_MILLIS ) {
             return DAY_IN_MILLIS;
         }
         return l - (l % DAY_IN_MILLIS);
+    }
+
+    public static long maxDayInterval(long l) {
+        if (l > DAY_IN_MILLIS ) {
+            return DAY_IN_MILLIS;
+        }
+        return l;
     }
 }

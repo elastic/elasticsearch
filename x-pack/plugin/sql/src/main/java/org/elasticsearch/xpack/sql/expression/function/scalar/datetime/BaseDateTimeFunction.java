@@ -6,12 +6,15 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 
+import java.time.Instant;
+import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Objects;
@@ -50,16 +53,26 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
 
     @Override
     public Object fold() {
-        ZonedDateTime folded = (ZonedDateTime) field().fold();
+        Object folded = field().fold();
         if (folded == null) {
             return null;
         }
 
-        return doFold(folded.withZoneSameInstant(zoneId));
+        if (folded instanceof OffsetTime) {
+            return doFold(((OffsetTime) folded).withOffsetSameInstant(zoneId.getRules().getOffset(Instant.now())));
+        }
+        if (folded instanceof ZonedDateTime) {
+            return doFold(((ZonedDateTime) folded).withZoneSameInstant(zoneId));
+        }
+
+        throw new SqlIllegalArgumentException("A [date], a [time] or a [datetime] is required; received {}", field());
     }
 
     protected abstract Object doFold(ZonedDateTime dateTime);
-    
+
+    protected Object doFold(OffsetTime time) {
+        throw new SqlIllegalArgumentException("Cannot operate on [time]");
+    }
 
     @Override
     public boolean equals(Object obj) {

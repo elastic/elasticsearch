@@ -534,6 +534,37 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(259200000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
         }
     }
+
+    public void testGroupByHistogramWithTime() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
+            "HISTOGRAM(CAST(date AS TIME), INTERVAL 5 MINUTES)");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.queryContainer().aggs().groups().size());
+        assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
+        assertEquals(300000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+    }
+
+    public void testGroupByHistogramWithTimeTruncateToOneDay() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
+                "HISTOGRAM(CAST(date AS TIME), INTERVAL '2 3:04' DAY TO MINUTE)");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.queryContainer().aggs().groups().size());
+            assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
+            assertEquals(86400000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
+                "HISTOGRAM(CAST(date AS TIME), INTERVAL 52 HOURS)");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.queryContainer().aggs().groups().size());
+            assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
+            assertEquals(86400000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+        }
+    }
     
     public void testCountAndCountDistinctFolding() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT keyword) dkey, COUNT(keyword) key FROM test");

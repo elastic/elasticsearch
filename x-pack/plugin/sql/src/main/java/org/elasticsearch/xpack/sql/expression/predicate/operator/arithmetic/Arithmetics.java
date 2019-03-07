@@ -6,14 +6,20 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import java.time.Duration;
+import java.time.OffsetTime;
 import java.time.Period;
-import java.time.ZonedDateTime;
+import java.time.temporal.Temporal;
+import java.util.function.BiFunction;
+
+import static org.elasticsearch.xpack.sql.util.DateUtils.DAY_IN_MILLIS;
 
 /**
  * Arithmetic operation using the type widening rules of the JLS 5.6.2 namely
  * widen to double or float or long or int in this order.
  */
-public abstract class Arithmetics {
+public final class Arithmetics {
+
+    private Arithmetics() {}
 
     static Number add(Number l, Number r) {
         if (l == null || r == null) {
@@ -33,20 +39,12 @@ public abstract class Arithmetics {
         return Integer.valueOf(Math.addExact(l.intValue(), r.intValue()));
     }
 
-    static ZonedDateTime add(ZonedDateTime l, Period r) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        return l.plus(r);
+    static Temporal add(Temporal l, Period r) {
+        return periodArithmetics(l, r, Temporal::plus);
     }
 
-    static ZonedDateTime add(ZonedDateTime l, Duration r) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        return l.plus(r);
+    static Temporal add(Temporal l, Duration r) {
+        return durationArithmetics(l, r, Temporal::plus);
     }
 
     static Number sub(Number l, Number r) {
@@ -67,20 +65,12 @@ public abstract class Arithmetics {
         return Integer.valueOf(Math.subtractExact(l.intValue(), r.intValue()));
     }
 
-    static ZonedDateTime sub(ZonedDateTime l, Period r) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        return l.minus(r);
+    static Temporal sub(Temporal l, Period r) {
+        return periodArithmetics(l, r, Temporal::minus);
     }
 
-    static ZonedDateTime sub(ZonedDateTime l, Duration r) {
-        if (l == null || r == null) {
-            return null;
-        }
-
-        return l.minus(r);
+    static Temporal sub(Temporal l, Duration r) {
+        return durationArithmetics(l, r, Temporal::minus);
     }
 
     static Number mul(Number l, Number r) {
@@ -161,5 +151,27 @@ public abstract class Arithmetics {
         }
 
         return Integer.valueOf(Math.negateExact(n.intValue()));
+    }
+
+    private static Temporal periodArithmetics(Temporal l, Period r, BiFunction<Temporal, Period, Temporal> f) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        if (l instanceof OffsetTime) {
+            r = r.withDays(0).withMonths(0).withYears(0);
+        }
+        return f.apply(l, r);
+    }
+
+    private static Temporal durationArithmetics(Temporal l, Duration r, BiFunction<Temporal, Duration, Temporal> f) {
+        if (l == null || r == null) {
+            return null;
+        }
+
+        if (l instanceof OffsetTime) {
+            r = Duration.ofMillis(r.toMillis() % DAY_IN_MILLIS);
+        }
+        return f.apply(l, r);
     }
 }

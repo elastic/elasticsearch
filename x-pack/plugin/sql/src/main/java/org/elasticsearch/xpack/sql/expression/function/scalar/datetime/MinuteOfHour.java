@@ -6,11 +6,15 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
+import java.time.OffsetTime;
 import java.time.ZoneId;
+
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDateOrTime;
 
 /**
  * Exract the minute of the hour from a datetime.
@@ -23,6 +27,16 @@ public class MinuteOfHour extends DateTimeFunction {
     @Override
     protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return MinuteOfHour::new;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return isDateOrTime(field(), sourceText(), Expressions.ParamOrdinal.DEFAULT);
+    }
+
+    @Override
+    protected Object doFold(OffsetTime time) {
+        return extractor().extract(time);
     }
 
     @Override

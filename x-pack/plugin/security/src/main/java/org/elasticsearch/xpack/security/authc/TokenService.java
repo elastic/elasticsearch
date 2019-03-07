@@ -133,9 +133,11 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
 /**
@@ -162,7 +164,6 @@ public final class TokenService {
             "\", error=\"invalid_token\", error_description=\"The access token expired\"";
     private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\"" + XPackField.SECURITY +
             "\", error=\"invalid_token\", error_description=\"The access token is malformed\"";
-    private static final String TYPE = "doc";
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
 
     public static final String THREAD_POOL_NAME = XPackField.SECURITY + "-token-key";
@@ -283,7 +284,7 @@ public final class TokenService {
                         .field("realm", authentication.getAuthenticatedBy().getName())
                         .endObject();
                 builder.endObject();
-                request = client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, documentId)
+                final IndexRequest request = client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, documentId)
                                 .setOpType(OpType.CREATE)
                                 .setSource(builder)
                                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
@@ -351,7 +352,7 @@ public final class TokenService {
             securityIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare security index", userTokenId, ex)),
                 () -> {
-                    final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE,
+                    final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME,
                         getTokenDocumentId(userTokenId)).request();
                     Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
@@ -401,7 +402,7 @@ public final class TokenService {
         try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
             final Version version = Version.readVersion(in);
             in.setVersion(version);
-            if (version.onOrAfter(Version.V_8_0_0)) {
+            if (version.onOrAfter(Version.V_7_1_0)) {
                 // The token was created in a > 7.1.0 cluster so it contains the tokenId as a String
                 String usedTokenId = in.readString();
                 getUserTokenFromId(usedTokenId, listener);
@@ -617,10 +618,11 @@ public final class TokenService {
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String tokenId : tokenIds) {
-                UpdateRequest request = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, getTokenDocumentId(tokenId))
-                    .setDoc(srcPrefix, Collections.singletonMap("invalidated", true))
-                    .setFetchSource(srcPrefix, null)
-                    .request();
+                UpdateRequest request = client
+                        .prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getTokenDocumentId(tokenId))
+                        .setDoc(srcPrefix, Collections.singletonMap("invalidated", true))
+                        .setFetchSource(srcPrefix, null)
+                        .request();
                 bulkRequestBuilder.add(request);
             }
             bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
@@ -732,7 +734,7 @@ public final class TokenService {
             logger.debug("security index is not available to find token from refresh token, retrying");
             maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
         } else {
-            final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            final SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
                     .setQuery(QueryBuilders.boolQuery()
                             .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
                             .filter(QueryBuilders.termQuery("refresh_token.token", refreshToken)))
@@ -943,9 +945,8 @@ public final class TokenService {
     }
 
     private void getTokenDocAsync(String tokenDocId, ActionListener<GetResponse> listener) {
-        GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
-                .setFetchSource(true)
-                .request();
+        GetRequest getRequest =
+            client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, tokenDocId).request();
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get);
     }
 
@@ -1082,7 +1083,7 @@ public final class TokenService {
                     )
                 );
 
-            final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            final SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
@@ -1125,7 +1126,7 @@ public final class TokenService {
                     )
                 );
 
-            final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            final SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
@@ -1220,8 +1221,8 @@ public final class TokenService {
             listener.onResponse(null);
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE,
-                    getTokenDocumentId(userToken)).request();
+                final GetRequest getRequest = client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getTokenDocumentId(userToken))
+                        .request();
                 Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
                     ActionListener.<GetResponse>wrap(response -> {
@@ -1290,11 +1291,11 @@ public final class TokenService {
 
     /**
      * Serializes a token to a String containing the version of the node that created the token and
-     * either an encrypted representation of the token id for versions earlier to 7.0.0 or the token ie
-     * itself for versions after 7.0.0
+     * either an encrypted representation of the token id for versions earlier to 7.1.0 or the token ie
+     * itself for versions after 7.1.0
      */
     public String getAccessTokenAsString(UserToken userToken) throws IOException, GeneralSecurityException {
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_8_0_0)) {
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_1_0)) {
             try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
                  OutputStream base64 = Base64.getEncoder().wrap(os);
                  StreamOutput out = new OutputStreamStreamOutput(base64)) {

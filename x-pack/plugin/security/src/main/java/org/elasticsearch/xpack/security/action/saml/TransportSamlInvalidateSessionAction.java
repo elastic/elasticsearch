@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.security.authc.saml.SamlRedirect;
 import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.opensaml.saml.saml2.core.LogoutResponse;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -98,9 +97,7 @@ public final class TransportSamlInvalidateSessionAction
                     listener.onResponse(0);
                 } else {
                     GroupedActionListener<TokensInvalidationResult> groupedListener = new GroupedActionListener<>(
-                        ActionListener.wrap(collection -> listener.onResponse(collection.size()), listener::onFailure),
-                        tokens.size(), Collections.emptyList()
-                    );
+                        ActionListener.wrap(collection -> listener.onResponse(collection.size()), listener::onFailure), tokens.size());
                     tokens.forEach(tuple -> invalidateTokenPair(tuple, groupedListener));
                 }
             }, listener::onFailure

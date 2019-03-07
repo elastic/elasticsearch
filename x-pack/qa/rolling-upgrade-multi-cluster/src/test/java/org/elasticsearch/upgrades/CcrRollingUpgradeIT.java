@@ -207,9 +207,10 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39355")
     public void testCannotFollowLeaderInUpgradedCluster() throws Exception {
-        assumeTrue("Tests only runs with upgrade_state [all]", upgradeState == UpgradeState.ALL);
+        if (upgradeState != UpgradeState.ALL) {
+            return;
+        }
 
         if (clusterName == ClusterName.FOLLOWER) {
             // At this point the leader cluster has not been upgraded, but follower cluster has been upgrade.

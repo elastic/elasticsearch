@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -392,7 +393,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
         try (InputStream stream = searchResponse.getHits().getAt(0).getSourceRef().streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                     .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, stream)) {
             MlMetadata recoveredMeta = MlMetadata.LENIENT_PARSER.apply(parser, null).build();
             assertEquals(expectedMlMetadata, recoveredMeta);
         }

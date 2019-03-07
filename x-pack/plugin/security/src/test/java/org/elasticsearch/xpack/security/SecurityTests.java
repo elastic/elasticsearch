@@ -66,7 +66,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
-import static org.elasticsearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.containsString;
@@ -253,7 +252,7 @@ public class SecurityTests extends ESTestCase {
         int numIters = randomIntBetween(1, 10);
         for (int i = 0; i < numIters; i++) {
             boolean tlsOn = randomBoolean();
-            String discoveryType = randomFrom("single-node", ZEN_DISCOVERY_TYPE, ZEN2_DISCOVERY_TYPE, randomAlphaOfLength(4));
+            String discoveryType = randomFrom("single-node", ZEN2_DISCOVERY_TYPE, randomAlphaOfLength(4));
             Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn, discoveryType);
             MetaData.Builder builder = MetaData.builder();
             License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));

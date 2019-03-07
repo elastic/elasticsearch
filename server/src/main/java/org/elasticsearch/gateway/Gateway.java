@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 
@@ -44,7 +43,6 @@ public class Gateway {
 
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
-    private final int minimumMasterNodes;
     private final IndicesService indicesService;
 
     public Gateway(final Settings settings, final ClusterService clusterService,
@@ -53,7 +51,6 @@ public class Gateway {
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.listGatewayMetaState = listGatewayMetaState;
-        this.minimumMasterNodes = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
@@ -61,7 +58,7 @@ public class Gateway {
         logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
         final TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 
-        final int requiredAllocation = Math.max(1, minimumMasterNodes);
+        final int requiredAllocation = 1;
 
         if (nodesState.hasFailures()) {
             for (final FailedNodeException failedNodeException : nodesState.failures()) {
@@ -126,7 +123,6 @@ public class Gateway {
         }
         ClusterState recoveredState = Function.<ClusterState>identity()
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
-            .andThen(state -> ClusterStateUpdaters.closeBadIndices(state, indicesService))
             .apply(ClusterState.builder(clusterService.getClusterName()).metaData(metaDataBuilder).build());
 
         listener.onSuccess(recoveredState);

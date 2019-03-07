@@ -808,7 +808,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return noOp(engine, noOp);
     }
 
-    private Engine.NoOpResult noOp(Engine engine, Engine.NoOp noOp) {
+    private Engine.NoOpResult noOp(Engine engine, Engine.NoOp noOp) throws IOException {
         active.set(true);
         if (logger.isTraceEnabled()) {
             logger.trace("noop (seq# [{}])", noOp.seqNo());
@@ -1005,8 +1005,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engine.getMergeStats();
     }
 
-    public SegmentsStats segmentStats(boolean includeSegmentFileSizes) {
-        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes);
+    public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         return segmentsStats;
     }
@@ -2049,16 +2049,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Waits for all operations up to the provided sequence number to complete.
-     *
-     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
-     * @throws InterruptedException if the thread was interrupted while blocking on the condition
-     */
-    public void waitForOpsToComplete(final long seqNo) throws InterruptedException {
-        getEngine().waitForOpsToComplete(seqNo);
-    }
-
-    /**
      * Called when the recovery process for a shard has opened the engine on the target shard. Ensures that the right data structures
      * have been set up locally to track local checkpoint information for the shard and that the shard is added to the replication group.
      *
@@ -2932,6 +2922,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return <code>true</code> iff the engine got refreshed otherwise <code>false</code>
      */
     public boolean scheduledRefresh() {
+        verifyNotClosed();
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
         if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
@@ -2946,8 +2937,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 setRefreshPending(engine);
                 return false;
             } else {
-                refresh("schedule");
-                return true;
+                if (logger.isTraceEnabled()) {
+                    logger.trace("refresh with source [schedule]");
+                }
+                return getEngine().maybeRefresh("schedule");
             }
         }
         final Engine engine = getEngine();

@@ -114,7 +114,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class IndexFollowingIT extends CcrIntegTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38949")
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         int numberOfReplicas = between(0, 1);
@@ -221,7 +220,6 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38949")
     public void testFollowIndexWithConcurrentMappingChanges() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
@@ -660,7 +658,6 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         pauseFollow("index2");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39308")
     public void testDeleteLeaderIndex() throws Exception {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1")
             .setSettings(Settings.builder()
@@ -945,7 +942,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         assertBusy(() -> {
-            assertThat(getFollowTaskSettingsVersion("follower"), equalTo(2L));
+            assertThat(getFollowTaskSettingsVersion("follower"), equalTo(4L));
             assertThat(getFollowTaskMappingVersion("follower"), equalTo(2L));
 
             GetSettingsRequest getSettingsRequest = new GetSettingsRequest();

@@ -21,7 +21,10 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -35,6 +38,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.FilterCollector;
@@ -50,6 +54,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -92,18 +97,20 @@ public class QueryPhaseTests extends IndexShardTestCase {
         closeShards(indexShard);
     }
 
-    private void countTestCase(Query query, IndexReader reader, boolean shouldCollect) throws Exception {
+    private void countTestCase(Query query, IndexReader reader, boolean shouldCollectSearch, boolean shouldCollectCount) throws Exception {
         TestSearchContext context = new TestSearchContext(null, indexShard);
         context.parsedQuery(new ParsedQuery(query));
         context.setSize(0);
         context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
 
-        final IndexSearcher searcher = shouldCollect ? new IndexSearcher(reader) :
+        final IndexSearcher searcher = shouldCollectSearch ? new IndexSearcher(reader) :
             getAssertingEarlyTerminationSearcher(reader, 0);
 
         final boolean rescore = QueryPhase.execute(context, searcher, checkCancelled -> {});
         assertFalse(rescore);
-        assertEquals(searcher.count(query), context.queryResult().topDocs().topDocs.totalHits.value);
+        IndexSearcher countSearcher = shouldCollectCount ? new IndexSearcher(reader) :
+            getAssertingEarlyTerminationSearcher(reader, 0);
+        assertEquals(countSearcher.count(query), context.queryResult().topDocs().topDocs.totalHits.value);
     }
 
     private void countTestCase(boolean withDeletions) throws Exception {
@@ -115,9 +122,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
             Document doc = new Document();
             if (randomBoolean()) {
                 doc.add(new StringField("foo", "bar", Store.NO));
+                doc.add(new SortedSetDocValuesField("foo", new BytesRef("bar")));
+                doc.add(new SortedSetDocValuesField("docValuesOnlyField", new BytesRef("bar")));
+                doc.add(new LatLonDocValuesField("latLonDVField", 1.0, 1.0));
+                doc.add(new LatLonPoint("latLonDVField", 1.0, 1.0));
             }
             if (randomBoolean()) {
                 doc.add(new StringField("foo", "baz", Store.NO));
+                doc.add(new SortedSetDocValuesField("foo", new BytesRef("baz")));
             }
             if (withDeletions && (rarely() || i == 0)) {
                 doc.add(new StringField("delete", "yes", Store.NO));
@@ -132,16 +144,25 @@ public class QueryPhaseTests extends IndexShardTestCase {
         Query matchAllCsq = new ConstantScoreQuery(matchAll);
         Query tq = new TermQuery(new Term("foo", "bar"));
         Query tCsq = new ConstantScoreQuery(tq);
+        Query dvfeq = new DocValuesFieldExistsQuery("foo");
+        Query dvfeq_points = new DocValuesFieldExistsQuery("latLonDVField");
+        Query dvfeqCsq = new ConstantScoreQuery(dvfeq);
+        // field with doc-values but not indexed will need to collect
+        Query dvOnlyfeq = new DocValuesFieldExistsQuery("docValuesOnlyField");
         BooleanQuery bq = new BooleanQuery.Builder()
             .add(matchAll, Occur.SHOULD)
             .add(tq, Occur.MUST)
             .build();
 
-        countTestCase(matchAll, reader, false);
-        countTestCase(matchAllCsq, reader, false);
-        countTestCase(tq, reader, withDeletions);
-        countTestCase(tCsq, reader, withDeletions);
-        countTestCase(bq, reader, true);
+        countTestCase(matchAll, reader, false, false);
+        countTestCase(matchAllCsq, reader, false, false);
+        countTestCase(tq, reader, withDeletions, withDeletions);
+        countTestCase(tCsq, reader, withDeletions, withDeletions);
+        countTestCase(dvfeq, reader, withDeletions, true);
+        countTestCase(dvfeq_points, reader, withDeletions, true);
+        countTestCase(dvfeqCsq, reader, withDeletions, true);
+        countTestCase(dvOnlyfeq, reader, true, true);
+        countTestCase(bq, reader, true, true);
         reader.close();
         w.close();
         dir.close();
@@ -541,6 +562,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     private static IndexSearcher getAssertingEarlyTerminationSearcher(IndexReader reader, int size) {
         return new IndexSearcher(reader) {
+            @Override
             protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
                 final Collector in = new AssertingEarlyTerminationFilterCollector(collector, size);
                 super.search(leaves, weight, in);

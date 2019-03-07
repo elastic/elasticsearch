@@ -22,9 +22,10 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameTransformAction.Request;
-import org.elasticsearch.xpack.dataframe.action.DeleteDataFrameTransformAction.Response;
+import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction.Request;
+import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction.Response;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 

@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.Project
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -51,21 +52,36 @@ public class PluginBuildPlugin extends BuildPlugin {
             String name = project.pluginProperties.extension.name
             project.archivesBaseName = name
 
-            // set teh project description so it will be picked up by publishing
+            // set the project description so it will be picked up by publishing
             project.description = project.pluginProperties.extension.description
 
             configurePublishing(project)
 
-            project.integTestCluster.dependsOn(project.bundlePlugin)
-            project.tasks.run.dependsOn(project.bundlePlugin)
+            if (project.plugins.hasPlugin(TestClustersPlugin.class) == false) {
+                project.integTestCluster.dependsOn(project.tasks.bundlePlugin)
+                if (isModule) {
+                    project.integTestCluster.module(project)
+                } else {
+                    project.integTestCluster.plugin(project.path)
+                }
+            } else {
+                project.tasks.integTest.dependsOn(project.tasks.bundlePlugin)
+                if (isModule) {
+                    throw new RuntimeException("Testclusters does not support modules yet");
+                } else {
+                    project.testClusters.integTestCluster.plugin(
+                            project.file(project.tasks.bundlePlugin.archiveFile)
+                    )
+                }
+            }
+
+            project.tasks.run.dependsOn(project.tasks.bundlePlugin)
             if (isModule) {
-                project.integTestCluster.module(project)
                 project.tasks.run.clusterConfig.module(project)
                 project.tasks.run.clusterConfig.distribution = System.getProperty(
                         'run.distribution', 'integ-test-zip'
                 )
             } else {
-                project.integTestCluster.plugin(project.path)
                 project.tasks.run.clusterConfig.plugin(project.path)
             }
 
@@ -136,7 +152,10 @@ public class PluginBuildPlugin extends BuildPlugin {
     private static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.mustRunAfter(project.precommit, project.test)
-        project.integTestCluster.distribution = System.getProperty('tests.distribution', 'integ-test-zip')
+        if (project.plugins.hasPlugin(TestClustersPlugin.class) == false) {
+            // only if not using test clusters
+            project.integTestCluster.distribution = System.getProperty('tests.distribution', 'integ-test-zip')
+        }
         project.check.dependsOn(integTest)
     }
 
@@ -214,7 +233,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     protected void addNoticeGeneration(Project project) {
         File licenseFile = project.pluginProperties.extension.licenseFile
         if (licenseFile != null) {
-            project.bundlePlugin.from(licenseFile.parentFile) {
+            project.tasks.bundlePlugin.from(licenseFile.parentFile) {
                 include(licenseFile.name)
                 rename { 'LICENSE.txt' }
             }
@@ -223,7 +242,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         if (noticeFile != null) {
             NoticeTask generateNotice = project.tasks.create('generateNotice', NoticeTask.class)
             generateNotice.inputFile = noticeFile
-            project.bundlePlugin.from(generateNotice)
+            project.tasks.bundlePlugin.from(generateNotice)
         }
     }
 }

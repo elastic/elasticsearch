@@ -6,8 +6,6 @@
 <titleabbrev>Unfollow</titleabbrev>
 ++++
 
-beta[]
-
 Converts a follower index to a regular index.
 
 ==== Description

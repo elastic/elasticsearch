@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -159,6 +160,9 @@ public class IndexNameExpressionResolver {
         }
 
         if (expressions.isEmpty()) {
+            if (metaData.getIndices().isEmpty() && !options.allowNoIndices()) {
+                throw new ResourceNotFoundException("No indices existing");
+            }
             if (!options.allowNoIndices()) {
                 IndexNotFoundException infe = new IndexNotFoundException((String)null);
                 infe.setResources("index_expression", indexExpressions);

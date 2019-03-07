@@ -456,7 +456,7 @@ public final class AnalysisRegistry implements Closeable {
         if (defaultAnalyzer == null) {
             throw new IllegalArgumentException("no default analyzer configured");
         }
-        defaultAnalyzer.preventAnalysisMode(AnalysisMode.SEARCH_TIME);
+        defaultAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
         if (analyzers.containsKey("default_index")) {
             throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use " +
                 "[index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
@@ -497,10 +497,6 @@ public final class AnalysisRegistry implements Closeable {
             overridePositionIncrementGap = Integer.MIN_VALUE;
         }
         Analyzer analyzerF = analyzerFactory.get();
-        AnalysisMode analysisMode = AnalysisMode.ALL;
-        if (analyzerF instanceof org.elasticsearch.index.analysis.CustomAnalyzer) {
-            analysisMode = ((org.elasticsearch.index.analysis.CustomAnalyzer) analyzerF).getAnalysisMode();
-        }
         if (analyzerF == null) {
             throw new IllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
         }
@@ -510,11 +506,10 @@ public final class AnalysisRegistry implements Closeable {
             analyzer = (NamedAnalyzer) analyzerF;
             if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
                 // unless the positionIncrementGap needs to be overridden
-                analyzer = new NamedAnalyzer(analyzer.name(), analyzer.scope(), analyzer.analyzer(), overridePositionIncrementGap,
-                        analysisMode);
+                analyzer = new NamedAnalyzer(analyzer.name(), analyzer.scope(), analyzer.analyzer(), overridePositionIncrementGap);
             }
         } else {
-            analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap, analysisMode);
+            analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
         }
         if (analyzers.containsKey(name)) {
             throw new IllegalStateException("already registered analyzer with name: " + name);

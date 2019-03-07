@@ -40,20 +40,24 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     private final AnalysisMode analysisMode;
 
     public NamedAnalyzer(NamedAnalyzer analyzer, int positionIncrementGap) {
-        this(analyzer.name(), analyzer.scope(), analyzer.analyzer(), positionIncrementGap, AnalysisMode.ALL);
+        this(analyzer.name(), analyzer.scope(), analyzer.analyzer());
     }
 
     public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer) {
-        this(name, scope, analyzer, Integer.MIN_VALUE, AnalysisMode.ALL);
+        this(name, scope, analyzer, Integer.MIN_VALUE);
     }
 
-    NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionIncrementGap, AnalysisMode analysisMode) {
+    NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionIncrementGap) {
         super(ERROR_STRATEGY);
         this.name = name;
         this.scope = scope;
         this.analyzer = analyzer;
         this.positionIncrementGap = positionIncrementGap;
-        this.analysisMode = analysisMode;
+        if (analyzer instanceof org.elasticsearch.index.analysis.CustomAnalyzer) {
+            this.analysisMode = ((org.elasticsearch.index.analysis.CustomAnalyzer) analyzer).getAnalysisMode();
+        } else {
+            this.analysisMode = AnalysisMode.ALL;
+        }
     }
 
     /**
@@ -99,24 +103,28 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
 
     /**
      * Checks the wrapped analyzer for the provided restricted {@link AnalysisMode} and throws
-     * an error if the analyzer is of that mode. The error contains more detailed information about
-     * the offending filters that caused the analyzer for be in this mode.
+     * an error if the analyzer is not allowed to run in that mode. The error contains more detailed information about
+     * the offending filters that caused the analyzer to not be allowed in this mode.
      */
-    public void preventAnalysisMode(AnalysisMode mode) {
-        if (this.getAnalysisMode() == mode) {
+    public void checkAllowedInMode(AnalysisMode mode) {
+        Objects.requireNonNull(mode);
+        if (this.getAnalysisMode() == AnalysisMode.ALL) {
+            return; // everything allowed if this analyzer is in ALL mode
+        }
+        if (this.getAnalysisMode() != mode) {
             if (analyzer instanceof CustomAnalyzer) {
                 TokenFilterFactory[] tokenFilters = ((CustomAnalyzer) analyzer).tokenFilters();
                 List<String> offendingFilters = new ArrayList<>();
                 for (TokenFilterFactory tokenFilter : tokenFilters) {
-                    if (tokenFilter.getAnalysisMode() == mode) {
+                    if (tokenFilter.getAnalysisMode() != mode) {
                         offendingFilters.add(tokenFilter.name());
                     }
                 }
-                throw new MapperException("analyzer [" + name + "] contains filters " + offendingFilters + " that are only allowed at "
-                        + mode.getReadableName() + ".");
+                throw new MapperException("analyzer [" + name + "] contains filters " + offendingFilters
+                        + " that are not allowed to run in " + mode.getReadableName() + " mode.");
             } else {
                 throw new MapperException(
-                        "analyzer [" + name + "] contains components that are only allowed at " + mode.getReadableName() + ".");
+                        "analyzer [" + name + "] contains components that are not allowed to run in " + mode.getReadableName() + " mode.");
             }
         }
     }

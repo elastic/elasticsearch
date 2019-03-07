@@ -74,7 +74,7 @@ public class TypeParsers {
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
-                analyzer.preventAnalysisMode(AnalysisMode.SEARCH_TIME);
+                analyzer.checkAllowedInMode(AnalysisMode.ALL);
                 indexAnalyzer = analyzer;
                 iterator.remove();
             } else if (propName.equals("search_analyzer")) {
@@ -82,6 +82,7 @@ public class TypeParsers {
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
+                analyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
                 searchAnalyzer = analyzer;
                 iterator.remove();
             } else if (propName.equals("search_quote_analyzer")) {
@@ -89,6 +90,7 @@ public class TypeParsers {
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
+                analyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
                 searchQuoteAnalyzer = analyzer;
                 iterator.remove();
             }

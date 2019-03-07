@@ -124,15 +124,10 @@
           index: test-1
           body: { bar: 42 }
 
+# ensures dynamic mapping update is visible to get_mapping
  - do:
-     indices.put_mapping:
-       include_type_name: true
-       index: test-1
-       type: my_type
-       body:
-         properties:
-           bar:
-             type: "long"
+     cluster.health:
+         wait_for_events: normal
 
  - do:
       indices.get_mapping:

@@ -227,6 +227,7 @@ if (project != rootProject) {
     systemProperty 'test.local-test-downloads-path', localDownloads
     systemProperty 'test.version_under_test', version
     systemProperty 'test.lucene-snapshot-revision', (versions.lucene =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
+    maxParallelForks System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel) as Integer
   }
   check.dependsOn(integTest)
 

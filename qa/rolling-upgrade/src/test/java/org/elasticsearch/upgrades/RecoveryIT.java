@@ -57,7 +57,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class RecoveryIT extends AbstractRollingTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31291")
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";
         if (CLUSTER_TYPE == ClusterType.OLD) {

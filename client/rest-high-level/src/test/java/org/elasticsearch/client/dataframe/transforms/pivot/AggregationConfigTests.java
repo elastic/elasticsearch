@@ -46,7 +46,6 @@ public class AggregationConfigTests extends AbstractXContentTestCase<Aggregation
                 builder.addAggregator(aggBuilder);
             }
         }
-        builder.addAggregator(getRandomSupportedAggregation());
         return new AggregationConfig(builder);
     }
 

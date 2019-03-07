@@ -2,6 +2,7 @@
 "Get the indexed token and use if to authenticate":
   - skip:
       features: headers
+      
   - do:
       get:
         index: token_index

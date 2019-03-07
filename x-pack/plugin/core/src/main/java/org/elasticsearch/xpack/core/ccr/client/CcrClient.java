@@ -102,7 +102,7 @@ public class CcrClient {
         client.execute(ForgetFollowerAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<BroadcastResponse> forgetFollower(final UnfollowAction.Request request) {
+    public ActionFuture<BroadcastResponse> forgetFollower(final ForgetFollowerAction.Request request) {
         final PlainActionFuture<BroadcastResponse> listener = PlainActionFuture.newFuture();
         client.execute(ForgetFollowerAction.INSTANCE, request, listener);
         return listener;

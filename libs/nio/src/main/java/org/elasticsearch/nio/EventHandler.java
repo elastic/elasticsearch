@@ -152,7 +152,7 @@ public class EventHandler {
     /**
      * This method is called when a task or listener attached to a channel is available to run.
      *
-     * @param task the task to handle
+     * @param task to handle
      */
     protected void handleTask(Runnable task) {
         task.run();

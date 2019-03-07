@@ -211,7 +211,13 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                         "\"leader_remote_cluster\":\"leader_cluster\"" +
                         "}";
                 request.setJsonEntity(requestBody);
-                assertOK(leaderClient.performRequest(request));
+                final Response forgetFollowerResponse = leaderClient.performRequest(request);
+                assertOK(forgetFollowerResponse);
+                final Map<?, ?> shards = ObjectPath.createFromResponse(forgetFollowerResponse).evaluate("_shards");
+                final String reason = shards.get("failures").toString();
+                assertThat(reason, shards.get("total"), equalTo(1));
+                assertThat(reason, shards.get("successful"), equalTo(1));
+                assertThat(reason, shards.get("failed"), equalTo(0));
 
                 final Request retentionLeasesRequest = new Request("GET", "/" + forgetLeader + "/_stats");
                 retentionLeasesRequest.addParameter("level", "shards");

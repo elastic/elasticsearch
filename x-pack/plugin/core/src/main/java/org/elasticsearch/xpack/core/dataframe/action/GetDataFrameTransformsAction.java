@@ -63,7 +63,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
             }
         }
 
-        public Request() {}
+        private Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);

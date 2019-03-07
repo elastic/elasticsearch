@@ -56,7 +56,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             this.setTimeout(timeout == null ? DEFAULT_TIMEOUT : timeout);
         }
 
-        public Request() {
+        private Request() {
             this(null, false, null);
         }
 

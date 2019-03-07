@@ -55,7 +55,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             }
         }
 
-        public Request() {}
+        private Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);

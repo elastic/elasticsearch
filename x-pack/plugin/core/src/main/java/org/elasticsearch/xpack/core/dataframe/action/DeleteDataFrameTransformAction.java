@@ -49,7 +49,7 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
         }
 
-        public Request() {
+        private Request() {
         }
 
         public Request(StreamInput in) throws IOException {

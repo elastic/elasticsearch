@@ -204,8 +204,9 @@ public class ReplicationOperation<
     }
 
     private void onNoLongerPrimary(Exception failure) {
-        final boolean nodeIsClosing = failure instanceof NodeClosedException ||
-            (failure instanceof TransportException && "TransportService is closed stopped can't send request".equals(failure.getMessage()));
+        final Throwable cause = ExceptionsHelper.unwrapCause(failure);
+        final boolean nodeIsClosing = cause instanceof NodeClosedException
+            || (cause instanceof TransportException && "TransportService is closed stopped can't send request".equals(cause.getMessage()));
         final String message;
         if (nodeIsClosing) {
             message = String.format(Locale.ROOT,

@@ -64,7 +64,7 @@ POST /_security/oauth2/token
   "grant_type" : "client_credentials"
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TEST
 
 The get token API returns the following information about the access token:
@@ -77,7 +77,7 @@ The get token API returns the following information about the access token:
   "expires_in" : 1200
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 
 This access token can now be immediately invalidated, as shown in the following
@@ -90,7 +90,7 @@ DELETE /_security/oauth2/token
   "token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ=="
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TEST[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TEST[continued]
 
@@ -106,7 +106,7 @@ POST /_security/oauth2/token
   "password" : "x-pack-test-password"
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TEST
 
 The get token API returns the following information:
@@ -120,7 +120,7 @@ The get token API returns the following information:
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 
@@ -134,7 +134,7 @@ DELETE /_security/oauth2/token
   "refresh_token" : "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TEST[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 // TEST[continued]
 
@@ -148,7 +148,7 @@ DELETE /_security/oauth2/token
   "realm_name" : "saml1"
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TEST
 
 The following example invalidates all access tokens and refresh tokens for the
@@ -161,7 +161,7 @@ DELETE /_security/oauth2/token
   "username" : "myuser"
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TEST
 
 Finally, the following example invalidates all access tokens and refresh tokens
@@ -175,7 +175,7 @@ DELETE /_security/oauth2/token
   "realm_name" : "saml1"
 }
 --------------------------------------------------
-// KIBANA
+// CONSOLE
 // TEST
 
 A successful call returns a JSON structure that contains the number of tokens

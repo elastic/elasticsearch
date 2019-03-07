@@ -47,11 +47,6 @@ public class ConcurrentHashMapLong<T> implements ConcurrentMapLong<T> {
         return map.put(key, value);
     }
 
-    @Override
-    public T putIfAbsent(long key, T value) {
-        return map.putIfAbsent(key, value);
-    }
-
     // MAP DELEGATION
 
     @Override

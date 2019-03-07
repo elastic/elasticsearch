@@ -1684,7 +1684,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::shrink-index-request-waitForActiveShards
         // tag::shrink-index-request-copySettings
-        request.setCopySettings(Boolean.TRUE); // <1>
+        request.setCopySettings(true); // <1>
         // end::shrink-index-request-copySettings
         // tag::shrink-index-request-settings
         request.getTargetIndexRequest().settings(Settings.builder()

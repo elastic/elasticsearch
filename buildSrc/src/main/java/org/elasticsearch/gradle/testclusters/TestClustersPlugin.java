@@ -20,9 +20,9 @@ package org.elasticsearch.gradle.testclusters;
 
 import groovy.lang.Closure;
 import org.elasticsearch.GradleServicesAdapter;
+import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionCollection;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -304,18 +304,18 @@ public class TestClustersPlugin implements Plugin<Project> {
         // We need afterEvaluate here despite the fact that container is a domain object, we can't implement this with
         // all because fields can change after the fact.
         project.afterEvaluate(ip -> container.forEach(esNode -> {
-            VersionCollection.UnreleasedVersionInfo unreleasedInfo;
+            BwcVersions.UnreleasedVersionInfo unreleasedInfo;
             final List<Version> unreleased;
             {
                 ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
                 if (extraProperties.has("bwcVersions")) {
                     Object bwcVersionsObj = extraProperties.get("bwcVersions");
-                    if (bwcVersionsObj instanceof VersionCollection == false) {
+                    if (bwcVersionsObj instanceof BwcVersions == false) {
                         throw new IllegalStateException("Expected project.bwcVersions to be of type VersionCollection " +
                             "but instead it was " + bwcVersionsObj.getClass());
                     }
-                    final VersionCollection bwcVersions = (VersionCollection) bwcVersionsObj;
-                    unreleased = ((VersionCollection) bwcVersionsObj).getUnreleased();
+                    final BwcVersions bwcVersions = (BwcVersions) bwcVersionsObj;
+                    unreleased = ((BwcVersions) bwcVersionsObj).getUnreleased();
                     unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(esNode.getVersion()));
                 } else {
                     logger.info("No version information available, assuming all versions used are released");

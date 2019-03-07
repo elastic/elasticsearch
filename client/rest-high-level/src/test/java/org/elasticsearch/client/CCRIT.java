@@ -253,13 +253,11 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         retentionLeasesRequest.addParameter("level", "shards");
         final Response retentionLeasesResponse = client().performRequest(retentionLeasesRequest);
         for (int i = 0; i < numberOfShards; i++) {
-            final ArrayList<Object> shardsStats =
-                    ObjectPath.createFromResponse(retentionLeasesResponse).evaluate("indices.leader.shards." + i);
+            final List<?> shardsStats = ObjectPath.createFromResponse(retentionLeasesResponse).evaluate("indices.leader.shards." + i);
             assertThat(shardsStats, hasSize(1));
-            @SuppressWarnings("unchecked") final Map<String, Object> shardStatsAsMap = (Map<String, Object>) shardsStats.get(0);
-            @SuppressWarnings("unchecked") final Map<String, Object> retentionLeasesStats =
-                    (Map<String, Object>) shardStatsAsMap.get("retention_leases");
-            @SuppressWarnings("unchecked") final ArrayList<Object> leases = (ArrayList<Object>) retentionLeasesStats.get("leases");
+            final Map<?, ?> shardStatsAsMap = (Map<?, ?>) shardsStats.get(0);
+            final Map<?, ?> retentionLeasesStats = (Map<?, ?>) shardStatsAsMap.get("retention_leases");
+            final List<?> leases = (List<?>) retentionLeasesStats.get("leases");
             assertThat(leases, empty());
         }
     }

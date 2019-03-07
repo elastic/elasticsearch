@@ -219,10 +219,9 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 final ArrayList<Object> shardsStats =
                         ObjectPath.createFromResponse(retentionLeasesResponse).evaluate("indices." + forgetLeader + ".shards.0");
                 assertThat(shardsStats, hasSize(1));
-                @SuppressWarnings("unchecked") final Map<String, Object> shardStatsAsMap = (Map<String, Object>)shardsStats.get(0);
-                @SuppressWarnings("unchecked") final Map<String, Object> retentionLeasesStats =
-                        (Map<String, Object>) shardStatsAsMap.get("retention_leases");
-                @SuppressWarnings("unchecked") final ArrayList<Object> leases = (ArrayList<Object>)retentionLeasesStats.get("leases");
+                final Map<?, ?> shardStatsAsMap = (Map<?, ?>) shardsStats.get(0);
+                final Map<?, ?> retentionLeasesStats = (Map<?, ?>) shardStatsAsMap.get("retention_leases");
+                final List<?> leases = (List<?>) retentionLeasesStats.get("leases");
                 assertThat(leases, empty());
             }
         }

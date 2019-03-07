@@ -1,8 +1,6 @@
 [[analysis-synonym-graph-tokenfilter]]
 === Synonym Graph Token Filter
 
-beta[]
-
 The `synonym_graph` token filter allows to easily handle synonyms,
 including multi-word synonyms correctly during the analysis process.
 
@@ -176,7 +174,8 @@ PUT /test_index
 Using `synonyms_path` to define WordNet synonyms in a file is supported
 as well.
 
-=== Parsing synonym files
+[float]
+==== Parsing synonym files
 
 Elasticsearch will use the token filters preceding the synonym filter
 in a tokenizer chain to parse the entries in a synonym file.  So, for example, if a
@@ -187,3 +186,8 @@ multiple versions of a token may choose which version of the token to emit when
 parsing synonyms, e.g. `asciifolding` will only produce the folded version of the
 token.  Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an
 error.
+
+WARNING: The synonym rules should not contain words that are removed by
+a filter that appears after in the chain (a `stop` filter for instance).
+Removing a term from a synonym rule breaks the matching at query time.
+

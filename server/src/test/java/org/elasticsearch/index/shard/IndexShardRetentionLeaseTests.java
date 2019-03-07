@@ -19,16 +19,13 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
@@ -104,6 +101,36 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         }
     }
 
+    public void testRemoveRetentionLease() throws IOException {
+        final IndexShard indexShard = newStartedShard(true);
+        final long primaryTerm = indexShard.getOperationPrimaryTerm();
+        try {
+            final int length = randomIntBetween(0, 8);
+            final long[] minimumRetainingSequenceNumbers = new long[length];
+            for (int i = 0; i < length; i++) {
+                minimumRetainingSequenceNumbers[i] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+                indexShard.addRetentionLease(
+                        Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.wrap(() -> {}));
+                assertRetentionLeases(
+                        indexShard, i + 1, minimumRetainingSequenceNumbers, primaryTerm, 1 + i, true, false);
+            }
+
+            for (int i = 0; i < length; i++) {
+                indexShard.removeRetentionLease(Integer.toString(length - i - 1), ActionListener.wrap(() -> {}));
+                assertRetentionLeases(
+                        indexShard,
+                        length - i - 1,
+                        minimumRetainingSequenceNumbers,
+                        primaryTerm,
+                        1 + length + i,
+                        true,
+                        false);
+            }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
     public void testExpirationOnPrimary() throws IOException {
         runExpirationTest(true);
     }
@@ -117,7 +144,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         final Settings settings = Settings
                 .builder()
                 .put(
-                        IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING.getKey(),
+                        IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(),
                         TimeValue.timeValueMillis(retentionLeaseMillis))
                 .build();
         // current time is mocked through the thread pool
@@ -181,10 +208,10 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         }
     }
 
-    public void testCommit() throws IOException {
+    public void testPersistence() throws IOException {
         final Settings settings = Settings.builder()
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING.getKey(), Long.MAX_VALUE, TimeUnit.NANOSECONDS)
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), Long.MAX_VALUE, TimeUnit.NANOSECONDS)
                 .build();
         final IndexShard indexShard = newStartedShard(
                 true,
@@ -202,19 +229,17 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
 
             currentTimeMillis.set(TimeUnit.NANOSECONDS.toMillis(Long.MAX_VALUE));
 
-            // force a commit
-            indexShard.flush(new FlushRequest().force(true));
+            // force the retention leases to persist
+            indexShard.persistRetentionLeases();
 
-            // the committed retention leases should equal our current retention leases
-            final SegmentInfos segmentCommitInfos = indexShard.store().readLastCommittedSegmentsInfo();
-            assertTrue(segmentCommitInfos.getUserData().containsKey(Engine.RETENTION_LEASES));
+            // the written retention leases should equal our current retention leases
             final RetentionLeases retentionLeases = indexShard.getEngine().config().retentionLeasesSupplier().get();
-            final RetentionLeases committedRetentionLeases = IndexShard.getRetentionLeases(segmentCommitInfos);
+            final RetentionLeases writtenRetentionLeases = indexShard.loadRetentionLeases();
             if (retentionLeases.leases().isEmpty()) {
-                assertThat(committedRetentionLeases.version(), equalTo(0L));
-                assertThat(committedRetentionLeases.leases(), empty());
+                assertThat(writtenRetentionLeases.version(), equalTo(0L));
+                assertThat(writtenRetentionLeases.leases(), empty());
             } else {
-                assertThat(committedRetentionLeases.version(), equalTo((long) length));
+                assertThat(writtenRetentionLeases.version(), equalTo((long) length));
                 assertThat(retentionLeases.leases(), contains(retentionLeases.leases().toArray(new RetentionLease[0])));
             }
 

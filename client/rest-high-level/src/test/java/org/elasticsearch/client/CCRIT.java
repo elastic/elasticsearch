@@ -213,8 +213,9 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         final CcrClient ccrClient = highLevelClient().ccr();
 
         final CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-        final Map<String, String> settings = new HashMap<>(2);
+        final Map<String, String> settings = new HashMap<>(3);
         final int numberOfShards = randomIntBetween(1, 2);
+        settings.put("index.number_of_replicas", "0");
         settings.put("index.number_of_shards", Integer.toString(numberOfShards));
         settings.put("index.soft_deletes.enabled", Boolean.TRUE.toString());
         createIndexRequest.settings(settings);
@@ -251,10 +252,12 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         final Request retentionLeasesRequest = new Request("GET", "/leader/_stats");
         retentionLeasesRequest.addParameter("level", "shards");
         final Response retentionLeasesResponse = client().performRequest(retentionLeasesRequest);
+        final Map<?, ?> shardsStats = ObjectPath.createFromResponse(retentionLeasesResponse).evaluate("indices.leader.shards");
+        assertThat(shardsStats.keySet(), hasSize(numberOfShards));
         for (int i = 0; i < numberOfShards; i++) {
-            final List<?> shardsStats = ObjectPath.createFromResponse(retentionLeasesResponse).evaluate("indices.leader.shards." + i);
-            assertThat(shardsStats, hasSize(1));
-            final Map<?, ?> shardStatsAsMap = (Map<?, ?>) shardsStats.get(0);
+            final List<?> shardStats = (List<?>) shardsStats.get(Integer.toString(i));
+            assertThat(shardStats, hasSize(1));
+            final Map<?, ?> shardStatsAsMap = (Map<?, ?>) shardStats.get(0);
             final Map<?, ?> retentionLeasesStats = (Map<?, ?>) shardStatsAsMap.get("retention_leases");
             final List<?> leases = (List<?>) retentionLeasesStats.get("leases");
             assertThat(leases, empty());

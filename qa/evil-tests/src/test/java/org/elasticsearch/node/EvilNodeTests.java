@@ -39,13 +39,7 @@ public class EvilNodeTests extends ESTestCase {
     public void testDefaultPathDataIncludedInPathData() throws IOException {
         final Path zero = createTempDir().toAbsolutePath();
         final Path one = createTempDir().toAbsolutePath();
-        // creating hard links to directories is okay on macOS so we exercise it here
-        final int random;
-        if (Constants.MAC_OS_X) {
-            random = randomFrom(0, 1, 2);
-        } else {
-            random = randomFrom(0, 1);
-        }
+        final int random = randomFrom(0, 1);
         final Path defaultPathData;
         final Path choice = randomFrom(zero, one);
         switch (random) {
@@ -55,10 +49,6 @@ public class EvilNodeTests extends ESTestCase {
             case 1:
                 defaultPathData = createTempDir().toAbsolutePath().resolve("link");
                 Files.createSymbolicLink(defaultPathData, choice);
-                break;
-            case 2:
-                defaultPathData = createTempDir().toAbsolutePath().resolve("link");
-                Files.createLink(defaultPathData, choice);
                 break;
             default:
                 throw new AssertionError(Integer.toString(random));

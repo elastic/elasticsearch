@@ -108,7 +108,7 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
         }
 
         public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
+            super(in);
             readFrom(in);
         }
 
@@ -136,6 +136,7 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            toXContentCommon(builder, params);
             builder.field("started", started);
             builder.endObject();
             return builder;

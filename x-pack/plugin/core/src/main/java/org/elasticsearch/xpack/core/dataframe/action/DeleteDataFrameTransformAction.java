@@ -113,7 +113,7 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
         private boolean acknowledged;
         public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
+            super(in);
             readFrom(in);
         }
 

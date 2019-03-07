@@ -35,7 +35,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -44,7 +43,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
-import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -70,6 +68,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
@@ -89,7 +88,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
@@ -97,6 +95,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
+import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.syncAddRetentionLease;
+import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.syncRenewRetentionLease;
 
 
 /**
@@ -321,14 +321,15 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         // schedule renewals to run during the restore
         final Scheduler.Cancellable renewable = threadPool.scheduleWithFixedDelay(
                 () -> {
-                    logger.trace("{} background renewal of retention lease [{}] during restore", shardId, retentionLeaseId);
+                    logger.trace("{} background renewal of retention lease [{}] during restore", indexShard.shardId(), retentionLeaseId);
                     final ThreadContext threadContext = threadPool.getThreadContext();
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                         // we have to execute under the system context so that if security is enabled the renewal is authorized
                         threadContext.markAsSystemContext();
-                        asyncRenewRetentionLease(
+                        CcrRetentionLeases.asyncRenewRetentionLease(
                                 leaderShardId,
                                 retentionLeaseId,
+                                RETAIN_ALL,
                                 remoteClient,
                                 ActionListener.wrap(
                                         r -> {},
@@ -336,13 +337,13 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                             assert e instanceof ElasticsearchSecurityException == false : e;
                                             logger.warn(new ParameterizedMessage(
                                                             "{} background renewal of retention lease [{}] failed during restore",
-                                                            shardId,
+                                                            indexShard.shardId(),
                                                             retentionLeaseId),
                                                     e);
                                         }));
                     }
                 },
-                RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(indexShard.indexSettings().getSettings()),
+                CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(indexShard.indexSettings().getNodeSettings()),
                 Ccr.CCR_THREAD_POOL_NAME);
 
         // TODO: There should be some local timeout. And if the remote cluster returns an unknown session
@@ -377,8 +378,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             final Client remoteClient) {
         logger.trace(
                 () -> new ParameterizedMessage("{} requesting leader to add retention lease [{}]", shardId, retentionLeaseId));
+        final TimeValue timeout = ccrSettings.getRecoveryActionTimeout();
         final Optional<RetentionLeaseAlreadyExistsException> maybeAddAlready =
-                syncAddRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
+                syncAddRetentionLease(leaderShardId, retentionLeaseId, RETAIN_ALL, remoteClient, timeout);
         maybeAddAlready.ifPresent(addAlready -> {
             logger.trace(() -> new ParameterizedMessage(
                             "{} retention lease [{}] already exists, requesting a renewal",
@@ -386,7 +388,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                             retentionLeaseId),
                     addAlready);
             final Optional<RetentionLeaseNotFoundException> maybeRenewNotFound =
-                    syncRenewRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
+                    syncRenewRetentionLease(leaderShardId, retentionLeaseId, RETAIN_ALL, remoteClient, timeout);
             maybeRenewNotFound.ifPresent(renewNotFound -> {
                 logger.trace(() -> new ParameterizedMessage(
                                 "{} retention lease [{}] not found while attempting to renew, requesting a final add",
@@ -394,7 +396,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                 retentionLeaseId),
                         renewNotFound);
                 final Optional<RetentionLeaseAlreadyExistsException> maybeFallbackAddAlready =
-                        syncAddRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
+                        syncAddRetentionLease(leaderShardId, retentionLeaseId, RETAIN_ALL, remoteClient, timeout);
                 maybeFallbackAddAlready.ifPresent(fallbackAddAlready -> {
                     /*
                      * At this point we tried to add the lease and the retention lease already existed. By the time we tried to renew the
@@ -406,63 +408,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             });
         });
     }
-
-    private Optional<RetentionLeaseAlreadyExistsException> syncAddRetentionLease(
-            final ShardId leaderShardId,
-            final String retentionLeaseId,
-            final Client remoteClient) {
-        try {
-            final PlainActionFuture<RetentionLeaseActions.Response> response = new PlainActionFuture<>();
-            asyncAddRetentionLease(leaderShardId, retentionLeaseId, remoteClient, response);
-            response.actionGet(ccrSettings.getRecoveryActionTimeout());
-            return Optional.empty();
-        } catch (final RetentionLeaseAlreadyExistsException e) {
-            return Optional.of(e);
-        }
-    }
-
-    private void asyncAddRetentionLease(
-            final ShardId leaderShardId,
-            final String retentionLeaseId,
-            final Client remoteClient,
-            final ActionListener<RetentionLeaseActions.Response> listener) {
-        final RetentionLeaseActions.AddRequest request =
-                new RetentionLeaseActions.AddRequest(leaderShardId, retentionLeaseId, RETAIN_ALL, "ccr");
-        remoteClient.execute(RetentionLeaseActions.Add.INSTANCE, request, listener);
-    }
-
-    private Optional<RetentionLeaseNotFoundException> syncRenewRetentionLease(
-            final ShardId leaderShardId,
-            final String retentionLeaseId,
-            final Client remoteClient) {
-        try {
-            final PlainActionFuture<RetentionLeaseActions.Response> response = new PlainActionFuture<>();
-            asyncRenewRetentionLease(leaderShardId, retentionLeaseId, remoteClient, response);
-            response.actionGet(ccrSettings.getRecoveryActionTimeout());
-            return Optional.empty();
-        } catch (final RetentionLeaseNotFoundException e) {
-            return Optional.of(e);
-        }
-    }
-
-    private void asyncRenewRetentionLease(
-            final ShardId leaderShardId,
-            final String retentionLeaseId,
-            final Client remoteClient,
-            final ActionListener<RetentionLeaseActions.Response> listener) {
-        final RetentionLeaseActions.RenewRequest request =
-                new RetentionLeaseActions.RenewRequest(leaderShardId, retentionLeaseId, RETAIN_ALL, "ccr");
-        remoteClient.execute(RetentionLeaseActions.Renew.INSTANCE, request, listener);
-    }
-
-    // this setting is intentionally not registered, it is only used in tests
-    public static final Setting<TimeValue> RETENTION_LEASE_RENEW_INTERVAL_SETTING =
-            Setting.timeSetting(
-                    "index.ccr.retention_lease.renew_interval",
-                    new TimeValue(5, TimeUnit.MINUTES),
-                    new TimeValue(0, TimeUnit.MILLISECONDS),
-                    Setting.Property.Dynamic,
-                    Setting.Property.IndexScope);
 
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId leaderShardId) {

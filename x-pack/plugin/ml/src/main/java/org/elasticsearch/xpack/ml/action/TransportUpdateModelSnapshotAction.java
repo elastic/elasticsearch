@@ -23,7 +23,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -80,8 +79,7 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<U
     }
 
     private void indexModelSnapshot(Result<ModelSnapshot> modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
-        IndexRequest indexRequest = new IndexRequest(modelSnapshot.index, ElasticsearchMappings.DOC_TYPE,
-                ModelSnapshot.documentId(modelSnapshot.result));
+        IndexRequest indexRequest = new IndexRequest(modelSnapshot.index).id(ModelSnapshot.documentId(modelSnapshot.result));
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             modelSnapshot.result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             indexRequest.source(builder);

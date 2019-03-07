@@ -55,7 +55,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
     public static final SearchHit[] EMPTY = new SearchHit[0];
 
     private final SearchHit[] hits;
-    private final Total totalHits;
+    private final TotalHits totalHits;
     private final float maxScore;
     @Nullable
     private final SortField[] sortFields;
@@ -71,7 +71,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore, @Nullable SortField[] sortFields,
                       @Nullable String collapseField, @Nullable Object[] collapseValues) {
         this.hits = hits;
-        this.totalHits = totalHits == null ? null : new Total(totalHits);
+        this.totalHits = totalHits;
         this.maxScore = maxScore;
         this.sortFields = sortFields;
         this.collapseField = collapseField;
@@ -80,7 +80,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
 
     public SearchHits(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            totalHits = new Total(in);
+            totalHits = Lucene.readTotalHits(in);
         } else {
             // track_total_hits is false
             totalHits = null;
@@ -111,7 +111,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         final boolean hasTotalHits = totalHits != null;
         out.writeBoolean(hasTotalHits);
         if (hasTotalHits) {
-            totalHits.writeTo(out);
+            Lucene.writeTotalHits(out, totalHits);
         }
         out.writeFloat(maxScore);
         out.writeVInt(hits.length);
@@ -131,8 +131,9 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
      * The total number of hits for the query or null if the tracking of total hits
      * is disabled in the request.
      */
+    @Nullable
     public TotalHits getTotalHits() {
-        return totalHits == null ? null : totalHits.in;
+        return totalHits;
     }
 
     /**
@@ -197,11 +198,12 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         builder.startObject(Fields.HITS);
         boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
         if (totalHitAsInt) {
-            long total = totalHits == null ? -1 : totalHits.in.value;
+            long total = totalHits == null ? -1 : totalHits.value;
             builder.field(Fields.TOTAL, total);
         } else if (totalHits != null) {
             builder.startObject(Fields.TOTAL);
-            totalHits.toXContent(builder, params);
+            builder.field("value", totalHits.value);
+            builder.field("relation", totalHits.relation == Relation.EQUAL_TO ? "eq" : "gte");
             builder.endObject();
         }
         if (Float.isNaN(maxScore)) {
@@ -311,48 +313,6 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
             return Relation.EQUAL_TO;
         } else {
             throw new IllegalArgumentException("invalid total hits relation: " + relation);
-        }
-    }
-
-    private static String printRelation(Relation relation) {
-        return relation == Relation.EQUAL_TO ? "eq" : "gte";
-    }
-
-    private static class Total implements Writeable, ToXContentFragment {
-        final TotalHits in;
-
-        Total(TotalHits in) {
-            this.in = Objects.requireNonNull(in);
-        }
-
-        Total(StreamInput in) throws IOException {
-            this.in = Lucene.readTotalHits(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            Lucene.writeTotalHits(out, in);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Total total = (Total) o;
-            return in.value == total.in.value &&
-                in.relation == total.in.relation;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(in.value, in.relation);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("value", in.value);
-            builder.field("relation", printRelation(in.relation));
-            return builder;
         }
     }
 }

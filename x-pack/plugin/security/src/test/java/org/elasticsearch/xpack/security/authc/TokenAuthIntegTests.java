@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -48,7 +47,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -398,7 +396,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
                 SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         SecurityClient securityClient = new SecurityClient(client);
-        final ConcurrentHashMap<String, String> tokens = new ConcurrentHashMap<>();
+        final List<String> tokens = Collections.synchronizedList(new ArrayList<>());
         CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
             .setGrantType("password")
             .setUsername(SecuritySettingsSource.TEST_USER_NAME)
@@ -435,7 +433,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                         logger.warn("Tokens [{}], [{}] were received more than 30 seconds after the request, not checking them",
                             result.getTokenString(), result.getRefreshToken());
                     } else {
-                        tokens.put(UUIDs.randomBase64UUID(), result.getTokenString() + result.getRefreshToken());
+                        tokens.add(result.getTokenString() + result.getRefreshToken());
                     }
                     logger.info("received access token [{}] and refresh token [{}]", result.getTokenString(), result.getRefreshToken());
                     completedLatch.countDown();
@@ -457,7 +455,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         completedLatch.await();
         assertThat(failed.get(), equalTo(false));
         // Assert that we only ever got one access_token/refresh_token pair
-        assertThat(tokens.values().stream().distinct().collect(Collectors.toList()).size(), equalTo(1));
+        assertThat(tokens.stream().distinct().collect(Collectors.toList()).size(), equalTo(1));
     }
 
     public void testRefreshAsDifferentUser() {

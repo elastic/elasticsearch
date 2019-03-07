@@ -23,7 +23,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionCollection
+import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
@@ -192,7 +192,7 @@ class ClusterFormationTasks {
             snapshotProject = "oss-" + snapshotProject
         }
         boolean internalBuild = project.hasProperty('bwcVersions')
-        VersionCollection.UnreleasedVersionInfo unreleasedInfo = null
+        BwcVersions.UnreleasedVersionInfo unreleasedInfo = null
         if (project.hasProperty('bwcVersions')) {
             // NOTE: leniency is needed for external plugin authors using build-tools. maybe build the version compat info into build-tools?
             unreleasedInfo = project.bwcVersions.unreleasedInfo(version)

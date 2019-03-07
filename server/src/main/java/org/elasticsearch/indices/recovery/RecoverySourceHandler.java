@@ -552,7 +552,7 @@ public class RecoverySourceHandler {
         };
 
         final StopWatch stopWatch = new StopWatch().start();
-        final ActionListener<Long> batchedListener = ActionListener.wrap(
+        final ActionListener<Long> batchedListener = ActionListener.map(listener,
             targetLocalCheckpoint -> {
                 assert snapshot.totalOperations() == snapshot.skippedOperations() + skippedOps.get() + totalSentOps.get()
                     : String.format(Locale.ROOT, "expected total [%d], overridden [%d], skipped [%d], total sent [%d]",
@@ -560,9 +560,8 @@ public class RecoverySourceHandler {
                 stopWatch.stop();
                 final TimeValue tookTime = stopWatch.totalTime();
                 logger.trace("recovery [phase2]: took [{}]", tookTime);
-                listener.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps.get(), tookTime));
-            },
-            listener::onFailure
+                return new SendSnapshotResult(targetLocalCheckpoint, totalSentOps.get(), tookTime);
+            }
         );
 
         sendBatch(

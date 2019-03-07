@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -16,6 +17,8 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.mockito.Mockito;
 
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
@@ -111,5 +114,48 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
         });
         assertThat(completed[0], nullValue());
         assertThat(failure[0], sameInstance(error));
+    }
+
+    public void testFailureToReleaseRetentionLeases() {
+        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        Client client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+
+        // Mock unfollow api call:
+        ElasticsearchException error = new ElasticsearchException("text exception");
+        error.addMetadata("es.failed_to_remove_retention_leases", randomAlphaOfLength(10));
+        Mockito.doAnswer(invocation -> {
+            UnfollowAction.Request request = (UnfollowAction.Request) invocation.getArguments()[1];
+            assertThat(request.getFollowerIndex(), equalTo("follower-index"));
+            ActionListener listener = (ActionListener) invocation.getArguments()[2];
+            listener.onFailure(error);
+            return null;
+        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+
+        AtomicBoolean completed = new AtomicBoolean(false);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        UnfollowFollowIndexStep step = new UnfollowFollowIndexStep(randomStepKey(), randomStepKey(), client);
+        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+            @Override
+            public void onResponse(boolean complete) {
+                completed.set(complete);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure.set(e);
+            }
+        });
+        assertThat(completed.get(), equalTo(true));
+        assertThat(failure.get(), nullValue());
     }
 }

@@ -574,11 +574,9 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         }
 
         assert listener != null;
-        // for now, we only add this index operation listener to indices starting with .watches
-        // this also means, that aliases pointing to this index have to follow this notation
-        if (module.getIndex().getName().startsWith(Watch.INDEX)) {
-            module.addIndexOperationListener(listener);
-        }
+        // Attach a listener to every index so that we can react to alias changes.
+        // This listener will be a no-op except on the index pointed to by .watches
+        module.addIndexOperationListener(listener);
     }
 
     static void validAutoCreateIndex(Settings settings, Logger logger) {

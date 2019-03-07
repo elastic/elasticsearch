@@ -133,7 +133,7 @@ Which returns:
 [float]
 === Paginating through a large response
 
-Using the example above, onu can continue to the next page by sending back the `cursor` field. In
+Using the example above, one can continue to the next page by sending back the `cursor` field. In
 case of text format the cursor is returned as `Cursor` http header.
 
 [source,js]
@@ -235,6 +235,81 @@ Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 // TESTRESPONSE[_cat]
 
+[[sql-rest-columnar]]
+[float]
+=== Columnar results
+
+The most well known way of displaying the results of an SQL query result in general is the one where each
+individual record/document represents one line/row. For certain formats, {es-sql} can return the results
+in a columnar fashion: one row represents all the values of a certain column from the current page of results.
+
+The following formats can be returned in columnar orientation: `json`, `yaml`, `cbor` and `smile`.
+
+[source,js]
+--------------------------------------------------
+POST /_sql?format=json
+{
+    "query": "SELECT * FROM library ORDER BY page_count DESC",
+    "fetch_size": 5,
+    "columnar": true
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:library]
+
+Which returns:
+
+[source,js]
+--------------------------------------------------
+{
+    "columns": [
+        {"name": "author", "type": "text"},
+        {"name": "name", "type": "text"},
+        {"name": "page_count", "type": "short"},
+        {"name": "release_date", "type": "datetime"}
+    ],
+    "values": [
+        ["Peter F. Hamilton", "Vernor Vinge", "Frank Herbert", "Alastair Reynolds", "James S.A. Corey"],
+        ["Pandora's Star", "A Fire Upon the Deep", "Dune", "Revelation Space", "Leviathan Wakes"],
+        [768, 613, 604, 585, 561],
+        ["2004-03-02T00:00:00.000Z", "1992-06-01T00:00:00.000Z", "1965-06-01T00:00:00.000Z", "2000-03-15T00:00:00.000Z", "2011-06-02T00:00:00.000Z"]
+    ],
+    "cursor": "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl+v///w8="
+}
+--------------------------------------------------
+// TESTRESPONSE[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl\+v\/\/\/w8=/$body.cursor/]
+
+Any subsequent calls using a `cursor` still have to contain the `columnar` parameter to preserve the orientation,
+meaning the initial query will not _remember_ the columnar option.
+
+[source,js]
+--------------------------------------------------
+POST /_sql?format=json
+{
+    "cursor": "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl+v///w8=",
+    "columnar": true
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+// TEST[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl\+v\/\/\/w8=/$body.cursor/]
+
+Which looks like:
+
+[source,js]
+--------------------------------------------------
+{
+    "values": [
+        ["Dan Simmons", "Iain M. Banks", "Neal Stephenson", "Frank Herbert", "Frank Herbert"],
+        ["Hyperion", "Consider Phlebas", "Snow Crash", "God Emperor of Dune", "Children of Dune"],
+        [482, 471, 470, 454, 408],
+        ["1989-05-26T00:00:00.000Z", "1987-04-23T00:00:00.000Z", "1992-06-01T00:00:00.000Z", "1981-05-28T00:00:00.000Z", "1976-04-21T00:00:00.000Z"]
+    ],
+    "cursor": "46ToAwFzQERYRjFaWEo1UVc1a1JtVjBZMmdCQUFBQUFBQUFBQUVXWjBaNlFXbzNOV0pVY21Wa1NUZDJhV2t3V2xwblp3PT3/////DwQBZgZhdXRob3IBBHRleHQAAAFmBG5hbWUBBHRleHQAAAFmCnBhZ2VfY291bnQBBGxvbmcBAAFmDHJlbGVhc2VfZGF0ZQEIZGF0ZXRpbWUBAAEP"
+}
+--------------------------------------------------
+// TESTRESPONSE[s/46ToAwFzQERYRjFaWEo1UVc1a1JtVjBZMmdCQUFBQUFBQUFBQUVXWjBaNlFXbzNOV0pVY21Wa1NUZDJhV2t3V2xwblp3PT3\/\/\/\/\/DwQBZgZhdXRob3IBBHRleHQAAAFmBG5hbWUBBHRleHQAAAFmCnBhZ2VfY291bnQBBGxvbmcBAAFmDHJlbGVhc2VfZGF0ZQEIZGF0ZXRpbWUBAAEP/$body.cursor/]
+
 [[sql-rest-fields]]
 [float]
 === Supported REST parameters
@@ -277,7 +352,11 @@ s|Description
 |Time-zone in ISO 8601 used for executing the query on the server.
 More information available https://docs.oracle.com/javase/8/docs/api/java/time/ZoneId.html[here].
 
+|columnar
+|false
+|Return the results in a columnar fashion, rather than row-based fashion. Valid for `json`, `yaml`, `cbor` and `smile`.
+
 |===
 
-Do note that most parameters (outside the timeout ones) make sense only during the initial query - any follow-up pagination request only requires the `cursor` parameter as explained in the <<sql-pagination, pagination>> chapter.
+Do note that most parameters (outside the timeout and `columnar` ones) make sense only during the initial query - any follow-up pagination request only requires the `cursor` parameter as explained in the <<sql-pagination, pagination>> chapter.
 That's because the query has already been executed and the calls are simply about returning the found results - thus the parameters are simply ignored.

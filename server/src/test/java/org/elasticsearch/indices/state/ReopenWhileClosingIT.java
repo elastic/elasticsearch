@@ -20,8 +20,8 @@
 package org.elasticsearch.indices.state;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -72,7 +72,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         final CountDownLatch block = new CountDownLatch(1);
         final Releasable releaseBlock = interceptVerifyShardBeforeCloseActions(indexName, block::countDown);
 
-        ActionFuture<AcknowledgedResponse> closeIndexResponse = client().admin().indices().prepareClose(indexName).execute();
+        ActionFuture<CloseIndexResponse> closeIndexResponse = client().admin().indices().prepareClose(indexName).execute();
         assertTrue("Waiting for index to have a closing blocked", block.await(60, TimeUnit.SECONDS));
         assertIndexIsBlocked(indexName);
         assertFalse(closeIndexResponse.isDone());
@@ -84,6 +84,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         assertIndexIsOpened(indexName);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39757")
     public void testReopenDuringCloseOnMultipleIndices() throws Exception {
         final List<String> indices = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
@@ -96,7 +97,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         final CountDownLatch block = new CountDownLatch(1);
         final Releasable releaseBlock = interceptVerifyShardBeforeCloseActions(randomFrom(indices), block::countDown);
 
-        ActionFuture<AcknowledgedResponse> closeIndexResponse = client().admin().indices().prepareClose("index-*").execute();
+        ActionFuture<CloseIndexResponse> closeIndexResponse = client().admin().indices().prepareClose("index-*").execute();
         assertTrue("Waiting for index to have a closing blocked", block.await(60, TimeUnit.SECONDS));
         assertFalse(closeIndexResponse.isDone());
         indices.forEach(ReopenWhileClosingIT::assertIndexIsBlocked);

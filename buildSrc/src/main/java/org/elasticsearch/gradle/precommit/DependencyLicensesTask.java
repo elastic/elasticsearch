@@ -114,7 +114,6 @@ public class DependencyLicensesTask extends DefaultTask {
      * Add a mapping from a regex pattern for the jar name, to a prefix to find
      * the LICENSE and NOTICE file for that jar.
      */
-    @Input
     public void mapping(Map<String, String> props) {
         String from = props.remove("from");
         if (from == null) {
@@ -276,6 +275,7 @@ public class DependencyLicensesTask extends DefaultTask {
         return fileName;
     }
 
+    @Input
     public Map<String, String> getMappings() {
         return new HashMap<>(mappings);
     }

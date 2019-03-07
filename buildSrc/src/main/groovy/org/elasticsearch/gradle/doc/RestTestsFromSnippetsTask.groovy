@@ -394,7 +394,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                     pathAndQuery = pathAndQuery.substring(1)
                 }
                 emitDo(method, pathAndQuery, body, catchPart, snippet.warnings,
-                    inSetup, snippet.skip_shard_failures)
+                    inSetup, snippet.skipShardsFailures)
             }
         }
 

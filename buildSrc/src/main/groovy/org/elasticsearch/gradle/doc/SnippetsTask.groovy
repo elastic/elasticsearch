@@ -234,7 +234,7 @@ public class SnippetsTask extends DefaultTask {
                                 return
                             }
                             if (it.group(8) != null) {
-                                snippet.skip_shard_failures = true
+                                snippet.skipShardsFailures = true
                                 return
                             }
                             throw new InvalidUserDataException(
@@ -333,7 +333,7 @@ public class SnippetsTask extends DefaultTask {
         String setup = null
         boolean curl
         List warnings = new ArrayList()
-        boolean skip_shard_failures = false
+        boolean skipShardsFailures = false
 
         @Override
         public String toString() {
@@ -364,7 +364,7 @@ public class SnippetsTask extends DefaultTask {
                 for (String warning in warnings) {
                     result += "[warning:$warning]"
                 }
-                if (skip_shard_failures) {
+                if (skipShardsFailures) {
                     result += '[skip_shard_failures]'
                 }
             }

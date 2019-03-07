@@ -84,7 +84,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             waitForNoInitializingShards = in.readBoolean();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         } else {
             indicesOptions = IndicesOptions.lenientExpandOpen();
@@ -121,7 +121,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeBoolean(waitForNoInitializingShards);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
             indicesOptions.writeIndicesOptions(out);
         }
     }

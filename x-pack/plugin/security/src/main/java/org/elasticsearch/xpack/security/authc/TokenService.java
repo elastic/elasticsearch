@@ -51,7 +51,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -69,7 +68,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -123,7 +121,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -284,7 +281,7 @@ public final class TokenService {
                         .field("realm", authentication.getAuthenticatedBy().getName())
                         .endObject();
                 builder.endObject();
-                final IndexRequest request = client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, documentId)
+                request = client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, documentId)
                                 .setOpType(OpType.CREATE)
                                 .setSource(builder)
                                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
@@ -770,12 +767,11 @@ public final class TokenService {
      * Performs the actual refresh of the token with retries in case of certain exceptions that may be recoverable. The refresh involves two
      * steps: First, we check if the token document is still valid for refresh
      * ({@link TokenService#checkTokenDocForRefresh(Map, Authentication)} Then, in the case that the token has been refreshed within the
-     * previous 30 seconds (see {@link TokenService#checkLenientlyIfTokenAlreadyRefreshed(Map, Authentication)}), we do not create a new
-     * token document but instead retrieve the one that was created by the original refresh and return a user token and refresh token based
-     * on that. Otherwise this token document gets its refresh_token marked as refreshed, while also storing the Instant when it was
-     * refreshed along with a pointer to the new token document that holds the refresh_token that supersedes this one. The new document that
-     * contains the new access token and refresh token is created and finally the new access token and refresh token are returned to the
-     * listener.
+     * previous 30 seconds, we do not create a new token document but instead retrieve the one that was created by the original refresh and
+     * return a user token and refresh token based on that. Otherwise this token document gets its refresh_token marked as refreshed, while
+     * also storing the Instant when it was refreshed along with a pointer to the new token document that holds the refresh_token that
+     * supersedes this one. The new document that contains the new access token and refresh token is created and finally the new access
+     * token and refresh token are returned to the listener.
      */
     private void innerRefresh(String tokenDocId, Map<String, Object> source, long seqNo, long primaryTerm, Authentication clientAuth,
                               Iterator<TimeValue> backoff, Instant refreshRequested, ActionListener<Tuple<UserToken, String>> listener) {
@@ -846,7 +842,7 @@ public final class TokenService {
             updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
             assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
             assert primaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
-            final UpdateRequestBuilder updateRequest = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
+            final UpdateRequestBuilder updateRequest = client.prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, tokenDocId)
                     .setDoc("refresh_token", updateMap)
                     .setFetchSource(true)
                     .setRefreshPolicy(RefreshPolicy.IMMEDIATE)

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -59,6 +57,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.datafeed.QueryProviderTests.createRandomValidQueryProvider;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -76,26 +75,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         return createRandomizedDatafeedConfig(randomAlphaOfLength(10));
     }
 
-    public static DatafeedConfig.QueryProvider createRandomQueryProvider(String field, String value) {
-        Map<String, Object> terms = Collections.singletonMap(BoolQueryBuilder.NAME,
-            Collections.singletonMap("filter",
-                Collections.singletonList(
-                    Collections.singletonMap(TermQueryBuilder.NAME,
-                        Collections.singletonMap(field, value)))));
-        return new DatafeedConfig.QueryProvider(
-            terms,
-            QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(field, value)),
-            null);
-    }
-
-    public static DatafeedConfig.AggProvider createRandomAggProvider(String field, String name) {
-        Map<String, Object> agg = Collections.singletonMap(name,
-                Collections.singletonMap("avg", Collections.singletonMap("field", field)));
-        AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
-        aggs.addAggregator(AggregationBuilders.avg(name).field(field));
-        return new DatafeedConfig.AggProvider(agg, aggs, null);
-    }
-
     public static DatafeedConfig createRandomizedDatafeedConfig(String jobId) {
         return createRandomizedDatafeedConfig(jobId, 3600000);
     }
@@ -108,7 +87,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(randomValidDatafeedId(), jobId);
         builder.setIndices(randomStringList(1, 10));
         if (randomBoolean()) {
-            builder.setQueryProvider(createRandomQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+            builder.setQueryProvider(createRandomValidQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         }
         boolean addScriptFields = randomBoolean();
         if (addScriptFields) {
@@ -702,7 +681,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 .subAggregation(bucketScriptPipelineAggregationBuilder);
         DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilderWithDateHistogram(dateHistogram);
         datafeedConfigBuilder.setQueryProvider(
-            createRandomQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+            createRandomValidQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder().addAggregator(dateHistogram);
 
@@ -757,7 +736,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         // Streamed DatafeedConfigs when they are before 6.6.0 require a parsed object for aggs and queries, consequently all the default
         // values are added between them
         datafeedConfigBuilder.setQueryProvider(
-            DatafeedConfig.QueryProvider
+            QueryProvider
                 .fromParsedQuery(QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)))));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
@@ -786,24 +765,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         for (int i = 0; i < 100000; i++) {
             datafeed = new DatafeedConfig.Builder(datafeed).build();
         }
-    }
-
-    public void testEmptyQueryMap() throws IOException {
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, "{}");
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> DatafeedConfig.QueryProvider.fromXContent(parser, false));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("Datafeed query is not parsable"));
-    }
-
-    public void testEmptyAggMap() throws IOException {
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, "{}");
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> DatafeedConfig.AggProvider.fromXContent(parser, false));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("Datafeed aggregations are not parsable"));
     }
 
     public static String randomValidDatafeedId() {

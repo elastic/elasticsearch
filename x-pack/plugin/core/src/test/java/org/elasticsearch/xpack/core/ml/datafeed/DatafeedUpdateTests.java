@@ -35,8 +35,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests.createRandomAggProvider;
-import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests.createRandomQueryProvider;
+import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
+import static org.elasticsearch.xpack.core.ml.datafeed.QueryProviderTests.createRandomValidQueryProvider;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -67,7 +67,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             builder.setIndices(DatafeedConfigTests.randomStringList(1, 10));
         }
         if (randomBoolean()) {
-            builder.setQuery(createRandomQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+            builder.setQuery(createRandomValidQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         }
         if (randomBoolean()) {
             int scriptsSize = randomInt(3);
@@ -82,7 +82,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             // can only test with a single agg as the xcontent order gets randomized by test base class and then
             // the actual xcontent isn't the same and test fail.
             // Testing with a single agg is ok as we don't have special list writeable / xcontent logic
-            builder.setAggregations(createRandomAggProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+            builder.setAggregations(createRandomValidAggProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         }
         if (randomBoolean()) {
             builder.setScrollSize(randomIntBetween(0, Integer.MAX_VALUE));
@@ -193,7 +193,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("foo", "foo-feed");
         datafeedBuilder.setIndices(Collections.singletonList("i_1"));
         DatafeedConfig datafeed = datafeedBuilder.build();
-        DatafeedConfig.QueryProvider queryProvider = createRandomQueryProvider("a", "b");
+        QueryProvider queryProvider = createRandomValidQueryProvider("a", "b");
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
         update.setJobId("bar");
         update.setIndices(Collections.singletonList("i_2"));
@@ -228,7 +228,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-        DatafeedConfig.AggProvider aggProvider = DatafeedConfig.AggProvider.fromParsedAggs(new AggregatorFactories.Builder().addAggregator(
+        AggProvider aggProvider = AggProvider.fromParsedAggs(new AggregatorFactories.Builder().addAggregator(
             AggregationBuilders.histogram("a").interval(300000).field("time").subAggregation(maxTime)));
         update.setAggregations(aggProvider);
 
@@ -260,7 +260,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     }
 
     @Override
-    protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) {
+    protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
         switch (between(0, 9)) {
         case 0:
@@ -300,7 +300,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                     query.must(instance.getParsedQuery(xContentRegistry()));
                 }
                 query.filter(new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
-                builder.setQuery(DatafeedConfig.QueryProvider.fromParsedQuery(query));
+                builder.setQuery(QueryProvider.fromParsedQuery(query));
             } catch (IOException ex) {
                 fail(ex.getMessage());
             }
@@ -313,11 +313,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 String timeField = randomAlphaOfLength(10);
                 aggBuilder.addAggregator(new DateHistogramAggregationBuilder(timeField).field(timeField).interval(between(10000, 3600000))
                     .subAggregation(new MaxAggregationBuilder(timeField).field(timeField)));
-                try {
-                    builder.setAggregations(DatafeedConfig.AggProvider.fromParsedAggs(aggBuilder));
-                } catch (IOException ex) {
-                    fail(ex.getMessage());
-                }
+                builder.setAggregations(AggProvider.fromParsedAggs(aggBuilder));
                 if (instance.getScriptFields().isEmpty() == false) {
                     builder.setScriptFields(Collections.emptyList());
                 }

@@ -53,12 +53,12 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 TimeValue.parseTimeValue(val, DatafeedConfig.QUERY_DELAY.getPreferredName())), DatafeedConfig.QUERY_DELAY);
         PARSER.declareString((builder, val) -> builder.setFrequency(
                 TimeValue.parseTimeValue(val, DatafeedConfig.FREQUENCY.getPreferredName())), DatafeedConfig.FREQUENCY);
-        PARSER.declareObject(Builder::setQuery, (p, c) -> DatafeedConfig.QueryProvider.fromXContent(p, false), DatafeedConfig.QUERY);
+        PARSER.declareObject(Builder::setQuery, (p, c) -> QueryProvider.fromXContent(p, false), DatafeedConfig.QUERY);
         PARSER.declareObject(Builder::setAggregationsSafe,
-            (p, c) -> DatafeedConfig.AggProvider.fromXContent(p, false),
+            (p, c) -> AggProvider.fromXContent(p, false),
             DatafeedConfig.AGGREGATIONS);
         PARSER.declareObject(Builder::setAggregationsSafe,
-            (p, c) -> DatafeedConfig.AggProvider.fromXContent(p, false),
+            (p, c) -> AggProvider.fromXContent(p, false),
             DatafeedConfig.AGGS);
         PARSER.declareObject(Builder::setScriptFields, (p, c) -> {
                 List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();
@@ -80,15 +80,15 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     private final TimeValue queryDelay;
     private final TimeValue frequency;
     private final List<String> indices;
-    private final DatafeedConfig.QueryProvider queryProvider;
-    private final DatafeedConfig.AggProvider aggProvider;
+    private final QueryProvider queryProvider;
+    private final AggProvider aggProvider;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
     private final ChunkingConfig chunkingConfig;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
 
     private DatafeedUpdate(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices,
-                           DatafeedConfig.QueryProvider queryProvider, DatafeedConfig.AggProvider aggProvider,
+                           QueryProvider queryProvider, AggProvider aggProvider,
                            List<SearchSourceBuilder.ScriptField> scriptFields,
                            Integer scrollSize, ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig) {
         this.id = id;
@@ -121,15 +121,15 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             }
         }
         if (in.getVersion().before(Version.V_7_1_0)) {
-            this.queryProvider = DatafeedConfig.QueryProvider.fromParsedQuery(in.readOptionalNamedWriteable(QueryBuilder.class));
+            this.queryProvider = QueryProvider.fromParsedQuery(in.readOptionalNamedWriteable(QueryBuilder.class));
             if (in.readBoolean()) {
-                this.aggProvider = DatafeedConfig.AggProvider.fromParsedAggs(in.readOptionalWriteable(AggregatorFactories.Builder::new));
+                this.aggProvider = AggProvider.fromParsedAggs(in.readOptionalWriteable(AggregatorFactories.Builder::new));
             } else {
                 this.aggProvider = null;
             }
         } else {
-            this.queryProvider = in.readOptionalWriteable(DatafeedConfig.QueryProvider::new);
-            this.aggProvider = in.readOptionalWriteable(DatafeedConfig.AggProvider::new);
+            this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
+            this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
         }
         if (in.readBoolean()) {
             this.scriptFields = in.readList(SearchSourceBuilder.ScriptField::new);
@@ -405,8 +405,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         private TimeValue queryDelay;
         private TimeValue frequency;
         private List<String> indices;
-        private DatafeedConfig.QueryProvider queryProvider;
-        private DatafeedConfig.AggProvider aggProvider;
+        private QueryProvider queryProvider;
+        private AggProvider aggProvider;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
         private Integer scrollSize;
         private ChunkingConfig chunkingConfig;
@@ -453,18 +453,18 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.frequency = frequency;
         }
 
-        public void setQuery(DatafeedConfig.QueryProvider queryProvider) {
+        public void setQuery(QueryProvider queryProvider) {
             this.queryProvider = queryProvider;
         }
 
-        private void setAggregationsSafe(DatafeedConfig.AggProvider aggProvider) {
+        private void setAggregationsSafe(AggProvider aggProvider) {
             if (this.aggProvider != null) {
                 throw ExceptionsHelper.badRequestException("Found two aggregation definitions: [aggs] and [aggregations]");
             }
             setAggregations(aggProvider);
         }
 
-        public void setAggregations(DatafeedConfig.AggProvider aggProvider) {
+        public void setAggregations(AggProvider aggProvider) {
             this.aggProvider = aggProvider;
         }
 

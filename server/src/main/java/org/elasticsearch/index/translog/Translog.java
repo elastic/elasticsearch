@@ -936,9 +936,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         /**
          * The number of operations have been skipped (overridden or trimmed) in the snapshot so far.
-         * If two operations have the same sequence number, then the operation with a lower term will
-         * be overridden by the operation with a higher term. Operations with sequence numbers that
-         * higher than trimmedAboveSeqNo of its translog checkpoint will be skipped.
          * Unlike {@link #totalOperations()}, this value is updated each time after {@link #next()}) is called.
          */
         default int skippedOperations() {

@@ -102,17 +102,16 @@ public class RetentionLeaseBwcIT extends ESRestTestCase {
             assertThat(shardsStats, hasSize(2));
             boolean primaryFound = false;
             for (final Object shardStats : shardsStats) {
-                @SuppressWarnings("unchecked") final Map<String, Object> shardStatsAsMap = (Map<String, Object>) shardStats;
-                @SuppressWarnings("unchecked") final Map<String, Object> routing = (Map<String, Object>) shardStatsAsMap.get("routing");
+                final Map<?, ?> shardStatsAsMap = (Map<?, ?>) shardStats;
+                final Map<?, ?> routing = (Map<?, ?>) shardStatsAsMap.get("routing");
                 if (Boolean.FALSE.equals(routing.get("primary"))) {
                     continue;
                 }
                 primaryFound = true;
-                @SuppressWarnings("unchecked") final Map<String, Object> retentionLeases =
-                        (Map<String, Object>) shardStatsAsMap.get("retention_leases");
-                @SuppressWarnings("unchecked") final ArrayList<Object> leases = (ArrayList<Object>) retentionLeases.get("leases");
+                final Map<?, ?> retentionLeases = (Map<?, ?>) shardStatsAsMap.get("retention_leases");
+                final List<?> leases = (List<?>) retentionLeases.get("leases");
                 assertThat(leases, hasSize(1));
-                @SuppressWarnings("unchecked") final Map<String, Object> lease = (Map<String, Object>) leases.get(0);
+                final Map<?, ?> lease = (Map<?, ?>) leases.get(0);
                 assertThat(lease.get("id"), equalTo("test-1"));
                 assertThat(lease.get("retaining_seq_no"), equalTo(0));
                 assertThat(lease.get("source"), equalTo("rest"));

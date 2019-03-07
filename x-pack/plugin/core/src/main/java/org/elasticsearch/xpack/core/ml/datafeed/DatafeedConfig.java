@@ -639,7 +639,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 this.queryProvider = ExceptionsHelper.requireNonNull(QueryProvider.fromParsedQuery(queryBuilder), QUERY.getPreferredName());
             } catch (IOException exception) {
                 // eat exception as it should never happen
-                logger.error(exception);
+                logger.error("Exception trying to setParsedQuery", exception);
             }
         }
 
@@ -649,7 +649,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 this.aggProvider = AggProvider.fromParsedAggs(aggregations);
             } catch (IOException exception) {
                 // eat exception as it should never happen
-                logger.error(exception);
+                logger.error("Exception trying to setParsedAggregations", exception);
             }
         }
 

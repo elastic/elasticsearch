@@ -6,8 +6,6 @@
 <titleabbrev>Get CCR stats</titleabbrev>
 ++++
 
-beta[]
-
 Get {ccr} stats.
 
 ==== Description

@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.SeedHostsProvider.HostsResolver;
-import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 
@@ -74,22 +73,5 @@ public class SettingsBasedSeedHostsProviderTests extends ESTestCase {
             .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey(), "foo", "bar")
             .build(), null).getSeedAddresses(hostsResolver);
         assertTrue(hostsResolver.getResolvedHosts());
-    }
-
-    public void testGetsHostsFromLegacySetting() {
-        final AssertingHostsResolver hostsResolver = new AssertingHostsResolver(1, "bar", "foo");
-        new SettingsBasedSeedHostsProvider(Settings.builder()
-            .putList(SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), "foo", "bar")
-            .build(), null).getSeedAddresses(hostsResolver);
-        assertTrue(hostsResolver.getResolvedHosts());
-        assertWarnings("[discovery.zen.ping.unicast.hosts] setting was deprecated in Elasticsearch and will be removed in a future " +
-            "release! See the breaking changes documentation for the next major version.");
-    }
-
-    public void testForbidsBothSettingsAtTheSameTime() {
-        expectThrows(IllegalArgumentException.class, () -> new SettingsBasedSeedHostsProvider(Settings.builder()
-            .putList(SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
-            .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
-            .build(), null));
     }
 }

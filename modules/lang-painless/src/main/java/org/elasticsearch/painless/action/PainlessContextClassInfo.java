@@ -23,23 +23,54 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.painless.lookup.PainlessClass;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class PainlessContextClassInfo implements Writeable, ToXContentObject {
 
     public static final ParseField NAME = new ParseField("name");
-    public static final ParseField CONSTRUCTOR = new ParseField("constructor");
-    public static final ParseField STATIC_METHOD = new ParseField("static_method");
-    public static final ParseField METHOD = new ParseField("method");
-    public static final ParseField STATIC_FIELD = new ParseField("static_field");
-    public static final ParseField FIELD = new ParseField("field");
+    public static final ParseField CONSTRUCTORS = new ParseField("constructors");
+    public static final ParseField STATIC_METHODS = new ParseField("static_methods");
+    public static final ParseField METHODS = new ParseField("methods");
+    public static final ParseField STATIC_FIELDS = new ParseField("static_fields");
+    public static final ParseField FIELDS = new ParseField("fields");
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<PainlessContextClassInfo, Void> PARSER = new ConstructingObjectParser<>(
+            PainlessContextClassInfo.class.getCanonicalName(),
+            (v) ->
+                    new PainlessContextClassInfo(
+                            (String)v[0],
+                            (List<PainlessContextConstructorInfo>)v[1],
+                            (List<PainlessContextMethodInfo>)v[2],
+                            (List<PainlessContextMethodInfo>)v[3],
+                            (List<PainlessContextFieldInfo>)v[4],
+                            (List<PainlessContextFieldInfo>)v[5]
+                    )
+    );
+
+    static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
+                (p, c) -> PainlessContextConstructorInfo.fromXContent(p), CONSTRUCTORS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
+                (p, c) -> PainlessContextMethodInfo.fromXContent(p), STATIC_METHODS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
+                (p, c) -> PainlessContextMethodInfo.fromXContent(p), METHODS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
+                (p, c) -> PainlessContextFieldInfo.fromXContent(p), STATIC_FIELDS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
+                (p, c) -> PainlessContextFieldInfo.fromXContent(p), FIELDS);
+    }
 
     private final String name;
     private final List<PainlessContextConstructorInfo> constructors;
@@ -90,33 +121,39 @@ public class PainlessContextClassInfo implements Writeable, ToXContentObject {
         out.writeList(fields);
     }
 
+    public static PainlessContextClassInfo fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME.getPreferredName(), name);
-
-        for (PainlessContextConstructorInfo constructor : constructors) {
-            builder.field(CONSTRUCTOR.getPreferredName(), constructor);
-        }
-
-        for (PainlessContextMethodInfo staticMethod : staticMethods) {
-            builder.field(STATIC_METHOD.getPreferredName(), staticMethod);
-        }
-
-        for (PainlessContextMethodInfo method : methods) {
-            builder.field(METHOD.getPreferredName(), method);
-        }
-
-        for (PainlessContextFieldInfo staticField : staticFields) {
-            builder.field(STATIC_FIELD.getPreferredName(), staticField);
-        }
-
-        for (PainlessContextFieldInfo field : fields) {
-            builder.field(FIELD.getPreferredName(), field);
-        }
-
+        builder.field(CONSTRUCTORS.getPreferredName(), constructors);
+        builder.field(STATIC_METHODS.getPreferredName(), staticMethods);
+        builder.field(METHODS.getPreferredName(), methods);
+        builder.field(STATIC_FIELDS.getPreferredName(), staticFields);
+        builder.field(FIELDS.getPreferredName(), fields);
         builder.endObject();
 
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PainlessContextClassInfo that = (PainlessContextClassInfo) o;
+        return Objects.equals(name, that.name) &&
+                Objects.equals(constructors, that.constructors) &&
+                Objects.equals(staticMethods, that.staticMethods) &&
+                Objects.equals(methods, that.methods) &&
+                Objects.equals(staticFields, that.staticFields) &&
+                Objects.equals(fields, that.fields);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, constructors, staticMethods, methods, staticFields, fields);
     }
 }

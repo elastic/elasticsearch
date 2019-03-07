@@ -23,14 +23,17 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
@@ -39,6 +42,25 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
     public static final ParseField NAME = new ParseField("name");
     public static final ParseField RTN = new ParseField("return");
     public static final ParseField PARAMETERS = new ParseField("parameters");
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<PainlessContextMethodInfo, Void> PARSER = new ConstructingObjectParser<>(
+            PainlessContextMethodInfo.class.getCanonicalName(),
+            (v) ->
+                    new PainlessContextMethodInfo(
+                            (String)v[0],
+                            (String)v[1],
+                            (String)v[2],
+                            (List<String>)v[3]
+                    )
+    );
+
+    static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), DECLARING);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), RTN);
+        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), PARAMETERS);
+    }
 
     private final String declaring;
     private final String name;
@@ -76,6 +98,10 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
         out.writeStringCollection(parameters);
     }
 
+    public static PainlessContextMethodInfo fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -86,5 +112,21 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
         builder.endObject();
 
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PainlessContextMethodInfo that = (PainlessContextMethodInfo) o;
+        return Objects.equals(declaring, that.declaring) &&
+                Objects.equals(name, that.name) &&
+                Objects.equals(rtn, that.rtn) &&
+                Objects.equals(parameters, that.parameters);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(declaring, name, rtn, parameters);
     }
 }

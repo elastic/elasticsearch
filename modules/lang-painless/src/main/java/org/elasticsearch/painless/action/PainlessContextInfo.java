@@ -23,8 +23,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -34,15 +36,41 @@ import org.elasticsearch.script.ScriptContext;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class PainlessContextInfo implements Writeable, ToXContentObject {
 
-    public final ParseField NAME = new ParseField("name");
-    public final ParseField CLAZZ = new ParseField("class");
-    public final ParseField IMPORTED_METHOD = new ParseField("imported_method");
-    public final ParseField ClASS_BINDING = new ParseField("class_binding");
-    public final ParseField INSTANCE_BINDING = new ParseField("instance_binding");
+    public static final ParseField NAME = new ParseField("name");
+    public static final ParseField CLASSES = new ParseField("classes");
+    public static final ParseField IMPORTED_METHODS = new ParseField("imported_methods");
+    public static final ParseField ClASS_BINDINGS = new ParseField("class_bindings");
+    public static final ParseField INSTANCE_BINDINGS = new ParseField("instance_bindings");
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<PainlessContextInfo, Void> PARSER = new ConstructingObjectParser<>(
+            PainlessContextInfo.class.getCanonicalName(),
+            (v) ->
+                    new PainlessContextInfo(
+                            (String)v[0],
+                            (List<PainlessContextClassInfo>)v[1],
+                            (List<PainlessContextMethodInfo>)v[2],
+                            (List<PainlessContextClassBindingInfo>)v[3],
+                            (List<PainlessContextInstanceBindingInfo>)v[4]
+                    )
+    );
+
+    static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
+                (p, c) -> PainlessContextClassInfo.fromXContent(p), CLASSES);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
+                (p, c) -> PainlessContextMethodInfo.fromXContent(p), IMPORTED_METHODS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
+                (p, c) -> PainlessContextClassBindingInfo.fromXContent(p), ClASS_BINDINGS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
+                (p, c) -> PainlessContextInstanceBindingInfo.fromXContent(p), INSTANCE_BINDINGS);
+    }
 
     private final String name;
     private final List<PainlessContextClassInfo> classes;
@@ -109,29 +137,37 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
         out.writeList(instanceBindings);
     }
 
+    public static PainlessContextInfo fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME.getPreferredName(), name);
-
-        for (PainlessContextClassInfo clazz : classes) {
-            builder.field(CLAZZ.getPreferredName(), clazz);
-        }
-
-        for (PainlessContextMethodInfo importedMethod : importedMethods) {
-            builder.field(IMPORTED_METHOD.getPreferredName(), importedMethod);
-        }
-
-        for (PainlessContextClassBindingInfo classBinding : classBindings) {
-            builder.field(ClASS_BINDING.getPreferredName(), classBinding);
-        }
-
-        for (PainlessContextInstanceBindingInfo instanceBinding : instanceBindings) {
-            builder.field(INSTANCE_BINDING.getPreferredName(), instanceBinding);
-        }
-
+        builder.field(CLASSES.getPreferredName(), classes);
+        builder.field(IMPORTED_METHODS.getPreferredName(), importedMethods);
+        builder.field(ClASS_BINDINGS.getPreferredName(), classBindings);
+        builder.field(INSTANCE_BINDINGS.getPreferredName(), instanceBindings);
         builder.endObject();
 
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PainlessContextInfo that = (PainlessContextInfo) o;
+        return Objects.equals(name, that.name) &&
+                Objects.equals(classes, that.classes) &&
+                Objects.equals(importedMethods, that.importedMethods) &&
+                Objects.equals(classBindings, that.classBindings) &&
+                Objects.equals(instanceBindings, that.instanceBindings);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, classes, importedMethods, classBindings, instanceBindings);
     }
 }

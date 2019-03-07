@@ -26,7 +26,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ContextInfoTests extends AbstractSerializingTestCase {
+public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContextInfo> {
 
     @Override
     protected PainlessContextInfo doParseInstance(XContentParser parser) {
@@ -158,7 +158,7 @@ public class ContextInfoTests extends AbstractSerializingTestCase {
     }
 
     @Override
-    protected Writeable.Reader instanceReader() {
+    protected Writeable.Reader<PainlessContextInfo> instanceReader() {
         return PainlessContextInfo::new;
     }
 }

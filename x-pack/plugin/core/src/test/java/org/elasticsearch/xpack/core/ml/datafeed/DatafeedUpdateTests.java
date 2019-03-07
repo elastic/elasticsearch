@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,10 +16,14 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -30,10 +33,10 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests.createRandomAggProvider;
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests.createRandomQueryProvider;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -64,8 +67,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             builder.setIndices(DatafeedConfigTests.randomStringList(1, 10));
         }
         if (randomBoolean()) {
-            builder.setQuery(Collections.singletonMap(TermQueryBuilder.NAME,
-                Collections.singletonMap(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))));
+            builder.setQuery(createRandomQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         }
         if (randomBoolean()) {
             int scriptsSize = randomInt(3);
@@ -80,8 +82,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             // can only test with a single agg as the xcontent order gets randomized by test base class and then
             // the actual xcontent isn't the same and test fail.
             // Testing with a single agg is ok as we don't have special list writeable / xcontent logic
-            builder.setAggregations(Collections.singletonMap(randomAlphaOfLength(10),
-                Collections.singletonMap("avg", Collections.singletonMap("field", randomAlphaOfLength(10)))));
+            builder.setAggregations(createRandomAggProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         }
         if (randomBoolean()) {
             builder.setScrollSize(randomIntBetween(0, Integer.MAX_VALUE));
@@ -154,7 +155,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     public void testMultipleDefinedAggParse() throws IOException {
         try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MULTIPLE_AGG_DEF_DATAFEED)) {
+            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MULTIPLE_AGG_DEF_DATAFEED)) {
             XContentParseException ex = expectThrows(XContentParseException.class,
                 () -> DatafeedUpdate.PARSER.apply(parser, null));
             assertThat(ex.getMessage(), equalTo("[32:3] [datafeed_update] failed to parse field [aggs]"));
@@ -192,13 +193,13 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("foo", "foo-feed");
         datafeedBuilder.setIndices(Collections.singletonList("i_1"));
         DatafeedConfig datafeed = datafeedBuilder.build();
-
+        DatafeedConfig.QueryProvider queryProvider = createRandomQueryProvider("a", "b");
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
         update.setJobId("bar");
         update.setIndices(Collections.singletonList("i_2"));
         update.setQueryDelay(TimeValue.timeValueSeconds(42));
         update.setFrequency(TimeValue.timeValueSeconds(142));
-        update.setQuery(Collections.singletonMap(TermQueryBuilder.NAME, Collections.singletonMap("a", "b")));
+        update.setQuery(queryProvider);
         update.setScriptFields(Collections.singletonList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false)));
         update.setScrollSize(8000);
         update.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
@@ -210,8 +211,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_2")));
         assertThat(updatedDatafeed.getQueryDelay(), equalTo(TimeValue.timeValueSeconds(42)));
         assertThat(updatedDatafeed.getFrequency(), equalTo(TimeValue.timeValueSeconds(142)));
-        assertThat(updatedDatafeed.getQuery(),
-            equalTo(Collections.singletonMap(TermQueryBuilder.NAME, Collections.singletonMap("a", "b"))));
+        assertThat(updatedDatafeed.getQuery(), equalTo(queryProvider.getQuery()));
         assertThat(updatedDatafeed.hasAggregations(), is(false));
         assertThat(updatedDatafeed.getScriptFields(),
                 equalTo(Collections.singletonList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false))));
@@ -221,27 +221,23 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         assertThat(updatedDatafeed.getDelayedDataCheckConfig().getCheckWindow(), equalTo(TimeValue.timeValueHours(1)));
     }
 
-    public void testApply_givenAggregations() {
+    public void testApply_givenAggregations() throws IOException {
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("foo", "foo-feed");
         datafeedBuilder.setIndices(Collections.singletonList("i_1"));
         DatafeedConfig datafeed = datafeedBuilder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
-        Map<String, Object> maxTime = Collections.singletonMap("time",
-            Collections.singletonMap("max", Collections.singletonMap("field", "time")));
-        Map<String, Object> histoDefinition = new HashMap<>();
-        histoDefinition.put("interval", 300000);
-        histoDefinition.put("field", "time");
-        Map<String, Object> aggBody = new HashMap<>();
-        aggBody.put("histogram", histoDefinition);
-        aggBody.put("aggs", maxTime);
-        Map<String, Object> aggMap = Collections.singletonMap("a", aggBody);
-        update.setAggregations(aggMap);
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        DatafeedConfig.AggProvider aggProvider = DatafeedConfig.AggProvider.fromParsedAggs(new AggregatorFactories.Builder().addAggregator(
+            AggregationBuilders.histogram("a").interval(300000).field("time").subAggregation(maxTime)));
+        update.setAggregations(aggProvider);
+
 
         DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
 
         assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_1")));
-        assertThat(updatedDatafeed.getAggregations(), equalTo(aggMap));
+        assertThat(updatedDatafeed.getParsedAggregations(xContentRegistry()), equalTo(aggProvider.getParsedAggs()));
+        assertThat(updatedDatafeed.getAggregations(), equalTo(aggProvider.getAggs()));
     }
 
     public void testApply_GivenRandomUpdates_AssertImmutability() {
@@ -249,7 +245,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig(JobTests.randomValidJobId());
             if (datafeed.getAggregations() != null) {
                 DatafeedConfig.Builder withoutAggs = new DatafeedConfig.Builder(datafeed);
-                withoutAggs.setAggregations(null);
+                withoutAggs.setAggProvider(null);
                 datafeed = withoutAggs.build();
             }
             DatafeedUpdate update = createRandomized(datafeed.getId(), datafeed);
@@ -261,22 +257,6 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
             assertThat(datafeed, not(equalTo(updatedDatafeed)));
         }
-    }
-
-    public void testEmptyQueryMap() {
-        DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder("empty_query_map");
-        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
-            () -> builder.setQuery(Collections.emptyMap()));
-        assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ex.getMessage(), equalTo("Datafeed [empty_query_map] query is not parsable"));
-    }
-
-    public void testEmptyAggMap() {
-        DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder("empty_agg_map");
-        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
-            () -> builder.setAggregations(Collections.emptyMap()));
-        assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ex.getMessage(), equalTo("Datafeed [empty_agg_map] aggregations are not parsable"));
     }
 
     @Override
@@ -314,31 +294,30 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             builder.setIndices(indices);
             break;
         case 5:
-            Map<String, Object> boolQuery = new HashMap<>();
-            if (instance.getQuery() != null) {
-                boolQuery.put("must", instance.getQuery());
+            try {
+                BoolQueryBuilder query = new BoolQueryBuilder();
+                if (instance.getQuery() != null) {
+                    query.must(instance.getParsedQuery(xContentRegistry()));
+                }
+                query.filter(new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+                builder.setQuery(DatafeedConfig.QueryProvider.fromParsedQuery(query));
+            } catch (IOException ex) {
+                fail(ex.getMessage());
             }
-            boolQuery.put("filter",
-                Collections.singletonList(
-                    Collections.singletonMap(TermQueryBuilder.NAME,
-                        Collections.singletonMap(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)))));
-            builder.setQuery(Collections.singletonMap("bool", boolQuery));
             break;
         case 6:
             if (instance.hasAggregations()) {
                 builder.setAggregations(null);
             } else {
+                AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
                 String timeField = randomAlphaOfLength(10);
-                Map<String, Object> maxTime = Collections.singletonMap(timeField,
-                    Collections.singletonMap("max", Collections.singletonMap("field", timeField)));
-                Map<String, Object> histoDefinition = new HashMap<>();
-                histoDefinition.put("interval", between(10000, 3600000));
-                histoDefinition.put("field", timeField);
-                Map<String, Object> aggBody = new HashMap<>();
-                aggBody.put("aggs", maxTime);
-                aggBody.put("date_histogram", histoDefinition);
-                Map<String, Object> aggMap = Collections.singletonMap(timeField, aggBody);
-                builder.setAggregations(aggMap);
+                aggBuilder.addAggregator(new DateHistogramAggregationBuilder(timeField).field(timeField).interval(between(10000, 3600000))
+                    .subAggregation(new MaxAggregationBuilder(timeField).field(timeField)));
+                try {
+                    builder.setAggregations(DatafeedConfig.AggProvider.fromParsedAggs(aggBuilder));
+                } catch (IOException ex) {
+                    fail(ex.getMessage());
+                }
                 if (instance.getScriptFields().isEmpty() == false) {
                     builder.setScriptFields(Collections.emptyList());
                 }

@@ -41,7 +41,7 @@ See <<index-lifecycle-management>>.
 [float]
 === {es-sql}
 
-We have introduced {es-sql} in 6.6.0 as an experimental feature and it is now
+We have introduced {es-sql} in 6.3.0 as an experimental feature and it is now
 mature enough that we make it generally available. This feature enables
 users who are familiar with SQL to use SQL statements to query {es} indices.
 In addition to querying through the SQL API, you can use the

@@ -700,8 +700,8 @@ public final class TokenService {
             backoff,
             ActionListener.wrap(tokenDocHit -> {
                 final Authentication clientAuth = Authentication.readFromContext(client.threadPool().getThreadContext());
-                innerRefresh(tokenDocHit.getId(), tokenDocHit.getSourceAsMap(), tokenDocHit.getSeqNo(), tokenDocHit.getPrimaryTerm(), clientAuth,
-                    backoff, refreshRequested, listener);
+                innerRefresh(tokenDocHit.getId(), tokenDocHit.getSourceAsMap(), tokenDocHit.getSeqNo(), tokenDocHit.getPrimaryTerm(),
+                        clientAuth, backoff, refreshRequested, listener);
             }, listener::onFailure));
     }
 
@@ -1027,7 +1027,8 @@ public final class TokenService {
         return null;
     }
 
-    private void checkClientCanRefresh(Map<String, Object> refreshTokenSource, Authentication clientAuth) throws ElasticsearchSecurityException {
+    private void checkClientCanRefresh(Map<String, Object> refreshTokenSource, Authentication clientAuth)
+            throws ElasticsearchSecurityException {
         final Map<String, Object> clientInfo = (Map<String, Object>) refreshTokenSource.get("client");
         if (clientInfo == null) {
             throw invalidGrantException("token is missing client information");

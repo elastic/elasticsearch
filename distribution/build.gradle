@@ -385,7 +385,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         from project(':distribution').tasks.getByName("extract${platform.capitalize()}Jdk")
         eachFile { FileCopyDetails details ->
-          if (details.relativePath.segments[-2] == 'bin') {
+          if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
             details.mode = 0755
           }
         }

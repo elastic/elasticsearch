@@ -36,13 +36,21 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -68,6 +76,7 @@ public class ElasticsearchNode {
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final int NODE_UP_TIMEOUT = 30;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    public static final int CLEAN_WORKDIR_RETRIES = 3;
 
     private final LinkedHashMap<String, Predicate<ElasticsearchNode>> waitConditions;
     private final List<URI> plugins = new ArrayList<>();
@@ -204,10 +213,6 @@ public class ElasticsearchNode {
         if (Files.isDirectory(distroArtifact) == false) {
             throw new TestClustersException("Can not start " + this + ", is not a directory: " + distroArtifact);
         }
-        services.sync(spec -> {
-            spec.from(distroArtifact.resolve("config").toFile());
-            spec.into(configFile.getParent());
-        });
 
         try {
             createWorkingDir(distroArtifact);
@@ -382,15 +387,88 @@ public class ElasticsearchNode {
     }
 
     private void createWorkingDir(Path distroExtractDir) throws IOException {
-        services.sync(spec -> {
-            spec.from(distroExtractDir.toFile());
-            spec.into(workingDir.toFile());
-        });
+        syncWithLinks(distroExtractDir, workingDir);
         Files.createDirectories(configFile.getParent());
         Files.createDirectories(confPathRepo);
         Files.createDirectories(confPathData);
         Files.createDirectories(confPathLogs);
         Files.createDirectories(tmpDir);
+    }
+
+    /**
+     * Does the equivalent of `cp -lr` and `chmod -r a-w` to save space and improve speed.
+     * We remove write permissions to make sure files are note mistakenly edited ( e.x. the config file ) and changes
+     * reflected across all copies. Permissions are retained to be able to replace the links.
+     *
+     * @param sourceRoot where to copy from
+     * @param destinationRoot destination to link to
+     */
+    private void syncWithLinks(Path sourceRoot, Path destinationRoot) {
+        // There's some latency in Windows between when a cluster running here previously releases the files so we can
+        // can clean them up. Make sure we can run the same clusters in quick succession.
+        if (Files.exists(destinationRoot)) {
+            removeWithRetry(destinationRoot);
+        }
+
+        try (Stream<Path> stream = Files.walk(sourceRoot)) {
+            stream.forEach(source -> {
+                Path destination = destinationRoot.resolve(sourceRoot.relativize(source));
+                if (Files.isDirectory(source)) {
+                    try {
+                        Files.createDirectories(destination);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
+                    }
+                } else {
+                    try {
+                        Files.createDirectories(destination.getParent());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
+                    }
+                    try {
+                        Files.createLink(destination, source);
+                    } catch (IOException e) {
+                        // Note does not work for network drives, e.x. Vagrant
+                        throw new UncheckedIOException(
+                            "Failed to create hard link " + destination + " pointing to " + source, e
+                        );
+                    }
+                }
+            });
+        } catch (IOException e) {
+            throw new UncheckedIOException("Can't walk source " + sourceRoot, e);
+        }
+    }
+
+    private void removeWithRetry(Path destinationRoot) {
+        // On windows, when we have tests fired in quick succession, it could happen that we are not able to remove this
+        // as it's still in use.
+        for (int tries = 1; tries <= CLEAN_WORKDIR_RETRIES; tries++) {
+            try (Stream<Path> stream = Files.walk(destinationRoot)) {
+                stream.sorted(Comparator.reverseOrder()).forEach(toDelete -> {
+                    try {
+                        Files.delete(toDelete);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("Can't remove " + toDelete, e);
+                    }
+                });
+                return;
+            } catch (UncheckedIOException e) {
+                if (tries == CLEAN_WORKDIR_RETRIES) {
+                    throw e;
+                } else {
+                    logger.info("Try {}/{} to remove {} failed, will retry", tries, CLEAN_WORKDIR_RETRIES, destinationRoot, e);
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            try {
+                Thread.sleep(SECONDS.toMillis(2));
+            } catch (InterruptedException e) {
+                logger.info("Interrupted while waiting for cleanup", e);
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     private void createConfiguration()  {
@@ -419,6 +497,9 @@ public class ElasticsearchNode {
             config.put("cluster.initial_master_nodes", "[" + nodeName + "]");
         }
         try {
+            // We create hard links  for the distribution, so we need to remove the config file before writing it
+            // to prevent the changes to reflect across all copies.
+            Files.delete(configFile);
             Files.write(
                 configFile,
                 config.entrySet().stream()

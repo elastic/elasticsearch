@@ -414,7 +414,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .numberOfReplicas(randomIntBetween(1, 100))
             .putMapping("_doc", Strings.toString(mappingBuilder))
             .build();
-        List<DeprecationIssue> withDefaultFieldIssues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(tooManyFieldsOk));
+        List<DeprecationIssue> withDefaultFieldIssues =
+            DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(tooManyFieldsOk));
         assertEquals(0, withDefaultFieldIssues.size());
     }
 

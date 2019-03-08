@@ -160,7 +160,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
             // In watch store we fail parsing if an watch contains undefined fields.
         }
         try {
-            client().prepareIndex(Watch.INDEX, Watch.DOC_TYPE, "_name")
+            client().prepareIndex().setIndex(Watch.INDEX).setId("_name")
                     .setSource(watchSource)
                     .get();
             fail();
@@ -177,7 +177,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         WatchSourceBuilder source = watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(searchInput(searchRequest))
-                .addAction("_id", indexAction("idx", "action"));
+                .addAction("_id", indexAction("idx"));
 
         watcherClient().preparePutWatch("_name")
                 .setSource(source.condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))

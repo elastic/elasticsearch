@@ -67,6 +67,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -534,12 +535,12 @@ public class ExecutionService {
     // the watch execution task takes another runnable as parameter
     // the best solution would be to move the whole execute() method, which is handed over as ctor parameter
     // over into this class, this is the quicker way though
-    static final class WatchExecutionTask implements Runnable {
+    public static final class WatchExecutionTask implements Runnable {
 
         private final WatchExecutionContext ctx;
         private final Runnable runnable;
 
-        WatchExecutionTask(WatchExecutionContext ctx, Runnable runnable) {
+        public WatchExecutionTask(WatchExecutionContext ctx, Runnable runnable) {
             this.ctx = ctx;
             this.runnable = runnable;
         }

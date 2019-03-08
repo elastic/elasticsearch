@@ -947,6 +947,9 @@ final class DocumentParser {
                 return null;
             }
             objectMapper = (ObjectMapper)mapper;
+            if (objectMapper.isEnabled() == false) {
+                return objectMapper;
+            }
             if (objectMapper.nested().isNested()) {
                 throw new MapperParsingException("Cannot add a value for field ["
                         + fieldName + "] since one of the intermediate objects is mapped as a nested object: ["

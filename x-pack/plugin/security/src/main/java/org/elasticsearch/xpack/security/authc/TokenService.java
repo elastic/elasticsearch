@@ -679,20 +679,24 @@ public final class TokenService {
                                 }
                             }
                         }
-                        if (retryTokenDocIds.isEmpty() == false) {
-                            if (backoff.hasNext()) {
-                                logger.debug("failed to invalidate [{}] tokens out of [{}], retrying to invalidate these too",
-                                        retryTokenDocIds.size(), tokenIds.size());
-                                final TokensInvalidationResult incompleteResult = new TokensInvalidationResult(invalidated,
+                        if (retryTokenDocIds.isEmpty() == false && backoff.hasNext()) {
+                            logger.debug("failed to invalidate [{}] tokens out of [{}], retrying to invalidate these too",
+                                    retryTokenDocIds.size(), tokenIds.size());
+                            final TokensInvalidationResult incompleteResult = new TokensInvalidationResult(invalidated,
                                         previouslyInvalidated, failedRequestResponses);
-                                final Runnable retryWithContextRunnable = client.threadPool().getThreadContext().preserveContext(
+                            final Runnable retryWithContextRunnable = client.threadPool().getThreadContext().preserveContext(
                                         () -> indexInvalidation(retryTokenDocIds, listener, backoff, srcPrefix, incompleteResult));
-                                client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
-                            } else {
+                            client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
+                        } else {
+                            if (retryTokenDocIds.isEmpty() == false) {
                                 logger.warn("failed to invalidate [{}] tokens out of [{}] after all retries", retryTokenDocIds.size(),
                                         tokenIds.size());
+                                for (String retryTokenDocId : retryTokenDocIds) {
+                                    failedRequestResponses.add(
+                                            new ElasticsearchException("Error invalidating [{}] with doc id [{}] after retries exhausted",
+                                                    srcPrefix, retryTokenDocId));
+                                }
                             }
-                        } else {
                             final TokensInvalidationResult result = new TokensInvalidationResult(invalidated, previouslyInvalidated,
                                     failedRequestResponses);
                             listener.onResponse(result);

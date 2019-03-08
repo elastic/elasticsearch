@@ -34,22 +34,25 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-public class TestingSocketEventHandler extends EventHandler {
+public class TestEventHandler extends EventHandler {
 
-    private static final Logger logger = LogManager.getLogger(TestingSocketEventHandler.class);
+    private static final Logger logger = LogManager.getLogger(TestEventHandler.class);
 
     private final Set<SocketChannelContext> hasConnectedMap = Collections.newSetFromMap(new WeakHashMap<>());
     private final Set<SocketChannelContext> hasConnectExceptionMap = Collections.newSetFromMap(new WeakHashMap<>());
+    private final LongSupplier relativeNanosSupplier;
 
-    TestingSocketEventHandler(Consumer<Exception> exceptionHandler, Supplier<NioSelector> selectorSupplier) {
+    TestEventHandler(Consumer<Exception> exceptionHandler, Supplier<NioSelector> selectorSupplier, LongSupplier relativeNanosSupplier) {
         super(exceptionHandler, selectorSupplier);
+        this.relativeNanosSupplier = relativeNanosSupplier;
     }
 
     @Override
     protected void acceptChannel(ServerChannelContext context) throws IOException {
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.acceptChannel(context);
         } finally {
@@ -59,7 +62,7 @@ public class TestingSocketEventHandler extends EventHandler {
 
     @Override
     protected void acceptException(ServerChannelContext context, Exception exception) {
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.acceptException(context, exception);
         } finally {
@@ -69,7 +72,7 @@ public class TestingSocketEventHandler extends EventHandler {
 
     @Override
     protected void handleRegistration(ChannelContext<?> context) throws IOException {
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.handleRegistration(context);
         } finally {
@@ -79,7 +82,7 @@ public class TestingSocketEventHandler extends EventHandler {
 
     @Override
     protected void registrationException(ChannelContext<?> context, Exception exception) {
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.registrationException(context, exception);
         } finally {
@@ -89,7 +92,7 @@ public class TestingSocketEventHandler extends EventHandler {
 
     public void handleConnect(SocketChannelContext context) throws IOException {
         assert hasConnectedMap.contains(context) == false : "handleConnect should only be called is a channel is not yet connected";
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.handleConnect(context);
             if (context.isConnectComplete()) {
@@ -103,7 +106,7 @@ public class TestingSocketEventHandler extends EventHandler {
     public void connectException(SocketChannelContext context, Exception e) {
         assert hasConnectExceptionMap.contains(context) == false : "connectException should only called at maximum once per channel";
         hasConnectExceptionMap.add(context);
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.connectException(context, e);
         } finally {
@@ -113,7 +116,7 @@ public class TestingSocketEventHandler extends EventHandler {
 
     @Override
     protected void handleRead(SocketChannelContext context) throws IOException {
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.handleRead(context);
         } finally {
@@ -123,7 +126,7 @@ public class TestingSocketEventHandler extends EventHandler {
 
     @Override
     protected void readException(SocketChannelContext context, Exception exception) {
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.readException(context, exception);
         } finally {
@@ -133,7 +136,7 @@ public class TestingSocketEventHandler extends EventHandler {
 
     @Override
     protected void handleWrite(SocketChannelContext context) throws IOException {
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.handleWrite(context);
         } finally {
@@ -143,7 +146,7 @@ public class TestingSocketEventHandler extends EventHandler {
 
     @Override
     protected void writeException(SocketChannelContext context, Exception exception) {
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.writeException(context, exception);
         } finally {
@@ -153,7 +156,7 @@ public class TestingSocketEventHandler extends EventHandler {
 
     @Override
     protected void handleTask(Runnable task) {
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.handleTask(task);
         } finally {
@@ -163,7 +166,7 @@ public class TestingSocketEventHandler extends EventHandler {
 
     @Override
     protected void taskException(Exception exception) {
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.taskException(exception);
         } finally {
@@ -173,7 +176,7 @@ public class TestingSocketEventHandler extends EventHandler {
 
     @Override
     protected void handleClose(ChannelContext<?> context) throws IOException {
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.handleClose(context);
         } finally {
@@ -183,7 +186,7 @@ public class TestingSocketEventHandler extends EventHandler {
 
     @Override
     protected void closeException(ChannelContext<?> context, Exception exception) {
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.closeException(context, exception);
         } finally {
@@ -193,7 +196,7 @@ public class TestingSocketEventHandler extends EventHandler {
 
     @Override
     protected void genericChannelException(ChannelContext<?> context, Exception exception) {
-        long startTime = System.nanoTime();
+        long startTime = relativeNanosSupplier.getAsLong();
         try {
             super.genericChannelException(context, exception);
         } finally {
@@ -204,7 +207,7 @@ public class TestingSocketEventHandler extends EventHandler {
     private static final long WARN_THRESHOLD = 150;
 
     private void maybeLogElapsedTime(long startTime) {
-        long elapsedTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
+        long elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeNanosSupplier.getAsLong() - startTime);
         if (elapsedTime > WARN_THRESHOLD) {
             logger.warn(new ParameterizedMessage("Slow execution on network thread [{} milliseconds]", elapsedTime),
                 new RuntimeException("Slow exception on network thread"));

@@ -56,6 +56,6 @@ public abstract class AbstractResponseTestCase<SERVER_INSTANCE extends ToXConten
 
     protected abstract HLRC_INSTANCE doParseInstance(XContentParser parser) throws IOException;
 
-    protected abstract void assertInstances(final SERVER_INSTANCE serverTestInstance, final HLRC_INSTANCE hlrcInstance);
+    protected abstract void assertInstances(SERVER_INSTANCE serverTestInstance, HLRC_INSTANCE hlrcInstance);
 
 }

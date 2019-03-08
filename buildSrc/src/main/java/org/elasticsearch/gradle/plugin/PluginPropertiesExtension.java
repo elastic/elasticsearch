@@ -20,11 +20,11 @@
 package org.elasticsearch.gradle.plugin;
 
 import org.gradle.api.Project;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFile;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -41,7 +41,7 @@ public class PluginPropertiesExtension {
     private String classname;
 
     /** Other plugins this plugin extends through SPI */
-    private List<String> extendedPlugins = new ArrayList<>();
+    private final List<String> extendedPlugins = new ArrayList<>();
 
     private boolean hasNativeController;
 
@@ -60,17 +60,20 @@ public class PluginPropertiesExtension {
      */
     private File noticeFile;
 
-    private Project project;
+    private final Project project;
 
     public PluginPropertiesExtension(Project project) {
         Object version = project.getVersion();
 
         this.name = project.getName();
-        this.version = (version != null && version instanceof String)? String.valueOf(version) : null;
+
+        if(version != null && version instanceof String) {
+            this.version = String.valueOf(version);
+        }
+
         this.project = project;
     }
 
-    @Input
     public String getName() {
         return name;
     }
@@ -79,7 +82,6 @@ public class PluginPropertiesExtension {
         this.name = name;
     }
 
-    @Input
     public String getVersion() {
         return version;
     }
@@ -88,7 +90,6 @@ public class PluginPropertiesExtension {
         this.version = version;
     }
 
-    @Input
     public String getDescription() {
         return description;
     }
@@ -97,7 +98,6 @@ public class PluginPropertiesExtension {
         this.description = description;
     }
 
-    @Input
     public String getClassname() {
         return classname;
     }
@@ -106,16 +106,10 @@ public class PluginPropertiesExtension {
         this.classname = classname;
     }
 
-    @Input
-    public List<String> getExtendedPlugins() {
-        return extendedPlugins;
+    public Collection<String> getExtendedPlugins() {
+        return Collections.unmodifiableCollection(extendedPlugins);
     }
 
-    public void setExtendedPlugins(List<String> extendedPlugins) {
-        this.extendedPlugins = extendedPlugins;
-    }
-
-    @Input
     public boolean isHasNativeController() {
         return hasNativeController;
     }
@@ -124,7 +118,6 @@ public class PluginPropertiesExtension {
         this.hasNativeController = hasNativeController;
     }
 
-    @Input
     public boolean isHasClientJar() {
         return hasClientJar;
     }
@@ -133,7 +126,6 @@ public class PluginPropertiesExtension {
         this.hasClientJar = hasClientJar;
     }
 
-    @Input
     public boolean isRequiresKeystore() {
         return requiresKeystore;
     }
@@ -142,7 +134,6 @@ public class PluginPropertiesExtension {
         this.requiresKeystore = requiresKeystore;
     }
 
-    @InputFile
     public File getLicenseFile() {
         return licenseFile;
     }
@@ -152,7 +143,6 @@ public class PluginPropertiesExtension {
         this.licenseFile = licenseFile;
     }
 
-    @InputFile
     public File getNoticeFile() {
         return noticeFile;
     }
@@ -162,12 +152,7 @@ public class PluginPropertiesExtension {
         this.noticeFile = noticeFile;
     }
 
-    @Input
     public Project getProject() {
         return project;
-    }
-
-    public void setProject(Project project) {
-        this.project = project;
     }
 }

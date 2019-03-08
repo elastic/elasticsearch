@@ -23,16 +23,13 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.Copy;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -52,38 +49,30 @@ public class PluginPropertiesTask extends Copy {
 
         File templateFile = new File(project.getBuildDir(), "templates/" + this.descriptorOutput.getName());
 
-        Task copyPluginPropertiesTemplate = project.getTasks().create("copyPluginPropertiesTemplate")
-                .doLast((unused) -> {
-                    InputStream resourceTemplate = PluginPropertiesTask.class.getResourceAsStream("/" + this.descriptorOutput.getName());
-                    templateFile.getParentFile().mkdirs();
-                    try {
-                        System.out.println(templateFile); ;
-                        Files.copy(resourceTemplate, templateFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-        dependsOn(copyPluginPropertiesTemplate);
         extension = project.getExtensions().create("esplugin", PluginPropertiesExtension.class, project);
         project.afterEvaluate((unused) -> {
-            // check require properties are set
-            if (this.extension.getName() == null) {
-                throw new InvalidUserDataException("name is a required setting for esplugin");
-            }
-            if (this.extension.getDescription() == null) {
-                throw new InvalidUserDataException("description is a required setting for esplugin");
-            }
-            if (this.extension.getClassname() == null) {
-                throw new InvalidUserDataException("classname is a required setting for esplugin");
-            }
-
             from(templateFile.getParentFile()).include(this.descriptorOutput.getName());
             into(this.descriptorOutput.getParentFile());
             Map<String, String> properties = this.generateSubstitutions();
             expand(properties);
             this.getInputs().properties(properties);
         });
+    }
 
+    @TaskAction
+    public void configurePluginPropertiesTask() {
+        Project project = this.getProject();
+
+        File templateFile = new File(project.getBuildDir(), "templates/" + this.descriptorOutput.getName());
+        templateFile.getParentFile().mkdirs();
+
+        Task copyPluginPropertiesTemplate = project.getTasks().create("copyPluginPropertiesTemplate")
+            .doLast((unused) -> {
+                from("/" + this.descriptorOutput.getName());
+                into(templateFile.toPath());
+            });
+
+        dependsOn(copyPluginPropertiesTemplate);
     }
 
     private Map<String, String> generateSubstitutions() {
@@ -92,12 +81,9 @@ public class PluginPropertiesTask extends Copy {
         substitutions.put("description", this.extension.getDescription());
         substitutions.put("version", this.extension.getVersion());
         substitutions.put("elasticsearchVersion", Version.fromString(VersionProperties.getElasticsearch()).toString());
-
-        //TODO (Raf): No getter for project.getTargetCompatibility()? What's the alternative option for below line?
-        substitutions.put("javaVersion", String.valueOf(this.getProject().getVersion()));
+        substitutions.put("javaVersion", getProject().getConvention().getPlugin(JavaPluginConvention.class)
+                .getTargetCompatibility().toString());
         substitutions.put("classname", this.extension.getClassname());
-
-        //TODO (Raf): Should we worry about possible NPE on getExtendedPlugins() here?
         substitutions.put("extendedPlugins", this.extension.getExtendedPlugins().stream().collect(Collectors.joining(",")));
         substitutions.put("hasNativeController", String.valueOf(this.extension.isHasNativeController()));
         substitutions.put("requiresKeystore", String.valueOf(this.extension.isRequiresKeystore()));
@@ -105,13 +91,20 @@ public class PluginPropertiesTask extends Copy {
         return substitutions;
     }
 
-    @Input
+    @OutputFile
     public PluginPropertiesExtension getExtension() {
-        return extension;
-    }
+        // check require properties are set
+        if (this.extension.getName() == null) {
+            throw new InvalidUserDataException("name is a required setting for esplugin");
+        }
+        if (this.extension.getDescription() == null) {
+            throw new InvalidUserDataException("description is a required setting for esplugin");
+        }
+        if (this.extension.getClassname() == null) {
+            throw new InvalidUserDataException("classname is a required setting for esplugin");
+        }
 
-    public void setExtension(PluginPropertiesExtension extension) {
-        this.extension = extension;
+        return extension;
     }
 
     @InputFile

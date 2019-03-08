@@ -130,7 +130,9 @@ class ClusterFormationTasks {
                     if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
                         esConfig['discovery.zen.hosts_provider'] = 'file'
                     }
-                    esConfig['discovery.zen.ping.unicast.hosts'] = []
+                    if (esConfig.containsKey('discovery.zen.ping.unicast.hosts') == false) {
+                        esConfig['discovery.zen.ping.unicast.hosts'] = []
+                    }
                     esConfig
                 }
                 dependsOn = startDependencies

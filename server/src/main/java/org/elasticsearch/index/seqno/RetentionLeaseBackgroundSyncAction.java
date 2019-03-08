@@ -24,14 +24,17 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -128,6 +131,18 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         Objects.requireNonNull(primary);
         primary.persistRetentionLeases();
         return new PrimaryResult<>(request, new ReplicationResponse());
+    }
+
+    @Override
+    protected void sendReplicaRequest(
+            final ConcreteReplicaRequest<Request> replicaRequest,
+            final DiscoveryNode node,
+            final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
+        if (node.getVersion().onOrAfter(Version.V_6_7_0)) {
+            super.sendReplicaRequest(replicaRequest, node, listener);
+        } else {
+            listener.onResponse(new ReplicaResponse(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED));
+        }
     }
 
     @Override

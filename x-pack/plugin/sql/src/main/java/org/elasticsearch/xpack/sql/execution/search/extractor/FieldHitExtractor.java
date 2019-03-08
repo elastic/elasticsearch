@@ -160,6 +160,18 @@ public class FieldHitExtractor implements HitExtractor {
                 sj.add(path[i]);
                 Object node = subMap.get(sj.toString());
                 
+                if (node instanceof List) {
+                    List listOfValues = (List) node;
+                    if (listOfValues.size() == 1) {
+                        // this is a List with a size of 1 e.g.: {"a" : [{"b" : "value"}]} meaning the JSON is a list with one element
+                        // or a list of values with one element e.g.: {"a": {"b" : ["value"]}}
+                        node = listOfValues.get(0);
+                    } else {
+                        // a List of elements with more than one value. Break early and let unwrapMultiValue deal with the list
+                        return unwrapMultiValue(node);
+                    }
+                }
+                
                 if (node instanceof Map) {
                     if (i < path.length - 1) {
                         // Add the sub-map to the queue along with the current path index
@@ -168,29 +180,6 @@ public class FieldHitExtractor implements HitExtractor {
                         // We exhausted the path and got a map
                         // If it is an object - it will be handled in the value extractor
                         value = node;
-                    }
-                } else if (node instanceof List) {
-                    List listOfValues = (List) node;
-                    if (listOfValues.size() == 1) {
-                        // this is a List with a size of 1 e.g.: {"a" : [{"b" : "value"}]} meaning the JSON is a list with one element
-                        // or a list of values with one element e.g.: {"a": {"b" : ["value"]}}
-                        Object singleElement = listOfValues.get(0);
-                        if (singleElement instanceof Map) {
-                            if (i < path.length - 1) {
-                                // Add the sub-map to the queue along with the current path index
-                                queue.add(new Tuple<>(i, (Map<String, Object>) singleElement));
-                            } else {
-                                // We exhausted the path and got a map
-                                // If it is an object - it will be handled in the value extractor
-                                value = singleElement;
-                            }
-                        } else {
-                            checkPathValidity(i, value);
-                            value = singleElement;
-                        }
-                    } else {
-                        // a List of elements with more than one value. Break early and let unwrapMultiValue deal with the list
-                        return unwrapMultiValue(node);
                     }
                 } else if (node != null) {
                     checkPathValidity(i, value);

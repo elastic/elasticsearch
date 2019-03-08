@@ -2424,6 +2424,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39828")
     public void testCloseOrDeleteIndexDuringSnapshot() throws Exception {
         Client client = client();
 

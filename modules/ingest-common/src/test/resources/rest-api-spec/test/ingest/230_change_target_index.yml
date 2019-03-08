@@ -39,6 +39,7 @@ teardown:
 - do:
     index:
       index: test
+      type: _doc
       id: 1
       pipeline: "retarget"
       body: {
@@ -48,6 +49,7 @@ teardown:
 - do:
     get:
       index: foo
+      type: _doc
       id: 1
 - match: { _source.a: true }
 
@@ -98,6 +100,7 @@ teardown:
 - do:
     index:
       index: test
+      type: _doc
       id: 1
       body: {
         a: true
@@ -106,6 +109,7 @@ teardown:
 - do:
     get:
       index: foo
+      type: _doc
       id: 1
 - match: { _source.a: true }
 

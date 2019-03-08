@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
@@ -144,6 +146,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         normalizerFactory = mock(NormalizerFactory.class);
         auditor = mock(Auditor.class);
         clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings =
+            new ClusterSettings(Settings.EMPTY, Collections.singleton(MachineLearning.MAX_OPEN_JOBS_PER_NODE));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         MetaData metaData = mock(MetaData.class);
         SortedMap<String, AliasOrIndex> aliasOrIndexSortedMap = new TreeMap<>();
         aliasOrIndexSortedMap.put(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), mock(AliasOrIndex.Alias.class));
@@ -170,21 +175,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     }
 
     @After
-    public void stopThreadPool() throws InterruptedException {
+    public void stopThreadPool() {
         terminate(threadPool);
-    }
-
-
-    public void testMaxOpenJobsSetting_givenDefault() {
-        int maxOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(Settings.EMPTY);
-        assertEquals(20, maxOpenJobs);
-    }
-
-    public void testMaxOpenJobsSetting_givenNewSettingOnly() {
-        Settings.Builder settings = Settings.builder();
-        settings.put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), 7);
-        int maxOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings.build());
-        assertEquals(7, maxOpenJobs);
     }
 
     public void testOpenJob() {
@@ -206,7 +198,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertTrue(manager.jobHasActiveAutodetectProcess(jobTask));
         verify(jobTask).updatePersistentTaskState(eq(new JobTaskState(JobState.OPENED, 1L, null)), any());
     }
-
 
     public void testOpenJob_withoutVersion() {
         Client client = mock(Client.class);
@@ -259,7 +250,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessFactory autodetectProcessFactory =
                 (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         Settings.Builder settings = Settings.builder();
-        settings.put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), 3);
+        settings.put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = spy(new AutodetectProcessManager(environment, settings.build(), client, threadPool,
                 jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, new NamedXContentRegistry(Collections.emptyList()), auditor, clusterService));
@@ -571,7 +562,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         verify(communicator).killProcess(false, false, true);
     }
 
-    public void testKillingAMissingJobFinishesTheTask() throws IOException {
+    public void testKillingAMissingJobFinishesTheTask() {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         AutodetectProcessManager manager = createManager(communicator);
         JobTask jobTask = mock(JobTask.class);

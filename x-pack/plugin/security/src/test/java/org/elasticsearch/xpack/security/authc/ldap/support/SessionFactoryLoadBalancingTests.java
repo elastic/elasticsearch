@@ -13,6 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.InetAddressHelper;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -31,6 +32,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
@@ -322,10 +325,17 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             try {
                 final boolean allSocketsOpened = awaitBusy(() -> {
                     try {
-                        final List<InetAddress> inetAddressesToBind = Arrays.stream(InetAddressHelper.getAllAddresses())
+                        InetAddress[] allAddresses = InetAddressHelper.getAllAddresses();
+                        if (serverAddress instanceof Inet4Address) {
+                            allAddresses = InetAddressHelper.filterIPV4(allAddresses);
+                        } else {
+                            allAddresses = InetAddressHelper.filterIPV6(allAddresses);
+                        }
+                        final List<InetAddress> inetAddressesToBind = Arrays.stream(allAddresses)
                             .filter(addr -> openedSockets.stream().noneMatch(s -> addr.equals(s.getLocalAddress())))
                             .filter(addr -> blacklistedAddress.contains(addr) == false)
                             .collect(Collectors.toList());
+
                         for (InetAddress localAddress : inetAddressesToBind) {
                             try {
                                 final Socket socket = openMockSocket(serverAddress, serverPort, localAddress, portToBind);

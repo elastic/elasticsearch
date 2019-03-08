@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.common.network;
 
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.SocketException;
 
@@ -18,5 +19,13 @@ public class InetAddressHelper {
 
     public static InetAddress[] getAllAddresses() throws SocketException {
         return NetworkUtils.getAllAddresses();
+    }
+
+    public static InetAddress[] filterIPV4(InetAddress[] addresses){
+        return NetworkUtils.filterIPV4(addresses);
+    }
+
+    public static InetAddress[] filterIPV6(InetAddress[] addresses){
+        return NetworkUtils.filterIPV6(addresses);
     }
 }

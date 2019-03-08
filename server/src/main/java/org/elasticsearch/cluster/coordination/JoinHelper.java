@@ -177,7 +177,8 @@ public class JoinHelper {
         return pendingOutgoingJoins.iterator().hasNext();
     }
 
-    private static class FailedJoinAttempt {
+    // package-private for testing
+    static class FailedJoinAttempt {
         private final DiscoveryNode destination;
         private final JoinRequest joinRequest;
         private final TransportException exception;

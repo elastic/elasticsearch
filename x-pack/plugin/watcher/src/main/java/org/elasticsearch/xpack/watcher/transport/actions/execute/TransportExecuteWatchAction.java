@@ -81,7 +81,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     @Override
     protected void doExecute(ExecuteWatchRequest request, ActionListener<ExecuteWatchResponse> listener) {
         if (request.getId() != null) {
-            GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId())
+            GetRequest getRequest = new GetRequest(Watch.INDEX, request.getId())
                     .preference(Preference.LOCAL.type()).realtime(true);
 
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,

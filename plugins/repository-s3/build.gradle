@@ -168,7 +168,7 @@ if (useFixture) {
   }
 
   preProcessFixture.dependsOn(writeDockerFile)
-  composeUp.dependsOn(preProcessFixture)
+  composeUp.dependsOn(writeDockerFile)
 
   // The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
   project.afterEvaluate {

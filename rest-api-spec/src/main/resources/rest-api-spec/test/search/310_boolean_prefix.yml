@@ -1,0 +1,61 @@
+setup:
+  - skip:
+      version: " - 7.0.99"
+      reason: index_prefixes is only available as of 6.3.0
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          text: "red fox jump"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body:
+          text: "red fox"
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body:
+          text: "jumparound"
+
+  - do:
+      index:
+        index: test
+        id: 4
+        body:
+          text: "dog"
+
+  - do:
+      indices.refresh: {}
+
+---
+"all terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            boolean_prefix:
+              text: "red fox jump"
+
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._source.text: "red fox jump" }
+  - match: { hits.hits.1._source.text: "red fox" }
+  - match: { hits.hits.2._source.text: "jumparound" }

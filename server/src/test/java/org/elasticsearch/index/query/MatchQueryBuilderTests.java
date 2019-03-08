@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CannedBinaryTokenStream;
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -30,9 +29,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -57,14 +54,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static java.util.Arrays.asList;
 import static org.hamcrest.CoreMatchers.either;
-import static org.hamcrest.CoreMatchers.everyItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasProperty;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
@@ -399,41 +392,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
         assertThat(query.toString(),
             containsString("field:[string_no_pos] was indexed without position data; cannot run PhraseQuery"));
-    }
-
-    public void testBooleanPrefixQuery() throws Exception {
-        final MatchQuery matchQuery = new MatchQuery(createShardContext());
-        final Query query = matchQuery.parse(Type.BOOLEAN_PREFIX, STRING_FIELD_NAME, "foo bar baz");
-
-        assertBooleanQuery(query, asList(
-            new TermQuery(new Term(STRING_FIELD_NAME, "foo")),
-            new TermQuery(new Term(STRING_FIELD_NAME, "bar")),
-            new PrefixQuery(new Term(STRING_FIELD_NAME, "baz"))
-        ));
-    }
-
-    public void testBooleanPrefixQueryGraph() throws Exception {
-        final MatchQuery matchQuery = new MatchQuery(createShardContext());
-        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
-        final Query query = matchQuery.parse(Type.BOOLEAN_PREFIX, STRING_FIELD_NAME, "fox dogs red");
-
-        assertBooleanQuery(query, asList(
-            new TermQuery(new Term(STRING_FIELD_NAME, "fox")),
-            new SynonymQuery(new Term(STRING_FIELD_NAME, "dogs"), new Term(STRING_FIELD_NAME, "dog")),
-            new PrefixQuery(new Term(STRING_FIELD_NAME, "red"))
-        ));
-    }
-
-    private static void assertBooleanQuery(Query actual, List<Query> expectedClauseQueries) {
-        assertThat(actual, instanceOf(BooleanQuery.class));
-        final BooleanQuery actualBooleanQuery = (BooleanQuery) actual;
-        assertThat(actualBooleanQuery.clauses(), hasSize(expectedClauseQueries.size()));
-        assertThat(actualBooleanQuery.clauses(), everyItem(hasProperty("occur", equalTo(BooleanClause.Occur.SHOULD))));
-
-        for (int i = 0; i < actualBooleanQuery.clauses().size(); i++) {
-            final Query clauseQuery = actualBooleanQuery.clauses().get(i).getQuery();
-            assertThat(clauseQuery, equalTo(expectedClauseQueries.get(i)));
-        }
     }
 
     public void testMaxBooleanClause() {

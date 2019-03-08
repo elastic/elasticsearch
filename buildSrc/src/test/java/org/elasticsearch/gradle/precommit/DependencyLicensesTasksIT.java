@@ -24,37 +24,38 @@ import org.gradle.testkit.runner.GradleRunner;
 public class DependencyLicensesTasksIT extends GradleIntegrationTestCase {
 
     public void testNoDependenciesWithNoFolder() {
-        GradleRunner runner = getGradleRunner("dependencyLicenses")
-            .withArguments("clean", ":no_dependencies_and_no_folder:dependencyLicenses");
+        GradleRunner runner = getRunner("no_dependencies_and_no_folder");
 
         assertTaskSuccessful(runner.build(), ":no_dependencies_and_no_folder:dependencyLicenses");
     }
 
     public void testDependenciesOk() {
-        GradleRunner runner = getGradleRunner("dependencyLicenses")
-            .withArguments("clean", ":dependencies_ok:dependencyLicenses");
+        GradleRunner runner = getRunner("dependencies_ok");
 
         assertTaskSuccessful(runner.build(), ":dependencies_ok:dependencyLicenses");
     }
 
     public void testNoDependenciesWithFolder() {
-        GradleRunner runner = getGradleRunner("dependencyLicenses")
-            .withArguments("clean", ":no_dependencies_with_folder:dependencyLicenses");
+        GradleRunner runner = getRunner("no_dependencies_with_folder");
 
         assertTaskFailed(runner.build(), ":no_dependencies_and_no_folder:dependencyLicenses");
     }
 
     public void testDependenciesMissing() {
-        GradleRunner runner = getGradleRunner("dependencyLicenses")
-            .withArguments("clean", ":dependencies_missing:dependencyLicenses");
+        GradleRunner runner = getRunner("dependencies_missing");
 
         assertTaskFailed(runner.build(), ":dependencies_missing:dependencyLicenses");
     }
 
     public void testTooManyDependencies() {
-        GradleRunner runner = getGradleRunner("dependencyLicenses")
-            .withArguments("clean", ":no_dependencies_with_folder:dependencyLicenses");
+        GradleRunner runner = getRunner("no_dependencies_with_folder");
 
         assertTaskFailed(runner.build(), ":dependencies_too_much:dependencyLicenses");
     }
+
+    private GradleRunner getRunner(String subProject) {
+        return getGradleRunner("licenses")
+            .withArguments("clean", ":" + subProject + ":dependencyLicenses", "-i", "-s");
+    }
+
 }

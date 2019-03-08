@@ -11,10 +11,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
-import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -430,28 +429,24 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                                             MetaData remoteMetadata,
                                             MetaData localMetadata,
                                             Consumer<AutoFollowResult> resultHandler) {
+            final GroupedActionListener<Tuple<Index, Exception>> groupedListener = new GroupedActionListener<>(
+                ActionListener.wrap(
+                    rs -> resultHandler.accept(new AutoFollowResult(autoFollowPattenName, new ArrayList<>(rs))),
+                    e -> { throw new AssertionError("must never happen", e); }),
+                leaderIndicesToFollow.size());
 
-            final CountDown leaderIndicesCountDown = new CountDown(leaderIndicesToFollow.size());
-            final AtomicArray<Tuple<Index, Exception>> results = new AtomicArray<>(leaderIndicesToFollow.size());
-            for (int i = 0; i < leaderIndicesToFollow.size(); i++) {
-                final Index indexToFollow = leaderIndicesToFollow.get(i);
-                final int slot = i;
-
+            for (final Index indexToFollow : leaderIndicesToFollow) {
                 List<String> otherMatchingPatterns = patternsForTheSameRemoteCluster.stream()
                     .filter(otherPattern -> otherPattern.v2().match(indexToFollow.getName()))
                     .map(Tuple::v1)
                     .collect(Collectors.toList());
                 if (otherMatchingPatterns.size() != 0) {
-                    results.set(slot, new Tuple<>(indexToFollow, new ElasticsearchException("index to follow [" + indexToFollow.getName() +
-                        "] for pattern [" + autoFollowPattenName + "] matches with other patterns " + otherMatchingPatterns + "")));
-                    if (leaderIndicesCountDown.countDown()) {
-                        resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
-                    }
+                    groupedListener.onResponse(
+                        new Tuple<>(indexToFollow, new ElasticsearchException("index to follow [" + indexToFollow.getName() +
+                            "] for pattern [" + autoFollowPattenName + "] matches with other patterns " + otherMatchingPatterns + "")));
                 } else {
                     final Settings leaderIndexSettings = remoteMetadata.getIndexSafe(indexToFollow).getSettings();
-                    if (leaderIndexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
-                        IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexSettings).onOrAfter(Version.V_7_0_0)) == false) {
-
+                    if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexSettings) == false) {
                         String message = String.format(Locale.ROOT, "index [%s] cannot be followed, because soft deletes are not enabled",
                             indexToFollow.getName());
                         LOGGER.warn(message);
@@ -460,28 +455,15 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                             if (error != null) {
                                 failure.addSuppressed(error);
                             }
-                            results.set(slot, new Tuple<>(indexToFollow, failure));
-                            if (leaderIndicesCountDown.countDown()) {
-                                resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
-                            }
+                            groupedListener.onResponse(new Tuple<>(indexToFollow, failure));
                         });
-                        continue;
                     } else if (leaderIndexAlreadyFollowed(autoFollowPattern, indexToFollow, localMetadata)) {
-                        updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {
-                            results.set(slot, new Tuple<>(indexToFollow, error));
-                            if (leaderIndicesCountDown.countDown()) {
-                                resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
-                            }
-                        });
-                        continue;
+                        updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow),
+                            error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error)));
+                    } else {
+                        followLeaderIndex(autoFollowPattenName, remoteCluster, indexToFollow, autoFollowPattern, headers,
+                            error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error)));
                     }
-
-                    followLeaderIndex(autoFollowPattenName, remoteCluster, indexToFollow, autoFollowPattern, headers, error -> {
-                        results.set(slot, new Tuple<>(indexToFollow, error));
-                        if (leaderIndicesCountDown.countDown()) {
-                            resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
-                        }
-                    });
                 }
             }
         }
@@ -514,23 +496,20 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             final String leaderIndexName = indexToFollow.getName();
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
-            ResumeFollowAction.Request followRequest = new ResumeFollowAction.Request();
-            followRequest.setFollowerIndex(followIndexName);
-            followRequest.setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
-            followRequest.setMaxReadRequestSize(pattern.getMaxReadRequestSize());
-            followRequest.setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
-            followRequest.setMaxWriteRequestOperationCount(pattern.getMaxWriteRequestOperationCount());
-            followRequest.setMaxWriteRequestSize(pattern.getMaxWriteRequestSize());
-            followRequest.setMaxOutstandingWriteRequests(pattern.getMaxOutstandingWriteRequests());
-            followRequest.setMaxWriteBufferCount(pattern.getMaxWriteBufferCount());
-            followRequest.setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
-            followRequest.setMaxRetryDelay(pattern.getMaxRetryDelay());
-            followRequest.setReadPollTimeout(pattern.getPollTimeout());
-
             PutFollowAction.Request request = new PutFollowAction.Request();
             request.setRemoteCluster(remoteCluster);
             request.setLeaderIndex(indexToFollow.getName());
-            request.setFollowRequest(followRequest);
+            request.setFollowerIndex(followIndexName);
+            request.getParameters().setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
+            request.getParameters().setMaxReadRequestSize(pattern.getMaxReadRequestSize());
+            request.getParameters().setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
+            request.getParameters().setMaxWriteRequestOperationCount(pattern.getMaxWriteRequestOperationCount());
+            request.getParameters().setMaxWriteRequestSize(pattern.getMaxWriteRequestSize());
+            request.getParameters().setMaxOutstandingWriteRequests(pattern.getMaxOutstandingWriteRequests());
+            request.getParameters().setMaxWriteBufferCount(pattern.getMaxWriteBufferCount());
+            request.getParameters().setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
+            request.getParameters().setMaxRetryDelay(pattern.getMaxRetryDelay());
+            request.getParameters().setReadPollTimeout(pattern.getReadPollTimeout());
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {

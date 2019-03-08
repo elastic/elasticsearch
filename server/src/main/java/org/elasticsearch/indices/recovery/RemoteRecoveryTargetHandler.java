@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -81,7 +82,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
             new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps, fileBasedRecovery),
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-            new ActionListenerResponseHandler<>(ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure),
+            new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> null),
                 in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
@@ -90,7 +91,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FINALIZE,
             new RecoveryFinalizeRecoveryRequest(recoveryId, shardId, globalCheckpoint),
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
-            new ActionListenerResponseHandler<>(ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure),
+            new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> null),
                 in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
@@ -113,12 +114,23 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestampOnPrimary,
-                                        long maxSeqNoOfDeletesOrUpdatesOnPrimary, ActionListener<Long> listener) {
+    public void indexTranslogOperations(
+            final List<Translog.Operation> operations,
+            final int totalTranslogOps,
+            final long maxSeenAutoIdTimestampOnPrimary,
+            final long maxSeqNoOfDeletesOrUpdatesOnPrimary,
+            final RetentionLeases retentionLeases,
+            final ActionListener<Long> listener) {
         final RecoveryTranslogOperationsRequest request = new RecoveryTranslogOperationsRequest(
-            recoveryId, shardId, operations, totalTranslogOps, maxSeenAutoIdTimestampOnPrimary, maxSeqNoOfDeletesOrUpdatesOnPrimary);
+                recoveryId,
+                shardId,
+                operations,
+                totalTranslogOps,
+                maxSeenAutoIdTimestampOnPrimary,
+                maxSeqNoOfDeletesOrUpdatesOnPrimary,
+                retentionLeases);
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.TRANSLOG_OPS, request, translogOpsRequestOptions,
-            new ActionListenerResponseHandler<>(ActionListener.wrap(r -> listener.onResponse(r.localCheckpoint), listener::onFailure),
+            new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> r.localCheckpoint),
                 RecoveryTranslogOperationsResponse::new, ThreadPool.Names.GENERIC));
     }
 
@@ -175,7 +187,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                  * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
                  */
                 throttleTimeInNanos), fileChunkRequestOptions, new ActionListenerResponseHandler<>(
-                    ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure), in -> TransportResponse.Empty.INSTANCE));
+                    ActionListener.map(listener, r -> null), in -> TransportResponse.Empty.INSTANCE));
     }
 
 }

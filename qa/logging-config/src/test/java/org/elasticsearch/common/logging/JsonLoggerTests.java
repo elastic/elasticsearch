@@ -46,6 +46,7 @@ import java.util.stream.Stream;
  * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>
  */
 public class JsonLoggerTests extends ESTestCase {
+    private static final String LINE_SEPARATOR = System.lineSeparator();
 
     @BeforeClass
     public static void initNodeName() {
@@ -109,15 +110,15 @@ public class JsonLoggerTests extends ESTestCase {
 
     public void testJsonInMessage() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
-        String json = "{\n" +
-            "  \"terms\" : {\n" +
-            "    \"user\" : [\n" +
-            "      \"u1\",\n" +
-            "      \"u2\",\n" +
-            "      \"u3\"\n" +
-            "    ],\n" +
-            "    \"boost\" : 1.0\n" +
-            "  }\n" +
+        String json = "{" + LINE_SEPARATOR +
+            "  \"terms\" : {" + LINE_SEPARATOR +
+            "    \"user\" : [" + LINE_SEPARATOR +
+            "      \"u1\"," + LINE_SEPARATOR +
+            "      \"u2\"," + LINE_SEPARATOR +
+            "      \"u3\"" + LINE_SEPARATOR +
+            "    ]," + LINE_SEPARATOR +
+            "    \"boost\" : 1.0" + LINE_SEPARATOR +
+            "  }" + LINE_SEPARATOR +
             "}";
 
         testLogger.info(json);
@@ -151,15 +152,15 @@ public class JsonLoggerTests extends ESTestCase {
     public void testJsonInStacktraceMessageIsSplitted() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
 
-        String json = "{\n" +
-            "  \"terms\" : {\n" +
-            "    \"user\" : [\n" +
-            "      \"u1\",\n" +
-            "      \"u2\",\n" +
-            "      \"u3\"\n" +
-            "    ],\n" +
-            "    \"boost\" : 1.0\n" +
-            "  }\n" +
+        String json = "{" + LINE_SEPARATOR +
+            "  \"terms\" : {" + LINE_SEPARATOR +
+            "    \"user\" : [" + LINE_SEPARATOR +
+            "      \"u1\"," + LINE_SEPARATOR +
+            "      \"u2\"," + LINE_SEPARATOR +
+            "      \"u3\"" + LINE_SEPARATOR +
+            "    ]," + LINE_SEPARATOR +
+            "    \"boost\" : 1.0" + LINE_SEPARATOR +
+            "  }" + LINE_SEPARATOR +
             "}";
         testLogger.error("error message " + json, new Exception(json));
 
@@ -173,7 +174,7 @@ public class JsonLoggerTests extends ESTestCase {
                     logLine("file", Level.ERROR, "sample-name", "test", "error message " + json),
 
                     //stacktrace field will have each json line will in a separate array element
-                    stacktraceWith(("java.lang.Exception: " + json).split("\n"))
+                    stacktraceWith(("java.lang.Exception: " + json).split(LINE_SEPARATOR))
                 )
             ));
         }

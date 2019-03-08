@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -65,6 +64,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -105,11 +105,11 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     }
 
     private String createBulkEntity() {
-        return "{\"index\":{\"_type\":\"test\"}}\n" +
+        return "{\"index\":{}}\n" +
                "{\"foo\":{\"bar\":0}}\n" +
-               "{\"index\":{\"_type\":\"test\"}}\n" +
+               "{\"index\":{}}\n" +
                "{\"foo\":{\"bar\":1}}\n" +
-               "{\"index\":{\"_type\":\"test\"}}\n" +
+               "{\"index\":{}}\n" +
                "{\"foo\":{\"bar\":2}}\n" +
                "\n";
     }
@@ -128,7 +128,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             final MonitoringBulkResponse bulkResponse =
                     new MonitoringBulkRequestBuilder(client())
-                            .add(system, null, new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
+                            .add(system, "monitoring_data_type", new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
                                  System.currentTimeMillis(), interval.millis())
                     .get();
 
@@ -179,10 +179,9 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                        equalTo(1L));
 
             for (final SearchHit hit : hits.getHits()) {
-                assertMonitoringDoc(toMap(hit), system, "test", interval);
+                assertMonitoringDoc(toMap(hit), system, "monitoring_data_type", interval);
             }
         });
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     /**
@@ -265,7 +264,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         final String index = (String) document.get("_index");
         assertThat(index, containsString(".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-"));
-        assertThat(document.get("_type"), equalTo("doc"));
         assertThat((String) document.get("_id"), not(isEmptyOrNullString()));
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
@@ -377,9 +375,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(clusterState.remove("cluster_uuid"), notNullValue());
         assertThat(clusterState.remove("master_node"), notNullValue());
         assertThat(clusterState.remove("nodes"), notNullValue());
-        assertThat(clusterState.remove("term"), notNullValue());
-        assertThat(clusterState.remove("last_committed_config"), notNullValue());
-        assertThat(clusterState.remove("last_accepted_config"), notNullValue());
         assertThat(clusterState.keySet(), empty());
 
         final Map<String, Object> clusterSettings = (Map<String, Object>) source.get("cluster_settings");
@@ -615,7 +610,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                                .setSize(0)
                                .get().getHits().getTotalHits().value,
                        greaterThan(0L));
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     /**
@@ -652,7 +647,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             } catch (Exception e) {
                 throw new ElasticsearchException("Failed to wait for monitoring exporters to stop:", e);
             }
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     private boolean getMonitoringUsageExportersDefined() throws Exception {

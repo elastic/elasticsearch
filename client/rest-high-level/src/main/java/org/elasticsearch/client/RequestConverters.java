@@ -108,6 +108,8 @@ final class RequestConverters {
         parameters.withTimeout(deleteRequest.timeout());
         parameters.withVersion(deleteRequest.version());
         parameters.withVersionType(deleteRequest.versionType());
+        parameters.withIfSeqNo(deleteRequest.ifSeqNo());
+        parameters.withIfPrimaryTerm(deleteRequest.ifPrimaryTerm());
         parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
         return request;
@@ -189,6 +191,11 @@ final class RequestConverters {
                         } else if (versionType == VersionType.FORCE) {
                             metadata.field("version_type", "force");
                         }
+                    }
+
+                    if (action.ifSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        metadata.field("if_seq_no", action.ifSeqNo());
+                        metadata.field("if_primary_term", action.ifPrimaryTerm());
                     }
 
                     if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
@@ -319,6 +326,8 @@ final class RequestConverters {
         parameters.withTimeout(indexRequest.timeout());
         parameters.withVersion(indexRequest.version());
         parameters.withVersionType(indexRequest.versionType());
+        parameters.withIfSeqNo(indexRequest.ifSeqNo());
+        parameters.withIfPrimaryTerm(indexRequest.ifPrimaryTerm());
         parameters.withPipeline(indexRequest.getPipeline());
         parameters.withRefreshPolicy(indexRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(indexRequest.waitForActiveShards());

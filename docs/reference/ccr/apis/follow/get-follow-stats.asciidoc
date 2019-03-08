@@ -6,8 +6,6 @@
 <titleabbrev>Get follower stats</titleabbrev>
 ++++
 
-beta[]
-
 Get follower stats.
 
 ==== Description

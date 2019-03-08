@@ -30,12 +30,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.discovery.zen.ZenPing;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
 import org.elasticsearch.test.disruption.NetworkDisruption.DisruptedLinks;
@@ -65,8 +64,14 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(DEFAULT_SETTINGS)
-                .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(DEFAULT_SETTINGS).build();
+    }
+
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder().put(super.indexSettings())
+            // sync global checkpoint quickly so we can verify seq_no_stats aligned between all copies after tests.
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s").build();
     }
 
     @Override
@@ -114,20 +119,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         InternalTestCluster internalCluster = internalCluster();
         List<String> nodes = internalCluster.startNodes(numberOfNodes);
         ensureStableCluster(numberOfNodes);
-
-        // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
-        clearTemporalResponses();
         return nodes;
-    }
-
-    protected void clearTemporalResponses() {
-        final Discovery discovery = internalCluster().getInstance(Discovery.class);
-        if (discovery instanceof TestZenDiscovery) {
-            ZenPing zenPing = ((TestZenDiscovery) discovery).getZenPing();
-            if (zenPing instanceof UnicastZenPing) {
-                ((UnicastZenPing) zenPing).clearTemporalResponses();
-            }
-        }
     }
 
     static final Settings DEFAULT_SETTINGS = Settings.builder()
@@ -145,7 +137,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class);
     }
 
     ClusterState getNodeClusterState(String node) {

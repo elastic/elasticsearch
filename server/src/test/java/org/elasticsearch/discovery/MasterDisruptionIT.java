@@ -26,6 +26,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,8 +35,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
@@ -77,7 +76,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      */
     @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.test.disruption:TRACE")
     public void testStaleMasterNotHijackingMajority() throws Exception {
-        // 3 node cluster with unicast discovery:
         final List<String> nodes = startCluster(3);
 
         // Save the current master node as old master node, because that node will get frozen
@@ -126,19 +124,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         assertDifferentMaster(majoritySide.get(0), oldMasterNode);
         assertDifferentMaster(majoritySide.get(1), oldMasterNode);
 
-        // the test is periodically tripping on the following assertion. To find out which threads are blocking the nodes from making
-        // progress we print a stack dump
-        boolean failed = true;
-        try {
-            assertDiscoveryCompleted(majoritySide);
-            failed = false;
-        } finally {
-            if (failed) {
-                logger.error("discovery failed to complete, probably caused by a blocked thread: {}",
-                        new HotThreads().busiestThreads(Integer.MAX_VALUE).ignoreIdleThreads(false).detect());
-            }
-        }
-
         // The old master node is frozen, but here we submit a cluster state update task that doesn't get executed,
         // but will be queued and once the old master node un-freezes it gets executed.
         // The old master node will send this update + the cluster state where he is flagged as master to the other
@@ -166,7 +151,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         oldMasterNodeSteppedDown.await(30, TimeUnit.SECONDS);
         // Make sure that the end state is consistent on all nodes:
-        assertDiscoveryCompleted(nodes);
         assertMaster(newMasterNode, nodes);
 
         assertThat(masters.size(), equalTo(2));
@@ -210,9 +194,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info("waiting for nodes to elect a new master");
         ensureStableCluster(2, oldNonMasterNodes.get(0));
-
-        logger.info("waiting for any pinging to stop");
-        assertDiscoveryCompleted(oldNonMasterNodes);
 
         // restore GC
         masterNodeDisruption.stopDisrupting();
@@ -331,7 +312,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
-        assertNoMaster(isolatedNode, DiscoverySettings.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(10));
+        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(10));
 
 
         logger.info("wait until elected master has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
@@ -358,9 +339,9 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // Wait until the master node sees al 3 nodes again.
         ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()));
 
-        logger.info("Verify no master block with {} set to {}", DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all");
+        logger.info("Verify no master block with {} set to {}", NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all");
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
+                .setTransientSettings(Settings.builder().put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
                 .get();
 
         networkDisruption.startDisrupting();
@@ -370,7 +351,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
-        assertNoMaster(isolatedNode, DiscoverySettings.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(10));
+        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(10));
 
         // make sure we have stable cluster & cross partition recoveries are canceled by the removal of the missing node
         // the unresponsive partition causes recoveries to only time out after 15m (default) and these will cause
@@ -427,24 +408,5 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
             }
         });
 
-    }
-
-    private void assertDiscoveryCompleted(List<String> nodes) throws InterruptedException {
-        for (final String node : nodes) {
-            assertTrue(
-                    "node [" + node + "] is still joining master",
-                    awaitBusy(
-                            () -> {
-                                final Discovery discovery = internalCluster().getInstance(Discovery.class, node);
-                                if (discovery instanceof ZenDiscovery) {
-                                    return !((ZenDiscovery) discovery).joiningCluster();
-                                }
-                                return true;
-                            },
-                            30,
-                            TimeUnit.SECONDS
-                    )
-            );
-        }
     }
 }

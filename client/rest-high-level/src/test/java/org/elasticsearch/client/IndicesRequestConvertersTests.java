@@ -868,6 +868,12 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         ResizeRequest resizeRequest = new ResizeRequest(indices[0], indices[1]);
         resizeRequest.setResizeType(resizeType);
         Map<String, String> expectedParams = new HashMap<>();
+
+        if (randomBoolean()) {
+            resizeRequest.setCopySettings(true);
+            expectedParams.put("copy_settings", "true");
+        }
+
         RequestConvertersTests.setRandomMasterTimeout(resizeRequest, expectedParams);
         RequestConvertersTests.setRandomTimeout(resizeRequest::timeout, resizeRequest.timeout(), expectedParams);
 

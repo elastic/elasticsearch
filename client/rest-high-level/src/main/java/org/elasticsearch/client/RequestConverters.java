@@ -909,6 +909,17 @@ final class RequestConverters {
             return withWaitForActiveShards(activeShardCount, ActiveShardCount.DEFAULT);
         }
 
+        /**
+         * @deprecated <code>copy_settings</code> can not be set to false. If unset, behaves as <code>false</code> and won't copy settings.
+         */
+        @Deprecated
+        Params withCopySettings(Boolean setCopySettings) {
+            if (setCopySettings != null) {
+                return putParam("copy_settings", setCopySettings.toString());
+            }
+            return this;
+        }
+
         Params withIndicesOptions(IndicesOptions indicesOptions) {
             if (indicesOptions != null) {
                 withIgnoreUnavailable(indicesOptions.ignoreUnavailable());

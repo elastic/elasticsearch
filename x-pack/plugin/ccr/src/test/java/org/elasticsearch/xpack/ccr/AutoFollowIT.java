@@ -131,7 +131,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             .build();
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
-        long numIndices = randomIntBetween(4, 32);
+        long numIndices = randomIntBetween(4, 16);
         for (int i = 0; i < numIndices; i++) {
             createLeaderIndex("logs-" + i, leaderIndexSettings);
         }
@@ -168,7 +168,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
         long i = numIndices;
-        numIndices = numIndices + randomIntBetween(4, 32);
+        numIndices = numIndices + randomIntBetween(4, 16);
         for (; i < numIndices; i++) {
             createLeaderIndex("logs-" + i, leaderIndexSettings);
         }

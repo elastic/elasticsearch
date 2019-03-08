@@ -107,11 +107,8 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                         return shard == null ? null : shard.getPrimary().getDocs();
                     }, sourceIndex, targetIndex);
                 createIndexService.createIndex(
-                    updateRequest,
-                    ActionListener.wrap(response ->
-                            listener.onResponse(new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(),
-                                    updateRequest.index())), listener::onFailure
-                    )
+                    updateRequest, ActionListener.map(listener,
+                        response -> new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(), updateRequest.index()))
                 );
             }
 

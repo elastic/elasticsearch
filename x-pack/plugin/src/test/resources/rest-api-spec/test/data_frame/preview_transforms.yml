@@ -92,7 +92,7 @@ setup:
 ---
 "Test preview transform with invalid config":
   - do:
-      catch: /\[data_frame_transform\] failed to parse field \[pivot\]/
+      catch: /\[data_frame_terms_group\] unknown field \[not_a_terms_param\]/
       data_frame.preview_data_frame_transform:
         body: >
           {

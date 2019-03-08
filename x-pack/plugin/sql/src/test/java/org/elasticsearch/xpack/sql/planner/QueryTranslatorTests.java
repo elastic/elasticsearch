@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
-import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
@@ -39,6 +38,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
+import org.elasticsearch.xpack.sql.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
@@ -109,16 +109,6 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("value", tq.value());
     }
 
-    public void testTermEqualityAnalyzerAmbiguous() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE some.ambiguous = 'value'");
-        assertTrue(p instanceof Project);
-        p = ((Project) p).child();
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        // the message is checked elsewhere (in FieldAttributeTests)
-        expectThrows(MappingException.class, () -> QueryTranslator.toQuery(condition, false));
-    }
-
     public void testTermEqualityNotAnalyzed() {
         LogicalPlan p = plan("SELECT some.string FROM test WHERE int = 5");
         assertTrue(p instanceof Project);
@@ -183,6 +173,19 @@ public class QueryTranslatorTests extends ESTestCase {
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
         assertEquals(DateUtils.asDateTime("1969-05-13T12:34:56Z"), rq.lower());
+    }
+
+    public void testLikeOnInexact() {
+        LogicalPlan p = plan("SELECT * FROM test WHERE some.string LIKE '%a%'");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation qt = QueryTranslator.toQuery(condition, false);
+        assertEquals(QueryStringQuery.class, qt.query.getClass());
+        QueryStringQuery qsq = ((QueryStringQuery) qt.query);
+        assertEquals(1, qsq.fields().size());
+        assertEquals("some.string.typical", qsq.fields().keySet().iterator().next());
     }
     
     public void testLikeConstructsNotSupported() {
@@ -309,6 +312,20 @@ public class QueryTranslatorTests extends ESTestCase {
             tq.asBuilder().toString().replaceAll("\\s", ""));
     }
 
+    public void testTranslateInExpression_WhereClause_TextFieldWithKeyword() {
+        LogicalPlan p = plan("SELECT * FROM test WHERE some.string IN ('foo', 'bar', 'lala', 'foo', concat('la', 'la'))");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof TermsQuery);
+        TermsQuery tq = (TermsQuery) query;
+        assertEquals("{\"terms\":{\"some.string.typical\":[\"foo\",\"bar\",\"lala\"],\"boost\":1.0}}",
+            tq.asBuilder().toString().replaceAll("\\s", ""));
+    }
+
     public void testTranslateInExpression_WhereClauseAndNullHandling() {
         LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', null, 'lala', null, 'foo', concat('la', 'la'))");
         assertTrue(p instanceof Project);
@@ -321,19 +338,6 @@ public class QueryTranslatorTests extends ESTestCase {
         TermsQuery tq = (TermsQuery) query;
         assertEquals("{\"terms\":{\"keyword\":[\"foo\",\"lala\"],\"boost\":1.0}}",
             tq.asBuilder().toString().replaceAll("\\s", ""));
-    }
-
-    public void testTranslateInExpressionInvalidValues_WhereClause() {
-        LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', 'bar', keyword)");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
-        assertEquals(
-                "Line 1:52: Comparisons against variables are not (currently) supported; "
-                        + "offender [keyword] in [keyword IN ('foo', 'bar', keyword)]",
-                ex.getMessage());
     }
 
     public void testTranslateInExpression_WhereClause_Painless() {
@@ -616,5 +620,112 @@ public class QueryTranslatorTests extends ESTestCase {
                         +   "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a5,params.v5))))\","
                         + "\"lang\":\"painless\",\"params\":{\"v0\":3,\"v1\":32,\"v2\":1,\"v3\":2,\"v4\":5,\"v5\":50000}},"
                         + "\"gap_policy\":\"skip\"}}}}}"));
+    }
+
+    public void testTopHitsAggregationWithOneArg() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT FIRST(keyword) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("FIRST(keyword)", eqe.output().get(0).qualifiedName());
+            assertEquals(DataType.KEYWORD, eqe.output().get(0).dataType());
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                        "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
+                        "\"sort\":[{\"keyword\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT LAST(date) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("LAST(date)", eqe.output().get(0).qualifiedName());
+            assertEquals(DataType.DATETIME, eqe.output().get(0).dataType());
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"epoch_millis\"}]," +
+                    "\"sort\":[{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
+        }
+    }
+
+    public void testTopHitsAggregationWithTwoArgs() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT FIRST(keyword, int) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("FIRST(keyword, int)", eqe.output().get(0).qualifiedName());
+            assertEquals(DataType.KEYWORD, eqe.output().get(0).dataType());
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
+                    "\"sort\":[{\"int\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
+                    "{\"keyword\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
+
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT LAST(date, int) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("LAST(date, int)", eqe.output().get(0).qualifiedName());
+            assertEquals(DataType.DATETIME, eqe.output().get(0).dataType());
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"epoch_millis\"}]," +
+                    "\"sort\":[{\"int\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
+                    "{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
+        }
+    }
+
+
+    public void testGlobalCountInImplicitGroupByForcesTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(*) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testGlobalCountAllInImplicitGroupByForcesTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(ALL *) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testGlobalCountInSpecificGroupByDoesNotForceTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(*) FROM test GROUP BY int");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testFieldAllCountDoesNotTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(ALL int) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testFieldCountDoesNotTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(int) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testDistinctCountDoesNotTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT int) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testNoCountDoesNotTrackHits() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT int FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 }

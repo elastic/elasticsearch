@@ -26,18 +26,15 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
@@ -73,88 +70,12 @@ import static org.hamcrest.Matchers.nullValue;
 public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
     /**
-     * Test that no split brain occurs under partial network partition. See https://github.com/elastic/elasticsearch/issues/2488
-     */
-    public void testFailWithMinimumMasterNodesConfigured() throws Exception {
-        List<String> nodes = startCluster(3);
-
-        // Figure out what is the elected master node
-        final String masterNode = internalCluster().getMasterName();
-        logger.info("---> legit elected master node={}", masterNode);
-
-        // Pick a node that isn't the elected master.
-        Set<String> nonMasters = new HashSet<>(nodes);
-        nonMasters.remove(masterNode);
-        final String unluckyNode = randomFrom(nonMasters.toArray(Strings.EMPTY_ARRAY));
-
-
-        // Simulate a network issue between the unlucky node and elected master node in both directions.
-
-        NetworkDisruption networkDisconnect = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(masterNode, unluckyNode),
-                new NetworkDisruption.NetworkDisconnect());
-        setDisruptionScheme(networkDisconnect);
-        networkDisconnect.startDisrupting();
-
-        // Wait until elected master has removed that the unlucky node...
-        ensureStableCluster(2, masterNode);
-
-        // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
-        // continuously ping until network failures have been resolved. However
-        // It may a take a bit before the node detects it has been cut off from the elected master
-        assertNoMaster(unluckyNode);
-
-        networkDisconnect.stopDisrupting();
-
-        // Wait until the master node sees all 3 nodes again.
-        ensureStableCluster(3);
-
-        // The elected master shouldn't have changed, since the unlucky node never could have elected himself as
-        // master since m_m_n of 2 could never be satisfied.
-        assertMaster(masterNode, nodes);
-    }
-
-    /**
-     * Verify that nodes fault detection works after master (re) election
-     */
-    public void testNodesFDAfterMasterReelection() throws Exception {
-        startCluster(4);
-
-        logger.info("--> stopping current master");
-        internalCluster().stopCurrentMasterNode();
-
-        ensureStableCluster(3);
-
-        logger.info("--> reducing min master nodes to 2");
-        assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2))
-                .get());
-
-        String master = internalCluster().getMasterName();
-        String nonMaster = null;
-        for (String node : internalCluster().getNodeNames()) {
-            if (!node.equals(master)) {
-                nonMaster = node;
-            }
-        }
-
-        logger.info("--> isolating [{}]", nonMaster);
-        NetworkDisruption.TwoPartitions partitions = isolateNode(nonMaster);
-        NetworkDisruption networkDisruption = addRandomDisruptionType(partitions);
-        networkDisruption.startDisrupting();
-
-        logger.info("--> waiting for master to remove it");
-        ensureStableCluster(2, master);
-    }
-
-    /**
      * Tests that emulates a frozen elected master node that unfreezes and pushes his cluster state to other nodes
      * that already are following another elected master node. These nodes should reject this cluster state and prevent
      * them from following the stale master.
      */
     @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.test.disruption:TRACE")
     public void testStaleMasterNotHijackingMajority() throws Exception {
-        // 3 node cluster with unicast discovery and minimum_master_nodes set to the default of 2:
         final List<String> nodes = startCluster(3);
 
         // Save the current master node as old master node, because that node will get frozen
@@ -203,19 +124,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         assertDifferentMaster(majoritySide.get(0), oldMasterNode);
         assertDifferentMaster(majoritySide.get(1), oldMasterNode);
 
-        // the test is periodically tripping on the following assertion. To find out which threads are blocking the nodes from making
-        // progress we print a stack dump
-        boolean failed = true;
-        try {
-            assertDiscoveryCompleted(majoritySide);
-            failed = false;
-        } finally {
-            if (failed) {
-                logger.error("discovery failed to complete, probably caused by a blocked thread: {}",
-                        new HotThreads().busiestThreads(Integer.MAX_VALUE).ignoreIdleThreads(false).detect());
-            }
-        }
-
         // The old master node is frozen, but here we submit a cluster state update task that doesn't get executed,
         // but will be queued and once the old master node un-freezes it gets executed.
         // The old master node will send this update + the cluster state where he is flagged as master to the other
@@ -243,7 +151,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         oldMasterNodeSteppedDown.await(30, TimeUnit.SECONDS);
         // Make sure that the end state is consistent on all nodes:
-        assertDiscoveryCompleted(nodes);
         assertMaster(newMasterNode, nodes);
 
         assertThat(masters.size(), equalTo(2));
@@ -287,9 +194,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info("waiting for nodes to elect a new master");
         ensureStableCluster(2, oldNonMasterNodes.get(0));
-
-        logger.info("waiting for any pinging to stop");
-        assertDiscoveryCompleted(oldNonMasterNodes);
 
         // restore GC
         masterNodeDisruption.stopDisrupting();
@@ -408,7 +312,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
-        assertNoMaster(isolatedNode, DiscoverySettings.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(10));
+        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(10));
 
 
         logger.info("wait until elected master has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
@@ -435,9 +339,9 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // Wait until the master node sees al 3 nodes again.
         ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()));
 
-        logger.info("Verify no master block with {} set to {}", DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all");
+        logger.info("Verify no master block with {} set to {}", NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all");
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
+                .setTransientSettings(Settings.builder().put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
                 .get();
 
         networkDisruption.startDisrupting();
@@ -447,7 +351,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
-        assertNoMaster(isolatedNode, DiscoverySettings.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(10));
+        assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(10));
 
         // make sure we have stable cluster & cross partition recoveries are canceled by the removal of the missing node
         // the unresponsive partition causes recoveries to only time out after 15m (default) and these will cause
@@ -504,24 +408,5 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
             }
         });
 
-    }
-
-    private void assertDiscoveryCompleted(List<String> nodes) throws InterruptedException {
-        for (final String node : nodes) {
-            assertTrue(
-                    "node [" + node + "] is still joining master",
-                    awaitBusy(
-                            () -> {
-                                final Discovery discovery = internalCluster().getInstance(Discovery.class, node);
-                                if (discovery instanceof ZenDiscovery) {
-                                    return !((ZenDiscovery) discovery).joiningCluster();
-                                }
-                                return true;
-                            },
-                            30,
-                            TimeUnit.SECONDS
-                    )
-            );
-        }
     }
 }

@@ -118,8 +118,11 @@ public class EsExecutors {
      * Checks if the runnable arose from asynchronous submission of a task to an executor. If an uncaught exception was thrown
      * during the execution of this task, we need to inspect this runnable and see if it is an error that should be propagated
      * to the uncaught exception handler.
+     *
+     * @param runnable the runnable to inspect, should be a RunnableFuture
+     * @return non fatal exception or null if no exception.
      */
-    public static void rethrowErrors(Runnable runnable) {
+    public static Throwable rethrowErrors(Runnable runnable) {
         if (runnable instanceof RunnableFuture) {
             try {
                 ((RunnableFuture) runnable).get();
@@ -143,8 +146,13 @@ public class EsExecutors {
                     // restore the interrupt status
                     Thread.currentThread().interrupt();
                 }
+                if (e instanceof ExecutionException) {
+                    return e.getCause();
+                }
             }
         }
+
+        return null;
     }
 
     private static final class DirectExecutorService extends AbstractExecutorService {

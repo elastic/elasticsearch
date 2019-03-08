@@ -591,7 +591,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> warmActions = new HashMap<>();
-            warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+            warmActions.put(ShrinkAction.NAME, new ShrinkAction(3));
             phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
 
             LifecyclePolicy policy = new LifecyclePolicy("my_policy",
@@ -602,7 +602,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index")
                 .settings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
                     .put("index.lifecycle.name", "my_policy")
                     .build());
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);

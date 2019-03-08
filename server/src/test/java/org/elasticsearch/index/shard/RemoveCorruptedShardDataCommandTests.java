@@ -40,6 +40,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -56,6 +57,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -106,11 +108,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .putMapping("_doc", "{ \"properties\": {} }");
         indexMetaData = metaData.build();
 
-        indexShard = newStartedShard(p ->
-                newShard(routing, shardPath, indexMetaData, null, null,
-                    new InternalEngineFactory(), () -> {
-                    }, EMPTY_EVENT_LISTENER),
-            true);
+        indexShard = newStartedShard(p -> newShard(routing, shardPath, indexMetaData, null, null,
+            new InternalEngineFactory(), () -> { }, RetentionLeaseSyncer.EMPTY, EMPTY_EVENT_LISTENER), true);
 
         translogPath = shardPath.resolveTranslog();
         indexPath = shardPath.resolveIndex();
@@ -174,7 +173,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             fail();
         } catch (ElasticsearchException e) {
             if (corruptSegments) {
-                assertThat(e.getMessage(), is("Index is unrecoverable"));
+                assertThat(e.getMessage(), either(is("Index is unrecoverable")).or(startsWith("unable to list commits")));
             } else {
                 assertThat(e.getMessage(), containsString("aborted by user"));
             }
@@ -370,8 +369,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                     return new Store(shardId, indexSettings, baseDirectoryWrapper, new DummyShardLock(shardId));
         };
 
-        return newShard(shardRouting, shardPath, metaData, storeProvider, null,
-            indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+        return newShard(shardRouting, shardPath, metaData, storeProvider, null, indexShard.engineFactory,
+            indexShard.getGlobalCheckpointSyncer(), indexShard.getRetentionLeaseSyncer(), EMPTY_EVENT_LISTENER);
     }
 
     private int indexDocs(IndexShard indexShard, boolean flushLast) throws IOException {

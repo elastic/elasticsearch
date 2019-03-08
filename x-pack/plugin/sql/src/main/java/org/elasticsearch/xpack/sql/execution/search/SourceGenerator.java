@@ -33,6 +33,8 @@ import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
 
 public abstract class SourceGenerator {
 
+    private SourceGenerator() {}
+
     private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
 
     public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, Integer size) {
@@ -58,7 +60,7 @@ public abstract class SourceGenerator {
         // need to be retrieved from the result documents
 
         // NB: the sortBuilder takes care of eliminating duplicates
-        container.columns().forEach(cr -> cr.collectFields(sortBuilder));
+        container.fields().forEach(f -> f.v1().collectFields(sortBuilder));
         sortBuilder.build(source);
         optimize(sortBuilder, source);
 
@@ -107,8 +109,7 @@ public abstract class SourceGenerator {
 
                 // sorting only works on not-analyzed fields - look for a multi-field replacement
                 if (attr instanceof FieldAttribute) {
-                    FieldAttribute fa = (FieldAttribute) attr;
-                    fa = fa.isInexact() ? fa.exactAttribute() : fa;
+                    FieldAttribute fa = ((FieldAttribute) attr).exactAttribute();
 
                     sortBuilder = fieldSort(fa.name())
                             .missing(as.missing().position())
@@ -125,7 +126,8 @@ public abstract class SourceGenerator {
                         if (nestedSort == null) {
                             fieldSort.setNestedSort(newSort);
                         } else {
-                            for (; nestedSort.getNestedSort() != null; nestedSort = nestedSort.getNestedSort()) {
+                            while (nestedSort.getNestedSort() != null) {
+                                nestedSort = nestedSort.getNestedSort();
                             }
                             nestedSort.setNestedSort(newSort);
                         }
@@ -166,6 +168,9 @@ public abstract class SourceGenerator {
             builder.trackScores(false);
             // disable source fetching (only doc values are used)
             disableSource(builder);
+        }
+        if (query.shouldTrackHits()) {
+            builder.trackTotalHits(true);
         }
     }
 

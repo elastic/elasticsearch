@@ -45,7 +45,7 @@ public class UpdateByQueryMetadataTests
     private class TestAction extends TransportUpdateByQueryAction.AsyncIndexBySearchAction {
         TestAction() {
             super(UpdateByQueryMetadataTests.this.task, UpdateByQueryMetadataTests.this.logger, null,
-                UpdateByQueryMetadataTests.this.threadPool, request(), null, ClusterState.EMPTY_STATE, listener());
+                UpdateByQueryMetadataTests.this.threadPool, null, request(), ClusterState.EMPTY_STATE, listener());
         }
 
         @Override

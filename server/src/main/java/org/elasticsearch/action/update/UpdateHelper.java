@@ -70,7 +70,7 @@ public class UpdateHelper {
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
         final GetResult getResult = indexShard.getService().getForUpdate(
-            request.type(), request.id(), request.version(), request.versionType(), request.ifSeqNo(), request.ifPrimaryTerm());
+            request.type(), request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
         return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
 

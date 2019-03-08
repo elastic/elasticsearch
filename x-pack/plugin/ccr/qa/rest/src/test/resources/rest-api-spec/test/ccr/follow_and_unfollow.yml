@@ -28,10 +28,9 @@
               soft_deletes:
                 enabled: true
           mappings:
-            doc:
-              properties:
-                field:
-                  type: keyword
+            properties:
+              field:
+                type: keyword
   - is_true: acknowledged
 
   - do:

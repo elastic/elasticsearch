@@ -23,19 +23,19 @@ RUN curl --retry 8 -s ${jdkUrl} | tar -C /opt -zxf -
 # REF: https://github.com/elastic/elasticsearch-docker/issues/171
 RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /opt/jdk-${jdkVersion}/lib/security/cacerts
 
-RUN yum install -y unzip which
-
 RUN groupadd -g 1000 elasticsearch && \
     adduser -u 1000 -g 1000 -d /usr/share/elasticsearch elasticsearch
 
 WORKDIR /usr/share/elasticsearch
 
-COPY ${elasticsearch} /opt/
+${source_elasticsearch}
+
 RUN tar zxf /opt/${elasticsearch} --strip-components=1
+RUN grep ES_DISTRIBUTION_TYPE=tar /usr/share/elasticsearch/bin/elasticsearch-env \
+    && sed -ie 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
 RUN mkdir -p config data logs
 RUN chmod 0775 config data logs
 COPY config/elasticsearch.yml config/log4j2.properties config/
-
 
 ################################################################################
 # Build stage 1 (the actual elasticsearch image):
@@ -51,7 +51,7 @@ ENV JAVA_HOME /opt/jdk-${jdkVersion}
 COPY --from=builder /opt/jdk-${jdkVersion} /opt/jdk-${jdkVersion}
 
 RUN yum update -y && \
-    yum install -y nc unzip wget which && \
+    yum install -y nc && \
     yum clean all
 
 RUN groupadd -g 1000 elasticsearch && \

@@ -683,15 +683,16 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
 
         FakeClusterState clusterState = initialState();
-        final AllocationId primaryAllocationId = clusterState.routingTable.primaryShard().allocationId();
+        final AllocationId aId = clusterState.routingTable.primaryShard().allocationId();
         final LongConsumer onUpdate = updatedGlobalCheckpoint -> {};
+        final long primaryTerm = randomNonNegativeLong();
         final long globalCheckpoint = UNASSIGNED_SEQ_NO;
-        final BiConsumer<Collection<RetentionLease>, ActionListener<ReplicationResponse>> onNewRetentionLease =
+        final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onNewRetentionLease =
                 (leases, listener) -> {};
         ReplicationTracker oldPrimary = new ReplicationTracker(
-                shardId, primaryAllocationId.getId(), indexSettings, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);
+                shardId, aId.getId(), indexSettings, primaryTerm, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);
         ReplicationTracker newPrimary = new ReplicationTracker(
-                shardId, primaryAllocationId.getRelocationId(), indexSettings, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);
+                shardId, aId.getRelocationId(), indexSettings, primaryTerm, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);
 
         Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));
 

@@ -91,7 +91,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     private ZonedDateTime date(String date) {
-        return DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date));
+        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date));
     }
 
     private static String format(ZonedDateTime date, String pattern) {
@@ -1191,10 +1191,10 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         DateFormatter formatter = DateFormatter.forPattern("date_optional_time");
-        builders.add(indexDoc(index, DateFormatters.toZonedDateTime(formatter.parse("2016-01-03T08:00:00.000Z")), 1));
-        builders.add(indexDoc(index, DateFormatters.toZonedDateTime(formatter.parse("2016-01-03T08:00:00.000Z")), 2));
-        builders.add(indexDoc(index, DateFormatters.toZonedDateTime(formatter.parse("2016-01-06T08:00:00.000Z")), 3));
-        builders.add(indexDoc(index, DateFormatters.toZonedDateTime(formatter.parse("2016-01-06T08:00:00.000Z")), 4));
+        builders.add(indexDoc(index, DateFormatters.from(formatter.parse("2016-01-03T08:00:00.000Z")), 1));
+        builders.add(indexDoc(index, DateFormatters.from(formatter.parse("2016-01-03T08:00:00.000Z")), 2));
+        builders.add(indexDoc(index, DateFormatters.from(formatter.parse("2016-01-06T08:00:00.000Z")), 3));
+        builders.add(indexDoc(index, DateFormatters.from(formatter.parse("2016-01-06T08:00:00.000Z")), 4));
         indexRandom(true, builders);
         ensureSearchable(index);
 
@@ -1560,5 +1560,48 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     private ZonedDateTime key(Histogram.Bucket bucket) {
         return (ZonedDateTime) bucket.getKey();
+    }
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/39107. Make sure we handle properly different
+     * timeZones.
+     */
+    public void testDateNanosHistogram() throws Exception {
+        assertAcked(prepareCreate("nanos").addMapping("_doc", "date", "type=date_nanos").get());
+        indexRandom(true,
+            client().prepareIndex("nanos", "_doc", "1").setSource("date", "2000-01-01"));
+        indexRandom(true,
+            client().prepareIndex("nanos", "_doc", "2").setSource("date", "2000-01-02"));
+
+        //Search interval 24 hours
+        SearchResponse r = client().prepareSearch("nanos")
+            .addAggregation(dateHistogram("histo").field("date").
+                interval(1000 * 60 * 60 * 24).timeZone(ZoneId.of("Europe/Berlin")))
+            .addDocValueField("date")
+            .get();
+        assertSearchResponse(r);
+
+        Histogram histogram = r.getAggregations().get("histo");
+        List<? extends Bucket> buckets = histogram.getBuckets();
+        assertEquals(2, buckets.size());
+        assertEquals(946681200000L,  ((ZonedDateTime)buckets.get(0).getKey()).toEpochSecond() * 1000);
+        assertEquals(1, buckets.get(0).getDocCount());
+        assertEquals(946767600000L, ((ZonedDateTime)buckets.get(1).getKey()).toEpochSecond() * 1000);
+        assertEquals(1, buckets.get(1).getDocCount());
+
+        r = client().prepareSearch("nanos")
+            .addAggregation(dateHistogram("histo").field("date")
+                .interval(1000 * 60 * 60 * 24).timeZone(ZoneId.of("UTC")))
+            .addDocValueField("date")
+            .get();
+        assertSearchResponse(r);
+
+        histogram = r.getAggregations().get("histo");
+        buckets = histogram.getBuckets();
+        assertEquals(2, buckets.size());
+        assertEquals(946684800000L,  ((ZonedDateTime)buckets.get(0).getKey()).toEpochSecond() * 1000);
+        assertEquals(1, buckets.get(0).getDocCount());
+        assertEquals(946771200000L, ((ZonedDateTime)buckets.get(1).getKey()).toEpochSecond() * 1000);
+        assertEquals(1, buckets.get(1).getDocCount());
     }
 }

@@ -41,6 +41,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -353,5 +354,13 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             (NestedQueryBuilder.NestedInnerHitContextBuilder) innerHitBuilders.get(leafInnerHits.getName());
         nestedContextBuilder.build(searchContext, innerHitsContext);
         assertThat(innerHitsContext.getInnerHits().size(), Matchers.equalTo(0));
+    }
+
+    public void testExtractInnerHitBuildersWithDuplicate() {
+        final NestedQueryBuilder queryBuilder
+            = new NestedQueryBuilder("path", new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()), ScoreMode.None);
+        queryBuilder.innerHit(new InnerHitBuilder("some_name"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> InnerHitContextBuilder.extractInnerHits(queryBuilder,Collections.singletonMap("some_name", null)));
     }
 }

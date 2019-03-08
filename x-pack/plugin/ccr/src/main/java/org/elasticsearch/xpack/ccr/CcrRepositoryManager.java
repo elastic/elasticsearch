@@ -12,6 +12,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryRequest;
@@ -75,7 +76,8 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy) {
+        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy, boolean compressionEnabled,
+                                           TimeValue pingSchedule) {
             String repositoryName = CcrRepository.NAME_PREFIX + clusterAlias;
             if (addresses.isEmpty()) {
                 deleteRepository(repositoryName);

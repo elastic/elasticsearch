@@ -240,7 +240,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask(job.getId(), nodeId, JobState.OPENED, tasksBuilder);
         // Set to lower allocationId, so job task is stale:
-        tasksBuilder.updateTaskState(MlTasks.jobTaskId(job.getId()), new JobTaskState(JobState.OPENED, 0));
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId(job.getId()), new JobTaskState(JobState.OPENED, 0, null));
         tasks = tasksBuilder.build();
 
         givenClusterState("foo", 1, 0);

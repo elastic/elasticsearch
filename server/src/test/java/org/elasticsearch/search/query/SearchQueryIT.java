@@ -426,14 +426,11 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat(e.toString(), containsString("unit [D] not supported for date math"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37814")
     // Issue #7880
     public void testDateRangeInQueryStringWithTimeZone_7880() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         //as with dynamic mappings some shards might be lacking behind and parse a different query
-        assertAcked(prepareCreate("test").addMapping(
-                "type", "past", "type=date"
-        ));
+        assertAcked(prepareCreate("test").addMapping("type", "past", "type=date"));
 
         ZoneId timeZone = randomZone();
         String now = DateFormatter.forPattern("strict_date_optional_time").format(Instant.now().atZone(timeZone));
@@ -666,6 +663,32 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("2"));
         expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch().setQuery(matchQuery("double", "2 3 4")).get());
     }
+
+    public void testMatchQueryFuzzy() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("_doc", "text", "type=text"));
+
+        indexRandom(true, client().prepareIndex("test", "_doc", "1").setSource("text", "Unit"),
+                client().prepareIndex("test", "_doc", "2").setSource("text", "Unity"));
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("0")).get();
+        assertHitCount(searchResponse, 0L);
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("1")).get();
+        assertHitCount(searchResponse, 2L);
+        assertSearchHits(searchResponse, "1", "2");
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("AUTO")).get();
+        assertHitCount(searchResponse, 2L);
+        assertSearchHits(searchResponse, "1", "2");
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("AUTO:5,7")).get();
+        assertHitCount(searchResponse, 0L);
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "unify").fuzziness("AUTO:5,7")).get();
+        assertHitCount(searchResponse, 1L);
+        assertSearchHits(searchResponse, "2");
+    }
+
 
     public void testMultiMatchQuery() throws Exception {
         createIndex("test");

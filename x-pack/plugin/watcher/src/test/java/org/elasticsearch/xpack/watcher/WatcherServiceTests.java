@@ -56,11 +56,11 @@ import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -70,6 +70,7 @@ import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -189,12 +190,12 @@ public class WatcherServiceTests extends ESTestCase {
             if (active) {
                 activeWatchCount++;
             }
-            WatchStatus.State state = new WatchStatus.State(active, DateTime.now(DateTimeZone.UTC));
+            WatchStatus.State state = new WatchStatus.State(active, ZonedDateTime.now(ZoneOffset.UTC));
             WatchStatus watchStatus = mock(WatchStatus.class);
             Watch watch = mock(Watch.class);
             when(watchStatus.state()).thenReturn(state);
             when(watch.status()).thenReturn(watchStatus);
-            when(parser.parse(eq(id), eq(true), any(), eq(XContentType.JSON))).thenReturn(watch);
+            when(parser.parse(eq(id), eq(true), any(), eq(XContentType.JSON), anyLong(), anyLong())).thenReturn(watch);
         }
         SearchHits searchHits = new SearchHits(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, false, null, 1);
@@ -230,8 +231,10 @@ public class WatcherServiceTests extends ESTestCase {
         Trigger trigger = mock(Trigger.class);
         when(trigger.type()).thenReturn(engineType);
 
+        final String id = randomAlphaOfLengthBetween(3, 12);
         Watch watch = mock(Watch.class);
         when(watch.trigger()).thenReturn(trigger);
+        when(watch.id()).thenReturn(id);
         when(watch.condition()).thenReturn(InternalAlwaysCondition.INSTANCE);
         ExecutableNoneInput noneInput = new ExecutableNoneInput();
         when(watch.input()).thenReturn(noneInput);

@@ -48,6 +48,7 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -326,6 +327,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
 
+    @BeforeClass
+    public static void ensureSupportedLocale() {
+        if (isUnusableLocale()) {
+            Logger logger = LogManager.getLogger(ESTestCase.class);
+            logger.warn("Attempting to run tests in an unusable locale in a FIPS JVM. Certificate expiration validation will fail, " +
+                "switching to English. See: https://github.com/bcgit/bc-java/issues/405");
+            Locale.setDefault(Locale.ENGLISH);
+        }
+    }
+
     @Before
     public final void before()  {
         logger.info("{}before test", getTestParamsForLogging());
@@ -430,13 +441,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     private void resetDeprecationLogger(final boolean setNewThreadContext) {
         // "clear" current warning headers by setting a new ThreadContext
         DeprecationLogger.removeThreadContext(this.threadContext);
-        try {
-            this.threadContext.close();
-            // catch IOException to avoid that call sites have to deal with it. It is only declared because this class implements Closeable
-            // but it is impossible that this implementation will ever throw an IOException.
-        } catch (IOException ex) {
-            throw new AssertionError("IOException thrown while closing deprecation logger's thread context", ex);
-        }
+        this.threadContext.close();
         if (setNewThreadContext) {
             this.threadContext = new ThreadContext(Settings.EMPTY);
             DeprecationLogger.setThreadContext(this.threadContext);
@@ -784,7 +789,17 @@ public abstract class ESTestCase extends LuceneTestCase {
      * generate a random TimeZone from the ones available in java.time
      */
     public static ZoneId randomZone() {
-        return ZoneId.of(randomFrom(JAVA_ZONE_IDS));
+        // work around a JDK bug, where java 8 cannot parse the timezone GMT0 back into a temporal accessor
+        // see https://bugs.openjdk.java.net/browse/JDK-8138664
+        if (JavaVersion.current().getVersion().get(0) == 8) {
+            ZoneId timeZone;
+            do {
+                timeZone = ZoneId.of(randomFrom(JAVA_ZONE_IDS));
+            } while (timeZone.equals(ZoneId.of("GMT0")));
+            return timeZone;
+        } else {
+            return ZoneId.of(randomFrom(JAVA_ZONE_IDS));
+        }
     }
 
     /**
@@ -993,17 +1008,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomGeohash(int minPrecision, int maxPrecision) {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
-    }
-
-    private static boolean useZen2;
-
-    @BeforeClass
-    public static void setUseZen2() {
-        useZen2 = true;
-    }
-
-    protected static boolean getUseZen2() {
-        return useZen2;
     }
 
     public static String getTestTransportType() {
@@ -1417,6 +1421,12 @@ public abstract class ESTestCase extends LuceneTestCase {
             this.tokenizer = tokenizer;
             this.charFilter = charFilter;
         }
+    }
+
+    private static boolean isUnusableLocale() {
+        return inFipsJvm() && (Locale.getDefault().toLanguageTag().equals("th-TH")
+            || Locale.getDefault().toLanguageTag().equals("ja-JP-u-ca-japanese-x-lvariant-JP")
+            || Locale.getDefault().toLanguageTag().equals("th-TH-u-nu-thai-x-lvariant-TH"));
     }
 
     public static boolean inFipsJvm() {

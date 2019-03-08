@@ -100,17 +100,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class AutodetectProcessManager implements ClusterStateListener {
 
-    // We should be able from the job config to estimate the memory/cpu a job needs to have,
-    // and if we know that then we can prior to assigning a job to a node fail based on the
-    // available resources on that node: https://github.com/elastic/x-pack-elasticsearch/issues/546
-    // However, it is useful to also be able to apply a hard limit.
-
-    // WARNING: This setting cannot be made DYNAMIC, because it is tied to several threadpools
-    // and a threadpool's size can't be changed at runtime.
-    // See MachineLearning#getExecutorBuilders(...)
-    public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
-            Setting.intSetting("xpack.ml.max_open_jobs", 20, 1, 512, Property.NodeScope);
-
     // Undocumented setting for integration test purposes
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
             Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Property.NodeScope);
@@ -134,7 +123,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     // a map that manages the allocation of temporary space to jobs
     private final ConcurrentMap<String, Path> nativeTmpStorage = new ConcurrentHashMap<>();
 
-    private final int maxAllowedRunningJobs;
+    private volatile int maxAllowedRunningJobs;
 
     private final NamedXContentRegistry xContentRegistry;
 
@@ -151,7 +140,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
-        this.maxAllowedRunningJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
+        this.maxAllowedRunningJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.normalizerFactory = normalizerFactory;
         this.jobManager = jobManager;
@@ -161,6 +150,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
         this.auditor = auditor;
         this.nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
         clusterService.addListener(this);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxAllowedRunningJobs);
+    }
+
+    void setMaxAllowedRunningJobs(int maxAllowedRunningJobs) {
+        this.maxAllowedRunningJobs = maxAllowedRunningJobs;
     }
 
     public void onNodeStartup() {
@@ -475,14 +470,14 @@ public class AutodetectProcessManager implements ClusterStateListener {
                                                 .kill();
                                             processByAllocation.remove(jobTask.getAllocationId());
                                         } finally {
-                                            setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1, true));
+                                            setJobState(jobTask, JobState.FAILED, e1.getMessage(), e2 -> closeHandler.accept(e1, true));
                                         }
                                     }
                                 }
                             });
                         }, e1 -> {
                             logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
-                            setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1, true));
+                            setJobState(jobTask, JobState.FAILED, e1.getMessage(), e2 -> closeHandler.accept(e1, true));
                         });
                     },
                     e -> closeHandler.accept(e, true)
@@ -522,11 +517,14 @@ public class AutodetectProcessManager implements ClusterStateListener {
     }
 
     AutodetectCommunicator create(JobTask jobTask, Job job, AutodetectParams autodetectParams, BiConsumer<Exception, Boolean> handler) {
-        // Closing jobs can still be using some or all threads in MachineLearning.AUTODETECT_THREAD_POOL_NAME
+        // Copy for consistency within a single method call
+        int localMaxAllowedRunningJobs = maxAllowedRunningJobs;
+        // Closing jobs can still be using some or all threads in MachineLearning.JOB_COMMS_THREAD_POOL_NAME
         // that an open job uses, so include them too when considering if enough threads are available.
         int currentRunningJobs = processByAllocation.size();
-        if (currentRunningJobs > maxAllowedRunningJobs) {
-            throw new ElasticsearchStatusException("max running job capacity [" + maxAllowedRunningJobs + "] reached",
+        // TODO: in future this will also need to consider jobs that are not anomaly detector jobs
+        if (currentRunningJobs > localMaxAllowedRunningJobs) {
+            throw new ElasticsearchStatusException("max running job capacity [" + localMaxAllowedRunningJobs + "] reached",
                     RestStatus.TOO_MANY_REQUESTS);
         }
 
@@ -547,7 +545,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         }
 
         // A TP with no queue, so that we fail immediately if there are no threads available
-        ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
+        ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, autodetectParams.dataCounts(), jobDataCountsPersister);
         ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobResultsProvider,
                 new JobRenormalizedResultsPersister(job.getId(), client), normalizerFactory);
@@ -601,8 +599,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
         auditor.info(jobId, msg);
     }
 
-    private Runnable onProcessCrash(JobTask jobTask) {
-        return () -> {
+    private Consumer<String> onProcessCrash(JobTask jobTask) {
+        return (reason) -> {
             ProcessContext processContext = processByAllocation.remove(jobTask.getAllocationId());
             if (processContext != null) {
                 AutodetectCommunicator communicator = processContext.getAutodetectCommunicator();
@@ -610,7 +608,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     communicator.destroyCategorizationAnalyzer();
                 }
             }
-            setJobState(jobTask, JobState.FAILED);
+            setJobState(jobTask, JobState.FAILED, reason);
             try {
                 removeTmpStorage(jobTask.getJobId());
             } catch (IOException e) {
@@ -666,7 +664,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 throw e;
             }
             logger.warn("[" + jobId + "] Exception closing autodetect process", e);
-            setJobState(jobTask, JobState.FAILED);
+            setJobState(jobTask, JobState.FAILED, e.getMessage());
             throw ExceptionsHelper.serverError("Exception closing autodetect process", e);
         } finally {
             // to ensure the contract that multiple simultaneous close calls for the same job wait until
@@ -720,8 +718,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
         return Optional.of(Duration.between(communicator.getProcessStartTime(), ZonedDateTime.now()));
     }
 
-    void setJobState(JobTask jobTask, JobState state) {
-        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId());
+    void setJobState(JobTask jobTask, JobState state, String reason) {
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
         jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
             @Override
             public void onResponse(PersistentTask<?> persistentTask) {
@@ -735,27 +733,31 @@ public class AutodetectProcessManager implements ClusterStateListener {
         });
     }
 
-    void setJobState(JobTask jobTask, JobState state, CheckedConsumer<Exception, IOException> handler) {
-        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId());
-        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
-                    @Override
-                    public void onResponse(PersistentTask<?> persistentTask) {
-                        try {
-                            handler.accept(null);
-                        } catch (IOException e1) {
-                            logger.warn("Error while delegating response", e1);
-                        }
-                    }
+    void setJobState(JobTask jobTask, JobState state) {
+        setJobState(jobTask, state, null);
+    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            handler.accept(e);
-                        } catch (IOException e1) {
-                            logger.warn("Error while delegating exception [" + e.getMessage() + "]", e1);
-                        }
-                    }
-                });
+    void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
+        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
+            @Override
+            public void onResponse(PersistentTask<?> persistentTask) {
+                try {
+                    handler.accept(null);
+                } catch (IOException e1) {
+                    logger.warn("Error while delegating response", e1);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    handler.accept(e);
+                } catch (IOException e1) {
+                    logger.warn("Error while delegating exception [" + e.getMessage() + "]", e1);
+                }
+            }
+        });
     }
 
     public Optional<Tuple<DataCounts, ModelSizeStats>> getStatistics(JobTask jobTask) {

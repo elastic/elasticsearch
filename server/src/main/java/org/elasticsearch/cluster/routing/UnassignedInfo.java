@@ -118,7 +118,11 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         /**
          * Forced manually to allocate
          */
-        MANUAL_ALLOCATION
+        MANUAL_ALLOCATION,
+        /**
+         * Unassigned as a result of closing an index.
+         */
+        INDEX_CLOSED
     }
 
     /**
@@ -159,11 +163,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
         AllocationStatus(byte id) {
             this.id = id;
-        }
-
-        // package private for testing
-        byte getId() {
-            return id;
         }
 
         @Override
@@ -269,6 +268,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().before(Version.V_6_0_0_beta2) && reason == Reason.MANUAL_ALLOCATION) {
             out.writeByte((byte) Reason.ALLOCATION_FAILED.ordinal());
+        } else if (out.getVersion().before(Version.V_7_0_0) && reason == Reason.INDEX_CLOSED) {
+            out.writeByte((byte) Reason.REINITIALIZED.ordinal());
         } else {
             out.writeByte((byte) reason.ordinal());
         }
@@ -279,10 +280,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-    }
-
-    public UnassignedInfo readFrom(StreamInput in) throws IOException {
-        return new UnassignedInfo(in);
     }
 
     /**

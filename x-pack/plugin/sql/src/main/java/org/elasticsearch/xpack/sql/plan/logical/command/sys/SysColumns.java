@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.sql.type.EsField;
 import java.sql.DatabaseMetaData;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -97,8 +96,8 @@ public class SysColumns extends Command {
 
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        boolean isOdbcClient = session.configuration().mode() == Mode.ODBC;
-        List<Attribute> output = output(isOdbcClient);
+        Mode mode = session.configuration().mode();
+        List<Attribute> output = output(mode == Mode.ODBC);
         String cluster = session.indexResolver().clusterName();
 
         // bail-out early if the catalog is present but differs
@@ -115,7 +114,7 @@ public class SysColumns extends Command {
         session.indexResolver().resolveAsSeparateMappings(idx, regex, ActionListener.wrap(esIndices -> {
             List<List<?>> rows = new ArrayList<>();
             for (EsIndex esIndex : esIndices) {
-                fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, isOdbcClient);
+                fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
             }
 
             listener.onResponse(Rows.of(output, rows));
@@ -123,8 +122,9 @@ public class SysColumns extends Command {
     }
 
     static void fillInRows(String clusterName, String indexName, Map<String, EsField> mapping, String prefix, List<List<?>> rows,
-            Pattern columnMatcher, boolean isOdbcClient) {
+            Pattern columnMatcher, Mode mode) {
         int pos = 0;
+        boolean isOdbcClient = mode == Mode.ODBC;
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             pos++; // JDBC is 1-based so we start with 1 here
 
@@ -133,9 +133,8 @@ public class SysColumns extends Command {
             EsField field = entry.getValue();
             DataType type = field.getDataType();
             
-            // skip the nested and object types only for ODBC
-            // https://github.com/elastic/elasticsearch/issues/35376
-            if (type.isPrimitive() || !isOdbcClient) {
+            // skip the nested, object and unsupported types for JDBC and ODBC
+            if (type.isPrimitive() || false == Mode.isDriver(mode)) {
                 if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
                     rows.add(asList(clusterName,
                             // schema is not supported
@@ -143,7 +142,7 @@ public class SysColumns extends Command {
                             indexName,
                             name,
                             odbcCompatible(type.sqlType.getVendorTypeNumber(), isOdbcClient),
-                            type.esType.toUpperCase(Locale.ROOT),
+                            type.toString(),
                             type.displaySize,
                             // TODO: is the buffer_length correct?
                             type.size,
@@ -175,7 +174,7 @@ public class SysColumns extends Command {
                 }
             }
             if (field.getProperties() != null) {
-                fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, isOdbcClient);
+                fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, mode);
             }
         }
     }

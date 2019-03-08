@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -470,8 +471,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             Collections.addAll(fieldMappers, metadataMappers);
             MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers, fieldAliasMappers);
 
-            MapperMergeValidator.validateMapperStructure(newMapper.type(), objectMappers, fieldMappers,
-                fieldAliasMappers, fullPathObjectMappers, fieldTypes);
+            MapperMergeValidator.validateMapperStructure(objectMappers, fieldMappers, fieldAliasMappers);
             checkPartitionedIndexConstraints(newMapper);
 
             // update lookup data-structures
@@ -663,6 +663,20 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return defaultMapper;
         }
         return null;
+    }
+
+    /**
+     * Returns {@code true} if the given {@code mappingSource} includes a type
+     * as a top-level object.
+     */
+    public static boolean isMappingSourceTyped(String type, Map<String, Object> mapping) {
+        return mapping.size() == 1 && mapping.keySet().iterator().next().equals(type);
+    }
+
+
+    public static boolean isMappingSourceTyped(String type, CompressedXContent mappingSource) {
+        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
+        return isMappingSourceTyped(type, root);
     }
 
     /**

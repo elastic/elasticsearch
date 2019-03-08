@@ -27,6 +27,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -36,7 +37,7 @@ public class CCRFeatureSetTests extends ESTestCase {
     private ClusterService clusterService;
 
     @Before
-    public void init() throws Exception {
+    public void init() {
         licenseState = mock(XPackLicenseState.class);
         clusterService = mock(ClusterService.class);
     }
@@ -116,7 +117,11 @@ public class CCRFeatureSetTests extends ESTestCase {
         assertThat(ccrUsage.available(), equalTo(ccrFeatureSet.available()));
 
         assertThat(ccrUsage.getNumberOfFollowerIndices(), equalTo(numFollowerIndices));
-        assertThat(ccrUsage.getLastFollowTimeInMillis(), greaterThanOrEqualTo(0L));
+        if (numFollowerIndices != 0) {
+            assertThat(ccrUsage.getLastFollowTimeInMillis(), greaterThanOrEqualTo(0L));
+        } else {
+            assertThat(ccrUsage.getLastFollowTimeInMillis(), nullValue());
+        }
         assertThat(ccrUsage.getNumberOfAutoFollowPatterns(), equalTo(numAutoFollowPatterns));
     }
 

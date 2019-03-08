@@ -24,7 +24,6 @@
   - do:
       bulk:
         index: test
-        type: test
         refresh: true
         body: |
           { "index": {} }

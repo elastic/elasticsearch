@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 
 import java.io.IOException;
+import java.util.BitSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -34,11 +35,13 @@ public class ScrollCursor implements Cursor {
 
     private final String scrollId;
     private final List<HitExtractor> extractors;
+    private final BitSet mask;
     private final int limit;
 
-    public ScrollCursor(String scrollId, List<HitExtractor> extractors, int limit) {
+    public ScrollCursor(String scrollId, List<HitExtractor> extractors, BitSet mask, int limit) {
         this.scrollId = scrollId;
         this.extractors = extractors;
+        this.mask = mask;
         this.limit = limit;
     }
 
@@ -47,6 +50,7 @@ public class ScrollCursor implements Cursor {
         limit = in.readVInt();
 
         extractors = in.readNamedWriteableList(HitExtractor.class);
+        mask = BitSet.valueOf(in.readByteArray());
     }
 
     @Override
@@ -55,6 +59,7 @@ public class ScrollCursor implements Cursor {
         out.writeVInt(limit);
 
         out.writeNamedWriteableList(extractors);
+        out.writeByteArray(mask.toByteArray());
     }
 
     @Override
@@ -64,6 +69,10 @@ public class ScrollCursor implements Cursor {
 
     String scrollId() {
         return scrollId;
+    }
+
+    BitSet mask() {
+        return mask;
     }
 
     List<HitExtractor> extractors() {
@@ -79,7 +88,7 @@ public class ScrollCursor implements Cursor {
 
         SearchScrollRequest request = new SearchScrollRequest(scrollId).scroll(cfg.pageTimeout());
         client.searchScroll(request, ActionListener.wrap((SearchResponse response) -> {
-            SearchHitRowSet rowSet = new SearchHitRowSet(extractors, response.getHits().getHits(),
+            SearchHitRowSet rowSet = new SearchHitRowSet(extractors, mask, response.getHits().getHits(),
                     limit, response.getScrollId());
             if (rowSet.nextPageCursor() == Cursor.EMPTY ) {
                 // we are finished with this cursor, let's clean it before continuing

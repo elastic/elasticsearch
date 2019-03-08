@@ -26,11 +26,13 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -52,6 +54,7 @@ import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -207,24 +210,34 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     }
 
     public void testReplicaRecovery() throws Exception {
-        logger.info("--> start node A");
-        String nodeA = internalCluster().startNode();
+        final String nodeA = internalCluster().startNode();
+        createIndex(INDEX_NAME, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
+            .build());
+        ensureGreen(INDEX_NAME);
 
-        logger.info("--> create index on node: {}", nodeA);
-        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
+        final int numOfDocs = scaledRandomIntBetween(0, 200);
+        try (BackgroundIndexer indexer = new BackgroundIndexer(INDEX_NAME, "_doc", client(), numOfDocs)) {
+            waitForDocs(numOfDocs, indexer);
+        }
 
-        logger.info("--> start node B");
-        String nodeB = internalCluster().startNode();
-        ensureGreen();
+        refresh(INDEX_NAME);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numOfDocs);
+
+        final boolean closedIndex = randomBoolean();
+        if (closedIndex) {
+            assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+            ensureGreen(INDEX_NAME);
+        }
 
         // force a shard recovery from nodeA to nodeB
-        logger.info("--> bump replica count");
-        client().admin().indices().prepareUpdateSettings(INDEX_NAME)
-                .setSettings(Settings.builder().put("number_of_replicas", 1)).execute().actionGet();
-        ensureGreen();
+        final String nodeB = internalCluster().startNode();
+        assertAcked(client().admin().indices().prepareUpdateSettings(INDEX_NAME)
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)));
+        ensureGreen(INDEX_NAME);
 
-        logger.info("--> request recoveries");
-        RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
+        final RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
         // we should now have two total shards, one primary and one replica
         List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
@@ -236,14 +249,27 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertThat(nodeBResponses.size(), equalTo(1));
 
         // validate node A recovery
-        RecoveryState nodeARecoveryState = nodeAResponses.get(0);
-        assertRecoveryState(nodeARecoveryState, 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE, true, Stage.DONE, null, nodeA);
+        final RecoveryState nodeARecoveryState = nodeAResponses.get(0);
+        final RecoverySource expectedRecoverySource;
+        if (closedIndex == false) {
+            expectedRecoverySource = RecoverySource.EmptyStoreRecoverySource.INSTANCE;
+        } else {
+            expectedRecoverySource = RecoverySource.ExistingStoreRecoverySource.INSTANCE;
+        }
+        assertRecoveryState(nodeARecoveryState, 0, expectedRecoverySource, true, Stage.DONE, null, nodeA);
         validateIndexRecoveryState(nodeARecoveryState.getIndex());
 
         // validate node B recovery
-        RecoveryState nodeBRecoveryState = nodeBResponses.get(0);
+        final RecoveryState nodeBRecoveryState = nodeBResponses.get(0);
         assertRecoveryState(nodeBRecoveryState, 0, PeerRecoverySource.INSTANCE, false, Stage.DONE, nodeA, nodeB);
         validateIndexRecoveryState(nodeBRecoveryState.getIndex());
+
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+
+        if (closedIndex) {
+            assertAcked(client().admin().indices().prepareOpen(INDEX_NAME));
+        }
+        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numOfDocs);
     }
 
     @TestLogging(
@@ -785,5 +811,56 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch(indexName).get(), numDocs);
         }
+    }
+
+    @TestLogging("org.elasticsearch.indices.recovery:TRACE")
+    public void testHistoryRetention() throws Exception {
+        internalCluster().startNodes(3);
+
+        final String indexName = "test";
+        client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)).get();
+        ensureGreen(indexName);
+
+        // Perform some replicated operations so the replica isn't simply empty, because ops-based recovery isn't better in that case
+        final List<IndexRequestBuilder> requests = new ArrayList<>();
+        final int replicatedDocCount = scaledRandomIntBetween(25, 250);
+        while (requests.size() < replicatedDocCount) {
+            requests.add(client().prepareIndex(indexName, "_doc").setSource("{}", XContentType.JSON));
+        }
+        indexRandom(true, requests);
+        if (randomBoolean()) {
+            flush(indexName);
+        }
+
+        internalCluster().stopRandomNode(s -> true);
+        internalCluster().stopRandomNode(s -> true);
+
+        final long desyncNanoTime = System.nanoTime();
+        while (System.nanoTime() <= desyncNanoTime) {
+            // time passes
+        }
+
+        final int numNewDocs = scaledRandomIntBetween(25, 250);
+        for (int i = 0; i < numNewDocs; i++) {
+            client().prepareIndex(indexName, "_doc").setSource("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        }
+        // Flush twice to update the safe commit's local checkpoint
+        assertThat(client().admin().indices().prepareFlush(indexName).setForce(true).execute().get().getFailedShards(), equalTo(0));
+        assertThat(client().admin().indices().prepareFlush(indexName).setForce(true).execute().get().getFailedShards(), equalTo(0));
+
+        assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)));
+        internalCluster().startNode();
+        ensureGreen(indexName);
+
+        final RecoveryResponse recoveryResponse = client().admin().indices().recoveries(new RecoveryRequest(indexName)).get();
+        final List<RecoveryState> recoveryStates = recoveryResponse.shardRecoveryStates().get(indexName);
+        recoveryStates.removeIf(r -> r.getTimer().getStartNanoTime() <= desyncNanoTime);
+
+        assertThat(recoveryStates, hasSize(1));
+        assertThat(recoveryStates.get(0).getIndex().totalFileCount(), is(0));
+        assertThat(recoveryStates.get(0).getTranslog().recoveredOperations(), greaterThan(0));
     }
 }

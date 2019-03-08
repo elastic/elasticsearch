@@ -1,6 +1,22 @@
 [[node-tool]]
 == elasticsearch-node
 
+The `elasticsearch-node` command allows you to perform unsafe operations that
+risk data loss but which may help to recover some data in a disaster.
+
+[float]
+=== Synopsis
+
+[source,shell]
+--------------------------------------------------
+bin/elasticsearch-node unsafe-bootstrap|detach-cluster [--ordinal <Integer>]
+  [-E <KeyValuePair>] [-h, --help]
+  ([-s, --silent] | [-v, --verbose])
+--------------------------------------------------
+
+[float]
+=== Description
+
 Sometimes {es} nodes are temporarily stopped, perhaps because of the need to
 perform some maintenance activity or perhaps because of a hardware failure.
 Once the temporary condition has been resolved you should restart the node and
@@ -276,4 +292,24 @@ Confirm [y/N] y
 Node was successfully detached from the cluster
 ----
 
+[float]
+=== Parameters
+
+`unsafe-bootstrap`:: Specifies to unsafely bootstrap this node as a new
+one-node cluster.
+
+`detach-cluster`:: Specifies to unsafely detach this node from its cluster so
+it can join a different cluster.
+
+`--ordinal <Integer>`:: If there is <<max-local-storage-nodes,more than one
+node sharing a data path>> then this specifies which node to target. Defaults
+to `0`, meaning to use the first node in the data path.
+
+`-E <KeyValuePair>`:: Configures a setting.
+
+`-h, --help`:: Returns all of the command parameters.
+
+`-s, --silent`:: Shows minimal output.
+
+`-v, --verbose`:: Shows verbose output.
 

@@ -182,26 +182,22 @@ public class FieldHitExtractor implements HitExtractor {
                         value = node;
                     }
                 } else if (node != null) {
-                    checkPathValidity(i, value);
+                    if (i < path.length - 1) {
+                        // If we reach a concrete value without exhausting the full path, something is wrong with the mapping
+                        // e.g.: map is {"a" : { "b" : "value }} and we are looking for a path: "a.b.c.d"
+                        throw new SqlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
+                    }
+                    if (value != null) {
+                        // A value has already been found so this means that there are more than one
+                        // values in the document for the same path but different hierarchy.
+                        // e.g.: {"a" : {"b" : {"c" : "value"}}}, {"a.b" : {"c" : "value"}}, ...
+                        throw new SqlIllegalArgumentException("Multiple values (returned by [{}]) are not supported", fieldName);
+                    }
                     value = node;
                 }
             }
         }
         return unwrapMultiValue(value);
-    }
-
-    private void checkPathValidity(int index, Object value) {
-        if (index < path.length - 1) {
-            // If we reach a concrete value without exhausting the full path, something is wrong with the mapping
-            // e.g.: map is {"a" : { "b" : "value }} and we are looking for a path: "a.b.c.d"
-            throw new SqlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
-        }
-        if (value != null) {
-            // A value has already been found so this means that there are more than one
-            // values in the document for the same path but different hierarchy.
-            // e.g.: {"a" : {"b" : {"c" : "value"}}}, {"a.b" : {"c" : "value"}}, ...
-            throw new SqlIllegalArgumentException("Multiple values (returned by [{}]) are not supported", fieldName);
-        }
     }
 
     @Override

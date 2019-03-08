@@ -112,28 +112,28 @@ to a regular (non-follower) index.
 [float]
 === Upgrading clusters
 
-In case of upgrading clusters, clusters that are actively using CCR, require a slightly different upgrade approach.
-Otherwise index following may fail during a rolling upgrade, because of the following reasons:
+In case of upgrading clusters, clusters that are actively using CCR, require a
+slightly different upgrade approach. Otherwise index following may fail during
+a rolling upgrade, because of the following reasons:
 
 * If a new index setting or mapping type is replicated from an upgraded cluster
-  to a not upgraded cluster then the upgraded cluster will reject that and will
-  fail index following.
+  to a non-upgraded cluster then the non-upgraded cluster will reject that and
+  will fail index following.
 * Lucene is not forwards compatible and when index following is falling back to
-  file based recovery then a node in a not upgraded cluster will reject index files
-  from a newer Lucene version compared to what it is using.
+  file based recovery then a node in a non-upgraded cluster will reject index
+  files from a newer Lucene version compared to what it is using.
 
-Rolling upgrading clusters with CCR is different in case of unidirectional index following and
-bidirectional index following.
+Rolling upgrading clusters with CCR is different in case of uni-directional
+index following and bi-directional index following.
 
 [float]
-==== Unidirectional index following
+==== Uni-directional index following
 
-In this kind of a setup a cluster contains either only leader indices or
-only follower indices. For example one cluster contains all the leader
-indices and one or more clusters only contain the follower indices.
-So the important fact is that indices are following in one direction.
+In a uni-directional setup between two clusters, one cluster contains only
+leader indices, and the other cluster contains only follower indices following
+indices in the first cluster.
 
-In this setup, the cluster(s) with follower indices should be upgraded
+In this setup, the cluster with follower indices should be upgraded
 first and the cluster with leader indices should be upgraded last.
 If clusters are upgraded in this order then index following can continue
 during the upgrade without downtime.
@@ -146,12 +146,13 @@ third cluster should be upgraded first, then the second cluster and
 finally the first cluster.
 
 [float]
-==== Bidirectional index following
+==== Bi-directional index following
 
-In this kind of setup clusters index following happens in multiple clusters and
-so each cluster contains both leader and follower indices.
+In a bi-directional setup between two clusters, each cluster contains both
+leader and follower indices.
 
-When upgrading clusters in this setup, index following needs to be paused prior
-to upgrading all the clusters. After all clusters have been upgraded then
-index following can be resumed. Pausing index following is required, otherwise
-there is no guarantee, that index following will not fail.
+When upgrading clusters in this setup, all index following needs to be paused
+using the {ref}/ccr-post-pause-follow.html[pause follower API] prior to
+upgrading both clusters. After both clusters have been upgraded then index
+following can be resumed using the
+{ref}/ccr-post-resume-follow.html[resume follower API]].

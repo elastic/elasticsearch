@@ -138,13 +138,12 @@ public class FieldHitExtractor implements HitExtractor {
         throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     Object extractFromSource(Map<String, Object> map) {
         Object value = null;
 
         // Used to avoid recursive method calls
-        // Holds the sub-maps in the document hierarchy that are pending to be inspected.
-        // along with the current index of the `path`.
+        // Holds the sub-maps in the document hierarchy that are pending to be inspected along with the current index of the `path`.
         Deque<Tuple<Integer, Map<String, Object>>> queue = new ArrayDeque<>();
         queue.add(new Tuple<>(-1, map));
 
@@ -160,6 +159,7 @@ public class FieldHitExtractor implements HitExtractor {
             for (int i = idx + 1; i < path.length; i++) {
                 sj.add(path[i]);
                 Object node = subMap.get(sj.toString());
+                
                 if (node instanceof Map) {
                     if (i < path.length - 1) {
                         // Add the sub-map to the queue along with the current path index
@@ -169,23 +169,50 @@ public class FieldHitExtractor implements HitExtractor {
                         // If it is an object - it will be handled in the value extractor
                         value = node;
                     }
+                } else if (node instanceof List) {
+                    List listOfValues = (List) node;
+                    if (listOfValues.size() == 1) {
+                        // this is a List with a size of 1 e.g.: {"a" : [{"b" : "value"}]} meaning the JSON is a list with one element
+                        // or a list of values with one element e.g.: {"a": {"b" : ["value"]}}
+                        Object singleElement = listOfValues.get(0);
+                        if (singleElement instanceof Map) {
+                            if (i < path.length - 1) {
+                                // Add the sub-map to the queue along with the current path index
+                                queue.add(new Tuple<>(i, (Map<String, Object>) singleElement));
+                            } else {
+                                // We exhausted the path and got a map
+                                // If it is an object - it will be handled in the value extractor
+                                value = singleElement;
+                            }
+                        } else {
+                            checkPathValidity(i, value);
+                            value = singleElement;
+                        }
+                    } else {
+                        // a List of elements with more than one value. Break early and let unwrapMultiValue deal with the list
+                        return unwrapMultiValue(node);
+                    }
                 } else if (node != null) {
-                    if (i < path.length - 1) {
-                        // If we reach a concrete value without exhausting the full path, something is wrong with the mapping
-                        // e.g.: map is {"a" : { "b" : "value }} and we are looking for a path: "a.b.c.d"
-                        throw new SqlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
-                    }
-                    if (value != null) {
-                        // A value has already been found so this means that there are more than one
-                        // values in the document for the same path but different hierarchy.
-                        // e.g.: {"a" : {"b" : {"c" : "value"}}}, {"a.b" : {"c" : "value"}}, ...
-                        throw new SqlIllegalArgumentException("Multiple values (returned by [{}]) are not supported", fieldName);
-                    }
+                    checkPathValidity(i, value);
                     value = node;
                 }
             }
         }
         return unwrapMultiValue(value);
+    }
+
+    private void checkPathValidity(int index, Object value) {
+        if (index < path.length - 1) {
+            // If we reach a concrete value without exhausting the full path, something is wrong with the mapping
+            // e.g.: map is {"a" : { "b" : "value }} and we are looking for a path: "a.b.c.d"
+            throw new SqlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
+        }
+        if (value != null) {
+            // A value has already been found so this means that there are more than one
+            // values in the document for the same path but different hierarchy.
+            // e.g.: {"a" : {"b" : {"c" : "value"}}}, {"a.b" : {"c" : "value"}}, ...
+            throw new SqlIllegalArgumentException("Multiple values (returned by [{}]) are not supported", fieldName);
+        }
     }
 
     @Override

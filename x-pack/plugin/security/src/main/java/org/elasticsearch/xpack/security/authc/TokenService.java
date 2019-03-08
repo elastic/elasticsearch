@@ -129,9 +129,11 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
 /**
@@ -158,7 +160,6 @@ public final class TokenService {
             "\", error=\"invalid_token\", error_description=\"The access token expired\"";
     private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\"" + XPackField.SECURITY +
             "\", error=\"invalid_token\", error_description=\"The access token is malformed\"";
-    private static final String TYPE = "doc";
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
 
     public static final String THREAD_POOL_NAME = XPackField.SECURITY + "-token-key";
@@ -200,7 +201,6 @@ public final class TokenService {
                         SecurityIndexManager securityIndex, ClusterService clusterService) throws GeneralSecurityException {
         byte[] saltArr = new byte[SALT_BYTES];
         secureRandom.nextBytes(saltArr);
-
         final SecureString tokenPassphrase = generateTokenKey();
         this.settings = settings;
         this.clock = clock.withZone(ZoneOffset.UTC);
@@ -280,7 +280,7 @@ public final class TokenService {
                 builder.endObject();
                 final String documentId = getTokenDocumentId(userToken);
                 IndexRequest request =
-                        client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, documentId)
+                        client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, documentId)
                                 .setOpType(OpType.CREATE)
                                 .setSource(builder)
                                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
@@ -377,7 +377,7 @@ public final class TokenService {
             securityIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare security index", userTokenId, ex)),
                 () -> {
-                    final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE,
+                    final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME,
                         getTokenDocumentId(userTokenId)).request();
                     Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
@@ -427,7 +427,7 @@ public final class TokenService {
         byte[] bytes = token.getBytes(StandardCharsets.UTF_8);
         StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length);
         final Version version = Version.readVersion(in);
-        if (version.onOrAfter(Version.V_8_0_0)) {
+        if (version.onOrAfter(Version.V_7_1_0)) {
             // The token was created in a > 7.1.0 cluster so it contains the tokenId as a String
             String usedTokenId = in.readString();
             getUserTokenFromId(usedTokenId, listener);
@@ -638,10 +638,11 @@ public final class TokenService {
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String tokenId : tokenIds) {
-                UpdateRequest request = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, getTokenDocumentId(tokenId))
-                    .setDoc(srcPrefix, Collections.singletonMap("invalidated", true))
-                    .setFetchSource(srcPrefix, null)
-                    .request();
+                UpdateRequest request = client
+                        .prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getTokenDocumentId(tokenId))
+                        .setDoc(srcPrefix, Collections.singletonMap("invalidated", true))
+                        .setFetchSource(srcPrefix, null)
+                        .request();
                 bulkRequestBuilder.add(request);
             }
             bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
@@ -681,19 +682,19 @@ public final class TokenService {
                         if (retryTokenDocIds.isEmpty() == false) {
                             if (backoff.hasNext()) {
                                 logger.debug("failed to invalidate [{}] tokens out of [{}], retrying to invalidate these too",
-                                    retryTokenDocIds.size(), tokenIds.size());
-                                TokensInvalidationResult incompleteResult = new TokensInvalidationResult(invalidated, previouslyInvalidated,
-                                    failedRequestResponses);
-                                client.threadPool().schedule(
-                                    () -> indexInvalidation(retryTokenDocIds, listener, backoff, srcPrefix, incompleteResult),
-                                    backoff.next(), GENERIC);
+                                        retryTokenDocIds.size(), tokenIds.size());
+                                final TokensInvalidationResult incompleteResult = new TokensInvalidationResult(invalidated,
+                                        previouslyInvalidated, failedRequestResponses);
+                                final Runnable retryWithContextRunnable = client.threadPool().getThreadContext().preserveContext(
+                                        () -> indexInvalidation(retryTokenDocIds, listener, backoff, srcPrefix, incompleteResult));
+                                client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                             } else {
-                                logger.warn("failed to invalidate [{}] tokens out of [{}] after all retries",
-                                    retryTokenDocIds.size(), tokenIds.size());
+                                logger.warn("failed to invalidate [{}] tokens out of [{}] after all retries", retryTokenDocIds.size(),
+                                        tokenIds.size());
                             }
                         } else {
-                            TokensInvalidationResult result = new TokensInvalidationResult(invalidated, previouslyInvalidated,
-                                failedRequestResponses);
+                            final TokensInvalidationResult result = new TokensInvalidationResult(invalidated, previouslyInvalidated,
+                                    failedRequestResponses);
                             listener.onResponse(result);
                         }
                     }, e -> {
@@ -701,8 +702,9 @@ public final class TokenService {
                         traceLog("invalidate tokens", cause);
                         if (isShardNotAvailableException(cause) && backoff.hasNext()) {
                             logger.debug("failed to invalidate tokens, retrying ");
-                            client.threadPool().schedule(
-                                () -> indexInvalidation(tokenIds, listener, backoff, srcPrefix, previousResult), backoff.next(), GENERIC);
+                            final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
+                                    .preserveContext(() -> indexInvalidation(tokenIds, listener, backoff, srcPrefix, previousResult));
+                            client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                         } else {
                             listener.onFailure(e);
                         }
@@ -734,34 +736,39 @@ public final class TokenService {
      */
     private void findTokenFromRefreshToken(String refreshToken, ActionListener<SearchResponse> listener,
                                            Iterator<TimeValue> backoff) {
-        SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-            .setQuery(QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
-                .filter(QueryBuilders.termQuery("refresh_token.token", refreshToken)))
-            .seqNoAndPrimaryTerm(true)
-            .request();
-
+        final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("find token by refresh token", refreshToken, ex));
+        final Consumer<Exception> maybeRetryOnFailure = ex -> {
+            if (backoff.hasNext()) {
+                final TimeValue backofTimeValue = backoff.next();
+                logger.debug("retrying after [" + backofTimeValue + "] back off");
+                final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
+                        .preserveContext(() -> findTokenFromRefreshToken(refreshToken, listener, backoff));
+                client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);
+            } else {
+                logger.warn("failed to find token from refresh token after all retries");
+                onFailure.accept(ex);
+            }
+        };
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.indexExists() == false) {
             logger.warn("security index does not exist therefore refresh token [{}] cannot be validated", refreshToken);
             listener.onFailure(invalidGrantException("could not refresh the requested token"));
         } else if (frozenSecurityIndex.isAvailable() == false) {
             logger.debug("security index is not available to find token from refresh token, retrying");
-            client.threadPool().scheduleWithFixedDelay(
-                () -> findTokenFromRefreshToken(refreshToken, listener, backoff), backoff.next(), GENERIC);
+            maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
         } else {
-            Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("find by refresh token", refreshToken, ex));
+            final SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
+                    .setQuery(QueryBuilders.boolQuery()
+                            .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
+                            .filter(QueryBuilders.termQuery("refresh_token.token", refreshToken)))
+                    .seqNoAndPrimaryTerm(true)
+                    .request();
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                     ActionListener.<SearchResponse>wrap(searchResponse -> {
                         if (searchResponse.isTimedOut()) {
-                            if (backoff.hasNext()) {
-                                client.threadPool().scheduleWithFixedDelay(
-                                    () -> findTokenFromRefreshToken(refreshToken, listener, backoff), backoff.next(), GENERIC);
-                            } else {
-                                logger.warn("could not find token document with refresh_token [{}] after all retries", refreshToken);
-                                onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                            }
+                            logger.debug("find token from refresh token response timed out, retrying");
+                            maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
                         } else if (searchResponse.getHits().getHits().length < 1) {
                             logger.warn("could not find token document with refresh_token [{}]", refreshToken);
                             onFailure.accept(invalidGrantException("could not refresh the requested token"));
@@ -772,14 +779,8 @@ public final class TokenService {
                         }
                     }, e -> {
                         if (isShardNotAvailableException(e)) {
-                            if (backoff.hasNext()) {
-                                logger.debug("failed to find token for refresh token [{}], retrying", refreshToken);
-                                client.threadPool().scheduleWithFixedDelay(
-                                    () -> findTokenFromRefreshToken(refreshToken, listener, backoff), backoff.next(), GENERIC);
-                            } else {
-                                logger.warn("could not find token document with refresh_token [{}] after all retries", refreshToken);
-                                onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                            }
+                            logger.debug("find token from refresh token request failed because of unavailable shards, retrying");
+                            maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
                         } else {
                             onFailure.accept(e);
                         }
@@ -804,7 +805,7 @@ public final class TokenService {
     private void innerRefresh(String tokenDocId, Map<String, Object> source, long seqNo, long primaryTerm, Authentication clientAuth,
                               ActionListener<Tuple<UserToken, String>> listener, Iterator<TimeValue> backoff, Instant refreshRequested) {
         logger.debug("Attempting to refresh token [{}]", tokenDocId);
-        Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
+        final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
         final Optional<ElasticsearchSecurityException> invalidSource = checkTokenDocForRefresh(source, clientAuth);
         if (invalidSource.isPresent()) {
             onFailure.accept(invalidSource.get());
@@ -815,6 +816,19 @@ public final class TokenService {
                 logger.debug("Token document [{}] was recently refreshed, attempting to reuse [{}] for returning an " +
                     "access token and refresh token", tokenDocId, supersedingTokenDocId);
                 final ActionListener<GetResponse> getSupersedingListener = new ActionListener<GetResponse>() {
+                    private final Consumer<Exception> maybeRetryOnFailure = ex -> {
+                        if (backoff.hasNext()) {
+                            final TimeValue backofTimeValue = backoff.next();
+                            logger.debug("retrying after [" + backofTimeValue + "] back off");
+                            final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
+                                    .preserveContext(() -> getTokenDocAsync(supersedingTokenDocId, this));
+                            client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);
+                        } else {
+                            logger.warn("back off retries exhausted");
+                            onFailure.accept(ex);
+                        }
+                    };
+
                     @Override
                     public void onResponse(GetResponse response) {
                         if (response.isExists()) {
@@ -826,30 +840,20 @@ public final class TokenService {
                                 (Map<String, Object>) supersedingTokenSource.get("refresh_token");
                             final String supersedingRefreshTokenValue = (String) supersedingRefreshTokenSrc.get("token");
                             reIssueTokens(supersedingUserTokenSource, supersedingRefreshTokenValue, listener);
-                        } else if (backoff.hasNext()) {
+                        } else {
                             // We retry this since the creation of the superseding token document might already be in flight but not
                             // yet completed, triggered by a refresh request that came a few milliseconds ago
                             logger.info("could not find superseding token document [{}] for token document [{}], retrying",
-                                supersedingTokenDocId, tokenDocId);
-                            client.threadPool().schedule(() -> getTokenDocAsync(supersedingTokenDocId, this), backoff.next(), GENERIC);
-                        } else {
-                            logger.warn("could not find superseding token document [{}] for token document [{}] after all retries",
-                                supersedingTokenDocId, tokenDocId);
-                            onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                                    supersedingTokenDocId, tokenDocId);
+                            maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
                         }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         if (isShardNotAvailableException(e)) {
-                            if (backoff.hasNext()) {
-                                logger.info("could not find superseding token document [{}] for refresh, retrying", supersedingTokenDocId);
-                                client.threadPool().schedule(
-                                    () -> getTokenDocAsync(supersedingTokenDocId, this), backoff.next(), GENERIC);
-                            } else {
-                                logger.warn("could not find token document [{}] for refresh after all retries", supersedingTokenDocId);
-                                onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                            }
+                            logger.info("could not find superseding token document [{}] for refresh, retrying", supersedingTokenDocId);
+                            maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
                         } else {
                             logger.warn("could not find superseding token document [{}] for refresh", supersedingTokenDocId);
                             onFailure.accept(invalidGrantException("could not refresh the requested token"));
@@ -880,7 +884,7 @@ public final class TokenService {
                 updateMap.put("refresh_time", refreshTime.toEpochMilli());
                 updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
                 UpdateRequestBuilder updateRequest =
-                    client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
+                    client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, tokenDocId)
                         .setDoc("refresh_token", updateMap)
                         .setFetchSource(true)
                         .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
@@ -897,10 +901,10 @@ public final class TokenService {
                             } else if (backoff.hasNext()) {
                                 logger.info("failed to update the original token document [{}], the update result was [{}]. Retrying",
                                     tokenDocId, updateResponse.getResult());
-                                client.threadPool().schedule(
-                                    () -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, listener, backoff,
-                                        refreshRequested),
-                                    backoff.next(), GENERIC);
+                                final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
+                                        .preserveContext(() -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, listener,
+                                                backoff, refreshRequested));
+                                client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                             } else {
                                 logger.info("failed to update the original token document [{}] after all retries, " +
                                     "the update result was [{}]. ", tokenDocId, updateResponse.getResult());
@@ -910,51 +914,44 @@ public final class TokenService {
                             Throwable cause = ExceptionsHelper.unwrapCause(e);
                             if (cause instanceof VersionConflictEngineException) {
                                 //The document has been updated by another thread, get it again.
-                                if (backoff.hasNext()) {
-                                    logger.debug("version conflict while updating document [{}], attempting to get it again",
-                                        tokenDocId);
-                                    final ActionListener<GetResponse> getListener = new ActionListener<GetResponse>() {
-                                        @Override
-                                        public void onResponse(GetResponse response) {
-                                            if (response.isExists()) {
-                                                innerRefresh(tokenDocId, response.getSource(), response.getSeqNo(),
-                                                    response.getPrimaryTerm(), clientAuth, listener, backoff, refreshRequested);
+                                logger.debug("version conflict while updating document [{}], attempting to get it again", tokenDocId);
+                                final ActionListener<GetResponse> getListener = new ActionListener<GetResponse>() {
+                                    @Override
+                                    public void onResponse(GetResponse response) {
+                                        if (response.isExists()) {
+                                            innerRefresh(tokenDocId, response.getSource(), response.getSeqNo(), response.getPrimaryTerm(),
+                                                    clientAuth, listener, backoff, refreshRequested);
+                                        } else {
+                                            logger.warn("could not find token document [{}] for refresh", tokenDocId);
+                                            onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                                        }
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        if (isShardNotAvailableException(e)) {
+                                            if (backoff.hasNext()) {
+                                                logger.info("could not get token document [{}] for refresh, retrying", tokenDocId);
+                                                final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
+                                                        .preserveContext(() -> getTokenDocAsync(tokenDocId, this));
+                                                client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                                             } else {
-                                                logger.warn("could not find token document [{}] for refresh", tokenDocId);
+                                                logger.warn("could not get token document [{}] for refresh after all retries", tokenDocId);
                                                 onFailure.accept(invalidGrantException("could not refresh the requested token"));
                                             }
+                                        } else {
+                                            onFailure.accept(e);
                                         }
-
-                                        @Override
-                                        public void onFailure(Exception e) {
-                                            if (isShardNotAvailableException(e)) {
-                                                if (backoff.hasNext()) {
-                                                    logger.info("could not get token document [{}] for refresh, " +
-                                                        "retrying", tokenDocId);
-                                                    client.threadPool().schedule(
-                                                        () -> getTokenDocAsync(tokenDocId, this), backoff.next(), GENERIC);
-                                                } else {
-                                                    logger.warn("could not get token document [{}] for refresh after all retries",
-                                                        tokenDocId);
-                                                    onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                                                }
-                                            } else {
-                                                onFailure.accept(e);
-                                            }
-                                        }
-                                    };
-                                    getTokenDocAsync(tokenDocId, getListener);
-                                } else {
-                                    logger.warn("version conflict while updating document [{}], no retries left", tokenDocId);
-                                    onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                                }
+                                    }
+                                };
+                                getTokenDocAsync(tokenDocId, getListener);
                             } else if (isShardNotAvailableException(e)) {
                                 if (backoff.hasNext()) {
                                     logger.debug("failed to update the original token document [{}], retrying", tokenDocId);
-                                    client.threadPool().schedule(
-                                        () -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, listener, backoff,
-                                            refreshRequested),
-                                        backoff.next(), GENERIC);
+                                    final Runnable retryWithContextRunnable = client.threadPool().getThreadContext().preserveContext(
+                                            () -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, listener, backoff,
+                                                    refreshRequested));
+                                    client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                                 } else {
                                     logger.warn("failed to update the original token document [{}], after all retries", tokenDocId);
                                     onFailure.accept(invalidGrantException("could not refresh the requested token"));
@@ -970,7 +967,7 @@ public final class TokenService {
 
     private void getTokenDocAsync(String tokenDocId, ActionListener<GetResponse> listener) {
         GetRequest getRequest =
-            client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId).request();
+            client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, tokenDocId).request();
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get);
     }
 
@@ -1047,7 +1044,7 @@ public final class TokenService {
         Version authVersion = Version.fromId(version);
         final Boolean refreshed = (Boolean) refreshTokenSrc.get("refreshed");
         if (refreshed) {
-            if (authVersion.onOrAfter(Version.V_8_0_0)) {
+            if (authVersion.onOrAfter(Version.V_7_1_0)) {
                 final Long refreshedEpochMilli = (Long) refreshTokenSrc.get("refresh_time");
                 final Instant refreshTime = refreshedEpochMilli == null ? null : Instant.ofEpochMilli(refreshedEpochMilli);
                 final String supersededBy = (String) refreshTokenSrc.get("superseded_by");
@@ -1086,7 +1083,7 @@ public final class TokenService {
         final Long refreshedEpochMilli = (Long) refreshTokenSrc.get("refresh_time");
         final Instant refreshTime = refreshedEpochMilli == null ? null : Instant.ofEpochMilli(refreshedEpochMilli);
         final String supersededBy = (String) refreshTokenSrc.get("superseded_by");
-        return authVersion.onOrAfter(Version.V_8_0_0)
+        return authVersion.onOrAfter(Version.V_7_1_0)
             && supersededBy != null
             && refreshTime != null
             && refreshRequested.isBefore(refreshTime.plus(30L, ChronoUnit.SECONDS))
@@ -1127,7 +1124,7 @@ public final class TokenService {
                     )
                 );
 
-            final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            final SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
@@ -1170,7 +1167,7 @@ public final class TokenService {
                     )
                 );
 
-            final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            final SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
@@ -1277,8 +1274,8 @@ public final class TokenService {
             listener.onResponse(null);
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE,
-                    getTokenDocumentId(userToken)).request();
+                final GetRequest getRequest = client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getTokenDocumentId(userToken))
+                        .request();
                 Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
                     ActionListener.<GetResponse>wrap(response -> {
@@ -1347,11 +1344,11 @@ public final class TokenService {
 
     /**
      * Serializes a token to a String containing the version of the node that created the token and
-     * either an encrypted representation of the token id for versions earlier to 7.0.0 or the token ie
-     * itself for versions after 7.0.0
+     * either an encrypted representation of the token id for versions earlier to 7.1.0 or the token ie
+     * itself for versions after 7.1.0
      */
     public String getAccessTokenAsString(UserToken userToken) throws IOException, GeneralSecurityException {
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_8_0_0)) {
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_1_0)) {
             try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
                  OutputStream base64 = Base64.getEncoder().wrap(os);
                  StreamOutput out = new OutputStreamStreamOutput(base64)) {

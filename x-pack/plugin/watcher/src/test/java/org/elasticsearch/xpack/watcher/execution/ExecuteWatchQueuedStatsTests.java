@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.empty;
 
-public class ExecuteWatchQueuedStatsIT extends AbstractWatcherIntegrationTestCase {
+public class ExecuteWatchQueuedStatsTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

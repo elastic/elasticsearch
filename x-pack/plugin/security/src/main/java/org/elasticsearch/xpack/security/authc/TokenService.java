@@ -971,7 +971,7 @@ public final class TokenService {
         if (invalidated == null) {
             throw invalidGrantException("token document is missing invalidated value");
         } else if(invalidated) {
-            throw invalidGrantException("token has already been invalidated");
+            throw invalidGrantException("token has been invalidated");
         }
     }
 

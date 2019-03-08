@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -190,24 +191,22 @@ public class JoinHelper {
         }
 
         void maybeLogNow() {
-            if (isSuspiciousTransportException(exception)) {
-                logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exception);
-            } else {
-                logger.debug(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exception);
-            }
+            logger.log(getLogLevel(exception),
+                    () -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest),
+                    exception);
         }
 
-        boolean isSuspiciousTransportException(TransportException e) {
+        static Level getLogLevel(TransportException e) {
             if (e instanceof RemoteTransportException) {
                 Throwable cause = e.getCause();
                 if (cause != null &&
                         cause instanceof CoordinationStateRejectedException  ||
                         cause instanceof FailedToCommitClusterStateException ||
                         cause instanceof NotMasterException) {
-                    return false;
+                    return Level.DEBUG;
                 }
             }
-            return true;
+            return Level.INFO;
         }
 
         void logWarnWithTimestamp() {

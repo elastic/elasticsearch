@@ -20,6 +20,7 @@ This guide provides an overview of {ccr}:
 * <<ccr-requirements>>
 * <<ccr-auto-follow>>
 * <<ccr-getting-started>>
+* <<ccr-upgrading>>
 
 --
 
@@ -28,3 +29,4 @@ include::requirements.asciidoc[]
 include::auto-follow.asciidoc[]
 include::getting-started.asciidoc[]
 include::remote-recovery.asciidoc[]
+include::upgrading.asciidoc[]

@@ -352,7 +352,7 @@ public class ExecutionService {
             .field(WatchField.STATUS.getPreferredName(), watch.status(), params)
             .endObject();
 
-        UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, watch.id());
+        UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, watch.id());
         updateRequest.doc(source);
         updateRequest.setIfSeqNo(watch.getSourceSeqNo());
         updateRequest.setIfPrimaryTerm(watch.getSourcePrimaryTerm());
@@ -501,7 +501,7 @@ public class ExecutionService {
      */
     private GetResponse getWatch(String id) {
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
-            GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, id).preference(Preference.LOCAL.type()).realtime(true);
+            GetRequest getRequest = new GetRequest(Watch.INDEX, id).preference(Preference.LOCAL.type()).realtime(true);
             PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
             client.get(getRequest, future);
             return future.actionGet();

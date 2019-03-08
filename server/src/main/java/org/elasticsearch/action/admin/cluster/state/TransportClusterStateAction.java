@@ -20,9 +20,13 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -34,17 +38,24 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportClusterStateAction.class);
+
+    private final ClusterStateSizeByVersionCache clusterStateSizeByVersionCache;
 
     @Inject
     public TransportClusterStateAction(TransportService transportService, ClusterService clusterService,
@@ -52,6 +63,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
         super(ClusterStateAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
               ClusterStateRequest::new, indexNameExpressionResolver);
+        clusterStateSizeByVersionCache = new ClusterStateSizeByVersionCache(threadPool);
     }
 
     @Override
@@ -182,9 +194,56 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 }
             }
         }
-        listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(),
-            PublicationTransportHandler.serializeFullClusterState(currentState, Version.CURRENT).length(), false));
+
+        clusterStateSizeByVersionCache.getOrComputeCachedSize(currentState.version(),
+            () -> PublicationTransportHandler.serializeFullClusterState(currentState, Version.CURRENT).length(),
+            ActionListener.wrap(size ->
+                listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(), size, false)),
+                listener::onFailure));
     }
 
+    static class ClusterStateSizeByVersionCache {
 
+        // allow space for the sizes of the current and previous two cluster states to allow for out-of-order calls
+        static final int CACHE_SIZE = 3;
+
+        private final ThreadPool threadPool;
+
+        ClusterStateSizeByVersionCache(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+        }
+
+        // The cluster state version might not completely determine its compressed size, because some changes (e.g. applying the no-master
+        // block) are made without updating its version. In practice it's close enough: most changes do update its version, and the
+        // size computed here is only used for reporting, so this is a reasonable approximation.
+        private Map<Long, PlainListenableActionFuture<Integer>> clusterStateSizeByVersionCache
+            = new LinkedHashMap<Long, PlainListenableActionFuture<Integer>>(CACHE_SIZE) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry eldest) {
+                return size() > CACHE_SIZE;
+            }
+        };
+
+        synchronized void getOrComputeCachedSize(final long clusterStateVersion,
+                                                 final CheckedSupplier<Integer, IOException> sizeSupplier,
+                                                 final ActionListener<Integer> listener) {
+            clusterStateSizeByVersionCache.computeIfAbsent(clusterStateVersion, v -> {
+                final PlainListenableActionFuture<Integer> future = PlainListenableActionFuture.newListenableFuture();
+                threadPool.generic().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(
+                            new ParameterizedMessage("failed to compute size of cluster state version {}", clusterStateVersion), e);
+                        future.onFailure(e);
+                    }
+
+                    @Override
+                    protected void doRun() throws IOException {
+                        future.onResponse(sizeSupplier.get());
+                    }
+                });
+                return future;
+            }).addListener(listener);
+        }
+    }
 }

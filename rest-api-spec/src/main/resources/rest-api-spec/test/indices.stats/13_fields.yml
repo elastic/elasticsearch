@@ -3,7 +3,6 @@ setup:
 
   - do:
       indices.create:
-          include_type_name: false
           index:  test1
           wait_for_active_shards: all
           body:

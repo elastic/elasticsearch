@@ -40,19 +40,8 @@
                           }
                         },
                         {
-                          "bool": {
-                            "should": [
-                              {
-                                "term": {
-                                  "_type": "cluster_stats"
-                                }
-                              },
-                              {
-                                "term": {
-                                  "type": "cluster_stats"
-                                }
-                              }
-                            ]
+                          "term": {
+                            "type": "cluster_stats"
                           }
                         },
                         {
@@ -148,7 +137,6 @@
     "add_to_alerts_index": {
       "index": {
         "index": ".monitoring-alerts-6",
-        "doc_type": "doc",
         "doc_id": "${monitoring.watch.unique_id}"
       }
     },

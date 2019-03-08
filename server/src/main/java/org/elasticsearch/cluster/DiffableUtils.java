@@ -474,8 +474,10 @@ public final class DiffableUtils {
             }
             out.writeVInt(upsertsCount);
             for (Map.Entry<K, T> entry : upserts.entrySet()) {
-                keySerializer.writeKey(entry.getKey(), out);
-                valueSerializer.write(entry.getValue(), out);
+                if(valueSerializer.supportsVersion(entry.getValue(), version)) {
+                    keySerializer.writeKey(entry.getKey(), out);
+                    valueSerializer.write(entry.getValue(), out);
+                }
             }
         }
     }

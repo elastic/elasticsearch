@@ -48,9 +48,9 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
     static final String STOP_WARNING_MSG =
             DELIMITER +
-            "\n" +
-            "    WARNING: Elasticsearch MUST be stopped before running this tool." +
-            "\n";
+                    "\n" +
+                    "    WARNING: Elasticsearch MUST be stopped before running this tool." +
+                    "\n";
     static final String FAILED_TO_OBTAIN_NODE_LOCK_MSG = "failed to lock node's directory, is Elasticsearch still running?";
     static final String NO_NODE_FOLDER_FOUND_MSG = "no node folder is found in data folder(s), node has not been started yet?";
     static final String NO_MANIFEST_FILE_FOUND_MSG = "no manifest file is found, do you run pre 7.0 Elasticsearch?";

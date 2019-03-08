@@ -226,17 +226,17 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testSecurityAckTrialStandardGoldOrPlatinumToBasic() {
-        assertAckMesssages(XPackField.SECURITY, randomTrialStandardGoldOrPlatinumMode(), BASIC, 3);
+        assertAckMesssages(XPackField.SECURITY, randomTrialStandardGoldOrPlatinumMode(), BASIC, 4);
     }
 
     public void testSecurityAckAnyToStandard() {
         OperationMode from = randomFrom(BASIC, GOLD, PLATINUM, TRIAL);
-        assertAckMesssages(XPackField.SECURITY, from, STANDARD, 4);
+        assertAckMesssages(XPackField.SECURITY, from, STANDARD, 5);
     }
 
     public void testSecurityAckBasicStandardTrialOrPlatinumToGold() {
         OperationMode from = randomFrom(BASIC, PLATINUM, TRIAL, STANDARD);
-        assertAckMesssages(XPackField.SECURITY, from, GOLD, 2);
+        assertAckMesssages(XPackField.SECURITY, from, GOLD, 3);
     }
 
     public void testMonitoringAckBasicToAny() {

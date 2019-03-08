@@ -20,7 +20,7 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionCollection
+import org.elasticsearch.gradle.BwcVersions
 
 import java.nio.charset.StandardCharsets
 
@@ -33,7 +33,7 @@ import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
  *  unreleased versions are when Gradle projects are set up, so we use "build-unreleased-version-*" as placeholders
  *  and configure them to build various versions here.
  */
-bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unreleasedVersion -> project("${project.path}:${unreleasedVersion.gradleProjectName}") {
+bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleasedVersion -> project("${unreleasedVersion.gradleProjectPath}") {
     Version bwcVersion = unreleasedVersion.version
     String bwcBranch = unreleasedVersion.branch
     apply plugin: 'distribution'
@@ -141,6 +141,12 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
             extension += '.gz'
           }
         }
+        if (bwcVersion.onOrAfter('7.0.0') && projectName.contains('deb')) {
+          classifier = "-amd64"
+        }
+        if (bwcVersion.onOrAfter('7.0.0') && projectName.contains('rpm')) {
+          classifier = "-x86_64"
+        }
         if (bwcVersion.onOrAfter('6.3.0')) {
             baseDir += projectName.endsWith('zip') || projectName.endsWith('tar') ? '/archives' : '/packages'
             // add oss variant first
@@ -200,6 +206,9 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
                 args "--stacktrace"
             } else if (showStacktraceName.equals("ALWAYS_FULL")) {
                 args "--full-stacktrace"
+            }
+            if (gradle.getStartParameter().isParallelProjectExecutionEnabled()) {
+                args "--parallel"
             }
             standardOutput = new IndentingOutputStream(System.out, bwcVersion)
             errorOutput = new IndentingOutputStream(System.err, bwcVersion)

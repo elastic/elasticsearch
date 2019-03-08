@@ -23,7 +23,6 @@
 
     - do:
         indices.create:
-          include_type_name: false
           index: test_deprecated_htmlstrip
           body:
             settings:
@@ -77,7 +76,7 @@
                 analysis:
                   tokenizer:
                     trigram:
-                      type: nGram
+                      type: ngram
                       min_gram: 3
                       max_gram: 3
                   filter:

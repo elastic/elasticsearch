@@ -150,10 +150,10 @@ will be prefixed with their remote cluster name:
     "max_score": 1,
     "hits": [
       {
-        "_index": "cluster_one:twitter",
+        "_index": "twitter",
         "_type": "_doc",
         "_id": "0",
-        "_score": 1,
+        "_score": 2,
         "_source": {
           "user": "kimchy",
           "date": "2009-11-15T14:12:12",
@@ -162,10 +162,10 @@ will be prefixed with their remote cluster name:
         }
       },
       {
-        "_index": "twitter",
+        "_index": "cluster_one:twitter",
         "_type": "_doc",
         "_id": "0",
-        "_score": 2,
+        "_score": 1,
         "_source": {
           "user": "kimchy",
           "date": "2009-11-15T14:12:12",
@@ -243,10 +243,10 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
     "max_score": 1,
     "hits": [
       {
-        "_index": "cluster_one:twitter",
+        "_index": "twitter",
         "_type": "_doc",
         "_id": "0",
-        "_score": 1,
+        "_score": 2,
         "_source": {
           "user": "kimchy",
           "date": "2009-11-15T14:12:12",
@@ -255,10 +255,10 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
         }
       },
       {
-        "_index": "twitter",
+        "_index": "cluster_one:twitter",
         "_type": "_doc",
         "_id": "0",
-        "_score": 2,
+        "_score": 1,
         "_source": {
           "user": "kimchy",
           "date": "2009-11-15T14:12:12",

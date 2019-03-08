@@ -29,16 +29,16 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
 
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.joda.time.DateTimeZone.UTC;
 
 /**
  * This action internally has two modes of operation - an insert and an update mode
@@ -77,10 +77,11 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     @Override
     protected void doExecute(PutWatchRequest request, ActionListener<PutWatchResponse> listener) {
         try {
-            DateTime now = new DateTime(clock.millis(), UTC);
+            ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
             boolean isUpdate = request.getVersion() > 0 || request.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
             Watch watch = parser.parseWithSecrets(request.getId(), false, request.getSource(), now, request.xContentType(),
                 isUpdate, request.getIfSeqNo(), request.getIfPrimaryTerm());
+
             watch.setState(request.isActive(), now);
 
             // ensure we only filter for the allowed headers

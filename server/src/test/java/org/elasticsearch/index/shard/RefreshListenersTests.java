@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -122,12 +123,30 @@ public class RefreshListenersTests extends ESTestCase {
         final String translogUUID =
             Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm);
         store.associateIndexWithNewTranslog(translogUUID);
-        EngineConfig config = new EngineConfig(shardId, allocationId, threadPool,
-            indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
-            eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-            TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null,
-            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, Collections::emptyList,
-                () -> primaryTerm, EngineTestCase.tombstoneDocSupplier());
+        EngineConfig config = new EngineConfig(
+                shardId,
+                allocationId,
+                threadPool,
+                indexSettings,
+                null,
+                store,
+                newMergePolicy(),
+                iwc.getAnalyzer(),
+                iwc.getSimilarity(),
+                new CodecService(null, logger),
+                eventListener,
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                translogConfig,
+                TimeValue.timeValueMinutes(5),
+                Collections.singletonList(listeners),
+                Collections.emptyList(),
+                null,
+                new NoneCircuitBreakerService(),
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                () -> RetentionLeases.EMPTY,
+                () -> primaryTerm,
+                EngineTestCase.tombstoneDocSupplier());
         engine = new InternalEngine(config);
         engine.initializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);

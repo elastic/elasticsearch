@@ -2,7 +2,6 @@
 setup:
   - do:
       indices.create:
-        include_type_name: false
         index: test-0
         body:
           settings:
@@ -22,7 +21,6 @@ setup:
 
   - do:
       indices.create:
-        include_type_name: false
         index: test-1
         body:
           settings:

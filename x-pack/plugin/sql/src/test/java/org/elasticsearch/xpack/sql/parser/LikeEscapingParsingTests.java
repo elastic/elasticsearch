@@ -13,10 +13,9 @@ import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class LikeEscapingParsingTests extends ESTestCase {
 
@@ -33,7 +32,7 @@ public class LikeEscapingParsingTests extends ESTestCase {
         Expression exp = null;
         boolean parameterized = randomBoolean();
         if (parameterized) {
-            exp = parser.createExpression("exp LIKE ?", singletonList(new SqlTypedParamValue(DataType.KEYWORD.esType, pattern)));
+            exp = parser.createExpression("exp LIKE ?", singletonList(new SqlTypedParamValue(DataType.KEYWORD.typeName, pattern)));
         } else {
             exp = parser.createExpression(format(null, "exp LIKE '{}'", pattern));
         }

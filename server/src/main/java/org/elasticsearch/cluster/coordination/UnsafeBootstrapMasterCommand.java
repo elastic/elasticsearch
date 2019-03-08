@@ -45,16 +45,15 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
     static final String CLUSTER_STATE_TERM_VERSION_MSG_FORMAT =
             "Current node cluster state (term, version) pair is (%s, %s)";
     static final String CONFIRMATION_MSG =
-            DELIMITER +
+        DELIMITER +
             "\n" +
-            "You should run this tool only if you have permanently lost half or more\n" +
-            "of the master-eligible nodes, and you cannot restore the cluster from\n" +
-            "a snapshot.\n" +
-            "This tool can cause arbitrary data loss and its use should be your last\n" +
-            "resort.\n" +
-            "If you have multiple survived master eligible nodes, consider running\n" +
-            "this tool on the node with the highest cluster state (term, version)\n" +
-            "pair.\n" +
+            "You should only run this tool if you have permanently lost half or more\n" +
+            "of the master-eligible nodes in this cluster, and you cannot restore the\n" +
+            "cluster from a snapshot. This tool can cause arbitrary data loss and its\n" +
+            "use should be your last resort. If you have multiple surviving master\n" +
+            "eligible nodes, you should run this tool on the node with the highest\n" +
+            "cluster state (term, version) pair.\n" +
+            "\n" +
             "Do you want to proceed?\n";
 
     static final String NOT_MASTER_NODE_MSG = "unsafe-bootstrap tool can only be run on master eligible node";

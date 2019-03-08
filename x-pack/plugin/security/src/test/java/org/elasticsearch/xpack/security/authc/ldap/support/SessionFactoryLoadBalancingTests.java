@@ -175,6 +175,8 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
     @SuppressForbidden(reason = "Allow opening socket for test")
     private MockSocket openMockSocket(InetAddress remoteAddress, int remotePort, InetAddress localAddress, int localPort)
             throws IOException {
+        logger.info("baz - remote: " + remoteAddress + " - " + remotePort);
+        logger.info("baz - local: " + localAddress + " - " + localPort);
         final MockSocket socket = new MockSocket();
         socket.setReuseAddress(true); // allow binding even if the previous socket is in timed wait state.
         socket.setSoLinger(true, 0); // close immediately as we are not writing anything here.
@@ -333,7 +335,9 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                             .filter(addr -> openedSockets.stream().noneMatch(s -> addr.equals(s.getLocalAddress())))
                             .filter(addr -> blacklistedAddress.contains(addr) == false)
                             .collect(Collectors.toList());
-
+                        logger.info("baz - all: " + Arrays.toString(InetAddressHelper.getAllAddresses()));
+                        logger.info("baz - only of same protocol: " + Arrays.toString(allAddresses));
+                        logger.info("baz - filtered: " + inetAddressesToBind);
                         for (InetAddress localAddress : inetAddressesToBind) {
                             try {
                                 final Socket socket = openMockSocket(serverAddress, serverPort, localAddress, portToBind);

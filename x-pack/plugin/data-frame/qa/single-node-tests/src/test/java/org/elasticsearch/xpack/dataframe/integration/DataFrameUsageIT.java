@@ -35,7 +35,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         indicesCreated = true;
     }
 
-    public void testUsage() throws IOException {
+    public void testUsage() throws Exception {
         Response usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
 
         Map<?, ?> usageAsMap = entityAsMap(usageResponse);
@@ -47,6 +47,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
 
         // create a transform
         createPivotReviewsTransform("test_usage", "pivot_reviews", null);
+        startAndWaitForTransform("test_usage", "pivot_reviews");
 
         usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
 

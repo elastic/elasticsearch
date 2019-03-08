@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.dataframe.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,12 +25,12 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StartDataFrameTransformAction extends Action<StartDataFrameTransformAction.Response> {
+public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTransformTaskAction.Response> {
 
-    public static final StartDataFrameTransformAction INSTANCE = new StartDataFrameTransformAction();
-    public static final String NAME = "cluster:admin/data_frame/start";
+    public static final StartDataFrameTransformTaskAction INSTANCE = new StartDataFrameTransformTaskAction();
+    public static final String NAME = "cluster:admin/data_frame/start_task";
 
-    private StartDataFrameTransformAction() {
+    private StartDataFrameTransformTaskAction() {
         super(NAME);
     }
 
@@ -39,7 +39,7 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
         return new Response();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
+    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
 
         private String id;
 
@@ -96,7 +96,7 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
-        protected RequestBuilder(ElasticsearchClient client, StartDataFrameTransformAction action) {
+        protected RequestBuilder(ElasticsearchClient client, StartDataFrameTransformTaskAction action) {
             super(client, action, new Request());
         }
     }

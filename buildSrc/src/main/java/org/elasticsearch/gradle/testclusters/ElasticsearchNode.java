@@ -36,21 +36,14 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.AclEntry;
-import java.nio.file.attribute.AclEntryPermission;
-import java.nio.file.attribute.AclFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -152,6 +145,10 @@ public class ElasticsearchNode {
         plugin(plugin.toURI());
     }
 
+    public Path getConfigDir() {
+        return configFile.getParent();
+    }
+
     public void freeze() {
         requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
@@ -205,6 +202,7 @@ public class ElasticsearchNode {
         logger.info("Starting `{}`", this);
 
         Path distroArtifact = artifactsExtractDir
+            .resolve(distribution.getGroup())
             .resolve(distribution.getArtifactName() + "-" + getVersion());
 
         if (Files.exists(distroArtifact) == false) {
@@ -300,6 +298,16 @@ public class ElasticsearchNode {
     public String getTransportPortURI() {
         waitForAllConditions();
         return getTransportPortInternal().get(0);
+    }
+
+    public List<String> getAllHttpSocketURI() {
+        waitForAllConditions();
+        return getHttpPortInternal();
+    }
+
+    public List<String> getAllTransportPortURI() {
+        waitForAllConditions();
+        return getTransportPortInternal();
     }
 
     synchronized void stop(boolean tailLogs) {

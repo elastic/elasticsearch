@@ -5,8 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -17,20 +21,27 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
+import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -256,6 +267,55 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             DatafeedConfig updatedDatafeed = update.apply(datafeed, Collections.emptyMap());
 
             assertThat(datafeed, not(equalTo(updatedDatafeed)));
+        }
+    }
+
+    public void testSerializationOfComplexAggsBetweenVersions() throws IOException {
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("timestamp").field("timestamp");
+        AvgAggregationBuilder avgAggregationBuilder = AggregationBuilders.avg("bytes_in_avg").field("system.network.in.bytes");
+        DerivativePipelineAggregationBuilder derivativePipelineAggregationBuilder =
+            PipelineAggregatorBuilders.derivative("bytes_in_derivative", "bytes_in_avg");
+        BucketScriptPipelineAggregationBuilder bucketScriptPipelineAggregationBuilder =
+            PipelineAggregatorBuilders.bucketScript("non_negative_bytes",
+                Collections.singletonMap("bytes", "bytes_in_derivative"),
+                new Script("params.bytes > 0 ? params.bytes : null"));
+        DateHistogramAggregationBuilder dateHistogram =
+            AggregationBuilders.dateHistogram("histogram_buckets")
+                .field("timestamp").interval(300000).timeZone(ZoneOffset.UTC)
+                .subAggregation(maxTime)
+                .subAggregation(avgAggregationBuilder)
+                .subAggregation(derivativePipelineAggregationBuilder)
+                .subAggregation(bucketScriptPipelineAggregationBuilder);
+        AggregatorFactories.Builder aggs = new AggregatorFactories.Builder().addAggregator(dateHistogram);
+        DatafeedUpdate.Builder datafeedUpdateBuilder = new DatafeedUpdate.Builder("df-update-past-serialization-test");
+        datafeedUpdateBuilder.setAggregations(new AggProvider(
+            XContentObjectTransformer.aggregatorTransformer(xContentRegistry()).toMap(aggs),
+            aggs,
+            null));
+        // So equality check between the streamed and current passes
+        // Streamed DatafeedConfigs when they are before 6.6.0 require a parsed object for aggs and queries, consequently all the default
+        // values are added between them
+        datafeedUpdateBuilder.setQuery(
+            QueryProvider
+                .fromParsedQuery(QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)))));
+        DatafeedUpdate datafeedUpdate = datafeedUpdateBuilder.build();
+
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(Version.V_6_0_0);
+            datafeedUpdate.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                in.setVersion(Version.V_6_0_0);
+                DatafeedUpdate streamedDatafeedUpdate = new DatafeedUpdate(in);
+                assertEquals(datafeedUpdate, streamedDatafeedUpdate);
+
+                // Assert that the parsed versions of our aggs and queries work as well
+                assertEquals(aggs, streamedDatafeedUpdate.getParsedAgg(xContentRegistry()));
+                assertEquals(datafeedUpdate.getParsedQuery(xContentRegistry()), streamedDatafeedUpdate.getParsedQuery(xContentRegistry()));
+            }
         }
     }
 

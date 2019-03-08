@@ -122,11 +122,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         if (in.getVersion().before(Version.V_7_1_0)) {
             this.queryProvider = QueryProvider.fromParsedQuery(in.readOptionalNamedWriteable(QueryBuilder.class));
-            if (in.readBoolean()) {
-                this.aggProvider = AggProvider.fromParsedAggs(in.readOptionalWriteable(AggregatorFactories.Builder::new));
-            } else {
-                this.aggProvider = null;
-            }
+            this.aggProvider = AggProvider.fromParsedAggs(in.readOptionalWriteable(AggregatorFactories.Builder::new));
         } else {
             this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
             this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
@@ -171,14 +167,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             out.writeStringCollection(Collections.emptyList());
         }
         if (out.getVersion().before(Version.V_7_1_0)) {
-            out.writeBoolean(queryProvider != null);
-            if (queryProvider != null) {
-                out.writeNamedWriteable(queryProvider.getParsedQuery());
-            }
-            out.writeBoolean(aggProvider != null);
-            if (aggProvider != null) {
-                aggProvider.getParsedAggs().writeTo(out);
-            }
+            out.writeOptionalNamedWriteable(queryProvider == null ? null : queryProvider.getParsedQuery());
+            out.writeOptionalWriteable(aggProvider == null ? null : aggProvider.getParsedAggs());
         } else {
             out.writeOptionalWriteable(queryProvider);
             out.writeOptionalWriteable(aggProvider);

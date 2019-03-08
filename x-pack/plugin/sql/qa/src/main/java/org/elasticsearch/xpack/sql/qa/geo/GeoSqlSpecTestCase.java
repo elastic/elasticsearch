@@ -48,8 +48,8 @@ public abstract class GeoSqlSpecTestCase extends SpecBaseIntegrationTestCase {
 
     @Before
     public void setupTestGeoDataIfNeeded() throws Exception {
-        assumeTrue("Cannot support locales that don't use Hindu-Arabic numerals due to H2",
-                "42".equals(NumberFormat.getInstance(Locale.getDefault()).format(42)));
+        assumeTrue("Cannot support locales that don't use Hindu-Arabic numerals and non-ascii - sign due to H2",
+                "-42".equals(NumberFormat.getInstance(Locale.getDefault()).format(-42)));
         if (client().performRequest(new Request("HEAD", "/ogc")).getStatusLine().getStatusCode() == 404) {
             GeoDataLoader.loadOGCDatasetIntoEs(client(), "ogc");
         }

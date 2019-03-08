@@ -880,7 +880,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
                 indexService.mapperService().merge("type", new CompressedXContent(illegalMapping), MergeReason.MAPPING_UPDATE));
-            assertThat(e.getMessage(), containsString("Field [field._index_prefix] is defined twice in [type]"));
+            assertThat(e.getMessage(), containsString("Field [field._index_prefix] is defined twice."));
 
         }
 

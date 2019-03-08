@@ -715,7 +715,6 @@ public class TranslogTests extends ESTestCase {
             Translog.Snapshot filter = new Translog.SeqNoFilterSnapshot(snapshot, between(200, 300), between(300, 400)); // out range
             assertThat(filter, SnapshotMatchers.size(0));
             assertThat(filter.totalOperations(), equalTo(snapshot.totalOperations()));
-            assertThat(filter.overriddenOperations(), equalTo(snapshot.overriddenOperations()));
             assertThat(filter.skippedOperations(), equalTo(snapshot.totalOperations()));
         }
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
@@ -726,7 +725,6 @@ public class TranslogTests extends ESTestCase {
             Translog.Snapshot filter = new Translog.SeqNoFilterSnapshot(snapshot, fromSeqNo, toSeqNo);
             assertThat(filter, SnapshotMatchers.containsOperationsInAnyOrder(selectedOps));
             assertThat(filter.totalOperations(), equalTo(snapshot.totalOperations()));
-            assertThat(filter.overriddenOperations(), equalTo(snapshot.overriddenOperations()));
             assertThat(filter.skippedOperations(), equalTo(snapshot.skippedOperations() + operations.size() - selectedOps.size()));
         }
     }

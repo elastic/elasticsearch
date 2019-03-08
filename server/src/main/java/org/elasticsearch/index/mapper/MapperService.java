@@ -471,8 +471,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             Collections.addAll(fieldMappers, metadataMappers);
             MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers, fieldAliasMappers);
 
-            MapperMergeValidator.validateMapperStructure(newMapper.type(), objectMappers, fieldMappers,
-                fieldAliasMappers, fullPathObjectMappers, fieldTypes);
+            MapperMergeValidator.validateMapperStructure(objectMappers, fieldMappers, fieldAliasMappers);
             checkPartitionedIndexConstraints(newMapper);
 
             // update lookup data-structures

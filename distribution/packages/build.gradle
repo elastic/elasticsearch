@@ -145,7 +145,7 @@ Closure commonPackageConfig(String type, boolean oss) {
         String[] segments = fcp.relativePath.segments
         for (int i = segments.length - 2; i > 2; --i) {
           directory('/' + segments[0..i].join('/'), 0755)
-          if (segments[-2] == 'bin') {
+          if (segments[-2] == 'bin' || segments[-1] == 'jspawnhelper') {
             fcp.mode = 0755
           } else {
             fcp.mode = 0644

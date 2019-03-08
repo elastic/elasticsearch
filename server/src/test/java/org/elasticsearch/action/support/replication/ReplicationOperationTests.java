@@ -209,7 +209,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 new TransportException("TransportService is closed stopped can't send request"));
         } else if (randomBoolean()) {
             shardActionFailure = new TransportException(
-                "transport stopped, action: action: " + ShardStateAction.SHARD_FAILED_ACTION_NAME);
+                "transport stopped, action: " + ShardStateAction.SHARD_FAILED_ACTION_NAME);
         } else {
             shardActionFailure = new ShardStateAction.NoLongerPrimaryShardException(failedReplica.shardId(), "the king is dead");
         }

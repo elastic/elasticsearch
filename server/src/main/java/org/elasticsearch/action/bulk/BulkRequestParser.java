@@ -107,6 +107,26 @@ public final class BulkRequestParser {
      * {@code updateRequestConsumer} and delete requests to the {@code deleteRequestConsumer}.
      */
     public void parse(
+            BytesReference data, @Nullable String defaultIndex,
+            @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
+            @Nullable String defaultPipeline, boolean allowExplicitIndex,
+            XContentType xContentType,
+            Consumer<IndexRequest> indexRequestConsumer,
+            Consumer<UpdateRequest> updateRequestConsumer,
+            Consumer<DeleteRequest> deleteRequestConsumer) throws IOException {
+        parse(data, defaultIndex, null, defaultRouting, defaultFetchSourceContext, defaultPipeline, allowExplicitIndex, xContentType,
+                indexRequestConsumer, updateRequestConsumer, deleteRequestConsumer);
+    }
+
+    /**
+     * Parse the provided {@code data} assuming the provided default values. Index requests
+     * will be passed to the {@code indexRequestConsumer}, update requests to the
+     * {@code updateRequestConsumer} and delete requests to the {@code deleteRequestConsumer}.
+     * @deprecated Use {@link #parse(BytesReference, String, String, FetchSourceContext, String, boolean, XContentType,
+     * Consumer, Consumer, Consumer)} instead.
+     */
+    @Deprecated
+    public void parse(
             BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
             @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
             @Nullable String defaultPipeline, boolean allowExplicitIndex,

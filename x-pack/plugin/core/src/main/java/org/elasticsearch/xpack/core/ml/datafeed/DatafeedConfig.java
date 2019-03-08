@@ -211,7 +211,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
         }
         // each of these writables are version aware
-        this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
+        this.queryProvider = QueryProvider.fromStream(in);
         this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
         if (in.readBoolean()) {
@@ -419,7 +419,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
 
         // Each of these writables are version aware
-        out.writeOptionalWriteable(queryProvider);
+        queryProvider.writeTo(out); // never null
         out.writeOptionalWriteable(aggProvider);
 
         if (scriptFields != null) {

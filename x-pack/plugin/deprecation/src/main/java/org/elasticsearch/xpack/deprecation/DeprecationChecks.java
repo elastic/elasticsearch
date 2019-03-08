@@ -70,7 +70,8 @@ public class DeprecationChecks {
 			IndexDeprecationChecks::nodeLeftDelayedTimeCheck,
             IndexDeprecationChecks::shardOnStartupCheck,
             IndexDeprecationChecks::classicSimilarityMappingCheck,
-            IndexDeprecationChecks::classicSimilaritySettingsCheck
+            IndexDeprecationChecks::classicSimilaritySettingsCheck,
+            IndexDeprecationChecks::tooManyFieldsCheck
         ));
 
     static List<Function<DatafeedConfig, DeprecationIssue>> ML_SETTINGS_CHECKS =

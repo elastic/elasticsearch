@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -224,6 +225,33 @@ public class IndexDeprecationChecks {
                         "#_literal_fix_literal_value_for_literal_index_shard_check_on_startup_literal_is_removed",
                     "The index [" + indexMetaData.getIndex().getName() + "] has the setting [" + setting + "] set to value [fix]" +
                         ", but [fix] is no longer a valid value. Valid values are true, false, and checksum");
+            }
+        }
+        return null;
+    }
+
+    static DeprecationIssue tooManyFieldsCheck(IndexMetaData indexMetaData) {
+        if (indexMetaData.getSettings().get(IndexSettings.DEFAULT_FIELD_SETTING_KEY) == null) {
+            AtomicInteger fieldCount = new AtomicInteger(0);
+            fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> {
+                findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap, property -> {
+                    fieldCount.incrementAndGet();
+                    return false;
+                });
+            }));
+
+            // We can't get to the setting `indices.query.bool.max_clause_count` from here, so just check the default of that setting.
+            // It's also much better practice to set `index.query.default_field` than `indices.query.bool.max_clause_count` - there's a
+            // reason we introduced the limit.
+            if (fieldCount.get() > 1024) {
+                return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    "Number of fields exceeds automatic field expansion limit",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
+                        "#_limiting_the_number_of_auto_expanded_fields",
+                    "This index has [" + fieldCount.get() + "] fields, which exceeds the automatic field expansion limit of 1024 " +
+                        "and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING_KEY + "], set, which may cause queries which use " +
+                        "automatic field expansion, such as query_string, simple_query_string, and multi_match to fail if fields are not " +
+                        "explicitly specified in the query.");
             }
         }
         return null;

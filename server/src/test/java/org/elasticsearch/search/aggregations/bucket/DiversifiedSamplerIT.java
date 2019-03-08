@@ -242,4 +242,29 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
         assertNull(authors);
     }
 
+    public void testRidiculousSizeDiversity() throws Exception {
+        int MAX_DOCS_PER_AUTHOR = 1;
+        DiversifiedAggregationBuilder sampleAgg = new DiversifiedAggregationBuilder("sample").shardSize(Integer.MAX_VALUE);
+        sampleAgg.field("author").maxDocsPerValue(MAX_DOCS_PER_AUTHOR).executionHint(randomExecutionHint());
+        sampleAgg.subAggregation(terms("authors").field("author"));
+        SearchResponse response = client().prepareSearch("test")
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setQuery(new TermQueryBuilder("genre", "fantasy"))
+            .setFrom(0).setSize(60)
+            .addAggregation(sampleAgg)
+            .get();
+        assertSearchResponse(response);
+
+        sampleAgg = new DiversifiedAggregationBuilder("sample").shardSize(100);
+        sampleAgg.field("author").maxDocsPerValue(Integer.MAX_VALUE).executionHint(randomExecutionHint());
+        sampleAgg.subAggregation(terms("authors").field("author"));
+        response = client().prepareSearch("test")
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setQuery(new TermQueryBuilder("genre", "fantasy"))
+            .setFrom(0).setSize(60)
+            .addAggregation(sampleAgg)
+            .get();
+        assertSearchResponse(response);
+    }
+
 }

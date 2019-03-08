@@ -66,12 +66,10 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
      * Sole constructor.
      *
      * @param shardSize The number of top-scoring docs to collect for each bucket
-     * @param maxDoc The maximum number of docs for this index
+     * @param circuitBreakerConsumer consumer for tracking runtime bytes in request circuit breaker
      */
-    BestDocsDeferringCollector(int shardSize, BigArrays bigArrays, int maxDoc, Consumer<Long> circuitBreakerConsumer) {
-        // In the QueryPhase we don't need this protection, because it is built into the IndexSearcher,
-        // but here we create collectors ourselves and we need prevent OOM because of crazy size.
-        this.shardSize = Math.min(shardSize, maxDoc);
+    BestDocsDeferringCollector(int shardSize, BigArrays bigArrays, Consumer<Long> circuitBreakerConsumer) {
+        this.shardSize = shardSize;
         this.bigArrays = bigArrays;
         this.circuitBreakerConsumer = circuitBreakerConsumer;
         perBucketSamples = bigArrays.newObjectArray(1);

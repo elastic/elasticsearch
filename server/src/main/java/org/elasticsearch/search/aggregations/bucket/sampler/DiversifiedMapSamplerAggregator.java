@@ -54,8 +54,8 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
         super(name, shardSize, factories, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.maxDocsPerValue = maxDocsPerValue;
-        bucketOrds = new BytesRefHash(shardSize, context.bigArrays());
-
+        // Need to use super class shardSize since it is limited to maxDoc
+        bucketOrds = new BytesRefHash(this.shardSize, context.bigArrays());
     }
 
     @Override
@@ -78,7 +78,7 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
 
         DiverseDocsDeferringCollector(Consumer<Long> circuitBreakerConsumer) {
-            super(shardSize, context.bigArrays(), context.searcher().getIndexReader().maxDoc(), circuitBreakerConsumer);
+            super(shardSize, context.bigArrays(), circuitBreakerConsumer);
         }
 
         @Override

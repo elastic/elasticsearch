@@ -150,7 +150,8 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
     SamplerAggregator(String name, int shardSize, AggregatorFactories factories, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
-        this.shardSize = shardSize;
+        // Make sure we do not allow size > maxDoc, to prevent accidental OOM
+        this.shardSize = Math.min(shardSize, context.searcher().getIndexReader().maxDoc());
     }
 
     @Override
@@ -160,8 +161,7 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
 
     @Override
     public DeferringBucketCollector getDeferringCollector() {
-        bdd = new BestDocsDeferringCollector(shardSize, context.bigArrays(),
-            context.searcher().getIndexReader().maxDoc(), this::addRequestCircuitBreakerBytes);
+        bdd = new BestDocsDeferringCollector(shardSize, context.bigArrays(), this::addRequestCircuitBreakerBytes);
         return bdd;
     }
 

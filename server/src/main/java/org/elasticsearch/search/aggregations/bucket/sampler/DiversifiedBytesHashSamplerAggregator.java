@@ -72,7 +72,7 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
 
         DiverseDocsDeferringCollector(Consumer<Long> circuitBreakerConsumer) {
-            super(shardSize, context.bigArrays(), context.searcher().getIndexReader().maxDoc(), circuitBreakerConsumer);
+            super(shardSize, context.bigArrays(), circuitBreakerConsumer);
         }
 
 

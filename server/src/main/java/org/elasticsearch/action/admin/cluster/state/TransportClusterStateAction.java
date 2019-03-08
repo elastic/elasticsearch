@@ -47,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -77,7 +78,6 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         // cluster state calls are done also on a fully blocked cluster to figure out what is going
         // on in the cluster. For example, which nodes have joined yet the recovery has not yet kicked
         // in, we need to make sure we allow those calls
-        // return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
         return null;
     }
 
@@ -91,9 +91,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                                    final ActionListener<ClusterStateResponse> listener) throws IOException {
 
         if (request.waitForMetaDataVersion() != null) {
-            final Predicate<ClusterState> metadataVersionPredicate = clusterState -> {
-              return clusterState.metaData().version() >= request.waitForMetaDataVersion();
-            };
+            final Predicate<ClusterState> metadataVersionPredicate
+                = clusterState -> clusterState.metaData().version() >= request.waitForMetaDataVersion();
             final ClusterStateObserver observer =
                 new ClusterStateObserver(clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext());
             final ClusterState clusterState = observer.setAndGetObservedState();
@@ -133,7 +132,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
     private void buildResponse(final ClusterStateRequest request,
                                final ClusterState currentState,
-                               final ActionListener<ClusterStateResponse> listener) throws IOException {
+                               final ActionListener<ClusterStateResponse> listener) {
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
@@ -197,9 +196,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         clusterStateSizeByVersionCache.getOrComputeCachedSize(currentState.version(),
             () -> PublicationTransportHandler.serializeFullClusterState(currentState, Version.CURRENT).length(),
-            ActionListener.wrap(size ->
-                listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(), size, false)),
-                listener::onFailure));
+            ActionListener.map(listener, size -> new ClusterStateResponse(currentState.getClusterName(), builder.build(), size, false)));
     }
 
     static class ClusterStateSizeByVersionCache {
@@ -217,16 +214,16 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         // block) are made without updating its version. In practice it's close enough: most changes do update its version, and the
         // size computed here is only used for reporting, so this is a reasonable approximation.
         private Map<Long, PlainListenableActionFuture<Integer>> clusterStateSizeByVersionCache
-            = new LinkedHashMap<Long, PlainListenableActionFuture<Integer>>(CACHE_SIZE) {
+            = Collections.synchronizedMap(new LinkedHashMap<Long, PlainListenableActionFuture<Integer>>(CACHE_SIZE) {
             @Override
             protected boolean removeEldestEntry(Map.Entry eldest) {
                 return size() > CACHE_SIZE;
             }
-        };
+        });
 
-        synchronized void getOrComputeCachedSize(final long clusterStateVersion,
-                                                 final CheckedSupplier<Integer, IOException> sizeSupplier,
-                                                 final ActionListener<Integer> listener) {
+        void getOrComputeCachedSize(final long clusterStateVersion,
+                                    final CheckedSupplier<Integer, IOException> sizeSupplier,
+                                    final ActionListener<Integer> listener) {
             clusterStateSizeByVersionCache.computeIfAbsent(clusterStateVersion, v -> {
                 final PlainListenableActionFuture<Integer> future = PlainListenableActionFuture.newListenableFuture();
                 threadPool.generic().execute(new AbstractRunnable() {

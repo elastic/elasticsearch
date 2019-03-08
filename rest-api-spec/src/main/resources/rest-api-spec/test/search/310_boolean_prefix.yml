@@ -9,7 +9,7 @@ setup:
         body:
           mappings:
             properties:
-              text:
+              my_field:
                 type: text
 
   - do:
@@ -17,34 +17,34 @@ setup:
         index: test
         id: 1
         body:
-          text: "red fox jump"
+          my_field: "red fox jump"
 
   - do:
       index:
         index: test
         id: 2
         body:
-          text: "red fox"
+          my_field: "red fox"
 
   - do:
       index:
         index: test
         id: 3
         body:
-          text: "jumparound"
+          my_field: "jumparound"
 
   - do:
       index:
         index: test
         id: 4
         body:
-          text: "dog"
+          my_field: "dog"
 
   - do:
       indices.refresh: {}
 
 ---
-"all terms":
+"scoring":
 
   - do:
       search:
@@ -53,9 +53,44 @@ setup:
         body:
           query:
             boolean_prefix:
-              text: "red fox jump"
+              my_field: "red fox jump"
 
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._source.text: "red fox jump" }
-  - match: { hits.hits.1._source.text: "red fox" }
-  - match: { hits.hits.2._source.text: "jumparound" }
+  - match: { hits.hits.0._source.my_field: "red fox jump" }
+  - match: { hits.hits.1._source.my_field: "red fox" }
+  - match: { hits.hits.2._source.my_field: "jumparound" }
+
+---
+"minimum should match":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            boolean_prefix:
+              my_field:
+                query: "red fox jump"
+                minimum_should_match: 3
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.my_field: "red fox jump" }
+
+---
+"analyzer":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        explain: true
+        index: test
+        body:
+          query:
+            boolean_prefix:
+              my_field:
+                query: "RED dog"
+                analyzer: whitespace
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.my_field: "dog" }

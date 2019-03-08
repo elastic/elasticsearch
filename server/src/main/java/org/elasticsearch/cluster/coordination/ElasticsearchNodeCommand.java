@@ -44,8 +44,10 @@ import java.util.Objects;
 public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
     protected final NamedXContentRegistry namedXContentRegistry;
+    static final String DELIMITER = "------------------------------------------------------------------------\n";
+
     static final String STOP_WARNING_MSG =
-            "--------------------------------------------------------------------------\n" +
+            DELIMITER +
                     "\n" +
                     "    WARNING: Elasticsearch MUST be stopped before running this tool." +
                     "\n";

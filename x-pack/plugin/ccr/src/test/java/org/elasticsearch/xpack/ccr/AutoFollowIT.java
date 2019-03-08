@@ -131,7 +131,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             .build();
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
-        long numIndices = randomIntBetween(4, 32);
+        long numIndices = randomIntBetween(4, 16);
         for (int i = 0; i < numIndices; i++) {
             createLeaderIndex("logs-" + i, leaderIndexSettings);
         }
@@ -145,7 +145,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 assertThat(autoFollowStats[0].getNumberOfSuccessfulFollowIndices(), equalTo(expectedVal1));
             });
         } catch (AssertionError ae) {
-            logger.warn("metadata={}", Strings.toString(metaData[0]));
+            logger.warn("indices={}", Arrays.toString(metaData[0].indices().keys().toArray(String.class)));
             logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
             throw ae;
         }
@@ -160,7 +160,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 assertThat(autoFollowStats[0].getAutoFollowedClusters().size(), equalTo(0));
             });
         } catch (AssertionError ae) {
-            logger.warn("metadata={}", Strings.toString(metaData[0]));
+            logger.warn("indices={}", Arrays.toString(metaData[0].indices().keys().toArray(String.class)));
             logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
             throw ae;
         }
@@ -168,7 +168,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
         long i = numIndices;
-        numIndices = numIndices + randomIntBetween(4, 32);
+        numIndices = numIndices + randomIntBetween(4, 8);
         for (; i < numIndices; i++) {
             createLeaderIndex("logs-" + i, leaderIndexSettings);
         }
@@ -185,7 +185,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 assertThat(autoFollowStats[0].getRecentAutoFollowErrors().size(), equalTo(0));
             });
         } catch (AssertionError ae) {
-            logger.warn("metadata={}", Strings.toString(metaData[0]));
+            logger.warn("indices={}", Arrays.toString(metaData[0].indices().keys().toArray(String.class)));
             logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
             throw ae;
         }

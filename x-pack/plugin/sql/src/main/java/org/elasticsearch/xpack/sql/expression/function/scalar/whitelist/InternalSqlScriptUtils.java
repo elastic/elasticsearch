@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDat
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistanceProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosqlProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
@@ -483,6 +485,22 @@ public final class InternalSqlScriptUtils {
 
     public static GeoShape wktToSql(String wktString) {
         return StWkttosqlProcessor.apply(wktString);
+    }
+
+    public static Double distance(Object v1, Object v2) {
+        return StDistanceProcessor.process(v1, v2);
+    }
+
+    // processes doc value as a geometry
+    public static <T> GeoShape geoDocValue(Map<String, ScriptDocValues<T>> doc, String fieldName) {
+        Object obj = docValue(doc, fieldName);
+        if (obj != null) {
+            if (obj instanceof GeoPoint) {
+                return new GeoShape(((GeoPoint) obj).getLon(), ((GeoPoint) obj).getLat());
+            }
+            // TODO: Add support for geo_shapes when it is there
+        }
+        return null;
     }
 
     //

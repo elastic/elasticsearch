@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -417,6 +418,7 @@ public final class Intervals {
 
         entries.add(new Entry(IntervalDayTime.class, IntervalDayTime.NAME, IntervalDayTime::new));
         entries.add(new Entry(IntervalYearMonth.class, IntervalYearMonth.NAME, IntervalYearMonth::new));
+        entries.add(new Entry(GeoShape.class, GeoShape.NAME, GeoShape::new));
 
         return entries;
     }

@@ -147,3 +147,36 @@ Asia           |Sydney
 Europe         |Amsterdam
 Europe         |Berlin
 ;
+
+
+selectCitiesByDistance
+SELECT region, city, ST_Distance(location, ST_WktToSQL('POINT (-71 42)')) distance FROM geo WHERE distance < 5000000 ORDER BY region, city;
+
+   region:s    |    city:s     |    distance:d
+Americas       |Chicago        |1373941.5140200066
+Americas       |Mountain View  |4335936.909375596
+Americas       |New York       |285839.6579622518
+Americas       |Phoenix        |3692895.0346903414
+Americas       |San Francisco  |4343565.010996301
+;
+
+selectCitiesOrderByDistance
+SELECT region, city FROM geo ORDER BY ST_Distance(location, ST_WktToSQL('POINT (-71 42)')) ;
+
+   region:s    |    city:s
+Americas       |New York
+Americas       |Chicago
+Americas       |Phoenix
+Americas       |Mountain View
+Americas       |San Francisco
+Europe         |London
+Europe         |Paris
+Europe         |Amsterdam
+Europe         |Berlin
+Europe         |Munich
+Asia           |Tokyo
+Asia           |Seoul
+Asia           |Hong Kong
+Asia           |Singapore
+Asia           |Sydney
+;

@@ -870,7 +870,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
 
         if (randomBoolean()) {
-            resizeRequest.setCopySettings(Boolean.TRUE);
+            resizeRequest.setCopySettings(true);
             expectedParams.put("copy_settings", "true");
         }
 

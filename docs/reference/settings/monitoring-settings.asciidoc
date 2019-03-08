@@ -72,6 +72,10 @@ to pass through this cluster.
 
 Sets the timeout for collecting the cluster statistics. Defaults to `10s`.
 
+`xpack.monitoring.collection.node.stats.timeout`::
+
+Sets the timeout for collecting the node statistics. Defaults to `10s`.
+
 `xpack.monitoring.collection.indices` (<<cluster-update-settings,Dynamic>>)::
 
 Controls which indices Monitoring collects data from. Defaults to all indices. Specify the index names

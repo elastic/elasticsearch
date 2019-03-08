@@ -26,8 +26,10 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
@@ -71,6 +73,7 @@ public class ElasticsearchNode {
 
     private final LinkedHashMap<String, Predicate<ElasticsearchNode>> waitConditions;
     private final List<URI> plugins = new ArrayList<>();
+    private final Map<String, String> keystoreSettings = new HashMap<>();
 
     private final Path confPathRepo;
     private final Path configFile;
@@ -141,6 +144,12 @@ public class ElasticsearchNode {
 
     public void plugin(File plugin) {
         plugin(plugin.toURI());
+    }
+
+    public void keystore(String key, String value) {
+        requireNonNull(key, "Keystore key was null when configuring test cluster `" + this + "`");
+        requireNonNull(value, "Keystore value was null when configuring test cluster `" + this + "`");
+        keystoreSettings.put(key, value);
     }
 
     public Path getConfigDir() {
@@ -226,34 +235,51 @@ public class ElasticsearchNode {
             "install", "--batch", plugin.toString())
         );
 
+        if (keystoreSettings.isEmpty() == false) {
+            runElaticsearchBinScript("elasticsearch-keystore", "create");
+            keystoreSettings.forEach((key, value) -> {
+                runElaticsearchBinScriptWithInput(value, "elasticsearch-keystore", "add", "-x", key);
+            });
+        }
+
         startElasticsearchProcess();
     }
 
+    private void runElaticsearchBinScriptWithInput(String input, String tool, String... args) {
+        try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
+            services.loggedExec(spec -> {
+                spec.setEnvironment(getESEnvironment());
+                spec.workingDir(workingDir);
+                spec.executable(
+                    OS.conditionalString()
+                        .onUnix(() -> "./bin/" + tool)
+                        .onWindows(() -> "cmd")
+                        .supply()
+                );
+                spec.args(
+                    OS.<List<String>>conditional()
+                        .onWindows(() -> {
+                            ArrayList<String> result = new ArrayList<>();
+                            result.add("/c");
+                            result.add("bin\\" + tool + ".bat");
+                            for (String arg : args) {
+                                result.add(arg);
+                            }
+                            return result;
+                        })
+                        .onUnix(() -> Arrays.asList(args))
+                        .supply()
+                );
+                spec.setStandardInput(byteArrayInputStream);
+
+            });
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private void runElaticsearchBinScript(String tool, String... args) {
-        services.loggedExec(spec -> {
-            spec.setEnvironment(getESEnvironment());
-            spec.workingDir(workingDir);
-            spec.executable(
-                OS.conditionalString()
-                    .onUnix(() -> "./bin/" + tool)
-                    .onWindows(() -> "cmd")
-                    .supply()
-            );
-            spec.args(
-                OS.<List<String>>conditional()
-                    .onWindows(() -> {
-                        ArrayList<String> result = new ArrayList<>();
-                        result.add("/c");
-                        result.add("bin\\" + tool + ".bat");
-                        for (String arg : args) {
-                            result.add(arg);
-                        }
-                        return result;
-                    })
-                    .onUnix(() -> Arrays.asList(args))
-                    .supply()
-            );
-        });
+        runElaticsearchBinScriptWithInput("", tool, args);
     }
 
     private Map<String, String> getESEnvironment() {

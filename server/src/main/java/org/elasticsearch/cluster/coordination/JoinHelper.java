@@ -221,8 +221,9 @@ public class JoinHelper {
 
 
     void logLastFailedJoinAttempt() {
-        if (lastFailedJoinAttempt != null) {
-            lastFailedJoinAttempt.logWarnWithTimestamp();
+        FailedJoinAttempt attempt = lastFailedJoinAttempt;
+        if (attempt != null) {
+            attempt.logWarnWithTimestamp();
         }
     }
 

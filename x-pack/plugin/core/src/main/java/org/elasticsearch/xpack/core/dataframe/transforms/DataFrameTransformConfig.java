@@ -146,10 +146,6 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         return id;
     }
 
-    public String getCron() {
-        return "*";
-    }
-
     public String getSource() {
         return source;
     }

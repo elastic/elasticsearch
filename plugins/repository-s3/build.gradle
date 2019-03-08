@@ -167,8 +167,9 @@ if (useFixture) {
     }
   }
 
-  preProcessFixture.dependsOn(composeUp)
   preProcessFixture.dependsOn(writeDockerFile)
+  composeUp.dependsOn(preProcessFixture)
+
   // The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
   project.afterEvaluate {
     // Only configure the Minio tests if postProcessFixture is configured to skip them if Docker is not available

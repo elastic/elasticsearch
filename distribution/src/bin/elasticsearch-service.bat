@@ -3,10 +3,10 @@
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-set NOJAVA="nojava"
-if /i "%1" == "install" set NOJAVA=""
+set NOJAVA=nojava
+if /i "%1" == "install" set NOJAVA=
 
-call "%~dp0elasticsearch-env.bat" "%NOJAVA%" || exit /b 1
+call "%~dp0elasticsearch-env.bat" %NOJAVA% || exit /b 1
 
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
 if "%SERVICE_ID%" == "" set SERVICE_ID=elasticsearch-service-x64

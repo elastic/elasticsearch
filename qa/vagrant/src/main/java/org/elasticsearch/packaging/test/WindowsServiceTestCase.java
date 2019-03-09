@@ -72,19 +72,27 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
     }
 
     // runs the service command, dumping all log files on failure
-    private void assertCommand(String script) {
-        assertCleanExit(sh.runIgnoreExitCode(script), script);
+    private Result assertCommand(String script) {
+        Result result = sh.runIgnoreExitCode(script);
+        assertExit(result, script, 0);
+        return result;
     }
 
-    private void assertCleanExit(Result result, String script) {
-        if (result.exitCode != 0) {
-            logger.error("---- Failed to run script: " + script);
+    private Result assertFailure(String script, int exitCode) {
+        Result result = sh.runIgnoreExitCode(script);
+        assertExit(result, script, exitCode);
+        return result;
+    }
+
+    private void assertExit(Result result, String script, int exitCode) {
+        if (result.exitCode != exitCode) {
+            logger.error("---- Unexpected exit code (expected " + exitCode + ", got " + result.exitCode + ") for script: " + script);
             logger.error(result);
             logger.error("Dumping log files\n");
             Result logs = sh.run("$files = Get-ChildItem \"" + installation.logs + "\\elasticsearch.log\"; " +
                 "Write-Output $files; " +
                 "foreach ($file in $files) {" +
-                    "Write-Output \"$file\"; " +
+                    "Write-Output \"$file\"; " +    
                     "Get-Content \"$file\" " +
                 "}");
             logger.error(logs.stdout);
@@ -130,8 +138,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
     }
 
     public void test14RemoveNotInstalled() {
-        Result result = sh.runIgnoreExitCode(serviceScript + " remove");
-        assertThat(result.stdout, result.exitCode, equalTo(1));
+        Result result = assertFailure(serviceScript + " remove", 1);
         assertThat(result.stdout, containsString("Failed removing '" + DEFAULT_ID + "' service"));
     }
 

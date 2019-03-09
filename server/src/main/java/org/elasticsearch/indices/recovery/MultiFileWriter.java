@@ -166,6 +166,19 @@ public class MultiFileWriter implements Releasable {
         store.renameTempFilesSafe(tempFileNames);
     }
 
+    static final class FileChunk {
+        final StoreFileMetaData md;
+        final BytesReference content;
+        final long position;
+        final boolean lastChunk;
+        FileChunk(StoreFileMetaData md, BytesReference content, long position, boolean lastChunk) {
+            this.md = md;
+            this.content = content;
+            this.position = position;
+            this.lastChunk = lastChunk;
+        }
+    }
+
     private final class FileChunkWriter {
         // chunks can be delivered out of order, we need to buffer chunks if there's a gap between them.
         final PriorityQueue<FileChunk> pendingChunks = new PriorityQueue<>(Comparator.comparing(fc -> fc.position));

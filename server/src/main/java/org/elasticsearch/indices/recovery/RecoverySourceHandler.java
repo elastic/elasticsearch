@@ -29,7 +29,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -40,6 +39,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -64,8 +64,8 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
-import java.io.BufferedInputStream;
 import java.io.Closeable;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -77,7 +77,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -694,11 +694,6 @@ public class RecoverySourceHandler {
         resources.add(multiFileSender); // need to register to the resource list so we can clean up if the recovery gets cancelled.
         final ActionListener<Void> wrappedListener = ActionListener.wrap(
             r -> {
-                if (Assertions.ENABLED) {
-                    long expectedChunks = Arrays.stream(files).mapToLong(f -> (f.length() + chunkSizeInBytes - 1) / chunkSizeInBytes).sum();
-                    long sentChunks = multiFileSender.requestSeqIdTracker.getCheckpoint() + 1;
-                    assert sentChunks == expectedChunks : "sent chunks=" + sentChunks + " != expected chunks=" + expectedChunks;
-                }
                 multiFileSender.close();
                 listener.onResponse(null);
             },
@@ -715,53 +710,58 @@ public class RecoverySourceHandler {
         private final Supplier<Integer> translogOps;
         private final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         private final Deque<byte[]> recycledBuffers;
-        private boolean readerClosed; // ensure we don't reopen reader after the recovery was cancelled
+        private boolean closed; // ensure we don't reopen files if the recovery is cancelled
         private StoreFileMetaData md;
         private InputStream currentInput;
         private int position;
-        private final Object turnMutex = new Object();
-        private final AtomicBoolean turnAcquired = new AtomicBoolean();
+        private final Semaphore semaphore = new Semaphore(1);
 
         MultiFileSender(Store store, StoreFileMetaData[] files, Supplier<Integer> translogOps) {
             this.store = store;
             this.files = new ArrayList<>(Arrays.asList(files));
             this.translogOps = translogOps;
             this.recycledBuffers = ConcurrentCollections.newDeque();
-            for (int i = 0; i < maxConcurrentFileChunks; i++) {
-                this.recycledBuffers.add(new byte[chunkSizeInBytes]);
-            }
         }
 
+        /**
+         * File chunks are read sequentially by at most one thread. Other threads which are triggered by file-chunk responses
+         * will abort without waiting if another thread is reading files already. This is controlled via {@code semaphore}.
+         *
+         * This implementation can send up to {@code maxConcurrentFileChunks} consecutive file-chunk requests without waiting
+         * for the replies from the recovery target to reduce the recovery time in secure/compressed/high latency communication.
+         * We assign a seqId to every file-chunk request and stop reading/sending file chunks if the gap between max_seq_no
+         * and local_checkpoint is greater than {@code maxConcurrentFileChunks}.
+         */
         void sendFileChunks(ActionListener<Void> listener) {
             while (true) {
-                synchronized (turnMutex) {
-                    if (turnAcquired.compareAndSet(false, true) == false) {
-                        return;
+                cancellableThreads.checkForCancel();
+                synchronized (this) {
+                    if (semaphore.tryAcquire() == false) {
+                        break;
                     }
+                    // don't send more, the number of unreplied chunks is already greater than maxConcurrentFileChunks,
                     if (requestSeqIdTracker.getMaxSeqNo() - requestSeqIdTracker.getCheckpoint() >= maxConcurrentFileChunks) {
-                        turnAcquired.set(false);
-                        return;
+                        semaphore.release();
+                        break;
                     }
                 }
                 try {
-                    final byte[] buffer = recycledBuffers.removeFirst();
+                    final byte[] reusedBuffer = recycledBuffers.pollFirst();
+                    final byte[] buffer = reusedBuffer != null ? reusedBuffer : new byte[chunkSizeInBytes];
                     final FileChunk chunk = readChunk(buffer);
+                    semaphore.release(); // other thread can read and send chunks
                     if (chunk == null) {
                         if (requestSeqIdTracker.getMaxSeqNo() == requestSeqIdTracker.getCheckpoint()) {
                             listener.onResponse(null);
                         }
-                        recycledBuffers.addFirst(buffer);
-                        turnAcquired.set(false);
-                        return;
+                        break;
                     }
-                    final long requestSeqId = requestSeqIdTracker.generateSeqNo();
-                    turnAcquired.set(false);
                     cancellableThreads.execute(() ->
                         recoveryTarget.writeFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk, translogOps.get(),
                             ActionListener.wrap(
                                 r -> {
                                     recycledBuffers.addFirst(buffer);
-                                    requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                                    requestSeqIdTracker.markSeqNoAsCompleted(chunk.seqId);
                                     sendFileChunks(listener);
                                 },
                                 e -> listener.onFailure(handleErrorOnSendFiles(chunk.md, e))
@@ -773,32 +773,39 @@ public class RecoverySourceHandler {
             }
         }
 
-        synchronized FileChunk readChunk(final byte[] buffer) throws Exception {
-            if (readerClosed) {
-                throw new IllegalStateException("chunk reader was closed");
-            }
+        FileChunk readChunk(final byte[] buffer) throws Exception {
             try {
-                if (currentInput == null) {
-                    if (files.isEmpty()) {
-                        return null;
+                synchronized (this) {
+                    if (closed) {
+                        throw new IllegalStateException("chunk reader was closed");
                     }
-                    md = files.remove(0);
-                    position = 0;
-                    final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE);
-                    currentInput = new BufferedInputStream(new InputStreamIndexInput(indexInput, md.length()), chunkSizeInBytes) {
-                        @Override
-                        public void close() throws IOException {
-                            indexInput.close(); //InputStreamIndexInput's close is noop
+                    if (currentInput == null) {
+                        if (files.isEmpty()) {
+                            return null;
                         }
-                    };
+                        md = files.remove(0);
+                        position = 0;
+                        final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE);
+                        currentInput = new InputStreamIndexInput(indexInput, md.length()) {
+                            @Override
+                            public void close() throws IOException {
+                                indexInput.close(); //InputStreamIndexInput's close is noop
+                            }
+                        };
+                    }
                 }
-                final int bytesRead = currentInput.read(buffer, 0, buffer.length);
-                final boolean lastChunk = position + bytesRead == md.length();
+                final int bytesRead = currentInput.read(buffer);
                 if (bytesRead == -1) {
-                    IOUtils.close(currentInput, () -> currentInput = null);
-                    return readChunk(buffer);
+                    throw new EOFException("position [" + position + "] md [" + md + "]");
                 }
-                final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, bytesRead), position, lastChunk);
+                final boolean lastChunk = position + bytesRead == md.length();
+                if (lastChunk) {
+                    synchronized (this) {
+                        IOUtils.close(currentInput, () -> currentInput = null);
+                    }
+                }
+                final long seqId = requestSeqIdTracker.generateSeqNo();
+                final FileChunk chunk = new FileChunk(seqId, md, new BytesArray(buffer, 0, bytesRead), position, lastChunk);
                 position += bytesRead;
                 return chunk;
             } catch (Exception e) {
@@ -808,8 +815,8 @@ public class RecoverySourceHandler {
 
         @Override
         public synchronized void close() throws IOException {
-            if (readerClosed == false) {
-                readerClosed = true;
+            if (closed == false) {
+                closed = true;
                 IOUtils.close(currentInput);
             }
         }
@@ -839,6 +846,22 @@ public class RecoverySourceHandler {
                 e.addSuppressed(inner);
             }
             return e;
+        }
+    }
+
+    private static final class FileChunk {
+        final long seqId;
+        final StoreFileMetaData md;
+        final BytesReference content;
+        final long position;
+        final boolean lastChunk;
+
+        FileChunk(long seqId, StoreFileMetaData md, BytesReference content, long position, boolean lastChunk) {
+            this.seqId = seqId;
+            this.md = md;
+            this.content = content;
+            this.position = position;
+            this.lastChunk = lastChunk;
         }
     }
 

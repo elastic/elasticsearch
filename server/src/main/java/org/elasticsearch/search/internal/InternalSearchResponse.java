@@ -35,9 +35,12 @@ import java.io.IOException;
  * {@link SearchResponseSections} subclass that can be serialized over the wire.
  */
 public class InternalSearchResponse extends SearchResponseSections implements Writeable, ToXContentFragment {
-
     public static InternalSearchResponse empty() {
-        return new InternalSearchResponse(SearchHits.empty(), null, null, null, false, null, 1);
+        return empty(true);
+    }
+
+    public static InternalSearchResponse empty(boolean withTotalHits) {
+        return new InternalSearchResponse(SearchHits.empty(withTotalHits), null, null, null, false, null, 1);
     }
 
     public InternalSearchResponse(SearchHits hits, InternalAggregations aggregations, Suggest suggest,
@@ -48,9 +51,9 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
 
     public InternalSearchResponse(StreamInput in) throws IOException {
         super(
-                SearchHits.readSearchHits(in),
+                new SearchHits(in),
                 in.readBoolean() ? InternalAggregations.readAggregations(in) : null,
-                in.readBoolean() ? Suggest.readSuggest(in) : null,
+                in.readBoolean() ? new Suggest(in) : null,
                 in.readBoolean(),
                 in.readOptionalBoolean(),
                 in.readOptionalWriteable(SearchProfileShardResults::new),
@@ -62,7 +65,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
     public void writeTo(StreamOutput out) throws IOException {
         hits.writeTo(out);
         out.writeOptionalStreamable((InternalAggregations)aggregations);
-        out.writeOptionalStreamable(suggest);
+        out.writeOptionalWriteable(suggest);
         out.writeBoolean(timedOut);
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileResults);

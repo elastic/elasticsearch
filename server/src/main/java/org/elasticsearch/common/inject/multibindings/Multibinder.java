@@ -220,7 +220,6 @@ public abstract class Multibinder<T> {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         public void configure(Binder binder) {
             checkConfiguration(!isInitialized(), "Multibinder was already initialized");
 

@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
@@ -52,26 +52,31 @@ public class EvalQueryQualityTests extends ESTestCase {
     }
 
     public static EvalQueryQuality randomEvalQueryQuality() {
-        List<DocumentKey> unknownDocs = new ArrayList<>();
-        int numberOfUnknownDocs = randomInt(5);
-        for (int i = 0; i < numberOfUnknownDocs; i++) {
-            unknownDocs.add(new DocumentKey(randomAlphaOfLength(10), randomAlphaOfLength(10)));
-        }
         int numberOfSearchHits = randomInt(5);
         List<RatedSearchHit> ratedHits = new ArrayList<>();
         for (int i = 0; i < numberOfSearchHits; i++) {
             RatedSearchHit ratedSearchHit = RatedSearchHitTests.randomRatedSearchHit();
             // we need to associate each hit with an index name otherwise rendering will not work
-            ratedSearchHit.getSearchHit().shard(new SearchShardTarget("_na_", new Index("index", "_na_"), 0, null));
+            ratedSearchHit.getSearchHit().shard(new SearchShardTarget("_na_", new ShardId("index", "_na_", 0), null, OriginalIndices.NONE));
             ratedHits.add(ratedSearchHit);
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAlphaOfLength(10),
                 randomDoubleBetween(0.0, 1.0, true));
         if (randomBoolean()) {
-            if (randomBoolean()) {
-                evalQueryQuality.setMetricDetails(new PrecisionAtK.Breakdown(randomIntBetween(0, 1000), randomIntBetween(0, 1000)));
-            } else {
-                evalQueryQuality.setMetricDetails(new MeanReciprocalRank.Breakdown(randomIntBetween(0, 1000)));
+            int metricDetail = randomIntBetween(0, 2);
+            switch (metricDetail) {
+            case 0:
+                evalQueryQuality.setMetricDetails(new PrecisionAtK.Detail(randomIntBetween(0, 1000), randomIntBetween(0, 1000)));
+                break;
+            case 1:
+                evalQueryQuality.setMetricDetails(new MeanReciprocalRank.Detail(randomIntBetween(0, 1000)));
+                break;
+            case 2:
+                evalQueryQuality.setMetricDetails(new DiscountedCumulativeGain.Detail(randomDoubleBetween(0, 1, true),
+                        randomBoolean() ? randomDoubleBetween(0, 1, true) : 0, randomInt()));
+                break;
+            default:
+                throw new IllegalArgumentException("illegal randomized value in test");
             }
         }
         evalQueryQuality.addHitsAndRatings(ratedHits);
@@ -125,7 +130,7 @@ public class EvalQueryQualityTests extends ESTestCase {
 
     private static EvalQueryQuality mutateTestItem(EvalQueryQuality original) {
         String id = original.getId();
-        double qualityLevel = original.getQualityLevel();
+        double metricScore = original.metricScore();
         List<RatedSearchHit> ratedHits = new ArrayList<>(original.getHitsAndRatings());
         MetricDetail metricDetails = original.getMetricDetails();
         switch (randomIntBetween(0, 3)) {
@@ -133,11 +138,11 @@ public class EvalQueryQualityTests extends ESTestCase {
             id = id + "_";
             break;
         case 1:
-            qualityLevel = qualityLevel + 0.1;
+            metricScore = metricScore + 0.1;
             break;
         case 2:
             if (metricDetails == null) {
-                metricDetails = new PrecisionAtK.Breakdown(1, 5);
+                metricDetails = new PrecisionAtK.Detail(1, 5);
             } else {
                 metricDetails = null;
             }
@@ -148,7 +153,7 @@ public class EvalQueryQualityTests extends ESTestCase {
         default:
             throw new IllegalStateException("The test should only allow four parameters mutated");
         }
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(id, qualityLevel);
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(id, metricScore);
         evalQueryQuality.setMetricDetails(metricDetails);
         evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;

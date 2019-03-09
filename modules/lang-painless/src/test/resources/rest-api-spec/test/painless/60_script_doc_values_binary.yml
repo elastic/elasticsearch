@@ -7,11 +7,10 @@
             index: test
             body:
                 mappings:
-                    test:
-                        properties:
-                            binary:
-                                type: binary
-                                doc_values: true
+                    properties:
+                        binary:
+                            type: binary
+                            doc_values: true
 
     - do:
         #set the header so we won't randomize it
@@ -19,7 +18,6 @@
             Content-Type: application/json
         index:
             index: test
-            type: test
             id: 1
             body:
                 binary: U29tZSBiaW5hcnkgYmxvYg==
@@ -29,6 +27,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -38,10 +37,10 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
                         script:
                             source: "doc['binary'].value.utf8ToString()"
     - match: { hits.hits.0.fields.field.0: "Some binary blob" }
-

@@ -19,13 +19,11 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregationBuilder;
-
 public class ExtendedStatsTests extends AbstractNumericMetricTestCase<ExtendedStatsAggregationBuilder> {
 
     @Override
     protected ExtendedStatsAggregationBuilder doCreateTestAggregatorFactory() {
-        ExtendedStatsAggregationBuilder factory = new ExtendedStatsAggregationBuilder("foo");
+        ExtendedStatsAggregationBuilder factory = new ExtendedStatsAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             factory.sigma(randomDoubleBetween(0.0, 10.0, true));
         }

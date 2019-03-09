@@ -135,7 +135,7 @@ public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         assertTrue(util.exists(hdfsPath));
 
         byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-        writeBlob(container, "foo", new BytesArray(data));
+        writeBlob(container, "foo", new BytesArray(data), randomBoolean());
         assertArrayEquals(readBlobFully(container, "foo", data.length), data);
         assertTrue(container.blobExists("foo"));
     }

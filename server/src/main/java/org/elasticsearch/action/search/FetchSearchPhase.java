@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
@@ -110,8 +109,9 @@ final class FetchSearchPhase extends SearchPhase {
             // query AND fetch optimization
             finishPhase.run();
         } else {
-            final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, reducedQueryPhase.scoreDocs);
-            if (reducedQueryPhase.scoreDocs.length == 0) { // no docs to fetch -- sidestep everything and return
+            ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
+            final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
+            if (scoreDocs.length == 0) { // no docs to fetch -- sidestep everything and return
                 phaseResults.stream()
                     .map(SearchPhaseResult::queryResult)
                     .forEach(this::releaseIrrelevantSearchContext); // we have to release contexts here to free up resources
@@ -169,10 +169,7 @@ final class FetchSearchPhase extends SearchPhase {
                 @Override
                 public void onFailure(Exception e) {
                     try {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] Failed to execute fetch phase",
-                                fetchSearchRequest.id()), e);
-                        }
+                        logger.debug(() -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.id()), e);
                         counter.onFailure(shardIndex, shardTarget, e);
                     } finally {
                         // the search context might not be cleared on the node where the fetch was executed for example

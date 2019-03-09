@@ -82,6 +82,15 @@ public class LocalCheckpointTracker {
     }
 
     /**
+     * Marks the provided sequence number as seen and updates the max_seq_no if needed.
+     */
+    public synchronized void advanceMaxSeqNo(long seqNo) {
+        if (seqNo >= nextSeqNo) {
+            nextSeqNo = seqNo + 1;
+        }
+    }
+
+    /**
      * Marks the processing of the provided sequence number as completed as updates the checkpoint if possible.
      *
      * @param seqNo the sequence number to mark as completed
@@ -101,18 +110,6 @@ public class LocalCheckpointTracker {
         if (seqNo == checkpoint + 1) {
             updateCheckpoint();
         }
-    }
-
-    /**
-     * Resets the checkpoint to the specified value.
-     *
-     * @param checkpoint the local checkpoint to reset this tracker to
-     */
-    public synchronized void resetCheckpoint(final long checkpoint) {
-        assert checkpoint != SequenceNumbers.UNASSIGNED_SEQ_NO;
-        assert checkpoint <= this.checkpoint;
-        processedSeqNo.clear();
-        this.checkpoint = checkpoint;
     }
 
     /**
@@ -154,6 +151,25 @@ public class LocalCheckpointTracker {
         while (checkpoint < seqNo) {
             // notified by updateCheckpoint
             this.wait();
+        }
+    }
+
+    /**
+     * Checks if the given sequence number was marked as completed in this tracker.
+     */
+    public boolean contains(final long seqNo) {
+        assert seqNo >= 0 : "invalid seq_no=" + seqNo;
+        if (seqNo >= nextSeqNo) {
+            return false;
+        }
+        if (seqNo <= checkpoint) {
+            return true;
+        }
+        final long bitSetKey = getBitSetKey(seqNo);
+        final int bitSetOffset = seqNoToBitSetOffset(seqNo);
+        synchronized (this) {
+            final CountedBitSet bitSet = processedSeqNo.get(bitSetKey);
+            return bitSet != null && bitSet.get(bitSetOffset);
         }
     }
 
@@ -205,7 +221,6 @@ public class LocalCheckpointTracker {
      * @return the bit set corresponding to the provided sequence number
      */
     private long getBitSetKey(final long seqNo) {
-        assert Thread.holdsLock(this);
         return seqNo / BIT_SET_SIZE;
     }
 
@@ -231,7 +246,6 @@ public class LocalCheckpointTracker {
      * @return the position in the bit set corresponding to the provided sequence number
      */
     private int seqNoToBitSetOffset(final long seqNo) {
-        assert Thread.holdsLock(this);
         return Math.toIntExact(seqNo % BIT_SET_SIZE);
     }
 

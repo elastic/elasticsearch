@@ -102,13 +102,6 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         this.physicalFiles = unmodifiableMap(mapBuilder);
     }
 
-    private BlobStoreIndexShardSnapshots() {
-        shardSnapshots = Collections.emptyList();
-        files = Collections.emptyMap();
-        physicalFiles = Collections.emptyMap();
-    }
-
-
     /**
      * Returns list of snapshots
      *

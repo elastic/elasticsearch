@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
@@ -65,15 +64,15 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
             client().prepareIndex(OTHER_INDEX_NAME, "type").setSource("test", "init").execute().actionGet();
         }
 
-
         logger.info("--> register a repository");
+
         assertAcked(client().admin().cluster().preparePutRepository(REPOSITORY_NAME)
                 .setType("fs")
-                .setSettings(Settings.builder().put("location",  randomRepoPath())));
+                .setSettings(Settings.builder().put("location", randomRepoPath())));
 
         logger.info("--> verify the repository");
         VerifyRepositoryResponse verifyResponse = client().admin().cluster().prepareVerifyRepository(REPOSITORY_NAME).get();
-        assertThat(verifyResponse.getNodes().length, equalTo(cluster().numDataAndMasterNodes()));
+        assertThat(verifyResponse.getNodes().size(), equalTo(cluster().numDataAndMasterNodes()));
 
         logger.info("--> create a snapshot");
         CreateSnapshotResponse snapshotResponse = client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME)
@@ -88,7 +87,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         logger.info("-->  creating a snapshot is allowed when the cluster is read only");
         try {
             setClusterReadOnly(true);
-            assertThat(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-1").setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
+            assertThat(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-1")
+                .setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
         } finally {
             setClusterReadOnly(false);
         }
@@ -104,7 +104,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         logger.info("-->  creating a snapshot is not blocked when an index is read only");
         try {
             enableIndexBlock(INDEX_NAME, SETTING_READ_ONLY);
-            assertThat(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-1").setIndices(COMMON_INDEX_NAME_MASK).setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
+            assertThat(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-1")
+                .setIndices(COMMON_INDEX_NAME_MASK).setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
         } finally {
             disableIndexBlock(INDEX_NAME, SETTING_READ_ONLY);
         }
@@ -112,9 +113,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         logger.info("-->  creating a snapshot is blocked when an index is blocked for reads");
         try {
             enableIndexBlock(INDEX_NAME, SETTING_BLOCKS_READ);
-            assertBlocked(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-2").setIndices(COMMON_INDEX_NAME_MASK), IndexMetaData.INDEX_READ_BLOCK);
-            logger.info("-->  creating a snapshot is not blocked when an read-blocked index is not part of the snapshot");
-            assertThat(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-2").setIndices(OTHER_INDEX_NAME).setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
+            assertThat(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-2")
+                .setIndices(COMMON_INDEX_NAME_MASK).setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
         } finally {
             disableIndexBlock(INDEX_NAME, SETTING_BLOCKS_READ);
         }
@@ -137,7 +137,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         logger.info("-->  restoring a snapshot is blocked when the cluster is read only");
         try {
             setClusterReadOnly(true);
-            assertBlocked(client().admin().cluster().prepareRestoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME), MetaData.CLUSTER_READ_ONLY_BLOCK);
+            assertBlocked(client().admin().cluster().prepareRestoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME),
+                MetaData.CLUSTER_READ_ONLY_BLOCK);
         } finally {
             setClusterReadOnly(false);
         }

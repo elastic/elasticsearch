@@ -88,7 +88,7 @@ must not be contained in the `plugins` directory for the node that you are
 installing the plugin to or installation will fail.
 
 HTTP::
-To install a plugin from a HTTP URL:
+To install a plugin from an HTTP URL:
 +
 [source,shell]
 -----------------------------------

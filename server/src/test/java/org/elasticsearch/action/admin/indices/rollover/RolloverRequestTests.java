@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.indices.IndicesModule;
@@ -52,7 +52,6 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RolloverRequestTests extends ESTestCase {
-
     private NamedWriteableRegistry writeableRegistry;
 
     @Override
@@ -72,8 +71,8 @@ public class RolloverRequestTests extends ESTestCase {
                     .field("max_size", "45gb")
                 .endObject()
             .endObject();
-        request.fromXContent(createParser(builder));
-        Map<String, Condition> conditions = request.getConditions();
+        request.fromXContent(false, createParser(builder));
+        Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(3));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition)conditions.get(MaxAgeCondition.NAME);
         assertThat(maxAgeCondition.value.getMillis(), equalTo(TimeValue.timeValueHours(24 * 10).getMillis()));
@@ -108,8 +107,8 @@ public class RolloverRequestTests extends ESTestCase {
                     .startObject("alias1").endObject()
                 .endObject()
             .endObject();
-        request.fromXContent(createParser(builder));
-        Map<String, Condition> conditions = request.getConditions();
+        request.fromXContent(true, createParser(builder));
+        Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(2));
         assertThat(request.getCreateIndexRequest().mappings().size(), equalTo(1));
         assertThat(request.getCreateIndexRequest().aliases().size(), equalTo(1));
@@ -129,8 +128,8 @@ public class RolloverRequestTests extends ESTestCase {
                 cloneRequest.readFrom(in);
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
                 assertThat(cloneRequest.getAlias(), equalTo(originalRequest.getAlias()));
-                for (Map.Entry<String, Condition> entry : cloneRequest.getConditions().entrySet()) {
-                    Condition condition = originalRequest.getConditions().get(entry.getKey());
+                for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().entrySet()) {
+                    Condition<?> condition = originalRequest.getConditions().get(entry.getKey());
                     //here we compare the string representation as there is some information loss when serializing
                     //and de-serializing MaxAgeCondition
                     assertEquals(condition.toString(), entry.getValue().toString());
@@ -147,7 +146,7 @@ public class RolloverRequestTests extends ESTestCase {
         BytesReference originalBytes = toShuffledXContent(rolloverRequest, xContentType, EMPTY_PARAMS, humanReadable);
 
         RolloverRequest parsedRolloverRequest = new RolloverRequest();
-        parsedRolloverRequest.fromXContent(createParser(xContentType.xContent(), originalBytes));
+        parsedRolloverRequest.fromXContent(true, createParser(xContentType.xContent(), originalBytes));
 
         CreateIndexRequest createIndexRequest = rolloverRequest.getCreateIndexRequest();
         CreateIndexRequest parsedCreateIndexRequest = parsedRolloverRequest.getCreateIndexRequest();
@@ -172,7 +171,7 @@ public class RolloverRequestTests extends ESTestCase {
         }
         builder.endObject();
         BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReference.bytes(builder), null, random());
-        expectThrows(ParsingException.class, () -> request.fromXContent(createParser(xContentType.xContent(), mutated)));
+        expectThrows(XContentParseException.class, () -> request.fromXContent(false, createParser(xContentType.xContent(), mutated)));
     }
 
     public void testSameConditionCanOnlyBeAddedOnce() {

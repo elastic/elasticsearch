@@ -90,7 +90,6 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
         return readBlob(blobContainer, blobName);
     }
 
-
     /**
      * Deletes obj in the blob container
      */

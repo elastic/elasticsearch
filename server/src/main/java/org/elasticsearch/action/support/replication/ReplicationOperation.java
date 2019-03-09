@@ -21,30 +21,32 @@ package org.elasticsearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.TransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 public class ReplicationOperation<
             Request extends ReplicationRequest<Request>,
@@ -116,9 +118,13 @@ public class ReplicationOperation<
             // of the sampled replication group, and advanced further than what the given replication group would allow it to.
             // This would entail that some shards could learn about a global checkpoint that would be higher than its local checkpoint.
             final long globalCheckpoint = primary.globalCheckpoint();
+            // we have to capture the max_seq_no_of_updates after this request was completed on the primary to make sure the value of
+            // max_seq_no_of_updates on replica when this request is executed is at least the value on the primary when it was executed on.
+            final long maxSeqNoOfUpdatesOrDeletes = primary.maxSeqNoOfUpdatesOrDeletes();
+            assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "seqno_of_updates still uninitialized";
             final ReplicationGroup replicationGroup = primary.getReplicationGroup();
             markUnavailableShardsAsStale(replicaRequest, replicationGroup);
-            performOnReplicas(replicaRequest, globalCheckpoint, replicationGroup);
+            performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup);
         }
 
         successfulShards.incrementAndGet();  // mark primary as successful
@@ -130,15 +136,12 @@ public class ReplicationOperation<
         for (String allocationId : replicationGroup.getUnavailableInSyncShards()) {
             pendingActions.incrementAndGet();
             replicasProxy.markShardCopyAsStaleIfNeeded(replicaRequest.shardId(), allocationId,
-                ReplicationOperation.this::decPendingAndFinishIfNeeded,
-                ReplicationOperation.this::onPrimaryDemoted,
-                throwable -> decPendingAndFinishIfNeeded()
-            );
+                ActionListener.wrap(r -> decPendingAndFinishIfNeeded(), ReplicationOperation.this::onNoLongerPrimary));
         }
     }
 
     private void performOnReplicas(final ReplicaRequest replicaRequest, final long globalCheckpoint,
-                                   final ReplicationGroup replicationGroup) {
+                                   final long maxSeqNoOfUpdatesOrDeletes, final ReplicationGroup replicationGroup) {
         // for total stats, add number of unassigned shards and
         // number of initializing shards that are not ready yet to receive operations (recovery has not opened engine yet on the target)
         totalShards.addAndGet(replicationGroup.getSkippedShards().size());
@@ -147,19 +150,20 @@ public class ReplicationOperation<
 
         for (final ShardRouting shard : replicationGroup.getReplicationTargets()) {
             if (shard.isSameAllocation(primaryRouting) == false) {
-                performOnReplica(shard, replicaRequest, globalCheckpoint);
+                performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes);
             }
         }
     }
 
-    private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest, final long globalCheckpoint) {
+    private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest,
+                                  final long globalCheckpoint, final long maxSeqNoOfUpdatesOrDeletes) {
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }
 
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet();
-        replicasProxy.performOn(shard, replicaRequest, globalCheckpoint, new ActionListener<ReplicaResponse>() {
+        replicasProxy.performOn(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, new ActionListener<ReplicaResponse>() {
             @Override
             public void onResponse(ReplicaResponse response) {
                 successfulShards.incrementAndGet();
@@ -178,7 +182,7 @@ public class ReplicationOperation<
 
             @Override
             public void onFailure(Exception replicaException) {
-                logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                logger.trace(() -> new ParameterizedMessage(
                     "[{}] failure while performing [{}] on replica {}, request [{}]",
                     shard.shardId(), opType, shard, replicaRequest), replicaException);
                 // Only report "critical" exceptions - TODO: Reach out to the master node to get the latest shard state then report.
@@ -188,20 +192,40 @@ public class ReplicationOperation<
                         shard.shardId(), shard.currentNodeId(), replicaException, restStatus, false));
                 }
                 String message = String.format(Locale.ROOT, "failed to perform %s on replica %s", opType, shard);
-                replicasProxy.failShardIfNeeded(shard, message,
-                    replicaException, ReplicationOperation.this::decPendingAndFinishIfNeeded,
-                    ReplicationOperation.this::onPrimaryDemoted, throwable -> decPendingAndFinishIfNeeded());
+                replicasProxy.failShardIfNeeded(shard, message, replicaException,
+                    ActionListener.wrap(r -> decPendingAndFinishIfNeeded(), ReplicationOperation.this::onNoLongerPrimary));
+            }
+
+            @Override
+            public String toString() {
+                return "[" + replicaRequest + "][" + shard + "]";
             }
         });
     }
 
-    private void onPrimaryDemoted(Exception demotionFailure) {
-        String primaryFail = String.format(Locale.ROOT,
-            "primary shard [%s] was demoted while failing replica shard",
-            primary.routingEntry());
-        // we are no longer the primary, fail ourselves and start over
-        primary.failShard(primaryFail, demotionFailure);
-        finishAsFailed(new RetryOnPrimaryException(primary.routingEntry().shardId(), primaryFail, demotionFailure));
+    private void onNoLongerPrimary(Exception failure) {
+        final Throwable cause = ExceptionsHelper.unwrapCause(failure);
+        final boolean nodeIsClosing = cause instanceof NodeClosedException
+            || (cause instanceof TransportException &&
+                ("TransportService is closed stopped can't send request".equals(cause.getMessage())
+                || "transport stopped, action: internal:cluster/shard/failure".equals(cause.getMessage())));
+        final String message;
+        if (nodeIsClosing) {
+            message = String.format(Locale.ROOT,
+                "node with primary [%s] is shutting down while failing replica shard", primary.routingEntry());
+            // We prefer not to fail the primary to avoid unnecessary warning log
+            // when the node with the primary shard is gracefully shutting down.
+        } else {
+            if (Assertions.ENABLED) {
+                if (failure instanceof ShardStateAction.NoLongerPrimaryShardException == false) {
+                    throw new AssertionError("unexpected failure", failure);
+                }
+            }
+            // we are no longer the primary, fail ourselves and start over
+            message = String.format(Locale.ROOT, "primary shard [%s] was demoted while failing replica shard", primary.routingEntry());
+            primary.failShard(message, failure);
+        }
+        finishAsFailed(new RetryOnPrimaryException(primary.routingEntry().shardId(), message, failure));
     }
 
     /**
@@ -325,6 +349,12 @@ public class ReplicationOperation<
         long globalCheckpoint();
 
         /**
+         * Returns the maximum seq_no of updates (index operations overwrite Lucene) or deletes on the primary.
+         * This value must be captured after the execution of a replication request on the primary is completed.
+         */
+        long maxSeqNoOfUpdatesOrDeletes();
+
+        /**
          * Returns the current replication group on the primary shard
          *
          * @return the replication group
@@ -340,43 +370,38 @@ public class ReplicationOperation<
         /**
          * Performs the specified request on the specified replica.
          *
-         * @param replica          the shard this request should be executed on
-         * @param replicaRequest   the operation to perform
-         * @param globalCheckpoint the global checkpoint on the primary
-         * @param listener         callback for handling the response or failure
+         * @param replica                    the shard this request should be executed on
+         * @param replicaRequest             the operation to perform
+         * @param globalCheckpoint           the global checkpoint on the primary
+         * @param maxSeqNoOfUpdatesOrDeletes the max seq_no of updates (index operations overwriting Lucene) or deletes on primary
+         *                                   after this replication was executed on it.
+         * @param listener                   callback for handling the response or failure
          */
-        void performOn(ShardRouting replica, RequestT replicaRequest, long globalCheckpoint, ActionListener<ReplicaResponse> listener);
+        void performOn(ShardRouting replica, RequestT replicaRequest, long globalCheckpoint,
+                       long maxSeqNoOfUpdatesOrDeletes, ActionListener<ReplicaResponse> listener);
 
         /**
          * Fail the specified shard if needed, removing it from the current set
          * of active shards. Whether a failure is needed is left up to the
          * implementation.
          *
-         * @param replica          shard to fail
-         * @param message          a (short) description of the reason
-         * @param exception        the original exception which caused the ReplicationOperation to request the shard to be failed
-         * @param onSuccess        a callback to call when the shard has been successfully removed from the active set.
-         * @param onPrimaryDemoted a callback to call when the shard can not be failed because the current primary has been demoted
-         *                         by the master.
-         * @param onIgnoredFailure a callback to call when failing a shard has failed, but it that failure can be safely ignored and the
+         * @param replica   shard to fail
+         * @param message   a (short) description of the reason
+         * @param exception the original exception which caused the ReplicationOperation to request the shard to be failed
+         * @param listener  a listener that will be notified when the failing shard has been removed from the in-sync set
          */
-        void failShardIfNeeded(ShardRouting replica, String message, Exception exception, Runnable onSuccess,
-                               Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
+        void failShardIfNeeded(ShardRouting replica, String message, Exception exception, ActionListener<Void> listener);
 
         /**
          * Marks shard copy as stale if needed, removing its allocation id from
          * the set of in-sync allocation ids. Whether marking as stale is needed
          * is left up to the implementation.
          *
-         * @param shardId          shard id
-         * @param allocationId     allocation id to remove from the set of in-sync allocation ids
-         * @param onSuccess        a callback to call when the allocation id has been successfully removed from the in-sync set.
-         * @param onPrimaryDemoted a callback to call when the request failed because the current primary was already demoted
-         *                         by the master.
-         * @param onIgnoredFailure a callback to call when the request failed, but the failure can be safely ignored.
+         * @param shardId      shard id
+         * @param allocationId allocation id to remove from the set of in-sync allocation ids
+         * @param listener     a listener that will be notified when the failing shard has been removed from the in-sync set
          */
-        void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, Runnable onSuccess,
-                                          Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
+        void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, ActionListener<Void> listener);
     }
 
     /**

@@ -8,42 +8,36 @@
   - do:
       index:
         index:   foo
-        type:    bar
         id:      doc1
         body:    { "bar": 1 }
 
   - do:
       index:
         index:  foo
-        type:   bar
         id:     doc2
         body:   { "bar": 2 }
 
   - do:
       index:
         index:  foo
-        type:   bar
         id:     doc3
         body:   { "bar": 3 }
 
   - do:
       index:
         index:  foo
-        type:   bar
         id:     doc4
         body:   { "bar": 4 }
 
   - do:
       index:
         index:  foo
-        type:   bar
         id:     doc5
         body:   { "bar": 5 }
 
   - do:
       index:
         index:  foo
-        type:   bar
         id:     doc6
         body:   { "bar": 6 }
 
@@ -69,11 +63,11 @@
           "metric" : { "dcg": {}}
         }
 
-  - gt: {quality_level: 13.848263 }
-  - lt: {quality_level: 13.848264 }
-  - gt: {details.dcg_query.quality_level: 13.848263}
-  - lt: {details.dcg_query.quality_level: 13.848264}
-  - match: {details.dcg_query.unknown_docs: [ ]}
+  - gt: {metric_score: 13.848263 }
+  - lt: {metric_score: 13.848264 }
+  - gt: {details.dcg_query.metric_score: 13.848263}
+  - lt: {details.dcg_query.metric_score: 13.848264}
+  - match: {details.dcg_query.unrated_docs: [ ]}
 
 # reverse the order in which the results are returned (less relevant docs first)
 
@@ -91,19 +85,19 @@
                     {"_index" : "foo", "_id" : "doc4", "rating": 0},
                     {"_index" : "foo", "_id" : "doc5", "rating": 1},
                     {"_index" : "foo", "_id" : "doc6", "rating": 2}]
-            }, 
+            },
           ],
           "metric" : { "dcg": { }}
         }
 
-  - gt: {quality_level: 10.299674}
-  - lt: {quality_level: 10.299675}
-  - gt: {details.dcg_query_reverse.quality_level: 10.299674}
-  - lt: {details.dcg_query_reverse.quality_level: 10.299675}
-  - match: {details.dcg_query_reverse.unknown_docs: [ ]}
+  - gt: {metric_score: 10.299674}
+  - lt: {metric_score: 10.299675}
+  - gt: {details.dcg_query_reverse.metric_score: 10.299674}
+  - lt: {details.dcg_query_reverse.metric_score: 10.299675}
+  - match: {details.dcg_query_reverse.unrated_docs: [ ]}
 
 # if we mix both, we should get the average
-  
+
   - do:
       rank_eval:
         body: {
@@ -129,16 +123,16 @@
                   {"_index" : "foo", "_id" : "doc4", "rating": 0},
                   {"_index" : "foo", "_id" : "doc5", "rating": 1},
                   {"_index" : "foo", "_id" : "doc6", "rating": 2}]
-            }, 
+            },
           ],
           "metric" : { "dcg": { }}
         }
 
-  - gt: {quality_level: 12.073969}
-  - lt: {quality_level: 12.073970}
-  - gt: {details.dcg_query.quality_level: 13.848263}
-  - lt: {details.dcg_query.quality_level: 13.848264}
-  - match: {details.dcg_query.unknown_docs: [ ]}
-  - gt: {details.dcg_query_reverse.quality_level: 10.299674}
-  - lt: {details.dcg_query_reverse.quality_level: 10.299675}
-  - match: {details.dcg_query_reverse.unknown_docs: [ ]}
+  - gt: {metric_score: 12.073969}
+  - lt: {metric_score: 12.073970}
+  - gt: {details.dcg_query.metric_score: 13.848263}
+  - lt: {details.dcg_query.metric_score: 13.848264}
+  - match: {details.dcg_query.unrated_docs: [ ]}
+  - gt: {details.dcg_query_reverse.metric_score: 10.299674}
+  - lt: {details.dcg_query_reverse.metric_score: 10.299675}
+  - match: {details.dcg_query_reverse.unrated_docs: [ ]}

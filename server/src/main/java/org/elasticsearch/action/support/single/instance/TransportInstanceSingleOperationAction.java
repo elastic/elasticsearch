@@ -30,14 +30,14 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -47,29 +47,38 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.function.Supplier;
 
-public abstract class TransportInstanceSingleOperationAction<Request extends InstanceShardOperationRequest<Request>, Response extends ActionResponse>
-        extends HandledTransportAction<Request, Response> {
+public abstract class TransportInstanceSingleOperationAction<
+            Request extends InstanceShardOperationRequest<Request>,
+            Response extends ActionResponse
+       > extends HandledTransportAction<Request, Response> {
+
+    protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
+    protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     final String executor;
     final String shardActionName;
 
-    protected TransportInstanceSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool,
+    protected TransportInstanceSingleOperationAction(String actionName, ThreadPool threadPool,
                                                      ClusterService clusterService, TransportService transportService,
-                                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+                                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                                     Supplier<Request> request) {
+        super(actionName, transportService, actionFilters, request);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor();
         this.shardActionName = actionName + "[s]";
         transportService.registerRequestHandler(shardActionName, request, executor, new ShardTransportHandler());
     }
 
     @Override
-    protected void doExecute(Request request, ActionListener<Response> listener) {
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new AsyncSingleAction(request, listener).start();
     }
 
@@ -173,8 +182,10 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
             transportService.sendRequest(node, shardActionName, request, transportOptions(), new TransportResponseHandler<Response>() {
 
                 @Override
-                public Response newInstance() {
-                    return newResponse();
+                public Response read(StreamInput in) throws IOException {
+                    Response response = newResponse();
+                    response.readFrom(in);
+                    return response;
                 }
 
                 @Override
@@ -207,9 +218,12 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                 Exception listenFailure = failure;
                 if (listenFailure == null) {
                     if (shardIt == null) {
-                        listenFailure = new UnavailableShardsException(request.concreteIndex(), -1, "Timeout waiting for [{}], request: {}", request.timeout(), actionName);
+                        listenFailure = new UnavailableShardsException(request.concreteIndex(), -1, "Timeout waiting for [{}], request: {}",
+                            request.timeout(), actionName);
                     } else {
-                        listenFailure = new UnavailableShardsException(shardIt.shardId(), "[{}] shardIt, [{}] active : Timeout waiting for [{}], request: {}", shardIt.size(), shardIt.sizeActive(), request.timeout(), actionName);
+                        listenFailure = new UnavailableShardsException(shardIt.shardId(),
+                            "[{}] shardIt, [{}] active : Timeout waiting for [{}], request: {}", shardIt.size(), shardIt.sizeActive(),
+                            request.timeout(), actionName);
                     }
                 }
                 listener.onFailure(listenFailure);
@@ -239,7 +253,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     private class ShardTransportHandler implements TransportRequestHandler<Request> {
 
         @Override
-        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             shardOperation(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {

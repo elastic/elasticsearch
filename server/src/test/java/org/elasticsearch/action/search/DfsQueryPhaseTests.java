@@ -22,11 +22,13 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -52,29 +54,31 @@ public class DfsQueryPhaseTests extends ESTestCase {
     public void testDfsWith2Shards() throws IOException {
         AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();
-        results.set(0, newSearchResult(0, 1, new SearchShardTarget("node1", new Index("test", "na"), 0, null)));
-        results.set(1, newSearchResult(1, 2, new SearchShardTarget("node2", new Index("test", "na"), 0, null)));
+        results.set(0, newSearchResult(0, 1, new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
+        results.set(1, newSearchResult(1, 2, new SearchShardTarget("node2", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+        SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
-
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
-                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0,
-                        null));
-                    queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
+                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
+                        null, OriginalIndices.NONE));
+                    queryResult.topDocs(new TopDocsAndMaxScore(
+                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                                    new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
                     queryResult.size(2); // the size of the result set
                     listener.onResponse(queryResult);
                 } else if (request.id() == 2) {
-                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node2", new Index("test", "na"), 0,
-                        null));
-                    queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(84, 2.0F)}, 2.0F), new DocValueFormat[0]);
+                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node2", new ShardId("test", "na", 0),
+                        null, OriginalIndices.NONE));
+                    queryResult.topDocs(new TopDocsAndMaxScore(
+                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F),
+                            new DocValueFormat[0]);
                     queryResult.size(2); // the size of the result set
                     listener.onResponse(queryResult);
                 } else {
@@ -97,12 +101,12 @@ public class DfsQueryPhaseTests extends ESTestCase {
         assertNotNull(responseRef.get());
         assertNotNull(responseRef.get().get(0));
         assertNull(responseRef.get().get(0).fetchResult());
-        assertEquals(1, responseRef.get().get(0).queryResult().topDocs().totalHits);
-        assertEquals(42, responseRef.get().get(0).queryResult().topDocs().scoreDocs[0].doc);
+        assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+        assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
         assertNotNull(responseRef.get().get(1));
         assertNull(responseRef.get().get(1).fetchResult());
-        assertEquals(1, responseRef.get().get(1).queryResult().topDocs().totalHits);
-        assertEquals(84, responseRef.get().get(1).queryResult().topDocs().scoreDocs[0].doc);
+        assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value);
+        assertEquals(84, responseRef.get().get(1).queryResult().topDocs().topDocs.scoreDocs[0].doc);
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
         assertEquals(2, mockSearchPhaseContext.numSuccess.get());
     }
@@ -110,23 +114,23 @@ public class DfsQueryPhaseTests extends ESTestCase {
     public void testDfsWith1ShardFailed() throws IOException {
         AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();
-        results.set(0, newSearchResult(0, 1, new SearchShardTarget("node1", new Index("test", "na"), 0, null)));
-        results.set(1, newSearchResult(1, 2, new SearchShardTarget("node2", new Index("test", "na"), 0, null)));
+        results.set(0, newSearchResult(0, 1, new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
+        results.set(1, newSearchResult(1, 2, new SearchShardTarget("node2", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+        SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
-
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
-                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0,
-                        null));
-                    queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
+                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
+                        null, OriginalIndices.NONE));
+                    queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(
+                            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                            new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
                     queryResult.size(2); // the size of the result set
                     listener.onResponse(queryResult);
                 } else if (request.id() == 2) {
@@ -151,8 +155,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
         assertNotNull(responseRef.get());
         assertNotNull(responseRef.get().get(0));
         assertNull(responseRef.get().get(0).fetchResult());
-        assertEquals(1, responseRef.get().get(0).queryResult().topDocs().totalHits);
-        assertEquals(42, responseRef.get().get(0).queryResult().topDocs().scoreDocs[0].doc);
+        assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+        assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
         assertNull(responseRef.get().get(1));
 
         assertEquals(1, mockSearchPhaseContext.numSuccess.get());
@@ -167,23 +171,23 @@ public class DfsQueryPhaseTests extends ESTestCase {
     public void testFailPhaseOnException() throws IOException {
         AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();
-        results.set(0, newSearchResult(0, 1, new SearchShardTarget("node1", new Index("test", "na"), 0, null)));
-        results.set(1, newSearchResult(1, 2, new SearchShardTarget("node2", new Index("test", "na"), 0, null)));
+        results.set(0, newSearchResult(0, 1, new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
+        results.set(1, newSearchResult(1, 2, new SearchShardTarget("node2", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+        SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
-
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
-                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0,
-                        null));
-                    queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
+                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
+                        null, OriginalIndices.NONE));
+                    queryResult.topDocs(new TopDocsAndMaxScore(
+                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                                    new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
                     queryResult.size(2); // the size of the result set
                     listener.onResponse(queryResult);
                 } else if (request.id() == 2) {
@@ -203,7 +207,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 }
             }, mockSearchPhaseContext);
         assertEquals("dfs_query", phase.getName());
-        expectThrows(UncheckedIOException.class, () -> phase.run());
+        expectThrows(UncheckedIOException.class, phase::run);
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty()); // phase execution will clean up on the contexts
     }
 

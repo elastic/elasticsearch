@@ -21,14 +21,9 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class MapperTests extends ESTestCase {
 
@@ -42,7 +37,7 @@ public class MapperTests extends ESTestCase {
     }
 
     public void testBuilderContextWithIndexSettingsAsNull() {
-        NullPointerException e = expectThrows(NullPointerException.class, () -> new Mapper.BuilderContext(null, new ContentPath(1)));
+        expectThrows(NullPointerException.class, () -> new Mapper.BuilderContext(null, new ContentPath(1)));
     }
 
 }

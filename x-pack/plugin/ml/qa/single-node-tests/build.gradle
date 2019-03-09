@@ -1,0 +1,13 @@
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+  testCompile project(path: xpackModule('ml'), configuration: 'runtime')
+}
+
+integTestCluster {
+  setting 'xpack.ilm.enabled', 'false'
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+}

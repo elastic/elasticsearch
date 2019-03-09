@@ -25,7 +25,7 @@ import org.elasticsearch.test.ESTestCase;
  * Tests for {@link org.elasticsearch.common.geo.GeoHashUtils}
  */
 public class GeoHashTests extends ESTestCase {
-    public void testGeohashAsLongRoutines()  {
+    public void testGeohashAsLongRoutines() {
         final GeoPoint expected = new GeoPoint();
         final GeoPoint actual = new GeoPoint();
         //Ensure that for all points at all supported levels of precision
@@ -70,4 +70,47 @@ public class GeoHashTests extends ESTestCase {
         assertEquals(expectedLatDiff, bbox.maxLat - bbox.minLat, 0.00001);
         assertEquals(hash, GeoHashUtils.stringEncode(bbox.minLon, bbox.minLat, level));
     }
+
+    public void testGeohashExtremes() {
+        assertEquals("000000000000", GeoHashUtils.stringEncode(-180, -90));
+        assertEquals("800000000000", GeoHashUtils.stringEncode(-180, 0));
+        assertEquals("bpbpbpbpbpbp", GeoHashUtils.stringEncode(-180, 90));
+        assertEquals("h00000000000", GeoHashUtils.stringEncode(0, -90));
+        assertEquals("s00000000000", GeoHashUtils.stringEncode(0, 0));
+        assertEquals("upbpbpbpbpbp", GeoHashUtils.stringEncode(0, 90));
+        assertEquals("pbpbpbpbpbpb", GeoHashUtils.stringEncode(180, -90));
+        assertEquals("xbpbpbpbpbpb", GeoHashUtils.stringEncode(180, 0));
+        assertEquals("zzzzzzzzzzzz", GeoHashUtils.stringEncode(180, 90));
+    }
+
+    public void testLongGeohashes() {
+        for (int i = 0; i < 100000; i++) {
+            String geohash = randomGeohash(12, 12);
+            GeoPoint expected = GeoPoint.fromGeohash(geohash);
+            // Adding some random geohash characters at the end
+            String extendedGeohash = geohash + randomGeohash(1, 10);
+            GeoPoint actual = GeoPoint.fromGeohash(extendedGeohash);
+            assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]" , expected, actual);
+
+            Rectangle expectedBbox = GeoHashUtils.bbox(geohash);
+            Rectangle actualBbox = GeoHashUtils.bbox(extendedGeohash);
+            assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]" , expectedBbox, actualBbox);
+        }
+    }
+
+    public void testNorthPoleBoundingBox() {
+        Rectangle bbox = GeoHashUtils.bbox("zzbxfpgzupbx"); // Bounding box with maximum precision touching north pole
+        assertEquals(90.0, bbox.maxLat, 0.0000001); // Should be 90 degrees
+    }
+
+    public void testInvalidGeohashes() {
+        IllegalArgumentException ex;
+
+        ex = expectThrows(IllegalArgumentException.class, () -> GeoHashUtils.mortonEncode("55.5"));
+        assertEquals("unsupported symbol [.] in geohash [55.5]", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> GeoHashUtils.mortonEncode(""));
+        assertEquals("empty geohash", ex.getMessage());
+    }
+
 }

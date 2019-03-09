@@ -20,9 +20,9 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class PutMappingAction extends Action<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder> {
+public class PutMappingAction extends Action<AcknowledgedResponse> {
 
     public static final PutMappingAction INSTANCE = new PutMappingAction();
     public static final String NAME = "indices:admin/mapping/put";
@@ -32,12 +32,7 @@ public class PutMappingAction extends Action<PutMappingRequest, PutMappingRespon
     }
 
     @Override
-    public PutMappingResponse newResponse() {
-        return new PutMappingResponse();
-    }
-
-    @Override
-    public PutMappingRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new PutMappingRequestBuilder(client, this);
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 }

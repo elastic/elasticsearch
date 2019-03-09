@@ -22,10 +22,12 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilderTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,23 +35,26 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.synchronizedList;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
 
 public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTestCase {
     public void testBuildRestClient() throws Exception {
-        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, new BytesArray("ignored"), null, null, emptyMap(),
+        for(final String path: new String[]{"", null, "/", "path"}) {
+            RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, path, new BytesArray("ignored"), null, null, emptyMap(),
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
-        long taskId = randomLong();
-        List<Thread> threads = synchronizedList(new ArrayList<>());
-        RestClient client = TransportReindexAction.buildRestClient(remoteInfo, taskId, threads);
-        try {
-            assertBusy(() -> assertThat(threads, hasSize(2)));
-            int i = 0;
-            for (Thread thread : threads) {
-                assertEquals("es-client-" + taskId + "-" + i, thread.getName());
-                i++;
+            long taskId = randomLong();
+            List<Thread> threads = synchronizedList(new ArrayList<>());
+            RestClient client = TransportReindexAction.buildRestClient(remoteInfo, sslConfig(), taskId, threads);
+            try {
+                assertBusy(() -> assertThat(threads, hasSize(2)));
+                int i = 0;
+                for (Thread thread : threads) {
+                    assertEquals("es-client-" + taskId + "-" + i, thread.getName());
+                    i++;
+                }
+            } finally {
+                client.close();
             }
-        } finally {
-            client.close();
         }
     }
 
@@ -59,15 +64,22 @@ public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTest
         for (int i = 0; i < numHeaders; ++i) {
             headers.put("header" + i, Integer.toString(i));
         }
-        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, new BytesArray("ignored"), null, null,
+        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, null, new BytesArray("ignored"), null, null,
             headers, RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         long taskId = randomLong();
         List<Thread> threads = synchronizedList(new ArrayList<>());
-        RestClient client = TransportReindexAction.buildRestClient(remoteInfo, taskId, threads);
+        RestClient client = TransportReindexAction.buildRestClient(remoteInfo, sslConfig(), taskId, threads);
         try {
             assertHeaders(client, headers);
         } finally {
             client.close();
         }
     }
+
+    private ReindexSslConfig sslConfig() {
+        final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        final ResourceWatcherService resourceWatcher = mock(ResourceWatcherService.class);
+        return new ReindexSslConfig(environment.settings(), environment, resourceWatcher);
+    }
+
 }

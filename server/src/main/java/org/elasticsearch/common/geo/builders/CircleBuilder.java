@@ -23,7 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.locationtech.spatial4j.shape.Circle;
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CircleBuilder extends ShapeBuilder<Circle, CircleBuilder> {
+public class CircleBuilder extends ShapeBuilder<Circle, org.elasticsearch.geo.geometry.Circle, CircleBuilder> {
 
     public static final ParseField FIELD_RADIUS = new ParseField("radius");
     public static final GeoShapeType TYPE = GeoShapeType.CIRCLE;
@@ -56,7 +56,7 @@ public class CircleBuilder extends ShapeBuilder<Circle, CircleBuilder> {
      */
     public CircleBuilder(StreamInput in) throws IOException {
         center(readFromStream(in));
-        radius(in.readDouble(), DistanceUnit.readFromStream(in));;
+        radius(in.readDouble(), DistanceUnit.readFromStream(in));
     }
 
     @Override
@@ -159,8 +159,13 @@ public class CircleBuilder extends ShapeBuilder<Circle, CircleBuilder> {
     }
 
     @Override
-    public Circle build() {
+    public Circle buildS4J() {
         return SPATIAL_CONTEXT.makeCircle(center.x, center.y, 360 * radius / unit.getEarthCircumference());
+    }
+
+    @Override
+    public org.elasticsearch.geo.geometry.Circle buildGeometry() {
+        throw new UnsupportedOperationException("CIRCLE geometry is not supported");
     }
 
     @Override
@@ -171,6 +176,10 @@ public class CircleBuilder extends ShapeBuilder<Circle, CircleBuilder> {
     @Override
     public String toWKT() {
         throw new UnsupportedOperationException("The WKT spec does not support CIRCLE geometry");
+    }
+
+    public int numDimensions() {
+        return Double.isNaN(center.z) ? 2 : 3;
     }
 
     @Override

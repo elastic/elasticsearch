@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -41,7 +42,7 @@ public class SuggestionOptionTests extends ESTestCase {
         float score = randomFloat();
         Text highlighted = randomFrom((Text) null, new Text(randomAlphaOfLengthBetween(5, 15)));
         Boolean collateMatch = randomFrom((Boolean) null, randomBoolean());
-        return new Option(text, highlighted, score, collateMatch);
+        return new PhraseSuggestion.Entry.Option(text, highlighted, score, collateMatch);
     }
 
     public void testFromXContent() throws IOException {
@@ -66,7 +67,7 @@ public class SuggestionOptionTests extends ESTestCase {
         Option parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            parsed = Option.fromXContent(parser);
+            parsed = PhraseSuggestion.Entry.Option.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -78,7 +79,7 @@ public class SuggestionOptionTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        Option option = new Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
+        Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
         BytesReference xContent = toXContent(option, XContentType.JSON, randomBoolean());
         assertEquals("{\"text\":\"someText\","
                       + "\"highlighted\":\"somethingHighlighted\","

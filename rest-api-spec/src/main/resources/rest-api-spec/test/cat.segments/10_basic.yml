@@ -42,7 +42,6 @@
   - do:
       index:
         index: index1
-        type: type
         body: { foo: bar }
         refresh: true
   - do:
@@ -62,7 +61,6 @@
   - do:
       index:
         index: index2
-        type: type
         body: { foo: bar }
         refresh: true
   - do:
@@ -85,10 +83,6 @@
 
 ---
 "Test cat segments on closed index behaviour":
-
-  - skip:
-      version: " - 5.99.99"
-      reason:  status code  on closed indices changed in 6.0.0 from 403 to 400
 
   - do:
       indices.create:
@@ -121,7 +115,6 @@
   - do:
       index:
         index: foo
-        type: type
         body: { test: foo }
         refresh: true
 
@@ -136,7 +129,6 @@
   - do:
       index:
         index: bar
-        type: type
         body: { test: bar }
         refresh: true
 
@@ -151,7 +143,6 @@
   - do:
       index:
         index: baz
-        type: type
         body: { test: baz }
         refresh: true
 

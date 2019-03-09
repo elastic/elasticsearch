@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -39,6 +41,7 @@ import java.util.Objects;
 public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQueryBuilder> {
     public static final String NAME = "match_phrase";
     public static final ParseField SLOP_FIELD = new ParseField("slop");
+    public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
 
     private final String fieldName;
 
@@ -47,6 +50,8 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
     private String analyzer;
 
     private int slop = MatchQuery.DEFAULT_PHRASE_SLOP;
+
+    private ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
 
     public MatchPhraseQueryBuilder(String fieldName, Object value) {
         if (Strings.isEmpty(fieldName)) {
@@ -67,6 +72,9 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         fieldName = in.readString();
         value = in.readGenericValue();
         slop = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            zeroTermsQuery = ZeroTermsQuery.readFromStream(in);
+        }
         analyzer = in.readOptionalString();
     }
 
@@ -75,6 +83,9 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         out.writeString(fieldName);
         out.writeGenericValue(value);
         out.writeVInt(slop);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            zeroTermsQuery.writeTo(out);
+        }
         out.writeOptionalString(analyzer);
     }
 
@@ -97,7 +108,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         return this;
     }
 
-    /** Get the analyzer to use, if previously set, otherwise <tt>null</tt> */
+    /** Get the analyzer to use, if previously set, otherwise {@code null} */
     public String analyzer() {
         return this.analyzer;
     }
@@ -116,6 +127,23 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         return this.slop;
     }
 
+    /**
+     * Sets query to use in case no query terms are available, e.g. after analysis removed them.
+     * Defaults to {@link ZeroTermsQuery#NONE}, but can be set to
+     * {@link ZeroTermsQuery#ALL} instead.
+     */
+    public MatchPhraseQueryBuilder zeroTermsQuery(ZeroTermsQuery zeroTermsQuery) {
+        if (zeroTermsQuery == null) {
+            throw new IllegalArgumentException("[" + NAME + "] requires zeroTermsQuery to be non-null");
+        }
+        this.zeroTermsQuery = zeroTermsQuery;
+        return this;
+    }
+
+    public ZeroTermsQuery zeroTermsQuery() {
+        return this.zeroTermsQuery;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;
@@ -131,6 +159,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
             builder.field(MatchQueryBuilder.ANALYZER_FIELD.getPreferredName(), analyzer);
         }
         builder.field(SLOP_FIELD.getPreferredName(), slop);
+        builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
@@ -148,14 +177,18 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
             matchQuery.setAnalyzer(analyzer);
         }
         matchQuery.setPhraseSlop(slop);
+        matchQuery.setZeroTermsQuery(zeroTermsQuery);
 
         return matchQuery.parse(MatchQuery.Type.PHRASE, fieldName, value);
     }
 
     @Override
     protected boolean doEquals(MatchPhraseQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) && Objects.equals(value, other.value) && Objects.equals(analyzer, other.analyzer)
-                && Objects.equals(slop, other.slop);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(value, other.value)
+            && Objects.equals(analyzer, other.analyzer)
+            && Objects.equals(slop, other.slop)
+            && Objects.equals(zeroTermsQuery, other.zeroTermsQuery);
     }
 
     @Override
@@ -169,6 +202,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String analyzer = null;
         int slop = MatchQuery.DEFAULT_PHRASE_SLOP;
+        ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -192,6 +226,16 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
                             slop = parser.intValue();
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
+                        } else if (ZERO_TERMS_QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            String zeroTermsValue = parser.text();
+                            if ("none".equalsIgnoreCase(zeroTermsValue)) {
+                                zeroTermsQuery = ZeroTermsQuery.NONE;
+                            } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
+                                zeroTermsQuery = ZeroTermsQuery.ALL;
+                            } else {
+                                throw new ParsingException(parser.getTokenLocation(),
+                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]");
+                            }
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
                                     "[" + NAME + "] query does not support [" + currentFieldName + "]");
@@ -211,6 +255,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         MatchPhraseQueryBuilder matchQuery = new MatchPhraseQueryBuilder(fieldName, value);
         matchQuery.analyzer(analyzer);
         matchQuery.slop(slop);
+        matchQuery.zeroTermsQuery(zeroTermsQuery);
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
         return matchQuery;

@@ -19,61 +19,16 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.not;
 
 /** Tests plugin manager security check */
 public class PluginSecurityTests extends ESTestCase {
-
-    public void testHasNativeController() throws Exception {
-        assumeTrue(
-                "test cannot run with security manager enabled",
-                System.getSecurityManager() == null);
-        final MockTerminal terminal = new MockTerminal();
-        terminal.addTextInput("y");
-        terminal.addTextInput("y");
-        final Path policyFile = this.getDataPath("security/simple-plugin-security.policy");
-        Set<String> permissions = PluginSecurity.parsePermissions(policyFile, createTempDir());
-        PluginSecurity.confirmPolicyExceptions(terminal, permissions, true, false);
-        final String output = terminal.getOutput();
-        assertThat(output, containsString("plugin forks a native controller"));
-    }
-
-    public void testDeclineNativeController() throws IOException {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        final MockTerminal terminal = new MockTerminal();
-        terminal.addTextInput("y");
-        terminal.addTextInput("n");
-        final Path policyFile = this.getDataPath("security/simple-plugin-security.policy");
-        Set<String> permissions = PluginSecurity.parsePermissions(policyFile, createTempDir());
-        UserException e = expectThrows(UserException.class,
-                () -> PluginSecurity.confirmPolicyExceptions(terminal, permissions, true, false));
-        assertThat(e, hasToString(containsString("installation aborted by user")));
-    }
-
-    public void testDoesNotHaveNativeController() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        final MockTerminal terminal = new MockTerminal();
-        terminal.addTextInput("y");
-        final Path policyFile = this.getDataPath("security/simple-plugin-security.policy");
-        Set<String> permissions = PluginSecurity.parsePermissions(policyFile, createTempDir());
-        PluginSecurity.confirmPolicyExceptions(terminal, permissions, false, false);
-        final String output = terminal.getOutput();
-        assertThat(output, not(containsString("plugin forks a native controller")));
-    }
 
     /** Test that we can parse the set of permissions correctly for a simple policy */
     public void testParsePermissions() throws Exception {

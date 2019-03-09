@@ -1,0 +1,46 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      security.delete_role_mapping:
+        name: "everyone"
+        ignore: 404
+---
+"Test put role_mapping api":
+  - do:
+      security.put_role_mapping:
+        name: "everyone"
+        body:  >
+            {
+               "enabled": true,
+               "roles": [ "kibana_user" ],
+               "rules": { "field": { "username": "*" } },
+               "metadata": {
+                  "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7"
+               }
+            }
+  - match: { role_mapping: { created: true } }
+
+  # Get by name
+  - do:
+      security.get_role_mapping:
+        name: "everyone"
+  - match: { everyone.enabled:  true }
+  - match: { everyone.roles.0:  "kibana_user" }
+  - match: { everyone.rules.field.username:  "*" }
+
+  # Get all
+  - do:
+      security.get_role_mapping:
+        name: null
+  - match: { everyone.enabled:  true }
+  - match: { everyone.roles.0:  "kibana_user" }
+  - match: { everyone.rules.field.username:  "*" }

@@ -19,46 +19,26 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.Tag;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
 
-public class AwsEc2ServiceMock extends AbstractLifecycleComponent implements AwsEc2Service {
+public class AwsEc2ServiceMock extends AwsEc2ServiceImpl {
 
-    private int nodes;
-    private List<List<Tag>> tagsList;
-    private AmazonEC2 client;
+    private final int nodes;
+    private final List<List<Tag>> tagsList;
 
-    public AwsEc2ServiceMock(Settings settings, int nodes, List<List<Tag>> tagsList) {
-        super(settings);
+    public AwsEc2ServiceMock(int nodes, List<List<Tag>> tagsList) {
         this.nodes = nodes;
         this.tagsList = tagsList;
     }
 
     @Override
-    public synchronized AmazonEC2 client() {
-        if (client == null) {
-            client = new AmazonEC2Mock(nodes, tagsList);
-        }
-
-        return client;
+    AmazonEC2 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
+        return new AmazonEC2Mock(nodes, tagsList, credentials, configuration);
     }
 
-    @Override
-    protected void doStart() {
-
-    }
-
-    @Override
-    protected void doStop() {
-
-    }
-
-    @Override
-    protected void doClose() {
-
-    }
 }

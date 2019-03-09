@@ -316,7 +316,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         if (other instanceof AllocateUnassignedDecision == false) {
             return false;
         }
-        @SuppressWarnings("unchecked") AllocateUnassignedDecision that = (AllocateUnassignedDecision) other;
+        AllocateUnassignedDecision that = (AllocateUnassignedDecision) other;
         return Objects.equals(allocationStatus, that.allocationStatus)
                    && Objects.equals(allocationId, that.allocationId)
                    && reuseStore == that.reuseStore

@@ -4,10 +4,9 @@
 Elasticsearch uses https://logging.apache.org/log4j/2.x/[Log4j 2] for
 logging. Log4j 2 can be configured using the log4j2.properties
 file. Elasticsearch exposes three properties, `${sys:es.logs.base_path}`,
-`${sys:es.logs.cluster_name}`, and `${sys:es.logs.node_name}` (if the node name
-is explicitly set via `node.name`) that can be referenced in the configuration
-file to determine the location of the log files. The property
-`${sys:es.logs.base_path}` will resolve to the log directory,
+`${sys:es.logs.cluster_name}`, and `${sys:es.logs.node_name}` that can be
+referenced in the configuration file to determine the location of the log
+files. The property `${sys:es.logs.base_path}` will resolve to the log directory,
 `${sys:es.logs.cluster_name}` will resolve to the cluster name (used as the
 prefix of log filenames in the default configuration), and
 `${sys:es.logs.node_name}` will resolve to the node name (if the node name is
@@ -21,43 +20,62 @@ will resolve to `/var/log/elasticsearch/production.log`.
 
 [source,properties]
 --------------------------------------------------
+######## Server JSON ############################
 appender.rolling.type = RollingFile <1>
 appender.rolling.name = rolling
-appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}.log <2>
-appender.rolling.layout.type = PatternLayout
-appender.rolling.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] %marker%.-10000m%n
-appender.rolling.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.log.gz <3>
+appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_server.json <2>
+appender.rolling.layout.type = ESJsonLayout <3>
+appender.rolling.layout.type_name = server <4>
+appender.rolling.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.json.gz <5>
 appender.rolling.policies.type = Policies
-appender.rolling.policies.time.type = TimeBasedTriggeringPolicy <4>
-appender.rolling.policies.time.interval = 1 <5>
-appender.rolling.policies.time.modulate = true <6>
-appender.rolling.policies.size.type = SizeBasedTriggeringPolicy <7>
-appender.rolling.policies.size.size = 256MB <8>
+appender.rolling.policies.time.type = TimeBasedTriggeringPolicy <6>
+appender.rolling.policies.time.interval = 1 <7>
+appender.rolling.policies.time.modulate = true <8>
+appender.rolling.policies.size.type = SizeBasedTriggeringPolicy <9>
+appender.rolling.policies.size.size = 256MB <10>
 appender.rolling.strategy.type = DefaultRolloverStrategy
 appender.rolling.strategy.fileIndex = nomax
-appender.rolling.strategy.action.type = Delete <9>
+appender.rolling.strategy.action.type = Delete <11>
 appender.rolling.strategy.action.basepath = ${sys:es.logs.base_path}
-appender.rolling.strategy.action.condition.type = IfFileName <10>
-appender.rolling.strategy.action.condition.glob = ${sys:es.logs.cluster_name}-* <11>
-appender.rolling.strategy.action.condition.nested_condition.type = IfAccumulatedFileSize <12>
-appender.rolling.strategy.action.condition.nested_condition.exceeds = 2GB <13>
+appender.rolling.strategy.action.condition.type = IfFileName <12>
+appender.rolling.strategy.action.condition.glob = ${sys:es.logs.cluster_name}-* <13>
+appender.rolling.strategy.action.condition.nested_condition.type = IfAccumulatedFileSize <14>
+appender.rolling.strategy.action.condition.nested_condition.exceeds = 2GB <15>
+################################################
 --------------------------------------------------
 
 <1> Configure the `RollingFile` appender
-<2> Log to `/var/log/elasticsearch/production.log`
-<3> Roll logs to `/var/log/elasticsearch/production-yyyy-MM-dd-i.log`; logs
+<2> Log to `/var/log/elasticsearch/production.json`
+<3> Use JSON layout.
+<4> `type_name` is a flag populating the `type` field in a `ESJsonLayout`.
+ It can be used to distinguish different types of logs more easily when parsing them.
+<5> Roll logs to `/var/log/elasticsearch/production-yyyy-MM-dd-i.json`; logs
     will be compressed on each roll and `i` will be incremented
-<4> Use a time-based roll policy
-<5> Roll logs on a daily basis
-<6> Align rolls on the day boundary (as opposed to rolling every twenty-four
+<6> Use a time-based roll policy
+<7> Roll logs on a daily basis
+<8> Align rolls on the day boundary (as opposed to rolling every twenty-four
     hours)
-<7> Using a size-based roll policy
-<8> Roll logs after 256 MB
-<9> Use a delete action when rolling logs
-<10> Only delete logs matching a file pattern
-<11> The pattern is to only delete the main logs
-<12> Only delete if we have accumulated too many compressed logs
-<13> The size condition on the compressed logs is 2 GB
+<9> Using a size-based roll policy
+<10> Roll logs after 256 MB
+<11> Use a delete action when rolling logs
+<12> Only delete logs matching a file pattern
+<13> The pattern is to only delete the main logs
+<14> Only delete if we have accumulated too many compressed logs
+<15> The size condition on the compressed logs is 2 GB
+
+[source,properties]
+--------------------------------------------------
+######## Server -  old style pattern ###########
+appender.rolling_old.type = RollingFile
+appender.rolling_old.name = rolling_old
+appender.rolling_old.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_server.log <1>
+appender.rolling_old.layout.type = PatternLayout
+appender.rolling_old.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n
+appender.rolling_old.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.old_log.gz
+
+--------------------------------------------------
+<1> The configuration for `old style` pattern appenders. These logs will be saved in `*.log` files and if archived will be in `*
+.log.gz` files. Note that these should be considered deprecated and will be removed in the future.
 
 NOTE: Log4j's configuration parsing gets confused by any extraneous whitespace;
 if you copy and paste any Log4j settings on this page, or enter any Log4j
@@ -195,3 +213,38 @@ files (four rolled logs, and the active log).
 
 You can disable it in the `config/log4j2.properties` file by setting the deprecation
 log level to `error`.
+
+
+[float]
+[[json-logging]]
+=== JSON log format
+
+To make parsing Elasticsearch logs easier, logs are now printed in a JSON format.
+This is configured by a Log4J layout property `appender.rolling.layout.type = ESJsonLayout`.
+This layout requires a `type_name` attribute to be set which is used to distinguish
+logs streams when parsing.
+[source,properties]
+--------------------------------------------------
+appender.rolling.layout.type = ESJsonLayout
+appender.rolling.layout.type_name = server
+--------------------------------------------------
+:es-json-layout-java-doc: {elasticsearch-javadoc}/org/elasticsearch/common/logging/ESJsonLayout.html
+
+Each line contains a single JSON document with the properties configured in `ESJsonLayout`.
+See this class {es-json-layout-java-doc}[javadoc] for more details.
+However if a JSON document contains an exception, it will be printed over multiple lines.
+The first line will contain regular properties and subsequent lines will contain the
+stacktrace formatted as a JSON array.
+
+
+NOTE: You can still use your own custom layout. To do that replace the line
+`appender.rolling.layout.type` with a different layout. See sample below:
+[source,properties]
+--------------------------------------------------
+appender.rolling.type = RollingFile
+appender.rolling.name = rolling
+appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_server.log
+appender.rolling.layout.type = PatternLayout
+appender.rolling.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %.-10000m%n
+appender.rolling.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.log.gz
+--------------------------------------------------

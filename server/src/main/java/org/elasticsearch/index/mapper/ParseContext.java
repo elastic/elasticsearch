@@ -24,15 +24,20 @@ import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
-public abstract class ParseContext {
+public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
     /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
     public static class Document implements Iterable<IndexableField> {
@@ -172,6 +177,11 @@ public abstract class ParseContext {
         }
 
         @Override
+        public Iterable<Document> nonRootDocuments() {
+            return in.nonRootDocuments();
+        }
+
+        @Override
         public DocumentMapperParser docMapperParser() {
             return in.docMapperParser();
         }
@@ -187,7 +197,7 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Settings indexSettings() {
+        public IndexSettings indexSettings() {
             return in.indexSettings();
         }
 
@@ -209,11 +219,6 @@ public abstract class ParseContext {
         @Override
         public Document rootDoc() {
             return in.rootDoc();
-        }
-
-        @Override
-        public List<Document> docs() {
-            return in.docs();
         }
 
         @Override
@@ -280,6 +285,21 @@ public abstract class ParseContext {
         public List<Mapper> getDynamicMappers() {
             return in.getDynamicMappers();
         }
+
+        @Override
+        public Iterator<Document> iterator() {
+            return in.iterator();
+        }
+
+        @Override
+        public void addIgnoredField(String field) {
+            in.addIgnoredField(field);
+        }
+
+        @Override
+        public Collection<String> getIgnoredFields() {
+            return in.getIgnoredFields();
+        }
     }
 
     public static class InternalParseContext extends ParseContext {
@@ -296,8 +316,7 @@ public abstract class ParseContext {
 
         private final List<Document> documents;
 
-        @Nullable
-        private final Settings indexSettings;
+        private final IndexSettings indexSettings;
 
         private final SourceToParse sourceToParse;
 
@@ -309,11 +328,14 @@ public abstract class ParseContext {
 
         private long numNestedDocs;
 
-
         private final List<Mapper> dynamicMappers;
 
-        public InternalParseContext(@Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
-                SourceToParse source, XContentParser parser) {
+        private boolean docsReversed = false;
+
+        private final Set<String> ignoredFields = new HashSet<>();
+
+        public InternalParseContext(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
+                                    SourceToParse source, XContentParser parser) {
             this.indexSettings = indexSettings;
             this.docMapper = docMapper;
             this.docMapperParser = docMapperParser;
@@ -325,7 +347,7 @@ public abstract class ParseContext {
             this.version = null;
             this.sourceToParse = source;
             this.dynamicMappers = new ArrayList<>();
-            this.maxAllowedNumNestedDocs = MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.get(indexSettings);
+            this.maxAllowedNumNestedDocs = indexSettings.getValue(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
             this.numNestedDocs = 0L;
         }
 
@@ -335,8 +357,7 @@ public abstract class ParseContext {
         }
 
         @Override
-        @Nullable
-        public Settings indexSettings() {
+        public IndexSettings indexSettings() {
             return this.indexSettings;
         }
 
@@ -360,8 +381,7 @@ public abstract class ParseContext {
             return documents.get(0);
         }
 
-        @Override
-        public List<Document> docs() {
+        List<Document> docs() {
             return this.documents;
         }
 
@@ -426,7 +446,83 @@ public abstract class ParseContext {
         public List<Mapper> getDynamicMappers() {
             return dynamicMappers;
         }
+
+        @Override
+        public Iterable<Document> nonRootDocuments() {
+            if (docsReversed) {
+                throw new IllegalStateException("documents are already reversed");
+            }
+            return documents.subList(1, documents.size());
+        }
+
+        void postParse() {
+            if (documents.size() > 1) {
+                docsReversed = true;
+                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_5_0)) {
+                    /**
+                     * For indices created on or after {@link Version#V_6_5_0} we preserve the order
+                     * of the children while ensuring that parents appear after them.
+                     */
+                    List<Document> newDocs = reorderParent(documents);
+                    documents.clear();
+                    documents.addAll(newDocs);
+                } else {
+                    // reverse the order of docs for nested docs support, parent should be last
+                    Collections.reverse(documents);
+                }
+            }
+        }
+
+        /**
+         * Returns a copy of the provided {@link List} where parent documents appear
+         * after their children.
+         */
+        private List<Document> reorderParent(List<Document> docs) {
+            List<Document> newDocs = new ArrayList<>(docs.size());
+            LinkedList<Document> parents = new LinkedList<>();
+            for (Document doc : docs) {
+                while (parents.peek() != doc.getParent()){
+                    newDocs.add(parents.poll());
+                }
+                parents.add(0, doc);
+            }
+            newDocs.addAll(parents);
+            return newDocs;
+        }
+
+        @Override
+        public Iterator<Document> iterator() {
+            return documents.iterator();
+        }
+
+
+        @Override
+        public void addIgnoredField(String field) {
+            ignoredFields.add(field);
+        }
+
+        @Override
+        public Collection<String> getIgnoredFields() {
+            return Collections.unmodifiableCollection(ignoredFields);
+        }
     }
+
+    /**
+     * Returns an Iterable over all non-root documents. If there are no non-root documents
+     * the iterable will return an empty iterator.
+     */
+    public abstract Iterable<Document> nonRootDocuments();
+
+
+    /**
+     * Add the given {@code field} to the set of ignored fields.
+     */
+    public abstract void addIgnoredField(String field);
+
+    /**
+     * Return the collection of fields that have been ignored so far.
+     */
+    public abstract Collection<String> getIgnoredFields();
 
     public abstract DocumentMapperParser docMapperParser();
 
@@ -495,8 +591,7 @@ public abstract class ParseContext {
         return false;
     }
 
-    @Nullable
-    public abstract Settings indexSettings();
+    public abstract IndexSettings indexSettings();
 
     public abstract SourceToParse sourceToParse();
 
@@ -505,8 +600,6 @@ public abstract class ParseContext {
     public abstract XContentParser parser();
 
     public abstract Document rootDoc();
-
-    public abstract List<Document> docs();
 
     public abstract Document doc();
 

@@ -28,12 +28,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.SignificantTermsHeuristicScoreScript;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 public class ScriptHeuristic extends SignificanceHeuristic {
@@ -48,19 +50,21 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         private final LongAccessor supersetSizeHolder;
         private final LongAccessor subsetDfHolder;
         private final LongAccessor supersetDfHolder;
-        private final ExecutableScript executableScript;
+        private final SignificantTermsHeuristicScoreScript executableScript;
+        private final Map<String, Object> params = new HashMap<>();
 
-        ExecutableScriptHeuristic(Script script, ExecutableScript executableScript){
+        ExecutableScriptHeuristic(Script script, SignificantTermsHeuristicScoreScript executableScript) {
             super(script);
             subsetSizeHolder = new LongAccessor();
             supersetSizeHolder = new LongAccessor();
             subsetDfHolder = new LongAccessor();
             supersetDfHolder = new LongAccessor();
             this.executableScript = executableScript;
-            executableScript.setNextVar("_subset_freq", subsetDfHolder);
-            executableScript.setNextVar("_subset_size", subsetSizeHolder);
-            executableScript.setNextVar("_superset_freq", supersetDfHolder);
-            executableScript.setNextVar("_superset_size", supersetSizeHolder);
+            params.putAll(script.getParams());
+            params.put("_subset_freq", subsetDfHolder);
+            params.put("_subset_size", subsetSizeHolder);
+            params.put("_superset_freq", supersetDfHolder);
+            params.put("_superset_size", supersetSizeHolder);
         }
 
         @Override
@@ -69,7 +73,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             supersetSizeHolder.value = supersetSize;
             subsetDfHolder.value = subsetFreq;
             supersetDfHolder.value = supersetFreq;
-            return ((Number) executableScript.run()).doubleValue();
+            return executableScript.execute(params);
        }
     }
 
@@ -91,15 +95,17 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext context) {
-        ExecutableScript.Factory factory = context.scriptService().compile(script, ExecutableScript.AGGS_CONTEXT);
-        return new ExecutableScriptHeuristic(script, factory.newInstance(script.getParams()));
+        SignificantTermsHeuristicScoreScript.Factory factory = context.scriptService().compile(script,
+                SignificantTermsHeuristicScoreScript.CONTEXT);
+        return new ExecutableScriptHeuristic(script, factory.newInstance());
     }
 
     @Override
     public SignificanceHeuristic rewrite(SearchContext context) {
         QueryShardContext shardContext = context.getQueryShardContext();
-        ExecutableScript.Factory compiledScript = shardContext.getScriptService().compile(script, ExecutableScript.AGGS_CONTEXT);
-        return new ExecutableScriptHeuristic(script, compiledScript.newInstance(script.getParams()));
+        SignificantTermsHeuristicScoreScript.Factory compiledScript = shardContext.getScriptService().compile(script,
+                SignificantTermsHeuristicScoreScript.CONTEXT);
+        return new ExecutableScriptHeuristic(script, compiledScript.newInstance());
     }
 
 
@@ -114,7 +120,8 @@ public class ScriptHeuristic extends SignificanceHeuristic {
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        throw new UnsupportedOperationException("This scoring heuristic must have 'rewrite' called on it to provide a version ready for use");
+        throw new UnsupportedOperationException("This scoring heuristic must have 'rewrite' called on it to provide a version ready " +
+                "for use");
     }
 
     @Override
@@ -161,13 +168,15 @@ public class ScriptHeuristic extends SignificanceHeuristic {
                 if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     script = Script.parse(parser);
                 } else {
-                    throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]", heuristicName, currentFieldName);
+                    throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]",
+                            heuristicName, currentFieldName);
                 }
             }
         }
 
         if (script == null) {
-            throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. no script found in script_heuristic", heuristicName);
+            throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. no script found in script_heuristic",
+                    heuristicName);
         }
         return new ScriptHeuristic(script);
     }

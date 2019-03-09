@@ -30,7 +30,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -46,8 +46,8 @@ import java.util.function.Function;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketSelector;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketSelector;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -184,7 +184,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                 .addAggregation(histogram("histo").field(FIELD_1_NAME).interval(interval)
                         .subAggregation(sum("field2Sum").field(FIELD_2_NAME)).subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                         .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -218,7 +218,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -252,7 +252,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -276,7 +276,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -309,7 +309,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                                 .interval(interval)
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(bucketSelector("bucketSelector", script, "field2Sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -343,7 +343,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(bucketSelector("bucketSelector", bucketPathsMap, script)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -376,7 +376,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -409,7 +409,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(bucketSelector("bucketSelector", script , "field2Sum", "field3Sum")
                         .gapPolicy(GapPolicy.INSERT_ZEROS)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -449,7 +449,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -482,7 +482,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -504,7 +504,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(bucketSelector("bucketSelector", script, "field2Sum", "field3Sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -539,7 +539,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                                 .minDocCount(0)
                                 .subAggregation(derivative("derivative", "_count")
                                 .gapPolicy(GapPolicy.INSERT_ZEROS))))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 

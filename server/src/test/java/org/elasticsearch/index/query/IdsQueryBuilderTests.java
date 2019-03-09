@@ -25,36 +25,33 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 
 public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder> {
 
     @Override
     protected IdsQueryBuilder doCreateTestQueryBuilder() {
-        String[] types;
-        if (getCurrentTypes() != null && getCurrentTypes().length > 0 && randomBoolean()) {
-            int numberOfTypes = randomIntBetween(1, getCurrentTypes().length);
-            types = new String[numberOfTypes];
-            for (int i = 0; i < numberOfTypes; i++) {
-                if (frequently()) {
-                    types[i] = randomFrom(getCurrentTypes());
-                } else {
-                    types[i] = randomAlphaOfLengthBetween(1, 10);
-                }
-            }
-        } else {
-            if (randomBoolean()) {
-                types = new String[]{MetaData.ALL};
+        final String type;
+        if (randomBoolean()) {
+            if (frequently()) {
+                type = "_doc";
             } else {
-                types = new String[0];
+                type = randomAlphaOfLengthBetween(1, 10);
             }
+        } else if (randomBoolean()) {
+            type = MetaData.ALL;
+        } else {
+            type = null;
         }
         int numberOfIds = randomIntBetween(0, 10);
         String[] ids = new String[numberOfIds];
@@ -62,8 +59,8 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
             ids[i] = randomAlphaOfLengthBetween(1, 10);
         }
         IdsQueryBuilder query;
-        if (types.length > 0 || randomBoolean()) {
-            query = new IdsQueryBuilder().types(types);
+        if (type != null && randomBoolean()) {
+            query = new IdsQueryBuilder().types(type);
             query.addIds(ids);
         } else {
             query = new IdsQueryBuilder();
@@ -74,7 +71,14 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     @Override
     protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        if (queryBuilder.ids().size() == 0 || context.getQueryShardContext().fieldMapper(UidFieldMapper.NAME) == null) {
+        boolean allTypes = queryBuilder.types().length == 0 ||
+                queryBuilder.types().length == 1 && "_all".equals(queryBuilder.types()[0]);
+        if (queryBuilder.ids().size() == 0
+                // no types
+                || context.getQueryShardContext().fieldMapper(IdFieldMapper.NAME) == null
+                // there are types, but disjoint from the query
+                || (allTypes == false &&
+                    Arrays.asList(queryBuilder.types()).indexOf(context.mapperService().documentMapper().type()) == -1)) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(TermInSetQuery.class));
@@ -94,7 +98,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     public void testIdsQueryWithInvalidValues() throws Exception {
         String query = "{ \"ids\": { \"values\": [[1]] } }";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
-        assertEquals("[ids] failed to parse field [values]", e.getMessage());
+        assertThat(e.getMessage(), containsString("[ids] failed to parse field [values]"));
     }
 
     public void testFromJson() throws IOException {
@@ -148,5 +152,17 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         parsed = (IdsQueryBuilder) parseQuery(json);
         assertThat(parsed.ids(), contains("1","100","4"));
         assertEquals(json, 0, parsed.types().length);
+    }
+
+    @Override
+    protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
+        QueryBuilder query = super.parseQuery(parser);
+        assertThat(query, instanceOf(IdsQueryBuilder.class));
+
+        IdsQueryBuilder idsQuery = (IdsQueryBuilder) query;
+        if (idsQuery.types().length > 0) {
+            assertWarnings(IdsQueryBuilder.TYPES_DEPRECATION_MESSAGE);
+        }
+        return query;
     }
 }

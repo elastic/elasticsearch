@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.PainlessExecuteAction.PainlessTestScript;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.objectweb.asm.util.Textifier;
 
@@ -30,7 +32,7 @@ final class Debugger {
 
     /** compiles source to bytecode, and returns debugging output */
     static String toString(final String source) {
-        return toString(GenericElasticsearchScript.class, source, new CompilerSettings());
+        return toString(PainlessTestScript.class, source, new CompilerSettings());
     }
 
     /** compiles to bytecode, and returns debugging output */
@@ -39,7 +41,7 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, new Definition(Whitelist.BASE_WHITELISTS))
+            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS))
                     .compile("<debugging>", source, settings, textifier);
         } catch (RuntimeException e) {
             textifier.print(outputWriter);

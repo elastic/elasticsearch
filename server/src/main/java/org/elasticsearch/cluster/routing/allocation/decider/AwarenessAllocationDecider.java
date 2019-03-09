@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -34,9 +35,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import static java.util.Collections.emptyList;
+
 /**
  * This {@link AllocationDecider} controls shard allocation based on
- * <tt>awareness</tt> key-value pairs defined in the node configuration.
+ * {@code awareness} key-value pairs defined in the node configuration.
  * Awareness explicitly controls where replicas should be allocated based on
  * attributes like node or physical rack locations. Awareness attributes accept
  * arbitrary configuration keys like a rack data-center identifier. For example
@@ -48,7 +51,7 @@ import org.elasticsearch.common.settings.Settings;
  * will cause allocations to be distributed over different racks such that
  * ideally at least one replicas of the all shard is available on the same rack.
  * To enable allocation awareness in this example nodes should contain a value
- * for the <tt>rack_id</tt> key like:
+ * for the {@code rack_id} key like:
  * <pre>
  * node.attr.rack_id:1
  * </pre>
@@ -67,7 +70,7 @@ import org.elasticsearch.common.settings.Settings;
  * </pre>
  * <p>
  * In contrast to regular awareness this setting will prevent over-allocation on
- * <tt>zone1</tt> even if <tt>zone2</tt> fails partially or becomes entirely
+ * {@code zone1} even if {@code zone2} fails partially or becomes entirely
  * unavailable. Nodes that belong to a certain zone / group should be started
  * with the zone id configured on the node-level settings like:
  * <pre>
@@ -78,18 +81,17 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "awareness";
 
-    public static final Setting<String[]> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING =
-        new Setting<>("cluster.routing.allocation.awareness.attributes", "", s -> Strings.tokenizeToStringArray(s, ","), Property.Dynamic,
+    public static final Setting<List<String>> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING =
+        Setting.listSetting("cluster.routing.allocation.awareness.attributes", emptyList(), Function.identity(), Property.Dynamic,
             Property.NodeScope);
     public static final Setting<Settings> CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING =
         Setting.groupSetting("cluster.routing.allocation.awareness.force.", Property.Dynamic, Property.NodeScope);
 
-    private volatile String[] awarenessAttributes;
+    private volatile List<String> awarenessAttributes;
 
     private volatile Map<String, List<String>> forcedAwarenessAttributes;
 
     public AwarenessAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         this.awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING, this::setAwarenessAttributes);
         setForcedAwarenessAttributes(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.get(settings));
@@ -109,7 +111,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         this.forcedAwarenessAttributes = forcedAwarenessAttributes;
     }
 
-    private void setAwarenessAttributes(String[] awarenessAttributes) {
+    private void setAwarenessAttributes(List<String> awarenessAttributes) {
         this.awarenessAttributes = awarenessAttributes;
     }
 
@@ -124,7 +126,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {
-        if (awarenessAttributes.length == 0) {
+        if (awarenessAttributes.isEmpty()) {
             return allocation.decision(Decision.YES, NAME,
                 "allocation awareness is not enabled, set cluster setting [%s] to enable it",
                 CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey());
@@ -134,11 +136,11 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         int shardCount = indexMetaData.getNumberOfReplicas() + 1; // 1 for primary
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute
-            if (!node.node().getAttributes().containsKey(awarenessAttribute)) {
+            if (node.node().getAttributes().containsKey(awarenessAttribute) == false) {
                 return allocation.decision(Decision.NO, NAME,
                     "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]",
                     awarenessAttribute, CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
-                    allocation.debugDecision() ? Strings.arrayToCommaDelimitedString(awarenessAttributes) : null);
+                    allocation.debugDecision() ? Strings.collectionToCommaDelimitedString(awarenessAttributes) : null);
             }
 
             // build attr_value -> nodes map
@@ -158,7 +160,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             if (moveToNode) {
                 if (shardRouting.assignedToNode()) {
                     String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
-                    if (!node.nodeId().equals(nodeId)) {
+                    if (node.nodeId().equals(nodeId) == false) {
                         // we work on different nodes, move counts around
                         shardPerAttribute.putOrAdd(allocation.routingNodes().node(nodeId).node().getAttributes().get(awarenessAttribute),
                                 0, -1);
@@ -173,28 +175,16 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             List<String> fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
             if (fullValues != null) {
                 for (String fullValue : fullValues) {
-                    if (!shardPerAttribute.containsKey(fullValue)) {
+                    if (shardPerAttribute.containsKey(fullValue) == false) {
                         numberOfAttributes++;
                     }
                 }
             }
             // TODO should we remove ones that are not part of full list?
 
-            int averagePerAttribute = shardCount / numberOfAttributes;
-            int totalLeftover = shardCount % numberOfAttributes;
-            int requiredCountPerAttribute;
-            if (averagePerAttribute == 0) {
-                // if we have more attributes values than shard count, no leftover
-                totalLeftover = 0;
-                requiredCountPerAttribute = 1;
-            } else {
-                requiredCountPerAttribute = averagePerAttribute;
-            }
-            int leftoverPerAttribute = totalLeftover == 0 ? 0 : 1;
-
-            int currentNodeCount = shardPerAttribute.get(node.node().getAttributes().get(awarenessAttribute));
-            // if we are above with leftover, then we know we are not good, even with mod
-            if (currentNodeCount > (requiredCountPerAttribute + leftoverPerAttribute)) {
+            final int currentNodeCount = shardPerAttribute.get(node.node().getAttributes().get(awarenessAttribute));
+            final int maximumNodeCount = (shardCount + numberOfAttributes - 1) / numberOfAttributes; // ceil(shardCount/numberOfAttributes)
+            if (currentNodeCount > maximumNodeCount) {
                 return allocation.decision(Decision.NO, NAME,
                         "there are too many copies of the shard allocated to nodes with attribute [%s], there are [%d] total configured " +
                         "shard copies for this shard id and [%d] total attribute values, expected the allocated shard count per " +
@@ -203,11 +193,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                         shardCount,
                         numberOfAttributes,
                         currentNodeCount,
-                        requiredCountPerAttribute + leftoverPerAttribute);
-            }
-            // all is well, we are below or same as average
-            if (currentNodeCount <= requiredCountPerAttribute) {
-                continue;
+                        maximumNodeCount);
             }
         }
 

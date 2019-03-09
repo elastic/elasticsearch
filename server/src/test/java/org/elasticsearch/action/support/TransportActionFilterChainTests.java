@@ -80,10 +80,10 @@ public class TransportActionFilterChainTests extends ESTestCase {
         String actionName = randomAlphaOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
         TransportAction<TestRequest, TestResponse> transportAction =
-            new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null,
+            new TransportAction<TestRequest, TestResponse>(actionName, actionFilters,
                 new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
             @Override
-            protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
+            protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
             }
         };
@@ -157,10 +157,10 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         String actionName = randomAlphaOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY,
-            actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(actionName,
+            actionFilters, new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
             @Override
-            protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
+            protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
             }
         };

@@ -17,15 +17,13 @@ For example:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "number_one": {
-          "type": "integer",
-          "ignore_malformed": true
-        },
-        "number_two": {
-          "type": "integer"
-        }
+    "properties": {
+      "number_one": {
+        "type": "integer",
+        "ignore_malformed": true
+      },
+      "number_two": {
+        "type": "integer"
       }
     }
   }
@@ -67,15 +65,13 @@ PUT my_index
     "index.mapping.ignore_malformed": true <1>
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "number_one": { <1>
-          "type": "byte"
-        },
-        "number_two": {
-          "type": "integer",
-          "ignore_malformed": false <2>
-        }
+    "properties": {
+      "number_one": { <1>
+        "type": "byte"
+      },
+      "number_two": {
+        "type": "integer",
+        "ignore_malformed": false <2>
       }
     }
   }
@@ -85,3 +81,13 @@ PUT my_index
 
 <1> The `number_one` field inherits the index-level setting.
 <2> The `number_two` field overrides the index-level setting to turn off `ignore_malformed`.
+
+==== Dealing with malformed fields
+
+Malformed fields are silently ignored at indexing time when `ignore_malformed`
+is turned on. Whenever possible it is recommended to keep the number of
+documents that have a malformed field contained, or queries on this field will
+become meaningless. Elasticsearch makes it easy to check how many documents
+have malformed fields by using `exist` or `term` queries on the special
+<<mapping-ignored-field,`_ignored`>> field.
+

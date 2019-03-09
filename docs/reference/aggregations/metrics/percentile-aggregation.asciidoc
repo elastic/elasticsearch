@@ -69,8 +69,8 @@ percentiles: `[ 1, 5, 25, 50, 75, 95, 99 ]`.  The response will look like this:
 
 As you can see, the aggregation will return a calculated value for each percentile
 in the default range.  If we assume response times are in milliseconds, it is
-immediately obvious that the webpage normally loads in 10-723ms, but occasionally
-spikes to 941-980ms.
+immediately obvious that the webpage normally loads in 10-725ms, but occasionally
+spikes to 945-985ms.
 
 Often, administrators are only interested in outliers -- the extreme percentiles.
 We can specify just the percents we are interested in (requested percentiles

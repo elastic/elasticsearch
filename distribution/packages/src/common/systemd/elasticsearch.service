@@ -6,6 +6,7 @@ After=network-online.target
 
 [Service]
 RuntimeDirectory=elasticsearch
+PrivateTmp=true
 Environment=ES_HOME=/usr/share/elasticsearch
 Environment=ES_PATH_CONF=${path.conf}
 Environment=PID_DIR=/var/run/elasticsearch
@@ -28,7 +29,7 @@ StandardOutput=journal
 StandardError=inherit
 
 # Specifies the maximum file descriptor number that can be opened by this process
-LimitNOFILE=65536
+LimitNOFILE=65535
 
 # Specifies the maximum number of processes
 LimitNPROC=4096

@@ -80,7 +80,7 @@ public class MultiGetItemResponse implements Streamable {
     }
 
     /**
-     * The actual get response, <tt>null</tt> if its a failure.
+     * The actual get response, {@code null} if its a failure.
      */
     public GetResponse getResponse() {
         return this.response;

@@ -21,31 +21,27 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.PipelineStore;
-import org.elasticsearch.node.NodeService;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class DeletePipelineTransportAction extends TransportMasterNodeAction<DeletePipelineRequest, WritePipelineResponse> {
+public class DeletePipelineTransportAction extends TransportMasterNodeAction<DeletePipelineRequest, AcknowledgedResponse> {
 
-    private final PipelineStore pipelineStore;
-    private final ClusterService clusterService;
+    private final IngestService ingestService;
 
     @Inject
-    public DeletePipelineTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                         TransportService transportService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService) {
-        super(settings, DeletePipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeletePipelineRequest::new);
-        this.clusterService = clusterService;
-        this.pipelineStore = nodeService.getIngestService().getPipelineStore();
+    public DeletePipelineTransportAction(ThreadPool threadPool, IngestService ingestService, TransportService transportService,
+                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(DeletePipelineAction.NAME, transportService, ingestService.getClusterService(),
+            threadPool, actionFilters, indexNameExpressionResolver, DeletePipelineRequest::new);
+        this.ingestService = ingestService;
     }
 
     @Override
@@ -54,13 +50,14 @@ public class DeletePipelineTransportAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected WritePipelineResponse newResponse() {
-        return new WritePipelineResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
-    protected void masterOperation(DeletePipelineRequest request, ClusterState state, ActionListener<WritePipelineResponse> listener) throws Exception {
-        pipelineStore.delete(clusterService, request, listener);
+    protected void masterOperation(DeletePipelineRequest request, ClusterState state,
+        ActionListener<AcknowledgedResponse> listener) throws Exception {
+        ingestService.delete(request, listener);
     }
 
     @Override

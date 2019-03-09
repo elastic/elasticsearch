@@ -21,22 +21,24 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -91,32 +93,30 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     private TransportBulkAction createAction(boolean controlled, AtomicLong expected) {
         CapturingTransport capturingTransport = new CapturingTransport();
-        TransportService transportService = new TransportService(clusterService.getSettings(), capturingTransport, threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+        TransportService transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);
+        IndexNameExpressionResolver resolver = new Resolver();
         ActionFilters actionFilters = new ActionFilters(new HashSet<>());
 
-        TransportCreateIndexAction createIndexAction = new TransportCreateIndexAction(
-                Settings.EMPTY,
-                transportService,
-                clusterService,
-                threadPool,
-                null,
-                actionFilters,
-                resolver);
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+                listener.onResponse((Response)new CreateIndexResponse());
+            }
+        };
 
         if (controlled) {
 
             return new TestTransportBulkAction(
-                    Settings.EMPTY,
                     threadPool,
                     transportService,
                     clusterService,
                     null,
-                    createIndexAction,
+                    client,
                     actionFilters,
                     resolver,
                     null,
@@ -136,12 +136,11 @@ public class TransportBulkActionTookTests extends ESTestCase {
             };
         } else {
             return new TestTransportBulkAction(
-                    Settings.EMPTY,
                     threadPool,
                     transportService,
                     clusterService,
                     null,
-                    createIndexAction,
+                    client,
                     actionFilters,
                     resolver,
                     null,
@@ -180,7 +179,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
             bulkAction = Strings.replace(bulkAction, "\r\n", "\n");
         }
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         AtomicLong expected = new AtomicLong();
         TransportBulkAction action = createAction(controlled, expected);
         action.doExecute(null, bulkRequest, new ActionListener<BulkResponse>() {
@@ -202,13 +201,11 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
             }
         });
+        //This test's JSON contains outdated references to types
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     static class Resolver extends IndexNameExpressionResolver {
-        Resolver(Settings settings) {
-            super(settings);
-        }
-
         @Override
         public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();
@@ -218,24 +215,22 @@ public class TransportBulkActionTookTests extends ESTestCase {
     static class TestTransportBulkAction extends TransportBulkAction {
 
         TestTransportBulkAction(
-                Settings settings,
                 ThreadPool threadPool,
                 TransportService transportService,
                 ClusterService clusterService,
                 TransportShardBulkAction shardBulkAction,
-                TransportCreateIndexAction createIndexAction,
+                NodeClient client,
                 ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver,
                 AutoCreateIndex autoCreateIndex,
                 LongSupplier relativeTimeProvider) {
             super(
-                    settings,
                     threadPool,
                     transportService,
                     clusterService,
                     null,
                     shardBulkAction,
-                    createIndexAction,
+                    client,
                     actionFilters,
                     indexNameExpressionResolver,
                     autoCreateIndex,
@@ -253,24 +248,4 @@ public class TransportBulkActionTookTests extends ESTestCase {
         }
 
     }
-
-    static class TestTransportCreateIndexAction extends TransportCreateIndexAction {
-
-        TestTransportCreateIndexAction(
-                Settings settings,
-                TransportService transportService,
-                ClusterService clusterService,
-                ThreadPool threadPool,
-                MetaDataCreateIndexService createIndexService,
-                ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
-        }
-
-        @Override
-        protected void doExecute(Task task, CreateIndexRequest request, ActionListener<CreateIndexResponse> listener) {
-            listener.onResponse(newResponse());
-        }
-    }
-
 }

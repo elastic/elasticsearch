@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
+import org.elasticsearch.search.aggregations.metrics.ValueCount;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -66,6 +66,10 @@ public class ReverseNestedIT extends ESIntegTestCase {
                         "type",
                         jsonBuilder().startObject().startObject("properties")
                                 .startObject("field1").field("type", "keyword").endObject()
+                                .startObject("alias")
+                                    .field("type", "alias")
+                                    .field("path", "field1")
+                                .endObject()
                                 .startObject("nested1").field("type", "nested").startObject("properties")
                                     .startObject("field2").field("type", "keyword").endObject()
                                 .endObject().endObject()
@@ -610,7 +614,8 @@ public class ReverseNestedIT extends ESIntegTestCase {
                                                 nested("nested_1", "sku").subAggregation(
                                                         filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
                                                                 nested("nested_2", "sku.colors").subAggregation(
-                                                                        filter("filter_sku_color", termQuery("sku.colors.name", "red")).subAggregation(
+                                                                        filter("filter_sku_color", termQuery("sku.colors.name", "red"))
+                                                                        .subAggregation(
                                                                                 reverseNested("reverse_to_sku").path("sku").subAggregation(
                                                                                         count("sku_count").field("sku.sku_type")
                                                                                 )
@@ -648,5 +653,29 @@ public class ReverseNestedIT extends ESIntegTestCase {
             ValueCount barCount = reverseToBar.getAggregations().get("sku_count");
             assertThat(barCount.getValue(), equalTo(2L));
         }
+    }
+
+    public void testFieldAlias() {
+        SearchResponse response = client().prepareSearch("idx1")
+            .addAggregation(nested("nested1", "nested1")
+                .subAggregation(
+                    terms("field2").field("nested1.field2")
+                        .subAggregation(
+                            reverseNested("nested1_to_field1")
+                                .subAggregation(
+                                    terms("field1").field("alias")
+                                        .collectMode(randomFrom(SubAggCollectionMode.values())))))).get();
+
+        assertSearchResponse(response);
+
+        Nested nested = response.getAggregations().get("nested1");
+        Terms nestedTerms = nested.getAggregations().get("field2");
+        Terms.Bucket bucket = nestedTerms.getBuckets().iterator().next();
+
+        ReverseNested reverseNested = bucket.getAggregations().get("nested1_to_field1");
+        Terms reverseNestedTerms = reverseNested.getAggregations().get("field1");
+
+        assertThat(((InternalAggregation)reverseNested).getProperty("field1"), sameInstance(reverseNestedTerms));
+        assertThat(reverseNestedTerms.getBuckets().size(), equalTo(6));
     }
 }

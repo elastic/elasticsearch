@@ -613,7 +613,7 @@ body\n
 --------------------------------------------------
 // NOTCONSOLE
 
-The header part supports the same `index`, `types`, `search_type`,
+The header part supports the same `index`, `search_type`,
 `preference`, and `routing` options as the usual Multi Search API.
 
 The body includes a search template body request and supports inline,
@@ -624,7 +624,6 @@ stored and file templates. Here is an example:
 $ cat requests
 {"index": "test"}
 {"source": {"query": {"match":  {"user" : "{{username}}" }}}, "params": {"username": "john"}} <1>
-{"index": "_all", "types": "accounts"}
 {"source": {"query": {"{{query_type}}": {"name": "{{name}}" }}}, "params": {"query_type": "match_phrase_prefix", "name": "Smith"}}
 {"index": "_all"}
 {"id": "template_1", "params": {"query_string": "search for these words" }} <2>

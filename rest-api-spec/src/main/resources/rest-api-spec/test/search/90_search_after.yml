@@ -5,21 +5,18 @@ setup:
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { foo: bar, age: 18 }
 
   - do:
       index:
           index:  test
-          type:   test
           id:     42
           body:   { foo: bar, age: 18 }
 
   - do:
         index:
             index:  test
-            type:   test
             id:     172
             body:   { foo: bar, age: 24 }
 
@@ -30,13 +27,10 @@ setup:
 ---
 "search with search_after parameter":
 
-  - skip:
-      version: " - 5.99.99"
-      reason: fielddata on _id is only available as of 6.0.0
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
-        type:  test
         body:
           size: 1
           query:
@@ -47,14 +41,14 @@ setup:
   - match: {hits.total: 3 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
-  - match: {hits.hits.0._type: test }
+  - match: {hits.hits.0._type: _doc }
   - match: {hits.hits.0._id: "172" }
   - match: {hits.hits.0.sort: [24, "172"] }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
-        type:  test
         body:
           size: 1
           query:
@@ -66,14 +60,14 @@ setup:
   - match: {hits.total: 3 }
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
-  - match: {hits.hits.0._type:  test }
+  - match: {hits.hits.0._type:  _doc }
   - match: {hits.hits.0._id: "42" }
   - match: {hits.hits.0.sort: [18, "42"] }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
-        type:  test
         body:
           size: 1
           query:
@@ -85,14 +79,14 @@ setup:
   - match: {hits.total: 3}
   - length: {hits.hits: 1 }
   - match: {hits.hits.0._index: test }
-  - match: {hits.hits.0._type: test }
+  - match: {hits.hits.0._type: _doc }
   - match: {hits.hits.0._id: "1" }
   - match: {hits.hits.0.sort: [18, "1"] }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
-        type:  test
         body:
           size: 1
           query:

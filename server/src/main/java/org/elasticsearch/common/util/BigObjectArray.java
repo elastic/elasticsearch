@@ -24,7 +24,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.common.util.BigArrays.OBJECT_PAGE_SIZE;
+import static org.elasticsearch.common.util.PageCacheRecycler.OBJECT_PAGE_SIZE;
 
 /**
  * Int array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
@@ -32,7 +32,7 @@ import static org.elasticsearch.common.util.BigArrays.OBJECT_PAGE_SIZE;
  */
 final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T> {
 
-    private static final BigObjectArray ESTIMATOR = new BigObjectArray(0, BigArrays.NON_RECYCLING_INSTANCE);
+    private static final BigObjectArray<Long> ESTIMATOR = new BigObjectArray<Long>(0, BigArrays.NON_RECYCLING_INSTANCE);
 
     private Object[][] pages;
 

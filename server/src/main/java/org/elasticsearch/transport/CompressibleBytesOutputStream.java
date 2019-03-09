@@ -25,7 +25,6 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
 import java.util.zip.DeflaterOutputStream;
@@ -40,8 +39,8 @@ import java.util.zip.DeflaterOutputStream;
  * written to this stream. If compression is enabled, the proper EOS bytes will be written at that point.
  * The underlying {@link BytesReference} will be returned.
  *
- * {@link CompressibleBytesOutputStream#close()} should be called when the bytes are no longer needed and
- * can be safely released.
+ * {@link CompressibleBytesOutputStream#close()} will NOT close the underlying stream. The byte stream passed
+ * in the constructor must be closed individually.
  */
 final class CompressibleBytesOutputStream extends StreamOutput {
 
@@ -93,12 +92,9 @@ final class CompressibleBytesOutputStream extends StreamOutput {
 
     @Override
     public void close() throws IOException {
-        if (stream == bytesStreamOutput) {
-            assert shouldCompress == false : "If the streams are the same we should not be compressing";
-            IOUtils.close(stream);
-        } else {
+        if (stream != bytesStreamOutput) {
             assert shouldCompress : "If the streams are different we should be compressing";
-            IOUtils.close(stream, bytesStreamOutput);
+            IOUtils.close(stream);
         }
     }
 

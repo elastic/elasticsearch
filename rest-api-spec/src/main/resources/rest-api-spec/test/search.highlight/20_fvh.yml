@@ -4,18 +4,16 @@ setup:
           index: test
           body:
             mappings:
-              doc:
-                "properties":
-                  "title":
-                     "type": "text"
-                     "term_vector": "with_positions_offsets"
-                  "description":
-                     "type": "text"
-                     "term_vector": "with_positions_offsets"
+              "properties":
+                "title":
+                   "type": "text"
+                   "term_vector": "with_positions_offsets"
+                "description":
+                   "type": "text"
+                   "term_vector": "with_positions_offsets"
   - do:
       index:
         index: test
-        type:  doc
         id:    1
         body:
             "title" : "The quick brown fox is brown"
@@ -25,11 +23,9 @@ setup:
 
 ---
 "Highlight query":
-  - skip:
-      version: " - 5.5.99"
-      reason:  bug fixed in 5.6
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
          highlight:
           type: fvh

@@ -1,7 +1,7 @@
 [[query-dsl-geo-polygon-query]]
 === Geo Polygon Query
 
-A query allowing to include hits that only fall within a polygon of
+A query returning hits that only fall within a polygon of
 points. Here is an example:
 
 [source,js]
@@ -17,9 +17,9 @@ GET /_search
                 "geo_polygon" : {
                     "person.location" : {
                         "points" : [
-                        {"lat" : 40, "lon" : -70},
-                        {"lat" : 30, "lon" : -80},
-                        {"lat" : 20, "lon" : -90}
+                            {"lat" : 40, "lon" : -70},
+                            {"lat" : 30, "lon" : -80},
+                            {"lat" : 20, "lon" : -90}
                         ]
                     }
                 }
@@ -49,7 +49,9 @@ or longitude, or `STRICT` (default is `STRICT`).
 [float]
 ===== Lat Long as Array
 
-Format in `[lon, lat]`, note, the order of lon/lat here in order to
+Format as `[lon, lat]`
+
+Note: the order of lon/lat here must
 conform with http://geojson.org/[GeoJSON].
 
 [source,js]

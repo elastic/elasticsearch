@@ -1,0 +1,35 @@
+[role="xpack"]
+[[run-as-privilege]]
+=== Submitting requests on behalf of other users
+
+The {es} {security-features} support a permission that enables an authenticated
+user to submit
+requests on behalf of other users. If your application already authenticates
+users, you can use the _run as_ mechanism to restrict data access according to
+{es} permissions without having to re-authenticate each user through.
+
+To "run as" (impersonate) another user, you must be able to retrieve the user from
+the realm you use to authenticate. Both the internal `native` and `file` realms
+support this out of the box. The LDAP realm must be configured to run in
+<<ldap-user-search, _user search_ mode>>. The Active Directory realm must be
+<<ad-settings,configured with a `bind_dn` and `secure_bind_password`>> to support
+_run as_. The PKI, Kerberos, and SAML realms do not support _run as_.
+
+To submit requests on behalf of other users, you need to have the `run_as`
+permission. For example, the following role grants permission to submit request
+on behalf of `jacknich` or `redeniro`:
+
+[source,js]
+---------------------------------------------------
+{
+  "run_as" : [ "jacknich", "rdeniro" ]
+}
+---------------------------------------------------
+
+To submit a request as another user, you specify the user in the
+`es-security-runas-user` request header. For example:
+
+[source,shell]
+---------------------------------------------------
+curl -H "es-security-runas-user: jacknich"  -u es_admin -XGET 'http://localhost:9200/'
+---------------------------------------------------

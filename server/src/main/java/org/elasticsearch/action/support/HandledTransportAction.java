@@ -18,13 +18,10 @@
  */
 package org.elasticsearch.action.support;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionListener;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -38,69 +35,48 @@ import java.util.function.Supplier;
  */
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse>
         extends TransportAction<Request, Response> {
-    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                     Supplier<Request> request) {
-        this(settings, actionName, true, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+    protected HandledTransportAction(String actionName, TransportService transportService,
+                                     ActionFilters actionFilters, Supplier<Request> request) {
+        this(actionName, true, transportService, actionFilters, request);
     }
 
-    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService,
-                                     ActionFilters actionFilters, Writeable.Reader<Request> requestReader,
-                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        this(settings, actionName, true, threadPool, transportService, actionFilters, requestReader, indexNameExpressionResolver);
+    protected HandledTransportAction(String actionName, TransportService transportService,
+                                     ActionFilters actionFilters, Writeable.Reader<Request> requestReader) {
+        this(actionName, true, transportService, actionFilters, requestReader);
     }
 
-    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker, ThreadPool threadPool,
-                                     TransportService transportService, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
+    protected HandledTransportAction(String actionName, TransportService transportService,
+                                     ActionFilters actionFilters, Writeable.Reader<Request> requestReader, String executor) {
+        this(actionName, true, transportService, actionFilters, requestReader, executor);
+    }
+
+    protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
+                                     TransportService transportService, ActionFilters actionFilters, Supplier<Request> request) {
+        super(actionName, actionFilters, transportService.getTaskManager());
         transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, false, canTripCircuitBreaker,
             new TransportHandler());
     }
 
-    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker, ThreadPool threadPool,
+    protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
                                      TransportService transportService, ActionFilters actionFilters,
-                                     Writeable.Reader<Request> requestReader, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
-        transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, false, canTripCircuitBreaker, requestReader,
+                                     Writeable.Reader<Request> requestReader) {
+        this(actionName, canTripCircuitBreaker, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
+    }
+
+    protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
+                                     TransportService transportService, ActionFilters actionFilters,
+                                     Writeable.Reader<Request> requestReader, String executor) {
+        super(actionName, actionFilters, transportService.getTaskManager());
+        transportService.registerRequestHandler(actionName, executor, false, canTripCircuitBreaker, requestReader,
             new TransportHandler());
     }
 
     class TransportHandler implements TransportRequestHandler<Request> {
-
-        @Override
-        public final void messageReceived(Request request, TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required for this operation");
-        }
-
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             // We already got the task created on the network layer - no need to create it again on the transport layer
-            execute(task, request, new ActionListener<Response>() {
-                @Override
-                public void onResponse(Response response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Exception e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn(
-                            (org.apache.logging.log4j.util.Supplier<?>)
-                                () -> new ParameterizedMessage(
-                                    "Failed to send error response for action [{}] and request [{}]",
-                                    actionName,
-                                    request),
-                            e1);
-                    }
-                }
-            });
+            Logger logger = HandledTransportAction.this.logger;
+            execute(task, request, new ChannelActionListener<>(channel, actionName, request));
         }
     }
 

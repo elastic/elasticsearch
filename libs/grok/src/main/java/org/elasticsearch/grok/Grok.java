@@ -34,11 +34,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Collections;
 
 public final class Grok {
 
@@ -50,7 +52,7 @@ public final class Grok {
             "%\\{" +
             "(?<name>" +
             "(?<pattern>[A-z0-9]+)" +
-            "(?::(?<subname>[A-z0-9_:.-]+))?" +
+            "(?::(?<subname>[[:alnum:]@\\[\\]_:.-]+))?" +
             ")" +
             "(?:=(?<definition>" +
             "(?:" +
@@ -74,23 +76,78 @@ public final class Grok {
     private final Map<String, String> patternBank;
     private final boolean namedCaptures;
     private final Regex compiledExpression;
-    private final String expression;
-
+    private final ThreadWatchdog threadWatchdog;
 
     public Grok(Map<String, String> patternBank, String grokPattern) {
-        this(patternBank, grokPattern, true);
+        this(patternBank, grokPattern, true, ThreadWatchdog.noop());
     }
 
-    @SuppressWarnings("unchecked")
+    public Grok(Map<String, String> patternBank, String grokPattern, ThreadWatchdog threadWatchdog) {
+        this(patternBank, grokPattern, true, threadWatchdog);
+    }
+
     Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures) {
+        this(patternBank, grokPattern, namedCaptures, ThreadWatchdog.noop());
+    }
+
+    private Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures, ThreadWatchdog threadWatchdog) {
         this.patternBank = patternBank;
         this.namedCaptures = namedCaptures;
+        this.threadWatchdog = threadWatchdog;
 
-        this.expression = toRegex(grokPattern);
+        for (Map.Entry<String, String> entry : patternBank.entrySet()) {
+            String name = entry.getKey();
+            String pattern = entry.getValue();
+            forbidCircularReferences(name, new ArrayList<>(), pattern);
+        }
+
+        String expression = toRegex(grokPattern);
         byte[] expressionBytes = expression.getBytes(StandardCharsets.UTF_8);
         this.compiledExpression = new Regex(expressionBytes, 0, expressionBytes.length, Option.DEFAULT, UTF8Encoding.INSTANCE);
     }
 
+    /**
+     * Checks whether patterns reference each other in a circular manner and if so fail with an exception
+     *
+     * In a pattern, anything between <code>%{</code> and <code>}</code> or <code>:</code> is considered
+     * a reference to another named pattern. This method will navigate to all these named patterns and
+     * check for a circular reference.
+     */
+    private void forbidCircularReferences(String patternName, List<String> path, String pattern) {
+        if (pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":")) {
+            String message;
+            if (path.isEmpty()) {
+                message = "circular reference in pattern [" + patternName + "][" + pattern + "]";
+            } else {
+                message = "circular reference in pattern [" + path.remove(path.size() - 1) + "][" + pattern +
+                    "] back to pattern [" + patternName + "]";
+                // add rest of the path:
+                if (path.isEmpty() == false) {
+                    message += " via patterns [" + String.join("=>", path) + "]";
+                }
+            }
+            throw new IllegalArgumentException(message);
+        }
+
+        for (int i = pattern.indexOf("%{"); i != -1; i = pattern.indexOf("%{", i + 1)) {
+            int begin = i + 2;
+            int brackedIndex = pattern.indexOf('}', begin);
+            int columnIndex = pattern.indexOf(':', begin);
+            int end;
+            if (brackedIndex != -1 && columnIndex == -1) {
+                end = brackedIndex;
+            } else if (columnIndex != -1 && brackedIndex == -1) {
+                end = columnIndex;
+            } else if (brackedIndex != -1 && columnIndex != -1) {
+                end = Math.min(brackedIndex, columnIndex);
+            } else {
+                throw new IllegalArgumentException("pattern [" + pattern + "] has circular references to other pattern definitions");
+            }
+            String otherPatternName = pattern.substring(begin, end);
+            path.add(otherPatternName);
+            forbidCircularReferences(patternName, path, patternBank.get(otherPatternName));
+        }
+    }
 
     public String groupMatch(String name, Region region, String pattern) {
         try {
@@ -115,19 +172,28 @@ public final class Grok {
         byte[] grokPatternBytes = grokPattern.getBytes(StandardCharsets.UTF_8);
         Matcher matcher = GROK_PATTERN_REGEX.matcher(grokPatternBytes);
 
-        int result = matcher.search(0, grokPatternBytes.length, Option.NONE);
+        int result;
+        try {
+            threadWatchdog.register();
+            result = matcher.search(0, grokPatternBytes.length, Option.NONE);
+        } finally {
+            threadWatchdog.unregister();
+        }
         if (result != -1) {
             Region region = matcher.getEagerRegion();
             String namedPatternRef = groupMatch(NAME_GROUP, region, grokPattern);
             String subName = groupMatch(SUBNAME_GROUP, region, grokPattern);
             // TODO(tal): Support definitions
+            @SuppressWarnings("unused")
             String definition = groupMatch(DEFINITION_GROUP, region, grokPattern);
             String patternName = groupMatch(PATTERN_GROUP, region, grokPattern);
 
             String pattern = patternBank.get(patternName);
-
             if (pattern == null) {
                 throw new IllegalArgumentException("Unable to find pattern [" + patternName + "] in Grok's pattern dictionary");
+            }
+            if (pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":")) {
+                throw new IllegalArgumentException("circular reference in pattern back [" + patternName + "]");
             }
 
             String grokPart;
@@ -155,7 +221,13 @@ public final class Grok {
      */
     public boolean match(String text) {
         Matcher matcher = compiledExpression.matcher(text.getBytes(StandardCharsets.UTF_8));
-        int result = matcher.search(0, text.length(), Option.DEFAULT);
+        int result;
+        try {
+            threadWatchdog.register();
+            result = matcher.search(0, text.length(), Option.DEFAULT);
+        } finally {
+            threadWatchdog.unregister();
+        }
         return (result != -1);
     }
 
@@ -170,8 +242,20 @@ public final class Grok {
         byte[] textAsBytes = text.getBytes(StandardCharsets.UTF_8);
         Map<String, Object> fields = new HashMap<>();
         Matcher matcher = compiledExpression.matcher(textAsBytes);
-        int result = matcher.search(0, textAsBytes.length, Option.DEFAULT);
-        if (result != -1 && compiledExpression.numberOfNames() > 0) {
+        int result;
+        try {
+            threadWatchdog.register();
+            result = matcher.search(0, textAsBytes.length, Option.DEFAULT);
+        } finally {
+            threadWatchdog.unregister();
+        }
+        if (result == Matcher.INTERRUPTED) {
+            throw new RuntimeException("grok pattern matching was interrupted after [" +
+                threadWatchdog.maxExecutionTimeInMillis() + "] ms");
+        } else if (result == Matcher.FAILED) {
+            // TODO: I think we should throw an error here?
+            return null;
+        } else if (compiledExpression.numberOfNames() > 0) {
             Region region = matcher.getEagerRegion();
             for (Iterator<NameEntry> entry = compiledExpression.namedBackrefIterator(); entry.hasNext();) {
                 NameEntry e = entry.next();
@@ -185,13 +269,9 @@ public final class Grok {
                         break;
                     }
                 }
-
             }
-            return fields;
-        } else if (result != -1) {
-            return fields;
         }
-        return null;
+        return fields;
     }
 
     public static Map<String, String> getBuiltinPatterns() {

@@ -19,17 +19,14 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -45,13 +42,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-public final class IndexWarmer extends AbstractComponent {
+public final class IndexWarmer {
+
+    private static final Logger logger = LogManager.getLogger(IndexWarmer.class);
 
     private final List<Listener> listeners;
 
-    IndexWarmer(Settings settings, ThreadPool threadPool, IndexFieldDataService indexFieldDataService,
+    IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService,
                 Listener... listeners) {
-        super(settings);
         ArrayList<Listener> list = new ArrayList<>();
         final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);
         list.add(new FieldDataWarmer(executor, indexFieldDataService));
@@ -122,15 +120,12 @@ public final class IndexWarmer extends AbstractComponent {
         public TerminationHandle warmReader(final IndexShard indexShard, final Engine.Searcher searcher) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
-            for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final MappedFieldType fieldType = fieldMapper.fieldType();
-                    final String indexName = fieldType.name();
-                    if (fieldType.eagerGlobalOrdinals() == false) {
-                        continue;
-                    }
-                    warmUpGlobalOrdinals.put(indexName, fieldType);
+            for (MappedFieldType fieldType : mapperService.fieldTypes()) {
+                final String indexName = fieldType.name();
+                if (fieldType.eagerGlobalOrdinals() == false) {
+                    continue;
                 }
+                warmUpGlobalOrdinals.put(indexName, fieldType);
             }
             final CountDownLatch latch = new CountDownLatch(warmUpGlobalOrdinals.size());
             for (final MappedFieldType fieldType : warmUpGlobalOrdinals.values()) {
@@ -154,9 +149,7 @@ public final class IndexWarmer extends AbstractComponent {
                         indexShard
                             .warmerService()
                             .logger()
-                            .warn(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                    "failed to warm-up global ordinals for [{}]", fieldType.name()), e);
+                            .warn(() -> new ParameterizedMessage("failed to warm-up global ordinals for [{}]", fieldType.name()), e);
                     } finally {
                         latch.countDown();
                     }

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common;
 
-import java.lang.Runnable;
-
 /**
  * A {@link Runnable}-like interface which allows throwing checked exceptions.
  */

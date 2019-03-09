@@ -4,21 +4,19 @@ setup:
           index: test
           body:
             mappings:
-              unified:
-                "properties":
-                  "text":
-                     "type": "text"
-                     "fields":
-                        "fvh":
-                          "type": "text"
-                          "term_vector": "with_positions_offsets"
-                        "postings":
-                          "type": "text"
-                          "index_options": "offsets"
+              "properties":
+                "text":
+                   "type": "text"
+                   "fields":
+                      "fvh":
+                        "type": "text"
+                        "term_vector": "with_positions_offsets"
+                      "postings":
+                        "type": "text"
+                        "index_options": "offsets"
   - do:
       index:
         index: test
-        type:  unified
         id:    1
         body:
             "text" : "The quick brown fox is brown."
@@ -27,11 +25,9 @@ setup:
 
 ---
 "Basic":
-  - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new highlighter that has been added in 5.3
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "query" : {"multi_match" : { "query" : "quick brown fox", "fields" : [ "text*"] } }, "highlight" : { "type" : "unified", "fields" : { "*" : {} } } }
 
   - match: {hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}

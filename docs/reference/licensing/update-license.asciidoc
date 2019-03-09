@@ -1,0 +1,165 @@
+[role="xpack"]
+[testenv="basic"]
+[[update-license]]
+=== Update license API
+++++
+<titleabbrev>Update license</titleabbrev>
+++++
+
+This API enables you to update your license.
+
+[float]
+==== Request
+
+`PUT /_license`
+
+[float]
+==== Description
+
+You can update your license at runtime without shutting down your nodes.
+License updates take effect immediately.  If the license you are installing does
+not support all of the features that were available with your previous license,
+however, you are notified in the response.  You must then re-submit the API
+request with the `acknowledge` parameter set to `true`.
+
+For more information about the different types of licenses, see
+https://www.elastic.co/subscriptions.
+
+[float]
+==== Query Parameters
+
+`acknowledge`::
+  (boolean) Specifies whether you acknowledge the license changes. The default
+  value is `false`.
+
+[float]
+==== Request Body
+
+`licenses`::
+  (array) A sequence of one or more JSON documents containing the license
+  information.
+
+
+[float]
+==== Authorization
+
+If {es} {security-features} are enabled, you need `manage` cluster privileges to
+install the license.
+
+If {es} {security-features} are enabled and you are installing a gold or platinum
+license, you must enable TLS on the transport networking layer before you
+install the license. See <<configuring-tls>>.
+
+[float]
+==== Examples
+
+The following example updates to a basic license:
+
+[source,js]
+------------------------------------------------------------
+POST /_license
+{
+  "licenses": [
+    {
+      "uid":"893361dc-9749-4997-93cb-802e3d7fa4xx",
+      "type":"basic",
+      "issue_date_in_millis":1411948800000,
+      "expiry_date_in_millis":1914278399999,
+      "max_nodes":1,
+      "issued_to":"issuedTo",
+      "issuer":"issuer",
+      "signature":"xx"
+    }
+    ]
+}
+------------------------------------------------------------
+// CONSOLE
+// TEST[skip:license testing issues]
+
+NOTE: These values are invalid; you must substitute the appropriate content
+from your license file.
+
+You can alternatively use a `curl` command, for example:
+
+[source,js]
+[source,shell]
+------------------------------------------------------------
+curl -XPUT -u <user> 'http://<host>:<port>/_license' -H "Content-Type: application/json" -d @license.json
+------------------------------------------------------------
+// NOTCONSOLE
+
+On Windows machine, use the following command:
+
+[source,shell]
+------------------------------------------------------------
+gc .\license.json |  Invoke-WebRequest -uri http://<host>:<port>/_license -Credential elastic -Method Put -ContentType "application/json"
+------------------------------------------------------------
+
+In these examples,
+
+* `<user>` is a user ID with the appropriate authority.
+* `<host>` is the hostname of the {es} node (`localhost` if executing
+  locally)
+* `<port>` is the http port (defaults to `9200`)
+* `license.json` is the license JSON file
+
+NOTE:  If your {es} node has SSL enabled on the HTTP interface, you must
+  start your URL with `https://`
+
+If you previously had a license with more features than the basic license, you
+receive the following response:
+
+[source,js]
+------------------------------------------------------------
+  {
+  "acknowledged": false,
+  "license_status": "valid",
+  "acknowledge": {
+    "message": """This license update requires acknowledgement. To acknowledge the license, please read the following messages and update the license again, this time with the "acknowledge=true" parameter:""",
+    "watcher": [
+      "Watcher will be disabled"
+    ],
+    "logstash": [
+      "Logstash will no longer poll for centrally-managed pipelines"
+    ],
+    "security": [
+      "The following X-Pack security functionality will be disabled: ..." ]
+    }
+}
+------------------------------------------------------------
+// NOTCONSOLE
+
+To complete the update, you must re-submit the API request and set the
+`acknowledge` parameter to `true`. For example:
+
+[source,js]
+------------------------------------------------------------
+POST /_license?acknowledge=true
+{
+  "licenses": [
+    {
+      "uid":"893361dc-9749-4997-93cb-802e3d7fa4xx",
+      "type":"basic",
+      "issue_date_in_millis":1411948800000,
+      "expiry_date_in_millis":1914278399999,
+      "max_nodes":1,
+      "issued_to":"issuedTo",
+      "issuer":"issuer",
+      "signature":"xx"
+    }
+    ]
+}
+------------------------------------------------------------
+// CONSOLE
+// TEST[skip:license testing issues]
+
+Alternatively:
+
+[source,sh]
+------------------------------------------------------------
+curl -XPUT -u elastic 'http://<host>:<port>/_license?acknowledge=true' -H "Content-Type: application/json" -d @license.json
+------------------------------------------------------------
+// NOTCONSOLE
+
+For more information about the features that are disabled when you downgrade
+your license, see {xpack-ref}/license-expiration.html[License Expiration].

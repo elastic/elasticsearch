@@ -19,13 +19,12 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -47,13 +46,11 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 
@@ -115,7 +112,7 @@ public class SearchResponseTests extends ESTestCase {
         int skippedShards = randomIntBetween(0, totalShards);
         InternalSearchResponse internalSearchResponse;
         if (minimal == false) {
-            SearchHits hits = SearchHitsTests.createTestItem();
+            SearchHits hits = SearchHitsTests.createTestItem(true, true);
             InternalAggregations aggregations = aggregationsTests.createTestInstance();
             Suggest suggest = SuggestTests.createTestItem();
             SearchProfileShardResults profileShardResults = SearchProfileShardResultsTests.createTestItem();
@@ -129,7 +126,7 @@ public class SearchResponseTests extends ESTestCase {
             shardSearchFailures, randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY);
     }
 
-    private static SearchResponse.Clusters randomClusters() {
+    static SearchResponse.Clusters randomClusters() {
         int totalClusters = randomIntBetween(0, 10);
         int successfulClusters = randomIntBetween(0, totalClusters);
         int skippedClusters = totalClusters - successfulClusters;
@@ -183,7 +180,7 @@ public class SearchResponseTests extends ESTestCase {
         int numFailures = randomIntBetween(1, 5);
         ShardSearchFailure[] failures = new ShardSearchFailure[numFailures];
         for (int i = 0; i < failures.length; i++) {
-            failures[i] = ShardSearchFailureTests.createTestItem();
+            failures[i] = ShardSearchFailureTests.createTestItem(IndexMetaData.INDEX_UUID_NA_VALUE);
         }
         SearchResponse response = createTestItem(failures);
         XContentType xcontentType = randomFrom(XContentType.values());
@@ -215,7 +212,10 @@ public class SearchResponseTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[] { hit };
         {
             SearchResponse response = new SearchResponse(
-                    new InternalSearchResponse(new SearchHits(hits, 100, 1.5f), null, null, null, false, null, 1), null, 0, 0, 0, 0,
+                    new InternalSearchResponse(new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null,
+                        null, false, null, 1),
+                        null, 0
+            , 0, 0, 0,
                     ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
@@ -231,7 +231,7 @@ public class SearchResponseTests extends ESTestCase {
                 }
                 expectedString.append("\"hits\":");
                 {
-                    expectedString.append("{\"total\":100,");
+                    expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
                     expectedString.append("\"max_score\":1.5,");
                     expectedString.append("\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":2.0}]}");
                 }
@@ -241,8 +241,11 @@ public class SearchResponseTests extends ESTestCase {
         }
         {
             SearchResponse response = new SearchResponse(
-                    new InternalSearchResponse(new SearchHits(hits, 100, 1.5f), null, null, null, false, null, 1), null, 0, 0, 0, 0,
-                    ShardSearchFailure.EMPTY_ARRAY, new SearchResponse.Clusters(5, 3, 2));
+                    new InternalSearchResponse(
+                        new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null, null, false, null, 1
+                    ),
+                null, 0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
+                new SearchResponse.Clusters(5, 3, 2));
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -263,7 +266,7 @@ public class SearchResponseTests extends ESTestCase {
                 }
                 expectedString.append("\"hits\":");
                 {
-                    expectedString.append("{\"total\":100,");
+                    expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
                     expectedString.append("\"max_score\":1.5,");
                     expectedString.append("\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":2.0}]}");
                 }
@@ -275,42 +278,18 @@ public class SearchResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         SearchResponse searchResponse = createTestItem(false);
-        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-        searchResponse.writeTo(bytesStreamOutput);
-        try (StreamInput in = new NamedWriteableAwareStreamInput(
-                StreamInput.wrap(bytesStreamOutput.bytes().toBytesRef().bytes), namedWriteableRegistry)) {
-            SearchResponse serialized = new SearchResponse();
-            serialized.readFrom(in);
-            assertEquals(searchResponse.getHits().totalHits, serialized.getHits().totalHits);
-            assertEquals(searchResponse.getHits().getHits().length, serialized.getHits().getHits().length);
-            assertEquals(searchResponse.getNumReducePhases(), serialized.getNumReducePhases());
-            assertEquals(searchResponse.getFailedShards(), serialized.getFailedShards());
-            assertEquals(searchResponse.getTotalShards(), serialized.getTotalShards());
-            assertEquals(searchResponse.getSkippedShards(), serialized.getSkippedShards());
-            assertEquals(searchResponse.getClusters(), serialized.getClusters());
+        SearchResponse deserialized = copyStreamable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
+        if (searchResponse.getHits().getTotalHits() == null) {
+            assertNull(deserialized.getHits().getTotalHits());
+        } else {
+            assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
+            assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
         }
-    }
-
-    public void testSerializationBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("AAAAAAAAAAAAAgABBQUAAAoAAAAAAAAA");
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_6_5, Version.V_6_0_0);
-        try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(data), namedWriteableRegistry)) {
-            in.setVersion(version);
-            SearchResponse deserialized = new SearchResponse();
-            deserialized.readFrom(in);
-            assertSame(SearchResponse.Clusters.EMPTY, deserialized.getClusters());
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                deserialized.writeTo(out);
-                try (StreamInput in2 = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytesRef().bytes),
-                        namedWriteableRegistry)) {
-                    in2.setVersion(version);
-                    SearchResponse deserialized2 = new SearchResponse();
-                    deserialized2.readFrom(in2);
-                    assertSame(SearchResponse.Clusters.EMPTY, deserialized2.getClusters());
-                }
-            }
-        }
+        assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
+        assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());
+        assertEquals(searchResponse.getFailedShards(), deserialized.getFailedShards());
+        assertEquals(searchResponse.getTotalShards(), deserialized.getTotalShards());
+        assertEquals(searchResponse.getSkippedShards(), deserialized.getSkippedShards());
+        assertEquals(searchResponse.getClusters(), deserialized.getClusters());
     }
 }

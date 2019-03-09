@@ -1,20 +1,16 @@
 package com.carrotsearch.gradle.junit4
 
 import com.carrotsearch.ant.tasks.junit4.JUnit4
-import org.gradle.api.AntBuilder
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.Task
-import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.TaskContainer
-import org.gradle.api.tasks.testing.Test
 
 class RandomizedTestingPlugin implements Plugin<Project> {
 
     void apply(Project project) {
-        setupSeed(project)
-        replaceTestTask(project.tasks)
-        configureAnt(project.ant)
+        String seed = setupSeed(project)
+        createUnitTestTask(project.tasks)
+        configureAnt(project.ant, seed)
     }
 
     /**
@@ -24,12 +20,12 @@ class RandomizedTestingPlugin implements Plugin<Project> {
      * outcome of subsequent runs. Pinning the seed up front like this makes
      * the reproduction line from one run be useful on another run.
      */
-    static void setupSeed(Project project) {
+    static String setupSeed(Project project) {
         if (project.rootProject.ext.has('testSeed')) {
             /* Skip this if we've already pinned the testSeed. It is important
              * that this checks the rootProject so that we know we've only ever
              * initialized one time. */
-            return
+            return project.rootProject.ext.testSeed
         }
         String testSeed = System.getProperty('tests.seed')
         if (testSeed == null) {
@@ -42,37 +38,23 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         project.rootProject.subprojects {
             project.ext.testSeed = testSeed
         }
+
+        return testSeed
     }
 
-    static void replaceTestTask(TaskContainer tasks) {
-        Test oldTestTask = tasks.findByPath('test')
-        if (oldTestTask == null) {
-            // no test task, ok, user will use testing task on their own
-            return
+    static void createUnitTestTask(TaskContainer tasks) {
+        // only create a unitTest task if the `test` task exists as some project don't make use of it.
+        tasks.matching { it.name == "test" }.all {
+            // We don't want to run any tests with the Gradle test runner since we add our own randomized runner
+            it.enabled = false
+            RandomizedTestingTask unitTest = tasks.create('unitTest', RandomizedTestingTask)
+            unitTest.description = 'Runs unit tests with the randomized testing framework'
+            it.dependsOn unitTest
         }
-        tasks.remove(oldTestTask)
-
-        Map properties = [
-            name: 'test',
-            type: RandomizedTestingTask,
-            dependsOn: oldTestTask.dependsOn,
-            group: JavaBasePlugin.VERIFICATION_GROUP,
-            description: 'Runs unit tests with the randomized testing framework'
-        ]
-        RandomizedTestingTask newTestTask = tasks.create(properties)
-        newTestTask.classpath = oldTestTask.classpath
-        newTestTask.testClassesDir = oldTestTask.project.sourceSets.test.output.classesDir
-        // since gradle 4.5, tasks immutable dependencies are "hidden" (do not show up in dependsOn)
-        // so we must explicitly add a dependency on generating the test classpath
-        newTestTask.dependsOn('testClasses')
-
-        // hack so check task depends on custom test
-        Task checkTask = tasks.findByPath('check')
-        checkTask.dependsOn.remove(oldTestTask)
-        checkTask.dependsOn.add(newTestTask)
     }
 
-    static void configureAnt(AntBuilder ant) {
+    static void configureAnt(AntBuilder ant, String seed) {
         ant.project.addTaskDefinition('junit4:junit4', JUnit4.class)
+        ant.properties.put('tests.seed', seed)
     }
 }

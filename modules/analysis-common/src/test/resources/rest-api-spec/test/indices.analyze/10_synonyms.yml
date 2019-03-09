@@ -1,9 +1,7 @@
+---
 "Synonym filter with char_filter":
   # Tests analyze with synonym and char_filter. This is in the analysis-common module
   # because there are no char filters in core.
-    - skip:
-        version: " - 5.99.99"
-        reason: to support synonym same analysis chain were added in 6.0.0
     - do:
         indices.create:
           index: test_synonym_with_charfilter
@@ -33,3 +31,49 @@
     - match:  { tokens.2.token: the }
     - match:  { tokens.3.token: elasticsearch }
     - match:  { tokens.4.token: man! }
+
+---
+"Non-standard position length":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              analysis:
+                filter:
+                  syns:
+                    type: synonym
+                    synonyms: [ "wtf,what the fudge" ]
+                analyzer:
+                  custom_syns:
+                    tokenizer: standard
+                    filter: [ lowercase, syns ]
+
+  - do:
+      indices.analyze:
+        index: test
+        body:
+          analyzer: custom_syns
+          text: "say what the fudge dude"
+
+  - length: { tokens: 6 }
+  - match:  { tokens.0.token: say }
+  - match:  { tokens.0.position: 0 }
+  - match:  { tokens.0.positionLength: null }
+  - match:  { tokens.1.token: what }
+  - match:  { tokens.1.position: 1 }
+  - match:  { tokens.1.positionLength: null }
+  - match:  { tokens.2.token: wtf }
+  - match:  { tokens.2.position: 1 }
+  - match:  { tokens.2.positionLength: 3 }
+  - match:  { tokens.3.token: the }
+  - match:  { tokens.3.position: 2 }
+  - match:  { tokens.3.positionLength: null }
+  - match:  { tokens.4.token: fudge }
+  - match:  { tokens.4.position: 3 }
+  - match:  { tokens.4.positionLength: null }
+  - match:  { tokens.5.token: dude }
+  - match:  { tokens.5.position: 4 }
+  - match:  { tokens.5.positionLength: null }
+

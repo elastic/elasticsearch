@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.Nullable;
 
 class ScrollIdForNode {
     private final String node;
@@ -36,6 +36,7 @@ class ScrollIdForNode {
         return node;
     }
 
+    @Nullable
     public String getClusterAlias() {
         return clusterAlias;
     }

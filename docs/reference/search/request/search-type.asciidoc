@@ -7,7 +7,7 @@ scattered to all the relevant shards and then all the results are
 gathered back. When doing scatter/gather type execution, there are
 several ways to do that, specifically with search engines.
 
-One of the questions when executing a distributed search is how much
+One of the questions when executing a distributed search is how many
 results to retrieve from each shard. For example, if we have 10 shards,
 the 1st shard might hold the most relevant results from 0 till 10, with
 other shards results ranking below it. For this reason, when executing a

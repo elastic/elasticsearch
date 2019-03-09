@@ -1,0 +1,21 @@
+---
+"Test valid detector":
+  - do:
+      ml.validate_detector:
+        body:  >
+          {
+            "function":"count",
+            "by_field_name":"airline"
+          }
+  - match: { acknowledged: true }
+
+---
+"Test invalid detector":
+  - do:
+      catch: /field_name must be set when the 'mean' function is used/
+      ml.validate_detector:
+        body:  >
+          {
+            "function":"mean",
+            "by_field_name":"airline"
+          }

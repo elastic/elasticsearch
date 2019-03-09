@@ -62,16 +62,17 @@ public class HighlightFieldTests extends ESTestCase {
         builder.startObject(); // we need to wrap xContent output in proper object to create a parser for it
         builder = highlightField.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentParser parser = createParser(builder);
-        parser.nextToken(); // skip to the opening object token, fromXContent advances from here and starts with the field name
-        parser.nextToken();
-        HighlightField parsedField = HighlightField.fromXContent(parser);
-        assertEquals(highlightField, parsedField);
-        if (highlightField.fragments() != null) {
-            assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());
+        try (XContentParser parser = createParser(builder)) {
+            parser.nextToken(); // skip to the opening object token, fromXContent advances from here and starts with the field name
+            parser.nextToken();
+            HighlightField parsedField = HighlightField.fromXContent(parser);
+            assertEquals(highlightField, parsedField);
+            if (highlightField.fragments() != null) {
+                assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());
+            }
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
         }
-        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-        assertNull(parser.nextToken());
     }
 
     public void testToXContent() throws IOException {

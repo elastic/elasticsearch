@@ -19,13 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -38,7 +37,7 @@ public final class SReturn extends AStatement {
     public SReturn(Location location, AExpression expression) {
         super(location);
 
-        this.expression = Objects.requireNonNull(expression);
+        this.expression = expression;
     }
 
     @Override
@@ -48,10 +47,18 @@ public final class SReturn extends AStatement {
 
     @Override
     void analyze(Locals locals) {
-        expression.expected = locals.getReturnType();
-        expression.internal = true;
-        expression.analyze(locals);
-        expression = expression.cast(locals);
+        if (expression == null) {
+            if (locals.getReturnType() != void.class) {
+                throw location.createError(new ClassCastException("Cannot cast from " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(locals.getReturnType()) + "] to " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]."));
+            }
+        } else {
+            expression.expected = locals.getReturnType();
+            expression.internal = true;
+            expression.analyze(locals);
+            expression = expression.cast(locals);
+        }
 
         methodEscape = true;
         loopEscape = true;
@@ -63,12 +70,16 @@ public final class SReturn extends AStatement {
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeStatementOffset(location);
-        expression.write(writer, globals);
+
+        if (expression != null) {
+            expression.write(writer, globals);
+        }
+
         writer.returnValue();
     }
 
     @Override
     public String toString() {
-        return singleLineToString(expression);
+        return expression == null ? singleLineToString() : singleLineToString(expression);
     }
 }

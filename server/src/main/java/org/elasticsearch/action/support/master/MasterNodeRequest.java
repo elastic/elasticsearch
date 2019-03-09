@@ -40,13 +40,13 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
 
     protected MasterNodeRequest(StreamInput in) throws IOException {
         super(in);
-        masterNodeTimeout = new TimeValue(in);
+        masterNodeTimeout = in.readTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        masterNodeTimeout.writeTo(out);
+        out.writeTimeValue(masterNodeTimeout);
     }
 
     /**
@@ -74,6 +74,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
         // TODO(talevy): throw exception once all MasterNodeRequest
         //               subclasses have been migrated to Writeable Readers
         super.readFrom(in);
-        masterNodeTimeout = new TimeValue(in);
+        masterNodeTimeout = in.readTimeValue();
     }
+
 }

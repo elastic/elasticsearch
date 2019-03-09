@@ -1,7 +1,5 @@
 {
-  "index_patterns": [
-    "filebeat-6.0.0-*"
-  ],
+  "index_patterns": ["filebeat-6.0.0-*"],
   "mappings": {
     "doc": {
       "_meta": {
@@ -67,11 +65,13 @@
                       "type": "keyword"
                     },
                     "country_iso_code": {
-                      "ignore_above": 1024,
                       "type": "keyword"
                     },
                     "location": {
                       "type": "geo_point"
+                    },
+                    "region_iso_code": {
+                      "type": "keyword"
                     },
                     "region_name": {
                       "ignore_above": 1024,

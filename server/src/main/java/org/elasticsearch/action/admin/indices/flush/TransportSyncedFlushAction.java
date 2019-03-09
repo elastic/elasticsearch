@@ -22,12 +22,12 @@ package org.elasticsearch.action.admin.indices.flush;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.flush.SyncedFlushService;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.function.Supplier;
 
 /**
  * Synced flush Action.
@@ -37,16 +37,15 @@ public class TransportSyncedFlushAction extends HandledTransportAction<SyncedFlu
     SyncedFlushService syncedFlushService;
 
     @Inject
-    public TransportSyncedFlushAction(Settings settings, ThreadPool threadPool,
-                                      TransportService transportService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver,
+    public TransportSyncedFlushAction(TransportService transportService, ActionFilters actionFilters,
                                       SyncedFlushService syncedFlushService) {
-        super(settings, SyncedFlushAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SyncedFlushRequest::new);
+        super(SyncedFlushAction.NAME, transportService, actionFilters,
+            (Supplier<SyncedFlushRequest>) SyncedFlushRequest::new);
         this.syncedFlushService = syncedFlushService;
     }
 
     @Override
-    protected void doExecute(SyncedFlushRequest request, ActionListener<SyncedFlushResponse> listener) {
+    protected void doExecute(Task task, SyncedFlushRequest request, ActionListener<SyncedFlushResponse> listener) {
         syncedFlushService.attemptSyncedFlush(request.indices(), request.indicesOptions(), listener);
     }
 }

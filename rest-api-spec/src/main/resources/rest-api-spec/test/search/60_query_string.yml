@@ -5,15 +5,13 @@
           index:  test
           body:
             mappings:
-              test:
-                properties:
-                  number:
-                    type: integer
+              properties:
+                number:
+                  type: integer
 
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { field: foo bar}
 
@@ -23,6 +21,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         q: bar
         df: field
@@ -31,6 +30,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         q: field:foo field:xyz
 
@@ -38,6 +38,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         q: field:foo field:xyz
         default_operator: AND
@@ -46,14 +47,7 @@
 
   - do:
       search:
-        index: test
-        q: field:bars
-        analyzer: snowball
-
-  - match: {hits.total: 1}
-
-  - do:
-      search:
+        rest_total_hits_as_int: true
         index: test
         q: field:BA*
 
@@ -61,6 +55,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         q: number:foo
         lenient: true

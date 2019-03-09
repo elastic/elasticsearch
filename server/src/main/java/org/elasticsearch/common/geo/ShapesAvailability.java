@@ -36,7 +36,7 @@ public class ShapesAvailability {
 
         boolean xJTS_AVAILABLE;
         try {
-            Class.forName("com.vividsolutions.jts.geom.GeometryFactory");
+            Class.forName("org.locationtech.jts.geom.GeometryFactory");
             xJTS_AVAILABLE = true;
         } catch (ClassNotFoundException ignored) {
             xJTS_AVAILABLE = false;

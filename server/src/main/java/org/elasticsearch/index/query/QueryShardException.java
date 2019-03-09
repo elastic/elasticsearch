@@ -37,16 +37,15 @@ public class QueryShardException extends ElasticsearchException {
     }
 
     public QueryShardException(QueryShardContext context, String msg, Throwable cause, Object... args) {
-        super(msg, cause, args);
-        setIndex(context.index());
+        this(context.getFullyQualifiedIndex(), msg, cause, args);
     }
 
     /**
      * This constructor is provided for use in unit tests where a
      * {@link QueryShardContext} may not be available
      */
-    public QueryShardException(Index index, String msg, Throwable cause) {
-        super(msg, cause);
+    public QueryShardException(Index index, String msg, Throwable cause, Object... args) {
+        super(msg, cause, args);
         setIndex(index);
     }
 

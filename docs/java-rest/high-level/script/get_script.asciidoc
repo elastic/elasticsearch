@@ -1,0 +1,77 @@
+[[java-rest-high-get-stored-script]]
+
+=== Get Stored Script API
+
+[[java-rest-high-get-stored-script-request]]
+==== Get Stored Script Request
+
+A `GetStoredScriptRequest` requires an `id`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-request]
+--------------------------------------------------
+<1> The id of the script
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+[[java-rest-high-get-stored-script-sync]]
+==== Synchronous Execution
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-execute]
+--------------------------------------------------
+
+[[java-rest-high-get-stored-script-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a get stored script request requires both the `GetStoredScriptRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-execute-async]
+--------------------------------------------------
+<1> The `GetStoredScriptRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+[[java-rest-high-get-stored-script-listener]]
+===== Action Listener
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `GetStoredScriptResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-get-stored-script-response]]
+==== Get Stored Script Response
+
+The returned `GetStoredScriptResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-response]
+--------------------------------------------------
+<1> The script object consists of a content and a metadata
+<2> The language the script is written in, which defaults to `painless`.
+<3> The content of the script
+<4> Any named options that should be passed into the script.

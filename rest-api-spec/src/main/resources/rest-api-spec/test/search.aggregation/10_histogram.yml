@@ -6,12 +6,11 @@ setup:
             settings:
               number_of_replicas: 0
             mappings:
-              test:
-                "properties":
-                  "number":
-                     "type" : "integer"
-                  "date":
-                     "type" : "date"
+              "properties":
+                "number":
+                   "type" : "integer"
+                "date":
+                   "type" : "date"
   - do:
       cluster.health:
         wait_for_status: green
@@ -21,188 +20,123 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "number" : 1 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "number" : 51 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "number" : 101 }
-      
+
   - do:
       index:
         index: test_1
-        type: test
         id: 4
         body: { "number" : 151 }
-          
+
   - do:
       indices.refresh: {}
-    
+
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "aggs" : { "histo" : { "histogram" : { "field" : "number", "interval" : 50 } } } }
-    
+
   - match: { hits.total: 4 }
-  
+
   - length: { aggregations.histo.buckets: 4 }
-  
+
   - match: { aggregations.histo.buckets.0.key: 0 }
-  
+
   - is_false: aggregations.histo.buckets.0.key_as_string
-  
+
   - match: { aggregations.histo.buckets.0.doc_count: 1 }
-  
+
   - match: { aggregations.histo.buckets.1.key: 50 }
-  
+
   - is_false: aggregations.histo.buckets.1.key_as_string
-  
+
   - match: { aggregations.histo.buckets.1.doc_count: 1 }
-  
+
   - match: { aggregations.histo.buckets.2.key: 100 }
-  
+
   - is_false: aggregations.histo.buckets.2.key_as_string
-  
+
   - match: { aggregations.histo.buckets.2.doc_count: 1 }
-  
+
   - match: { aggregations.histo.buckets.3.key: 150 }
-  
+
   - is_false: aggregations.histo.buckets.3.key_as_string
-  
+
   - match: { aggregations.histo.buckets.3.doc_count: 1 }
-  
+
 ---
 "Format test":
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "number" : 1 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "number" : 51 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "number" : 101 }
-      
+
   - do:
       index:
         index: test_1
-        type: test
         id: 4
         body: { "number" : 151 }
-          
+
   - do:
       indices.refresh: {}
-    
+
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "aggs" : { "histo" : { "histogram" : { "field" : "number", "interval" : 50, "format" : "Value is ##0.0" } } } }
-    
+
   - match: { hits.total: 4 }
-  
+
   - length: { aggregations.histo.buckets: 4 }
-  
+
   - match: { aggregations.histo.buckets.0.key: 0 }
-  
+
   - match: { aggregations.histo.buckets.0.key_as_string: "Value is 0.0" }
-  
+
   - match: { aggregations.histo.buckets.0.doc_count: 1 }
-  
+
   - match: { aggregations.histo.buckets.1.key: 50 }
-  
+
   - match: { aggregations.histo.buckets.1.key_as_string: "Value is 50.0" }
-  
+
   - match: { aggregations.histo.buckets.1.doc_count: 1 }
-  
+
   - match: { aggregations.histo.buckets.2.key: 100 }
-  
+
   - match: { aggregations.histo.buckets.2.key_as_string: "Value is 100.0" }
-  
+
   - match: { aggregations.histo.buckets.2.doc_count: 1 }
-  
+
   - match: { aggregations.histo.buckets.3.key: 150 }
-  
+
   - match: { aggregations.histo.buckets.3.key_as_string: "Value is 150.0" }
-  
+
   - match: { aggregations.histo.buckets.3.doc_count: 1 }
 
----
-"Deprecated _time order":
 
-  - skip:
-      version: " - 5.99.99"
-      reason:  _time order deprecated in 6.0, replaced by _key
-      features: "warnings"
-
-  - do:
-      index:
-        index: test_1
-        type: test
-        id: 1
-        body: { "date" : "2016-01-01" }
-
-  - do:
-      index:
-        index: test_1
-        type: test
-        id: 2
-        body: { "date" : "2016-01-02" }
-
-  - do:
-      index:
-        index: test_1
-        type: test
-        id: 3
-        body: { "date" : "2016-02-01" }
-
-  - do:
-      index:
-        index: test_1
-        type: test
-        id: 4
-        body: { "date" : "2016-03-01" }
-
-  - do:
-      indices.refresh: {}
-
-  - do:
-      search:
-        body: { "aggs" : { "histo" : { "date_histogram" : { "field" : "date", "interval" : "month", "order" : { "_time" : "desc" } } } } }
-      warnings:
-        - "Deprecated aggregation order key [_time] used, replaced by [_key]"
-
-  - match: { hits.total: 4 }
-
-  - length: { aggregations.histo.buckets: 3 }
-
-  - match: { aggregations.histo.buckets.0.key_as_string: "2016-03-01T00:00:00.000Z" }
-
-  - match: { aggregations.histo.buckets.0.doc_count: 1 }
-
-  - match: { aggregations.histo.buckets.1.key_as_string: "2016-02-01T00:00:00.000Z" }
-
-  - match: { aggregations.histo.buckets.1.doc_count: 1 }
-
-  - match: { aggregations.histo.buckets.2.key_as_string: "2016-01-01T00:00:00.000Z" }
-
-  - match: { aggregations.histo.buckets.2.doc_count: 2 }

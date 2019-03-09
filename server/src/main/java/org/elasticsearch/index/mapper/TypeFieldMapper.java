@@ -25,7 +25,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -41,12 +41,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +76,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                                      ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
 
@@ -89,7 +88,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class TypeFieldType extends StringFieldType {
+    public static final class TypeFieldType extends StringFieldType {
 
         TypeFieldType() {
         }
@@ -110,21 +109,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            if (hasDocValues()) {
-                return new DocValuesIndexFieldData.Builder();
-            } else {
-                // means the index has a single type and the type field is implicit
-                Function<MapperService, String> typeFunction = mapperService -> {
-                    Collection<String> types = mapperService.types();
-                    if (types.size() > 1) {
-                        throw new AssertionError();
-                    }
-                    // If we reach here, there is necessarily one type since we were able to find a `_type` field
-                    String type = types.iterator().next();
-                    return type;
-                };
-                return new ConstantIndexFieldData.Builder(typeFunction);
-            }
+            Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
+            return new ConstantIndexFieldData.Builder(typeFunction);
         }
 
         @Override
@@ -144,36 +130,46 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
-            if (context.getIndexSettings().isSingleType()) {
-                Collection<String> indexTypes = context.getMapperService().types();
-                if (indexTypes.isEmpty()) {
-                    return new MatchNoDocsQuery("No types");
-                }
-                assert indexTypes.size() == 1;
-                BytesRef indexType = indexedValueForSearch(indexTypes.iterator().next());
-                if (values.stream()
-                        .map(this::indexedValueForSearch)
-                        .anyMatch(indexType::equals)) {
-                    if (context.getMapperService().hasNested()) {
-                        // type filters are expected not to match nested docs
-                        return Queries.newNonNestedFilter(context.indexVersionCreated());
-                    } else {
-                        return new MatchAllDocsQuery();
-                    }
+            DocumentMapper mapper = context.getMapperService().documentMapper();
+            if (mapper == null) {
+                return new MatchNoDocsQuery("No types");
+            }
+            BytesRef indexType = indexedValueForSearch(mapper.type());
+            if (values.stream()
+                    .map(this::indexedValueForSearch)
+                    .anyMatch(indexType::equals)) {
+                if (context.getMapperService().hasNested()) {
+                    // type filters are expected not to match nested docs
+                    return Queries.newNonNestedFilter(context.indexVersionCreated());
                 } else {
-                    return new MatchNoDocsQuery("Type list does not contain the index type");
+                    return new MatchAllDocsQuery();
                 }
             } else {
-                if (indexOptions() == IndexOptions.NONE) {
-                    throw new AssertionError();
-                }
-                final BytesRef[] types = values.stream()
-                        .map(this::indexedValueForSearch)
-                        .toArray(size -> new BytesRef[size]);
-                return new TypesQuery(types);
+                return new MatchNoDocsQuery("Type list does not contain the index type");
             }
         }
 
+        @Override
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+            Query result = new MatchAllDocsQuery();
+            String type = context.getMapperService().documentMapper().type();
+            if (type != null) {
+                BytesRef typeBytes = new BytesRef(type);
+                if (lowerTerm != null) {
+                    int comp = indexedValueForSearch(lowerTerm).compareTo(typeBytes);
+                    if (comp > 0 || (comp == 0 && includeLower == false)) {
+                        result = new MatchNoDocsQuery("[_type] was lexicographically smaller than lower bound of range");
+                    }
+                }
+                if (upperTerm != null) {
+                    int comp = indexedValueForSearch(upperTerm).compareTo(typeBytes);
+                    if (comp < 0 || (comp == 0 && includeUpper == false)) {
+                        result = new MatchNoDocsQuery("[_type] was lexicographically greater than upper bound of range");
+                    }
+                }
+            }
+            return result;
+        }
     }
 
     /**
@@ -209,7 +205,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                 for (BytesRef type : types) {
                     if (uniqueTypes.add(type)) {
                         Term term = new Term(CONTENT_TYPE, type);
-                        TermContext context = TermContext.build(reader.getContext(), term);
+                        TermStates context = TermStates.build(reader.getContext(), term, true);
                         if (context.docFreq() == 0) {
                             // this _type is not present in the reader
                             continue;
@@ -269,13 +265,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     private static MappedFieldType defaultFieldType(IndexSettings indexSettings) {
         MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
-        if (indexSettings.isSingleType()) {
-            defaultFieldType.setIndexOptions(IndexOptions.NONE);
-            defaultFieldType.setHasDocValues(false);
-        } else {
-            defaultFieldType.setIndexOptions(IndexOptions.DOCS);
-            defaultFieldType.setHasDocValues(true);
-        }
+        defaultFieldType.setIndexOptions(IndexOptions.NONE);
+        defaultFieldType.setHasDocValues(false);
         return defaultFieldType;
     }
 
@@ -285,13 +276,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
-    }
-
-    @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // we parse in pre parse
-        return null;
     }
 
     @Override

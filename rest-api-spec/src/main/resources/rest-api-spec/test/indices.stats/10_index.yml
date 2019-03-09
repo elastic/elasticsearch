@@ -18,14 +18,12 @@ setup:
   - do:
       index:
           index: test1
-          type:  bar
           id:    1
           body:  { "foo": "bar" }
 
   - do:
       index:
           index: test2
-          type:  baz
           id:    1
           body:  { "foo": "baz" }
 
@@ -41,13 +39,19 @@ setup:
 
 ---
 "Index - all":
+  - skip:
+      version: " - 6.3.99"
+      reason: "uuid is only available from 6.4.0 on"
+
   - do:
       indices.stats: { index: _all }
 
   - match: { _shards.total: 18 }
   - is_true: _all
   - is_true: indices.test1
+  - is_true: indices.test1.uuid
   - is_true: indices.test2
+  - is_true: indices.test2.uuid
 
 
 ---
@@ -102,9 +106,6 @@ setup:
 
 ---
 "Indices stats unrecognized parameter":
-  - skip:
-      version: " - 5.0.99"
-      reason: strict stats handling does not exist in 5.0
   - do:
       catch: bad_request
       indices.stats:

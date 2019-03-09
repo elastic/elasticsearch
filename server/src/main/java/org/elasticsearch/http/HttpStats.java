@@ -32,9 +32,9 @@ public class HttpStats implements Writeable, ToXContentFragment {
     private final long serverOpen;
     private final long totalOpen;
 
-    public HttpStats(long serverOpen, long totalOpen) {
+    public HttpStats(long serverOpen, long totalOpened) {
         this.serverOpen = serverOpen;
-        this.totalOpen = totalOpen;
+        this.totalOpen = totalOpened;
     }
 
     public HttpStats(StreamInput in) throws IOException {

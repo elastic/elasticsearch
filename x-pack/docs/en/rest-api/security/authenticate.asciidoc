@@ -1,0 +1,59 @@
+[role="xpack"]
+[[security-api-authenticate]]
+=== Authenticate API
+++++
+<titleabbrev>Authenticate</titleabbrev>
+++++
+
+The Authenticate API enables you to submit a request with a basic auth header to
+authenticate a user and retrieve information about the authenticated user.
+
+
+==== Request
+
+`GET /_security/_authenticate`
+
+
+==== Description
+
+A successful call returns a JSON structure that shows user information such as their username, the roles that are
+assigned to the user, any assigned metadata, and information about the realms that authenticated and authorized the user.
+
+If the user cannot be authenticated, this API returns a 401 status code.
+
+==== Examples
+
+To authenticate a user, submit a GET request to the
+`/_security/_authenticate` endpoint:
+
+[source,js]
+--------------------------------------------------
+GET /_security/_authenticate
+--------------------------------------------------
+// CONSOLE
+
+The following example output provides information about the "rdeniro" user:
+
+[source,js]
+--------------------------------------------------
+{
+  "username": "rdeniro",
+  "roles": [ 
+    "admin"
+  ],
+  "full_name": null,
+  "email":  null,
+  "metadata": { },
+  "enabled": true,
+  "authentication_realm": {
+    "name" : "default_file",
+    "type" : "file"
+  },
+  "lookup_realm": {
+    "name" : "default_file",
+    "type" : "file"
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"rdeniro"/"$body.username"/]
+// TESTRESPONSE[s/"admin"/"superuser"/]

@@ -21,7 +21,6 @@ package org.elasticsearch.gateway;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -217,7 +216,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                             unwrappedCause instanceof ElasticsearchTimeoutException) {
                             nodeEntry.restartFetching();
                         } else {
-                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{}: failed to list shard for {} on node [{}]",
+                            logger.warn(() -> new ParameterizedMessage("{}: failed to list shard for {} on node [{}]",
                                 shardId, type, failure.nodeId()), failure);
                             nodeEntry.doneFetching(failure.getCause());
                         }
@@ -246,12 +245,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             }
         }
         // remove nodes that are not longer part of the data nodes set
-        for (Iterator<String> it = shardCache.keySet().iterator(); it.hasNext(); ) {
-            String nodeId = it.next();
-            if (nodes.nodeExists(nodeId) == false) {
-                it.remove();
-            }
-        }
+        shardCache.keySet().removeIf(nodeId -> !nodes.nodeExists(nodeId));
     }
 
     /**

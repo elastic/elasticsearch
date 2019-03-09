@@ -107,7 +107,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
         super.readFrom(in);
         nodesIds = in.readStringArray();
         concreteNodes = in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
-        timeout = in.readOptionalWriteable(TimeValue::new);
+        timeout = in.readOptionalTimeValue();
     }
 
     @Override
@@ -115,6 +115,6 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
         super.writeTo(out);
         out.writeStringArrayNullable(nodesIds);
         out.writeOptionalArray(concreteNodes);
-        out.writeOptionalWriteable(timeout);
+        out.writeOptionalTimeValue(timeout);
     }
 }

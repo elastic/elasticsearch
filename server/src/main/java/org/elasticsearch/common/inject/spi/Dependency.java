@@ -106,7 +106,7 @@ public final class Dependency<T> {
     @Override
     public boolean equals(Object o) {
         if (o instanceof Dependency) {
-            Dependency dependency = (Dependency) o;
+            Dependency<?> dependency = (Dependency<?>) o;
             return Objects.equals(injectionPoint, dependency.injectionPoint)
                     && Objects.equals(parameterIndex, dependency.parameterIndex)
                     && Objects.equals(key, dependency.key);

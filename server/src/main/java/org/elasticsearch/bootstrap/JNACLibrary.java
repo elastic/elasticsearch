@@ -22,9 +22,10 @@ package org.elasticsearch.bootstrap;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Structure;
+
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.util.Arrays;
 import java.util.List;
@@ -34,7 +35,7 @@ import java.util.List;
  */
 final class JNACLibrary {
 
-    private static final Logger logger = Loggers.getLogger(JNACLibrary.class);
+    private static final Logger logger = LogManager.getLogger(JNACLibrary.class);
 
     public static final int MCL_CURRENT = 1;
     public static final int ENOMEM = 12;

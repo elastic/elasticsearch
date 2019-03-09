@@ -28,24 +28,21 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
-import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class ClusterService extends AbstractLifecycleComponent {
-
     private final MasterService masterService;
 
     private final ClusterApplierService clusterApplierService;
@@ -54,35 +51,40 @@ public class ClusterService extends AbstractLifecycleComponent {
             Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30),
                     Property.Dynamic, Property.NodeScope);
 
+    public static final org.elasticsearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_META_DATA =
+        Setting.prefixKeySetting("cluster.metadata.", (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+
+    /**
+     * The node's settings.
+     */
+    private final Settings settings;
+
     private final ClusterName clusterName;
 
     private final OperationRouting operationRouting;
 
     private final ClusterSettings clusterSettings;
-    private final Map<String, Supplier<ClusterState.Custom>> initialClusterStateCustoms;
 
-    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
-                          Map<String, Supplier<ClusterState.Custom>> initialClusterStateCustoms) {
-        super(settings);
-        this.masterService = new MasterService(settings, threadPool);
+    private final String nodeName;
+
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this(settings, clusterSettings, new MasterService(Node.NODE_NAME_SETTING.get(settings), settings, threadPool),
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool));
+    }
+
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, MasterService masterService,
+        ClusterApplierService clusterApplierService) {
+        this.settings = settings;
+        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
+        this.masterService = masterService;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             this::setSlowTaskLoggingThreshold);
-        this.initialClusterStateCustoms = initialClusterStateCustoms;
-        this.clusterApplierService = new ClusterApplierService(settings, clusterSettings, threadPool, this::newClusterStateBuilder);
-    }
-
-    /**
-     * Creates a new cluster state builder that is initialized with the cluster name and all initial cluster state customs.
-     */
-    public ClusterState.Builder newClusterStateBuilder() {
-        ClusterState.Builder builder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
-        for (Map.Entry<String, Supplier<ClusterState.Custom>> entry : initialClusterStateCustoms.entrySet()) {
-            builder.putCustom(entry.getKey(), entry.getValue().get());
-        }
-        return builder;
+        // Add a no-op update consumer so changes are logged
+        this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_META_DATA, (first, second) -> {}, (first, second) -> {});
+        this.clusterApplierService = clusterApplierService;
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -178,34 +180,10 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Removes a timeout listener for updated cluster states.
-     */
-    public void removeTimeoutListener(TimeoutClusterStateListener listener) {
-        clusterApplierService.removeTimeoutListener(listener);
-    }
-
-    /**
      * Add a listener for on/off local node master events
      */
     public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
         clusterApplierService.addLocalNodeMasterListener(listener);
-    }
-
-    /**
-     * Remove the given listener for on/off local master events
-     */
-    public void removeLocalNodeMasterListener(LocalNodeMasterListener listener) {
-        clusterApplierService.removeLocalNodeMasterListener(listener);
-    }
-
-    /**
-     * Adds a cluster state listener that is expected to be removed during a short period of time.
-     * If provided, the listener will be notified once a specific time has elapsed.
-     *
-     * NOTE: the listener is not removed on timeout. This is the responsibility of the caller.
-     */
-    public void addTimeoutListener(@Nullable final TimeValue timeout, final TimeoutClusterStateListener listener) {
-        clusterApplierService.addTimeoutListener(timeout, listener);
     }
 
     public MasterService getMasterService() {
@@ -231,8 +209,18 @@ public class ClusterService extends AbstractLifecycleComponent {
         return clusterSettings;
     }
 
+    /**
+     * The node's settings.
+     */
     public Settings getSettings() {
         return settings;
+    }
+
+    /**
+     * The name of this node.
+     */
+    public final String getNodeName() {
+        return nodeName;
     }
 
     /**

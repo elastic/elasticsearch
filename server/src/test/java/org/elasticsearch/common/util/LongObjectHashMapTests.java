@@ -32,7 +32,8 @@ public class LongObjectHashMapTests extends ESSingleNodeTestCase {
 
     public void testDuel() {
         final LongObjectHashMap<Object> map1 = new LongObjectHashMap<>();
-        final LongObjectPagedHashMap<Object> map2 = new LongObjectPagedHashMap<>(randomInt(42), 0.6f + randomFloat() * 0.39f, randombigArrays());
+        final LongObjectPagedHashMap<Object> map2 =
+            new LongObjectPagedHashMap<>(randomInt(42), 0.6f + randomFloat() * 0.39f, randombigArrays());
         final int maxKey = randomIntBetween(1, 10000);
         final int iters = scaledRandomIntBetween(10000, 100000);
         for (int i = 0; i < iters; ++i) {

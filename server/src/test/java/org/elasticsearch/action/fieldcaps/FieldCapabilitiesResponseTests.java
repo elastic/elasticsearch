@@ -19,42 +19,177 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
-public class FieldCapabilitiesResponseTests extends ESTestCase {
-    private FieldCapabilitiesResponse randomResponse() {
-        Map<String, Map<String, FieldCapabilities> > fieldMap = new HashMap<> ();
-        int numFields = randomInt(10);
-        for (int i = 0; i < numFields; i++) {
-            String fieldName = randomAlphaOfLengthBetween(5, 10);
-            int numIndices = randomIntBetween(1, 5);
-            Map<String, FieldCapabilities> indexFieldMap = new HashMap<> ();
-            for (int j = 0; j < numIndices; j++) {
-                String index = randomAlphaOfLengthBetween(10, 20);
-                indexFieldMap.put(index, FieldCapabilitiesTests.randomFieldCaps());
-            }
-            fieldMap.put(fieldName, indexFieldMap);
-        }
-        return new FieldCapabilitiesResponse(fieldMap);
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
+
+
+public class FieldCapabilitiesResponseTests extends AbstractStreamableXContentTestCase<FieldCapabilitiesResponse> {
+
+    @Override
+    protected FieldCapabilitiesResponse doParseInstance(XContentParser parser) throws IOException {
+        return FieldCapabilitiesResponse.fromXContent(parser);
     }
 
-    public void testSerialization() throws IOException {
-        for (int i = 0; i < 20; i++) {
-            FieldCapabilitiesResponse response = randomResponse();
-            BytesStreamOutput output = new BytesStreamOutput();
-            response.writeTo(output);
-            output.flush();
-            StreamInput input = output.bytes().streamInput();
-            FieldCapabilitiesResponse deserialized = new FieldCapabilitiesResponse();
-            deserialized.readFrom(input);
-            assertEquals(deserialized, response);
-            assertEquals(deserialized.hashCode(), response.hashCode());
+    @Override
+    protected FieldCapabilitiesResponse createBlankInstance() {
+        return new FieldCapabilitiesResponse();
+    }
+
+    @Override
+    protected FieldCapabilitiesResponse createTestInstance() {
+        if (randomBoolean()) {
+            // merged responses
+            Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
+
+            String[] fields = generateRandomStringArray(5, 10, false, true);
+            assertNotNull(fields);
+
+            for (String field : fields) {
+                Map<String, FieldCapabilities> typesToCapabilities = new HashMap<>();
+                String[] types = generateRandomStringArray(5, 10, false, false);
+                assertNotNull(types);
+
+                for (String type : types) {
+                    typesToCapabilities.put(type, FieldCapabilitiesTests.randomFieldCaps(field));
+                }
+                responses.put(field, typesToCapabilities);
+            }
+            return new FieldCapabilitiesResponse(responses);
+        } else {
+            // non-merged responses
+            List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
+            int numResponse = randomIntBetween(0, 10);
+            for (int i = 0; i < numResponse; i++) {
+                responses.add(createRandomIndexResponse());
+            }
+            return new FieldCapabilitiesResponse(responses);
         }
+    }
+
+
+    private FieldCapabilitiesIndexResponse createRandomIndexResponse() {
+        Map<String, FieldCapabilities> responses = new HashMap<>();
+
+        String[] fields = generateRandomStringArray(5, 10, false, true);
+        assertNotNull(fields);
+
+        for (String field : fields) {
+            responses.put(field, FieldCapabilitiesTests.randomFieldCaps(field));
+        }
+        return new FieldCapabilitiesIndexResponse(randomAsciiLettersOfLength(10), responses);
+    }
+
+    @Override
+    protected FieldCapabilitiesResponse mutateInstance(FieldCapabilitiesResponse response) {
+        Map<String, Map<String, FieldCapabilities>> mutatedResponses = new HashMap<>(response.get());
+
+        int mutation = response.get().isEmpty() ? 0 : randomIntBetween(0, 2);
+
+        switch (mutation) {
+            case 0:
+                String toAdd = randomAlphaOfLength(10);
+                mutatedResponses.put(toAdd, Collections.singletonMap(
+                    randomAlphaOfLength(10),
+                    FieldCapabilitiesTests.randomFieldCaps(toAdd)));
+                break;
+            case 1:
+                String toRemove = randomFrom(mutatedResponses.keySet());
+                mutatedResponses.remove(toRemove);
+                break;
+            case 2:
+                String toReplace = randomFrom(mutatedResponses.keySet());
+                mutatedResponses.put(toReplace, Collections.singletonMap(
+                    randomAlphaOfLength(10),
+                    FieldCapabilitiesTests.randomFieldCaps(toReplace)));
+                break;
+        }
+        return new FieldCapabilitiesResponse(mutatedResponses);
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // Disallow random fields from being inserted under the 'fields' key, as this
+        // map only contains field names, and also under 'fields.FIELD_NAME', as these
+        // maps only contain type names.
+        return field -> field.matches("fields(\\.\\w+)?");
+    }
+
+    public void testToXContent() throws IOException {
+        FieldCapabilitiesResponse response = createSimpleResponse();
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String generatedResponse = BytesReference.bytes(builder).utf8ToString();
+        assertEquals((
+            "{" +
+            "    \"fields\": {" +
+            "        \"rating\": { " +
+            "            \"keyword\": {" +
+            "                \"type\": \"keyword\"," +
+            "                \"searchable\": false," +
+            "                \"aggregatable\": true," +
+            "                \"indices\": [\"index3\", \"index4\"]," +
+            "                \"non_searchable_indices\": [\"index4\"] " +
+            "            }," +
+            "            \"long\": {" +
+            "                \"type\": \"long\"," +
+            "                \"searchable\": true," +
+            "                \"aggregatable\": false," +
+            "                \"indices\": [\"index1\", \"index2\"]," +
+            "                \"non_aggregatable_indices\": [\"index1\"] " +
+            "            }" +
+            "        }," +
+            "        \"title\": { " +
+            "            \"text\": {" +
+            "                \"type\": \"text\"," +
+            "                \"searchable\": true," +
+            "                \"aggregatable\": false" +
+            "            }" +
+            "        }" +
+            "    }" +
+            "}").replaceAll("\\s+", ""), generatedResponse);
+    }
+
+    public void testEmptyResponse() throws IOException {
+        FieldCapabilitiesResponse testInstance = new FieldCapabilitiesResponse();
+        assertSerialization(testInstance);
+    }
+
+    private static FieldCapabilitiesResponse createSimpleResponse() {
+        Map<String, FieldCapabilities> titleCapabilities = new HashMap<>();
+        titleCapabilities.put("text", new FieldCapabilities("title", "text", true, false));
+
+        Map<String, FieldCapabilities> ratingCapabilities = new HashMap<>();
+        ratingCapabilities.put("long", new FieldCapabilities("rating", "long",
+            true, false,
+            new String[]{"index1", "index2"},
+            null,
+            new String[]{"index1"}));
+        ratingCapabilities.put("keyword", new FieldCapabilities("rating", "keyword",
+            false, true,
+            new String[]{"index3", "index4"},
+            new String[]{"index4"},
+            null));
+
+        Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
+        responses.put("title", titleCapabilities);
+        responses.put("rating", ratingCapabilities);
+        return new FieldCapabilitiesResponse(responses);
     }
 }

@@ -23,22 +23,21 @@ setup:
 
 ---
 "All indices":
-  - skip:
-      version: " - 5.99.99"
-      reason:  status code  on closed indices changed in 6.0.0 from 403 to 400
-
   - do:
       indices.close:
         index: _all
+  - is_true: acknowledged
 
   - do:
       catch: bad_request
       search:
+        rest_total_hits_as_int: true
         index: test_index2
 
   - do:
       indices.open:
         index: _all
+  - is_true: acknowledged
 
   - do:
       cluster.health:
@@ -46,26 +45,26 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index2
 
 ---
 "Trailing wildcard":
-  - skip:
-      version: " - 5.99.99"
-      reason:  status code  on closed indices changed in 6.0.0 from 403 to 400
-
   - do:
       indices.close:
         index: test_*
+  - is_true: acknowledged
 
   - do:
       catch: bad_request
       search:
+        rest_total_hits_as_int: true
         index: test_index2
 
   - do:
       indices.open:
         index: test_*
+  - is_true: acknowledged
 
   - do:
       cluster.health:
@@ -73,26 +72,26 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index2
 
 ---
 "Only wildcard":
-  - skip:
-      version: " - 5.99.99"
-      reason:  status code  on closed indices changed in 6.0.0 from 403 to 400
-
   - do:
       indices.close:
         index: '*'
+  - is_true: acknowledged
 
   - do:
       catch: bad_request
       search:
+        rest_total_hits_as_int: true
         index: test_index3
 
   - do:
       indices.open:
         index: '*'
+  - is_true: acknowledged
 
   - do:
       cluster.health:
@@ -100,5 +99,6 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_index3
 

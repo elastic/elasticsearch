@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -44,11 +44,9 @@ import java.util.Map;
  * For now, this {@link MergePolicy} takes care of moving versions that used to
  * be stored as payloads to numeric doc values.
  */
-public final class ElasticsearchMergePolicy extends MergePolicy {
+public final class ElasticsearchMergePolicy extends FilterMergePolicy {
 
-    private static Logger logger = Loggers.getLogger(ElasticsearchMergePolicy.class);
-
-    private final MergePolicy delegate;
+    private static Logger logger = LogManager.getLogger(ElasticsearchMergePolicy.class);
 
     // True if the next merge request should do segment upgrades:
     private volatile boolean upgradeInProgress;
@@ -60,13 +58,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
 
     /** @param delegate the merge policy to wrap */
     public ElasticsearchMergePolicy(MergePolicy delegate) {
-        this.delegate = delegate;
-    }
-
-    @Override
-    public MergeSpecification findMerges(MergeTrigger mergeTrigger,
-        SegmentInfos segmentInfos, IndexWriter writer) throws IOException {
-        return delegate.findMerges(mergeTrigger, segmentInfos, writer);
+        super(delegate);
     }
 
     private boolean shouldUpgrade(SegmentCommitInfo info) {
@@ -91,7 +83,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
 
     @Override
     public MergeSpecification findForcedMerges(SegmentInfos segmentInfos,
-        int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge, IndexWriter writer)
+        int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge, MergeContext mergeContext)
         throws IOException {
 
         if (upgradeInProgress) {
@@ -130,18 +122,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
             // has a chance to decide what to do (e.g. collapse the segments to satisfy maxSegmentCount)
         }
 
-        return delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, writer);
-    }
-
-    @Override
-    public MergeSpecification findForcedDeletesMerges(SegmentInfos segmentInfos, IndexWriter writer)
-        throws IOException {
-        return delegate.findForcedDeletesMerges(segmentInfos, writer);
-    }
-
-    @Override
-    public boolean useCompoundFile(SegmentInfos segments, SegmentCommitInfo newSegment, IndexWriter writer) throws IOException {
-        return delegate.useCompoundFile(segments, newSegment, writer);
+        return super.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, mergeContext);
     }
 
     /**
@@ -154,10 +135,4 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         this.upgradeInProgress = upgrade;
         this.upgradeOnlyAncientSegments = onlyAncientSegments;
     }
-
-    @Override
-    public String toString() {
-        return getClass().getSimpleName() + "(" + delegate + ")";
-    }
-
 }

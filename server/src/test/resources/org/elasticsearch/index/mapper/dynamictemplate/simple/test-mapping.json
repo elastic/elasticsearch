@@ -2,7 +2,7 @@
     "person":{
         "dynamic_templates":[
             {
-                "tempalte_1":{
+                "template_1":{
                     "match":"multi*",
                     "mapping":{
                         "type":"{dynamic_type}",

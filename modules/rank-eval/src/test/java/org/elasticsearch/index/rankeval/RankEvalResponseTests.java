@@ -20,10 +20,13 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -35,8 +38,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
@@ -50,7 +53,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.function.Predicate;
 
 import static java.util.Collections.singleton;
@@ -62,13 +65,13 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RankEvalResponseTests extends ESTestCase {
 
     private static final Exception[] RANDOM_EXCEPTIONS = new Exception[] {
-            new ClusterBlockException(singleton(DiscoverySettings.NO_MASTER_BLOCK_WRITES)),
-            new CircuitBreakingException("Data too large", 123, 456),
+            new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
+            new CircuitBreakingException("Data too large", 123, 456, CircuitBreaker.Durability.PERMANENT),
             new SearchParseException(new TestSearchContext(null), "Parse failure", new XContentLocation(12, 98)),
             new IllegalArgumentException("Closed resource", new RuntimeException("Resource")),
             new SearchPhaseExecutionException("search", "all shards failed",
                     new ShardSearchFailure[] { new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                            new SearchShardTarget("node_1", new Index("foo", "_na_"), 1, null)) }),
+                            new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE)) }),
             new ElasticsearchException("Parsing failed",
                     new ParsingException(9, 42, "Wrong state", new NullPointerException("Unexpected null value"))) };
 
@@ -102,7 +105,7 @@ public class RankEvalResponseTests extends ESTestCase {
             try (StreamInput in = output.bytes().streamInput()) {
                 RankEvalResponse deserializedResponse = new RankEvalResponse();
                 deserializedResponse.readFrom(in);
-                assertEquals(randomResponse.getEvaluationResult(), deserializedResponse.getEvaluationResult(), Double.MIN_VALUE);
+                assertEquals(randomResponse.getMetricScore(), deserializedResponse.getMetricScore(), Double.MIN_VALUE);
                 assertEquals(randomResponse.getPartialResults(), deserializedResponse.getPartialResults());
                 assertEquals(randomResponse.getFailures().keySet(), deserializedResponse.getFailures().keySet());
                 assertNotSame(randomResponse, deserializedResponse);
@@ -130,7 +133,7 @@ public class RankEvalResponseTests extends ESTestCase {
         assertNotSame(testItem, parsedItem);
         // We cannot check equality of object here because some information (e.g.
         // SearchHit#shard)  cannot fully be parsed back.
-        assertEquals(testItem.getEvaluationResult(), parsedItem.getEvaluationResult(), 0.0);
+        assertEquals(testItem.getMetricScore(), parsedItem.getMetricScore(), 0.0);
         assertEquals(testItem.getPartialResults().keySet(), parsedItem.getPartialResults().keySet());
         for (EvalQueryQuality metricDetail : testItem.getPartialResults().values()) {
             EvalQueryQuality parsedEvalQueryQuality = parsedItem.getPartialResults().get(metricDetail.getId());
@@ -154,14 +157,14 @@ public class RankEvalResponseTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         String xContent = BytesReference.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
         assertEquals(("{" +
-                "    \"quality_level\": 0.123," +
+                "    \"metric_score\": 0.123," +
                 "    \"details\": {" +
                 "        \"coffee_query\": {" +
-                "            \"quality_level\": 0.1," +
-                "            \"unknown_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}]," +
-                "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"123\",\"_score\":1.0}," +
+                "            \"metric_score\": 0.1," +
+                "            \"unrated_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}]," +
+                "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"123\",\"_score\":1.0}," +
                 "                       \"rating\":5}," +
-                "                      {\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"456\",\"_score\":1.0}," +
+                "                      {\"hit\":{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"456\",\"_score\":1.0}," +
                 "                       \"rating\":null}" +
                 "                     ]" +
                 "        }" +
@@ -179,9 +182,9 @@ public class RankEvalResponseTests extends ESTestCase {
     }
 
     private static RatedSearchHit searchHit(String index, int docId, Integer rating) {
-        SearchHit hit = new SearchHit(docId, docId + "", new Text(""), Collections.emptyMap());
-        hit.shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0, null));
+        SearchHit hit = new SearchHit(docId, docId + "", new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
+        hit.shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         hit.score(1.0f);
-        return new RatedSearchHit(hit, rating != null ? Optional.of(rating) : Optional.empty());
+        return new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());
     }
 }

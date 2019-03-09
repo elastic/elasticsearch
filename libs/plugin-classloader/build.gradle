@@ -17,9 +17,7 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.build'
-
-test.enabled = false
+unitTest.enabled = false
 
 // test depend on ES core...
 forbiddenApisMain.enabled = false

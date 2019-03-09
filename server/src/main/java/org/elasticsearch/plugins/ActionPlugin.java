@@ -19,9 +19,11 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestValidator;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -65,10 +67,10 @@ public interface ActionPlugin {
     }
 
     /**
-     * Client actions added by this plugin. This defaults to all of the {@linkplain GenericAction} in
+     * Client actions added by this plugin. This defaults to all of the {@linkplain Action} in
      * {@linkplain ActionPlugin#getActions()}.
      */
-    default List<GenericAction> getClientActions() {
+    default List<Action<? extends ActionResponse>> getClientActions() {
         return getActions().stream().map(a -> a.action).collect(Collectors.toList());
     }
 
@@ -103,6 +105,22 @@ public interface ActionPlugin {
 
     /**
      * Returns a function used to wrap each rest request before handling the request.
+     * The returned {@link UnaryOperator} is called for every incoming rest request and receives
+     * the original rest handler as it's input. This allows adding arbitrary functionality around
+     * rest request handlers to do for instance logging or authentication.
+     * A simple example of how to only allow GET request is here:
+     * <pre>
+     * {@code
+     *    UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+     *      return originalHandler -> (RestHandler) (request, channel, client) -> {
+     *        if (request.method() != Method.GET) {
+     *          throw new IllegalStateException("only GET requests are allowed");
+     *        }
+     *        originalHandler.handleRequest(request, channel, client);
+     *      };
+     *    }
+     * }
+     * </pre>
      *
      * Note: Only one installed plugin may implement a rest wrapper.
      */
@@ -111,7 +129,7 @@ public interface ActionPlugin {
     }
 
     final class ActionHandler<Request extends ActionRequest, Response extends ActionResponse> {
-        private final GenericAction<Request, Response> action;
+        private final Action<Response> action;
         private final Class<? extends TransportAction<Request, Response>> transportAction;
         private final Class<?>[] supportTransportActions;
 
@@ -119,14 +137,14 @@ public interface ActionPlugin {
          * Create a record of an action, the {@linkplain TransportAction} that handles it, and any supporting {@linkplain TransportActions}
          * that are needed by that {@linkplain TransportAction}.
          */
-        public ActionHandler(GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
-                Class<?>... supportTransportActions) {
+        public ActionHandler(Action<Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
+                             Class<?>... supportTransportActions) {
             this.action = action;
             this.transportAction = transportAction;
             this.supportTransportActions = supportTransportActions;
         }
 
-        public GenericAction<Request, Response> getAction() {
+        public Action<Response> getAction() {
             return action;
         }
 
@@ -162,5 +180,13 @@ public interface ActionPlugin {
         public int hashCode() {
             return Objects.hash(action, transportAction, supportTransportActions);
         }
+    }
+
+    /**
+     * Returns a collection of validators that are used by {@link TransportPutMappingAction.RequestValidators} to
+     * validate a {@link org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest} before the executing it.
+     */
+    default Collection<MappingRequestValidator> mappingRequestValidators() {
+        return Collections.emptyList();
     }
 }

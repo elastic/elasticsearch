@@ -19,23 +19,24 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.elasticsearch.common.geo.GeoShapeType;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.elasticsearch.common.geo.parsers.GeoWKTParser;
-import org.locationtech.spatial4j.shape.Shape;
-
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.XShapeCollection;
+import org.elasticsearch.common.geo.parsers.GeoWKTParser;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geo.geometry.GeometryCollection;
+import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class GeometryCollectionBuilder extends ShapeBuilder {
+public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
+    org.elasticsearch.geo.geometry.GeometryCollection<org.elasticsearch.geo.geometry.Geometry>, GeometryCollectionBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
 
@@ -160,12 +161,21 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
     }
 
     @Override
-    public Shape build() {
+    public int numDimensions() {
+        if (shapes == null || shapes.isEmpty()) {
+            throw new IllegalStateException("unable to get number of dimensions, " +
+                "GeometryCollection has not yet been initialized");
+        }
+        return shapes.get(0).numDimensions();
+    }
+
+    @Override
+    public Shape buildS4J() {
 
         List<Shape> shapes = new ArrayList<>(this.shapes.size());
 
         for (ShapeBuilder shape : this.shapes) {
-            shapes.add(shape.build());
+            shapes.add(shape.buildS4J());
         }
 
         if (shapes.size() == 1)
@@ -173,6 +183,20 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
         else
             return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
+    }
+
+    @Override
+    public org.elasticsearch.geo.geometry.GeometryCollection<org.elasticsearch.geo.geometry.Geometry> buildGeometry() {
+        if (this.shapes.isEmpty()) {
+            return GeometryCollection.EMPTY;
+        }
+        List<org.elasticsearch.geo.geometry.Geometry> shapes = new ArrayList<>(this.shapes.size());
+
+        for (ShapeBuilder shape : this.shapes) {
+            shapes.add(shape.buildGeometry());
+        }
+
+        return new org.elasticsearch.geo.geometry.GeometryCollection<>(shapes);
     }
 
     @Override

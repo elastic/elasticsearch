@@ -38,15 +38,14 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
     private CustomAnalyzer customAnalyzer;
 
     public CustomNormalizerProvider(IndexSettings indexSettings,
-                                  String name, Settings settings) {
+                                    String name, Settings settings) {
         super(indexSettings, name, settings);
         this.analyzerSettings = settings;
     }
 
-    public void build(final TokenizerFactory keywordTokenizerFactory, final Map<String, CharFilterFactory> charFilters,
+    public void build(final String tokenizerName, final TokenizerFactory tokenizerFactory, final Map<String, CharFilterFactory> charFilters,
             final Map<String, TokenFilterFactory> tokenFilters) {
-        String tokenizerName = analyzerSettings.get("tokenizer");
-        if (tokenizerName != null) {
+        if (analyzerSettings.get("tokenizer") != null) {
             throw new IllegalArgumentException("Custom normalizer [" + name() + "] cannot configure a tokenizer");
         }
 
@@ -58,11 +57,10 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
                 throw new IllegalArgumentException("Custom normalizer [" + name() + "] failed to find char_filter under name ["
                         + charFilterName + "]");
             }
-            if (charFilter instanceof MultiTermAwareComponent == false) {
+            if (charFilter instanceof NormalizingCharFilterFactory == false) {
                 throw new IllegalArgumentException("Custom normalizer [" + name() + "] may not use char filter ["
                         + charFilterName + "]");
             }
-            charFilter = (CharFilterFactory) ((MultiTermAwareComponent) charFilter).getMultiTermComponent();
             charFiltersList.add(charFilter);
         }
 
@@ -74,16 +72,15 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
                 throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find filter under name ["
                         + tokenFilterName + "]");
             }
-            if (tokenFilter instanceof MultiTermAwareComponent == false) {
+            if (tokenFilter instanceof NormalizingTokenFilterFactory == false) {
                 throw new IllegalArgumentException("Custom normalizer [" + name() + "] may not use filter [" + tokenFilterName + "]");
             }
-            tokenFilter = (TokenFilterFactory) ((MultiTermAwareComponent) tokenFilter).getMultiTermComponent();
             tokenFilterList.add(tokenFilter);
         }
 
         this.customAnalyzer = new CustomAnalyzer(
-                "keyword",
-                keywordTokenizerFactory,
+                tokenizerName,
+                tokenizerFactory,
                 charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                 tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()])
         );

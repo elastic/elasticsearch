@@ -14,12 +14,10 @@ Besides the <<built-in-date-formats,built-in formats>>, your own
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "date": {
-          "type":   "date",
-          "format": "yyyy-MM-dd"
-        }
+    "properties": {
+      "date": {
+        "type":   "date",
+        "format": "yyyy-MM-dd"
       }
     }
   }
@@ -31,15 +29,11 @@ Many APIs which support date values also support <<date-math,date math>>
 expressions, such as `now-1m/d` -- the current time, minus one month, rounded
 down to the nearest day.
 
-TIP: The `format` setting can be updated on existing fields using the
-<<indices-put-mapping,PUT mapping API>>.
-
-
 [[custom-date-formats]]
 ==== Custom date formats
 
 Completely customizable date formats are supported.  The syntax for these is explained
-http://www.joda.org/joda-time/apidocs/org/joda/time/format/DateTimeFormat.html[in the Joda docs].
+https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[DateTimeFormatter docs].
 
 [[built-in-date-formats]]
 ==== Built In Formats
@@ -75,7 +69,6 @@ The following tables lists all the defaults ISO formats supported:
 
     A generic ISO datetime parser where the date is mandatory and the time is
     optional.
-    http://www.joda.org/joda-time/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateOptionalTimeParser--[Full details here].
 
 `basic_date`::
 

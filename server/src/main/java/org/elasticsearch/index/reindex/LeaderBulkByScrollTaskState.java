@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.tasks.TaskInfo;
 
 import java.util.ArrayList;
 import java.util.Arrays;

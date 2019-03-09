@@ -19,19 +19,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.SortField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -46,11 +39,12 @@ import java.util.Objects;
  * A {@link ValuesSource} builder for {@link CompositeAggregationBuilder}
  */
 public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSourceBuilder<AB>> implements Writeable, ToXContentFragment {
+
     protected final String name;
     private String field = null;
     private Script script = null;
     private ValueType valueType = null;
-    private Object missing = null;
+    private boolean missingBucket = false;
     private SortOrder order = SortOrder.ASC;
     private String format = null;
 
@@ -72,7 +66,15 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (in.readBoolean()) {
             this.valueType = ValueType.readFromStream(in);
         }
-        this.missing = in.readGenericValue();
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            this.missingBucket = in.readBoolean();
+        } else {
+            this.missingBucket = false;
+        }
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            // skip missing value for BWC
+            in.readGenericValue();
+        }
         this.order = SortOrder.readFromStream(in);
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             this.format = in.readOptionalString();
@@ -95,7 +97,13 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (hasValueType) {
             valueType.writeTo(out);
         }
-        out.writeGenericValue(missing);
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeBoolean(missingBucket);
+        }
+        if (out.getVersion().before(Version.V_7_0_0)) {
+            // write missing value for BWC
+            out.writeGenericValue(null);
+        }
         order.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalString(format);
@@ -116,9 +124,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (script != null) {
             builder.field("script", script);
         }
-        if (missing != null) {
-            builder.field("missing", missing);
-        }
+        builder.field("missing_bucket", missingBucket);
         if (valueType != null) {
             builder.field("value_type", valueType.getPreferredName());
         }
@@ -133,7 +139,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     @Override
     public final int hashCode() {
-        return Objects.hash(field, missing, script, valueType, order, format, innerHashCode());
+        return Objects.hash(field, missingBucket, script, valueType, order, format, innerHashCode());
     }
 
     protected abstract int innerHashCode();
@@ -148,7 +154,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         return Objects.equals(field, that.field()) &&
             Objects.equals(script, that.script()) &&
             Objects.equals(valueType, that.valueType()) &&
-            Objects.equals(missing, that.missing()) &&
+            Objects.equals(missingBucket, that.missingBucket()) &&
             Objects.equals(order, that.order()) &&
             Objects.equals(format, that.format()) &&
             innerEquals(that);
@@ -220,20 +226,20 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     /**
-     * Sets the value to use when the source finds a missing value in a
-     * document
+     * If true an explicit `null bucket will represent documents with missing values.
      */
     @SuppressWarnings("unchecked")
-    public AB missing(Object missing) {
-        if (missing == null) {
-            throw new IllegalArgumentException("[missing] must not be null");
-        }
-        this.missing = missing;
+    public AB missingBucket(boolean missingBucket) {
+        this.missingBucket = missingBucket;
         return (AB) this;
     }
 
-    public Object missing() {
-        return missing;
+    /**
+     * False if documents with missing values are ignored, otherwise missing values are
+     * represented by an explicit `null` value.
+     */
+    public boolean missingBucket() {
+        return missingBucket;
     }
 
     /**
@@ -291,46 +297,12 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
      *
      * @param context   The search context for this source.
      * @param config    The {@link ValuesSourceConfig} for this source.
-     * @param pos       The position of this source in the composite key.
-     * @param numPos    The total number of positions in the composite key.
-     * @param sortField The {@link SortField} of the index sort at this position or null if not present.
      */
-    protected abstract CompositeValuesSourceConfig innerBuild(SearchContext context,
-                                                              ValuesSourceConfig<?> config,
-                                                              int pos,
-                                                              int numPos,
-                                                              SortField sortField) throws IOException;
+    protected abstract CompositeValuesSourceConfig innerBuild(SearchContext context, ValuesSourceConfig<?> config) throws IOException;
 
-    public final CompositeValuesSourceConfig build(SearchContext context, int pos, int numPos, SortField sortField) throws IOException {
+    public final CompositeValuesSourceConfig build(SearchContext context) throws IOException {
         ValuesSourceConfig<?> config = ValuesSourceConfig.resolve(context.getQueryShardContext(),
-            valueType, field, script, missing, null, format);
-        return innerBuild(context, config, pos, numPos, sortField);
-    }
-
-    protected boolean checkCanEarlyTerminate(IndexReader reader,
-                                             String fieldName,
-                                             boolean reverse,
-                                             SortField sortField) throws IOException {
-        return sortField.getField().equals(fieldName) &&
-            sortField.getReverse() == reverse &&
-            isSingleValued(reader, sortField);
-    }
-
-    private static boolean isSingleValued(IndexReader reader, SortField field) throws IOException {
-        SortField.Type type = IndexSortConfig.getSortFieldType(field);
-        for (LeafReaderContext context : reader.leaves()) {
-            if (type == SortField.Type.STRING) {
-                final SortedSetDocValues values = DocValues.getSortedSet(context.reader(), field.getField());
-                if (values.cost() > 0 && DocValues.unwrapSingleton(values) == null) {
-                    return false;
-                }
-            } else {
-                final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), field.getField());
-                if (values.cost() > 0 && DocValues.unwrapSingleton(values) == null) {
-                    return false;
-                }
-            }
-        }
-        return true;
+            valueType, field, script, null,null, format);
+        return innerBuild(context, config);
     }
 }

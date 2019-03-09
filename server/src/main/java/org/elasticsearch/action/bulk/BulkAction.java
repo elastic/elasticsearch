@@ -20,11 +20,10 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 
-public class BulkAction extends Action<BulkRequest, BulkResponse, BulkRequestBuilder> {
+public class BulkAction extends Action<BulkResponse> {
 
     public static final BulkAction INSTANCE = new BulkAction();
     public static final String NAME = "indices:data/write/bulk";
@@ -39,15 +38,7 @@ public class BulkAction extends Action<BulkRequest, BulkResponse, BulkRequestBui
     }
 
     @Override
-    public BulkRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new BulkRequestBuilder(client, this);
-    }
-
-    @Override
     public TransportRequestOptions transportOptions(Settings settings) {
-        return TransportRequestOptions.builder()
-                .withType(TransportRequestOptions.Type.BULK)
-                .withCompress(settings.getAsBoolean("action.bulk.compress", true)
-                ).build();
+        return TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK).build();
     }
 }

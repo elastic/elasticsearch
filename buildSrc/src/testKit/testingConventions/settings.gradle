@@ -1,0 +1,8 @@
+include 'no_tests_in_inner_classes'
+include 'incorrect_naming_conventions'
+include 'empty_test_task'
+include 'all_classes_in_tasks'
+include 'not_implementing_base'
+include 'valid_setup_no_base'
+include 'valid_setup_with_base'
+include 'tests_in_main'

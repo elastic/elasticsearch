@@ -22,25 +22,18 @@ package org.elasticsearch.transport.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import io.netty.util.NettyRuntime;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Netty4Utils {
@@ -114,9 +107,14 @@ public class Netty4Utils {
                 while ((slice = iterator.next()) != null) {
                     buffers.add(Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
                 }
-                final CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
-                composite.addComponents(true, buffers);
-                return composite;
+
+                if (buffers.size() == 1) {
+                    return buffers.get(0);
+                } else {
+                    CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
+                    composite.addComponents(true, buffers);
+                    return composite;
+                }
             } catch (IOException ex) {
                 throw new AssertionError("no IO happens here", ex);
             }
@@ -135,60 +133,6 @@ public class Netty4Utils {
      */
     static BytesReference toBytesReference(final ByteBuf buffer, final int size) {
         return new ByteBufBytesReference(buffer, size);
-    }
-
-    public static void closeChannels(final Collection<Channel> channels) throws IOException {
-        IOException closingExceptions = null;
-        final List<ChannelFuture> futures = new ArrayList<>();
-        for (final Channel channel : channels) {
-            try {
-                if (channel != null && channel.isOpen()) {
-                    futures.add(channel.close());
-                }
-            } catch (Exception e) {
-                if (closingExceptions == null) {
-                    closingExceptions = new IOException("failed to close channels");
-                }
-                closingExceptions.addSuppressed(e);
-            }
-        }
-        for (final ChannelFuture future : futures) {
-            future.awaitUninterruptibly();
-        }
-
-        if (closingExceptions != null) {
-            throw closingExceptions;
-        }
-    }
-
-    /**
-     * If the specified cause is an unrecoverable error, this method will rethrow the cause on a separate thread so that it can not be
-     * caught and bubbles up to the uncaught exception handler.
-     *
-     * @param cause the throwable to test
-     */
-    public static void maybeDie(final Throwable cause) {
-        final Logger logger = ESLoggerFactory.getLogger(Netty4Utils.class);
-        final Optional<Error> maybeError = ExceptionsHelper.maybeError(cause, logger);
-        if (maybeError.isPresent()) {
-            /*
-             * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, Netty wraps too many
-             * invocations of user-code in try/catch blocks that swallow all throwables. This means that a rethrow here will not bubble up
-             * to where we want it to. So, we fork a thread and throw the exception from there where Netty can not get to it. We do not wrap
-             * the exception so as to not lose the original cause during exit.
-             */
-            try {
-                // try to log the current stack trace
-                final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
-                logger.error("fatal error on the network layer\n{}", formatted);
-            } finally {
-                new Thread(
-                        () -> {
-                            throw maybeError.get();
-                        })
-                        .start();
-            }
-        }
     }
 
 }

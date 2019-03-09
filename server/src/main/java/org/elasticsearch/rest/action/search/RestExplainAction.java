@@ -19,37 +19,40 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.lucene.search.Explanation;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.explain.ExplainRequest;
-import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  * Rest action for computing a score explanation for specific documents.
  */
 public class RestExplainAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestExplainAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
+        "Specifying a type in explain requests is deprecated.";
+
     public RestExplainAction(Settings settings, RestController controller) {
         super(settings);
+        controller.registerHandler(GET, "/{index}/_explain/{id}", this);
+        controller.registerHandler(POST, "/{index}/_explain/{id}", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
     }
@@ -61,7 +64,16 @@ public class RestExplainAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final ExplainRequest explainRequest = new ExplainRequest(request.param("index"), request.param("type"), request.param("id"));
+        ExplainRequest explainRequest;
+        if (request.hasParam("type")) {
+            deprecationLogger.deprecatedAndMaybeLog("explain_with_types", TYPES_DEPRECATION_MESSAGE);
+            explainRequest = new ExplainRequest(request.param("index"),
+                request.param("type"),
+                request.param("id"));
+        } else {
+            explainRequest = new ExplainRequest(request.param("index"), request.param("id"));
+        }
+
         explainRequest.parent(request.param("parent"));
         explainRequest.routing(request.param("routing"));
         explainRequest.preference(request.param("preference"));
@@ -89,57 +101,6 @@ public class RestExplainAction extends BaseRestHandler {
 
         explainRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
-        return channel -> client.explain(explainRequest, new RestBuilderListener<ExplainResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(ExplainResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                builder.field(Fields._INDEX, response.getIndex())
-                        .field(Fields._TYPE, response.getType())
-                        .field(Fields._ID, response.getId())
-                        .field(Fields.MATCHED, response.isMatch());
-
-                if (response.hasExplanation()) {
-                    builder.startObject(Fields.EXPLANATION);
-                    buildExplanation(builder, response.getExplanation());
-                    builder.endObject();
-                }
-                GetResult getResult = response.getGetResult();
-                if (getResult != null) {
-                    builder.startObject(Fields.GET);
-                    response.getGetResult().toXContentEmbedded(builder, request);
-                    builder.endObject();
-                }
-                builder.endObject();
-                return new BytesRestResponse(response.isExists() ? OK : NOT_FOUND, builder);
-            }
-
-            private void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {
-                builder.field(Fields.VALUE, explanation.getValue());
-                builder.field(Fields.DESCRIPTION, explanation.getDescription());
-                Explanation[] innerExps = explanation.getDetails();
-                if (innerExps != null) {
-                    builder.startArray(Fields.DETAILS);
-                    for (Explanation exp : innerExps) {
-                        builder.startObject();
-                        buildExplanation(builder, exp);
-                        builder.endObject();
-                    }
-                    builder.endArray();
-                }
-            }
-        });
-    }
-
-    static class Fields {
-        static final String _INDEX = "_index";
-        static final String _TYPE = "_type";
-        static final String _ID = "_id";
-        static final String MATCHED = "matched";
-        static final String EXPLANATION = "explanation";
-        static final String VALUE = "value";
-        static final String DESCRIPTION = "description";
-        static final String DETAILS = "details";
-        static final String GET = "get";
-
+        return channel -> client.explain(explainRequest, new RestStatusToXContentListener<>(channel));
     }
 }

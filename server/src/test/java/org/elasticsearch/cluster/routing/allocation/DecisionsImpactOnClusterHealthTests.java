@@ -159,8 +159,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
     }
 
     private static AllocationService newAllocationService(Settings settings, Set<AllocationDecider> deciders) {
-        return new AllocationService(settings,
-                                     new AllocationDeciders(settings, deciders),
+        return new AllocationService(new AllocationDeciders(deciders),
                                      new TestGatewayAllocator(),
                                      new BalancedShardsAllocator(settings),
                                      EmptyClusterInfoService.INSTANCE);

@@ -1,0 +1,306 @@
+[[watching-meetup-data]]
+=== Watching Event Data
+
+If you are indexing event data, such as log messages, network traffic, or a web feed, you can create a watch to email notifications when certain events occur.
+For example, if you index a feed of RSVPs for meetup events happening around the world, you can create a watch that alerts you to interesting events.
+
+To index the meetup data, you can use https://www.elastic.co/products/logstash[Logstash] to ingest live data from the Meetup.com streaming API, `http://stream.meetup.com/2/rsvps`.
+
+To ingest this data with Logstash:
+
+. https://www.elastic.co/downloads/logstash[Download Logstash] and unpack the
+  archive file.
+
+. Create a Logstash configuration file that uses the {logstash-ref}/plugins-inputs-stdin.html[Logstash standard input] and the {logstash-ref}/plugins-outputs-stdout.html[Logstash standard output] and save it in `logstash-{version}` directory as `livestream.conf`:
++
+--
+[source,ruby]
+----------------------------------------------------------
+input {
+  stdin {
+    codec => json <1>
+  }
+}
+filter {
+  date {
+    match => [ "event.time", "UNIX_MS" ]
+    target => "event_time"
+  }
+}
+output { <2>
+  stdout {
+    codec => rubydebug
+  }
+  elasticsearch {
+    hosts => "http://localhost:9200"
+    user  => "elastic"
+    password  => "x-pack-test-password"
+  }
+}
+
+----------------------------------------------------------
+// NOTCONSOLE
+<1> The meetup data stream is formatted in JSON.
+<2> Index the meetup data into Elasticsearch.
+--
+
+. To start indexing the meetup data, pipe the RSVP stream into Logstash and specify your `livestream.conf` configuration file.
++
+--
+[source,shell]
+----------------------------------------------------------
+curl http://stream.meetup.com/2/rsvps | bin/logstash -f livestream.conf
+----------------------------------------------------------
+// NOTCONSOLE
+-- 
+
+Now that you're indexing the meetup RSVPs, you can set up a watch that lets you know about events you might be interested in. For example, let's create a watch that runs every hour, looks for events that talk about about _Open Source_, and sends an email with information about the events.
+
+
+To set up the watch:
+
+. Specify how often you want to run the watch by adding a schedule trigger to the watch:
++
+--
+[source,js]
+--------------------------------------------------
+{
+  "trigger": {
+    "schedule": {
+      "interval": "1h"
+    }
+  },
+--------------------------------------------------
+// NOTCONSOLE
+--
+. Load data into the watch payload by creating an input that searches the meetup data for events that have _Open Source_ as a topic. You can use aggregations to group the data by city, consolidate references to the same events, and sort the events by date.
++
+--
+[source,js]
+-------------------------------------------------
+"input": {
+    "search": {
+      "request": {
+        "indices": [
+          "<logstash-{now-1h}>", <1>
+          "<logstash-{now}>"
+        ],
+        "body": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "now-3h"
+                    }
+                  }
+                },
+                {
+                  "match": {
+                    "group.group_topics.topic_name": "Open Source" <2>
+                  }
+                }
+              ]
+            }
+          },
+          "aggs": {
+            "group_by_city": {
+              "terms": {
+                "field": "group.group_city.raw", <3>
+                "size": 5
+              },
+              "aggs": {
+                "group_by_event": {
+                  "terms": {
+                    "field": "event.event_url.raw", <4>
+                    "size": 5
+                  },
+                  "aggs": {
+                    "get_latest": {
+                      "terms": {
+                        "field": "@timestamp", <5>
+                        "size": 1,
+                        "order": {
+                          "_key": "desc"
+                        }
+                      },
+                      "aggs": {
+                        "group_by_event_name": {
+                          "terms": {
+                            "field": "event.event_name.raw" <6>
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+-------------------------------------------------
+// NOTCONSOLE
+<1> Elasticsearch Date math is used to select the Logstash indices that contain the meetup data. The second pattern is needed in case the previous hour crosses days.
+<2> Find all of the RSVPs with `Open Source` as a topic.
+<3> Group the RSVPs by city.
+<4> Consolidate multiple RSVPs for the same event.
+<5> Sort the events so the latest events are listed first.
+<6> Group the events by name.
+--
+
+. To determine whether or not there are any Open Source events, add a compare condition that checks the watch payload to see if there were any search hits.
++
+--
+[source,js]
+--------------------------------------------------
+"compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }}
+--------------------------------------------------
+// NOTCONSOLE
+--
+
+. To send an email when _Open Source_ events are found, add an email action:
++
+--
+[source,js]
+---------------------------------------------------
+"actions": {
+    "email_me": {
+      "throttle_period": "10m",
+      "email": {
+        "from": "<from:email address>",
+        "to": "<to:email address>",
+        "subject": "Open Source Events",
+        "body": {
+          "html": "Found events matching Open Source: <ul>{{#ctx.payload.aggregations.group_by_city.buckets}}<          li>{{key}} ({{doc_count}})<ul>{{#group_by_event.buckets}}
+          <li><a href=\"{{key}}\">{{get_latest.buckets.0.group_by_event_name.buckets.0.key}}</a>
+          ({{doc_count}})</li>{{/group_by_event.buckets}}</ul></li>
+          {{/ctx.payload.aggregations.group_by_city.buckets}}</ul>"
+        }
+      }
+    }
+  }
+---------------------------------------------------
+// NOTCONSOLE
+--
+
+NOTE: To enable Watcher to send emails, you must configure an email account in `elasticsearch.yml`. For more information, see <<configuring-email, Working with Various Email Services>>.
+
+
+The complete watch looks like this:
+[source,js]
+--------------------------------------------------
+PUT _watcher/watch/meetup
+{
+  "trigger": {
+    "schedule": {
+      "interval": "1h"
+    }
+  },
+  "input": {
+    "search": {
+      "request": {
+        "indices": [
+          "<logstash-{now-1h}>",
+          "<logstash-{now}>"
+        ],
+        "body": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "now-3h"
+                    }
+                  }
+                },
+                {
+                  "match": {
+                    "group.group_topics.topic_name": "Open Source"
+                  }
+                }
+              ]
+            }
+          },
+          "aggs": {
+            "group_by_city": {
+              "terms": {
+                "field": "group.group_city.raw",
+                "size": 5
+              },
+              "aggs": {
+                "group_by_event": {
+                  "terms": {
+                    "field": "event.event_url.raw",
+                    "size": 5
+                  },
+                  "aggs": {
+                    "get_latest": {
+                      "terms": {
+                        "field": "@timestamp",
+                        "size": 1,
+                        "order": {
+                          "_key": "desc"
+                        }
+                      },
+                      "aggs": {
+                        "group_by_event_name": {
+                          "terms": {
+                            "field": "event.event_name.raw"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition": {
+    "compare": {
+      "ctx.payload.hits.total.value": {
+        "gt": 0
+      }
+    }
+  },
+  "actions": {  <1>
+    "email_me": {
+      "throttle_period": "10m",
+      "email": {
+        "from": "username@example.org",  <2>
+        "to": "recipient@example.org",   <3>
+        "subject": "Open Source events",
+        "body": {
+          "html": "Found events matching Open Source: <ul>{{#ctx.payload.aggregations.group_by_city.buckets}}<li>{{key}} ({{doc_count}})<ul>{{#group_by_event.buckets}}<li><a href=\"{{key}}\">{{get_latest.buckets.0.group_by_event_name.buckets.0.key}}</a> ({{doc_count}})</li>{{/group_by_event.buckets}}</ul></li>{{/ctx.payload.aggregations.group_by_city.buckets}}</ul>"
+         }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> The email body can include Mustache templates to reference data in the watch payload. By default,it will be <<email-html-sanitization, sanitized>> to block dangerous content.
+<2> Replace the `from` address with the email address you configured in `elasticsearch.yml`.
+<3> Replace the `to` address with your email address to receive notifications.
+
+
+Now that you've created your watch, you can use the
+{ref}/watcher-api-execute-watch.html[`_execute` API] to run it without waiting for the schedule to trigger execution:
+
+[source,js]
+--------------------------------------------------
+POST _watcher/watch/meetup/_execute
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]

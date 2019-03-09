@@ -19,7 +19,8 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
+import org.elasticsearch.ElasticsearchException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,7 +42,16 @@ public class CoordinatesBuilder {
      * @return this
      */
     public CoordinatesBuilder coordinate(Coordinate coordinate) {
-        this.points.add(coordinate);
+        int expectedDims;
+        int actualDims;
+        if (points.isEmpty() == false
+                && (expectedDims = Double.isNaN(points.get(0).z) ? 2 : 3) != (actualDims = Double.isNaN(coordinate.z) ? 2 : 3)) {
+            throw new ElasticsearchException("unable to add coordinate to CoordinateBuilder: " +
+                "coordinate dimensions do not match. Expected [{}] but found [{}]", expectedDims, actualDims);
+
+        } else {
+            this.points.add(coordinate);
+        }
         return this;
     }
 

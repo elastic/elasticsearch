@@ -12,29 +12,27 @@ setup:
   - do:
       index:
         index: source
-        type:  doc
         id:    "1"
         body:  { "foo": "hello world" }
 
   - do:
       index:
         index: source
-        type:  doc
         id:    "2"
         body:  { "foo": "hello world 2" }
 
   - do:
       index:
         index: source
-        type:  doc
         id:    "3"
         body:  { "foo": "hello world 3" }
 
 ---
 "Split index via API":
   - skip:
-      version: " - 6.0.99"
-      reason: Added in 6.1.0
+      version: " - 6.9.99"
+      reason: pre-7.0.0 will send warnings
+      features: "warnings"
 
   # make it read-only
   - do:
@@ -68,11 +66,10 @@ setup:
   - do:
       get:
         index: target
-        type:  doc
         id:    "1"
 
   - match: { _index:   target }
-  - match: { _type:    doc   }
+  - match: { _type:    _doc   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
 
@@ -80,11 +77,10 @@ setup:
   - do:
       get:
         index: target
-        type:  doc
         id:    "2"
 
   - match: { _index:   target }
-  - match: { _type:    doc   }
+  - match: { _type:    _doc   }
   - match: { _id:      "2"     }
   - match: { _source:  { foo: "hello world 2" } }
 
@@ -92,11 +88,10 @@ setup:
   - do:
       get:
         index: target
-        type:  doc
         id:    "3"
 
   - match: { _index:   target }
-  - match: { _type:    doc   }
+  - match: { _type:    _doc   }
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
 
@@ -105,7 +100,7 @@ setup:
 "Split from 1 to N":
   - skip:
       version: " - 6.99.99"
-      reason: Added in 7.0.0
+      reason: automatic preparation for splitting was added in 7.0.0
   - do:
       indices.create:
         index: source_one_shard
@@ -117,21 +112,18 @@ setup:
   - do:
       index:
         index: source_one_shard
-        type:  doc
         id:    "1"
         body:  { "foo": "hello world" }
 
   - do:
       index:
         index: source_one_shard
-        type:  doc
         id:    "2"
         body:  { "foo": "hello world 2" }
 
   - do:
       index:
         index: source_one_shard
-        type:  doc
         id:    "3"
         body:  { "foo": "hello world 3" }
 
@@ -167,11 +159,10 @@ setup:
   - do:
       get:
         index: target
-        type:  doc
         id:    "1"
 
   - match: { _index:   target }
-  - match: { _type:    doc   }
+  - match: { _type:    _doc   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
 
@@ -179,11 +170,10 @@ setup:
   - do:
       get:
         index: target
-        type:  doc
         id:    "2"
 
   - match: { _index:   target }
-  - match: { _type:    doc   }
+  - match: { _type:    _doc   }
   - match: { _id:      "2"     }
   - match: { _source:  { foo: "hello world 2" } }
 
@@ -191,21 +181,19 @@ setup:
   - do:
       get:
         index: target
-        type:  doc
         id:    "3"
 
   - match: { _index:   target }
-  - match: { _type:    doc   }
+  - match: { _type:    _doc   }
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
-
-
 
 ---
 "Create illegal split indices":
   - skip:
-      version: " - 6.0.99"
-      reason: Added in 6.1.0
+      version: " - 6.9.99"
+      reason: pre-7.0.0 will send warnings
+      features: "warnings"
 
   # try to do an illegal split with number_of_routing_shards set
   - do:

@@ -18,22 +18,23 @@ Below is an example of configuring a mapping with various range fields followed 
 --------------------------------------------------
 PUT range_index
 {
+  "settings": {
+    "number_of_shards": 2
+  },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "expected_attendees": {
-          "type": "integer_range"
-        },
-        "time_frame": {
-          "type": "date_range", <1>
-          "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
-        }
+    "properties": {
+      "expected_attendees": {
+        "type": "integer_range"
+      },
+      "time_frame": {
+        "type": "date_range", <1>
+        "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
       }
     }
   }
 }
 
-PUT range_index/_doc/1
+PUT range_index/_doc/1?refresh
 {
   "expected_attendees" : { <2>
     "gte" : 10,
@@ -46,6 +47,7 @@ PUT range_index/_doc/1
 }
 --------------------------------------------------
 //CONSOLE
+// TESTSETUP
 
 <1> `date_range` types accept the same field parameters defined by the <<date, `date`>> type.
 <2> Example indexing a meeting with 10 to 20 attendees.
@@ -68,7 +70,6 @@ GET range_index/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:range_index]
 
 The result produced by the above query.
 
@@ -84,7 +85,10 @@ The result produced by the above query.
     "failed": 0
   },
   "hits" : {
-    "total" : 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score" : 1.0,
     "hits" : [
       {
@@ -125,7 +129,6 @@ GET range_index/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:range_index]
 
 <1> Range queries work the same as described in <<query-dsl-range-query, range query>>.
 <2> Range queries over range <<mapping-types, fields>> support a `relation` parameter which can be one of `WITHIN`, `CONTAINS`,
@@ -145,7 +148,10 @@ This query produces a similar result:
     "failed": 0
   },
   "hits" : {
-    "total" : 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score" : 1.0,
     "hits" : [
       {
@@ -168,6 +174,29 @@ This query produces a similar result:
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 13/"took" : $body.took/]
 
+[[ip-range]]
+==== IP Range
+
+In addition to the range format above, IP ranges can be provided in
+https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR] notation:
+
+[source,js]
+--------------------------------------------------
+PUT range_index/_mapping
+{
+  "properties": {
+    "ip_whitelist": {
+      "type": "ip_range"
+    }
+  }
+}
+
+PUT range_index/_doc/2
+{
+  "ip_whitelist" : "192.168.0.0/16"
+}
+--------------------------------------------------
+// CONSOLE
 
 [[range-params]]
 ==== Parameters for range fields

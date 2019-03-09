@@ -1,0 +1,106 @@
+--
+:api: indices-put-settings
+:request: UpdateSettingsRequest
+:response: UpdateSettingsResponse
+--
+
+[id="{upid}-{api}"]
+=== Update Indices Settings API
+
+The Update Indices Settings API allows to change specific index level settings.
+
+[id="{upid}-{api}-request"]
+==== Update Indices Settings Request
+
+An +{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Update settings for one index
+<2> Update settings for multiple indices
+<3> Update settings for all indices
+
+==== Indices Settings
+At least one setting to be updated must be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-create-settings]
+--------------------------------------------------
+<1> Sets the index settings to be applied
+
+==== Providing the Settings
+The settings to be applied can be provided in different ways:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-create-settings]
+--------------------------------------------------
+<1> Creates a setting as `Settings`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-settings-builder]
+--------------------------------------------------
+<1> Settings provided as `Settings.Builder`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-settings-source]
+--------------------------------------------------
+<1> Settings provided as `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-settings-map]
+--------------------------------------------------
+<1> Settings provided as a `Map`
+
+==== Optional Arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-preserveExisting]
+--------------------------------------------------
+<1> Whether to update existing settings. If set to `true` existing settings
+on an index remain unchanged, the default is `false`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the new setting
+as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the new setting
+as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Update Indices Settings Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request

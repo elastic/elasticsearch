@@ -1,0 +1,38 @@
+--
+:api: post-calendar-event
+:request: PostCalendarEventRequest
+:response: PostCalendarEventResponse
+--
+[id="{upid}-{api}"]
+=== Post Calendar Event API
+Adds new ScheduledEvents to an existing {ml} calendar.
+
+The API accepts a +{request}+ and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Post Calendar Event Request
+
+A +{request}+ is constructed with a calendar ID object
+and a non-empty list of scheduled events.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Non-null existing calendar ID
+<2> Non-null, non-empty collection of `ScheduledEvent` objects
+
+
+[id="{upid}-{api}-response"]
+==== Post Calendar Event Response
+
+The returned +{response}+ contains the added `ScheduledEvent` objects:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The `ScheduledEvent` objects that were added to the calendar
+
+include::../execution.asciidoc[]

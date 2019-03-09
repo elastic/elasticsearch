@@ -110,7 +110,7 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     }
 
     /**
-     * Sets the original query weight for rescoring. The default is <tt>1.0</tt>
+     * Sets the original query weight for rescoring. The default is {@code 1.0}
      */
     public QueryRescorerBuilder setQueryWeight(float queryWeight) {
         this.queryWeight = queryWeight;
@@ -119,14 +119,14 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
 
 
     /**
-     * Gets the original query weight for rescoring. The default is <tt>1.0</tt>
+     * Gets the original query weight for rescoring. The default is {@code 1.0}
      */
     public float getQueryWeight() {
         return this.queryWeight;
     }
 
     /**
-     * Sets the original query weight for rescoring. The default is <tt>1.0</tt>
+     * Sets the original query weight for rescoring. The default is {@code 1.0}
      */
     public QueryRescorerBuilder setRescoreQueryWeight(float rescoreQueryWeight) {
         this.rescoreQueryWeight = rescoreQueryWeight;
@@ -134,7 +134,7 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     }
 
     /**
-     * Gets the original query weight for rescoring. The default is <tt>1.0</tt>
+     * Gets the original query weight for rescoring. The default is {@code 1.0}
      */
     public float getRescoreQueryWeight() {
         return this.rescoreQueryWeight;
@@ -149,7 +149,7 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     }
 
     /**
-     * Gets the original query score mode. The default is <tt>total</tt>
+     * Gets the original query score mode. The default is {@code total}
      */
     public QueryRescoreMode getScoreMode() {
         return this.scoreMode;
@@ -250,6 +250,9 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
         queryRescoreBuilder.setQueryWeight(queryWeight);
         queryRescoreBuilder.setRescoreQueryWeight(rescoreQueryWeight);
         queryRescoreBuilder.setScoreMode(scoreMode);
+        if (windowSize() != null) {
+            queryRescoreBuilder.windowSize(windowSize());
+        }
         return queryRescoreBuilder;
     }
 }

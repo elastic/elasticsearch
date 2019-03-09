@@ -26,6 +26,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -42,7 +44,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request to analyze a text associated with a specific index. Allow to provide
  * the actual analyzer name to perform the analysis with.
  */
-public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
+public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> implements ToXContentObject {
 
     private String[] text;
 
@@ -62,7 +64,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
 
     private String normalizer;
 
-    public static class NameOrDefinition implements Writeable {
+    public static class NameOrDefinition implements Writeable, ToXContentFragment {
         // exactly one of these two members is not null
         public final String name;
         public final Settings definition;
@@ -102,6 +104,15 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
                 Settings.writeSettingsToStream(definition, out);
             }
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (definition == null) {
+                return builder.value(name);
+            }
+            return definition.toXContent(builder, params);
+        }
+
     }
 
     public AnalyzeRequest() {
@@ -171,6 +182,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         this.charFilters.add(new NameOrDefinition(charFilter));
         return this;
     }
+
     public List<NameOrDefinition> charFilters() {
         return this.charFilters;
     }
@@ -260,4 +272,36 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
             out.writeOptionalString(normalizer);
         }
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("text", text);
+        if (Strings.isNullOrEmpty(analyzer) == false) {
+            builder.field("analyzer", analyzer);
+        }
+        if (tokenizer != null) {
+            tokenizer.toXContent(builder, params);
+        }
+        if (tokenFilters.size() > 0) {
+            builder.field("filter", tokenFilters);
+        }
+        if (charFilters.size() > 0) {
+            builder.field("char_filter", charFilters);
+        }
+        if (Strings.isNullOrEmpty(field) == false) {
+            builder.field("field", field);
+        }
+        if (explain) {
+            builder.field("explain", true);
+        }
+        if (attributes.length > 0) {
+            builder.field("attributes", attributes);
+        }
+        if (Strings.isNullOrEmpty(normalizer) == false) {
+            builder.field("normalizer", normalizer);
+        }
+        return builder.endObject();
+    }
+
 }

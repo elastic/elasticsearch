@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.common.bytes;
 
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.ByteArrayOutputStream;
@@ -37,7 +37,7 @@ import java.util.function.ToIntBiFunction;
 /**
  * A reference to bytes.
  */
-public abstract class BytesReference implements Accountable, Comparable<BytesReference> {
+public abstract class BytesReference implements Comparable<BytesReference>, ToXContentFragment {
 
     private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
 
@@ -61,14 +61,42 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
     public abstract byte get(int index);
 
     /**
+     * Returns the integer read from the 4 bytes (BE) starting at the given index.
+     */
+    public int getInt(int index) {
+        return (get(index) & 0xFF) << 24 | (get(index + 1) & 0xFF) << 16 | (get(index + 2) & 0xFF) << 8 | get(index + 3) & 0xFF;
+    }
+
+    /**
+     * Finds the index of the first occurrence of the given marker between within the given bounds.
+     * @param marker marker byte to search
+     * @param from lower bound for the index to check (inclusive)
+     * @return first index of the marker or {@code -1} if not found
+     */
+    public int indexOf(byte marker, int from) {
+        final int to = length();
+        for (int i = from; i < to; i++) {
+            if (get(i) == marker) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
      * The length.
      */
     public abstract int length();
 
     /**
-     * Slice the bytes from the <tt>from</tt> index up to <tt>length</tt>.
+     * Slice the bytes from the {@code from} index up to {@code length}.
      */
     public abstract BytesReference slice(int from, int length);
+
+    /**
+     * The amount of memory used by this BytesReference
+     */
+    public abstract long ramBytesUsed();
 
     /**
      * A stream input of the bytes.
@@ -157,7 +185,7 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
 
     /**
      * Returns a compact array from the given BytesReference. The returned array won't be copied unless necessary. If you need
-     * to modify the returned array use <tt>BytesRef.deepCopyOf(reference.toBytesRef()</tt> instead
+     * to modify the returned array use {@code BytesRef.deepCopyOf(reference.toBytesRef()} instead
      */
     public static byte[] toBytes(BytesReference reference) {
         final BytesRef bytesRef = reference.toBytesRef();
@@ -190,17 +218,24 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
      * Returns BytesReference composed of the provided ByteBuffers.
      */
     public static BytesReference fromByteBuffers(ByteBuffer[] buffers) {
-        ByteBufferReference[] references = new ByteBufferReference[buffers.length];
-        for (int i = 0; i < references.length; ++i) {
-            references[i] = new ByteBufferReference(buffers[i]);
-        }
+        int bufferCount = buffers.length;
+        if (bufferCount == 0) {
+            return BytesArray.EMPTY;
+        } else if (bufferCount == 1) {
+            return new ByteBufferReference(buffers[0]);
+        } else {
+            ByteBufferReference[] references = new ByteBufferReference[bufferCount];
+            for (int i = 0; i < bufferCount; ++i) {
+                references[i] = new ByteBufferReference(buffers[i]);
+            }
 
-        return new CompositeBytesReference(references);
+            return new CompositeBytesReference(references);
+        }
     }
 
     @Override
     public int compareTo(final BytesReference other) {
-        return compareIterators(this, other, (a, b) -> a.compareTo(b));
+        return compareIterators(this, other, BytesRef::compareTo);
     }
 
     /**
@@ -333,5 +368,11 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
         public long skip(long n) throws IOException {
             return input.skip(n);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        BytesRef bytes = toBytesRef();
+        return builder.value(bytes.bytes, bytes.offset, bytes.length);
     }
 }

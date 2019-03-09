@@ -69,6 +69,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             assertEquals("{\n" +
                     "  \"acknowledged\" : true,\n" +
                     "  \"state\" : {\n" +
+                    "    \"cluster_uuid\" : \"_na_\",\n" +
                     "    \"version\" : 0,\n" +
                     "    \"state_uuid\" : \"" + clusterState.stateUUID() + "\",\n" +
                     "    \"master_node\" : \"node0\",\n" +
@@ -83,6 +84,12 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "    },\n" +
                     "    \"metadata\" : {\n" +
                     "      \"cluster_uuid\" : \"_na_\",\n" +
+                    "      \"cluster_coordination\" : {\n" +
+                    "        \"term\" : 0,\n" +
+                    "        \"last_committed_config\" : [ ],\n" +
+                    "        \"last_accepted_config\" : [ ],\n" +
+                    "        \"voting_config_exclusions\" : [ ]\n" +
+                    "      },\n" +
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +
                     "        \"index\" : {\n" +
@@ -136,6 +143,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             assertEquals("{\n" +
                     "  \"acknowledged\" : true,\n" +
                     "  \"state\" : {\n" +
+                    "    \"cluster_uuid\" : \"_na_\",\n" +
                     "    \"version\" : 0,\n" +
                     "    \"state_uuid\" : \"" + clusterState.stateUUID() + "\",\n" +
                     "    \"master_node\" : \"node0\"\n" +
@@ -168,8 +176,15 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             assertEquals("{\n" +
                     "  \"acknowledged\" : true,\n" +
                     "  \"state\" : {\n" +
+                    "    \"cluster_uuid\" : \"_na_\",\n" +
                     "    \"metadata\" : {\n" +
                     "      \"cluster_uuid\" : \"_na_\",\n" +
+                    "      \"cluster_coordination\" : {\n" +
+                    "        \"term\" : 0,\n" +
+                    "        \"last_committed_config\" : [ ],\n" +
+                    "        \"last_accepted_config\" : [ ],\n" +
+                    "        \"voting_config_exclusions\" : [ ]\n" +
+                    "      },\n" +
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +
                     "        \"index\" : {\n" +

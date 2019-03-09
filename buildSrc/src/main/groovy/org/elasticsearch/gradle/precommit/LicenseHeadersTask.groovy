@@ -24,7 +24,9 @@ import org.apache.rat.license.SimpleLicenseFamily
 import org.elasticsearch.gradle.AntTask
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.SkipWhenEmpty
 import org.gradle.api.tasks.SourceSet
 
 import java.nio.file.Files
@@ -39,15 +41,17 @@ public class LicenseHeadersTask extends AntTask {
     @OutputFile
     File reportFile = new File(project.buildDir, 'reports/licenseHeaders/rat.log')
 
-    /**
-     * The list of java files to check. protected so the afterEvaluate closure in the
-     * constructor can write to it.
-     */
-    protected List<FileCollection> javaFiles
-
     /** Allowed license families for this project. */
     @Input
     List<String> approvedLicenses = ['Apache', 'Generated']
+
+    /**
+     * Files that should be excluded from the license header check. Use with extreme care, only in situations where the license on the
+     * source file is compatible with the codebase but we do not want to add the license to the list of approved headers (to avoid the
+     * possibility of inadvertently using the license on our own source files).
+     */
+    @Input
+    List<String> excludes = []
 
     /**
      * Additional license families that may be found. The key is the license category name (5 characters),
@@ -57,11 +61,16 @@ public class LicenseHeadersTask extends AntTask {
 
     LicenseHeadersTask() {
         description = "Checks sources for missing, incorrect, or unacceptable license headers"
-        // Delay resolving the dependencies until after evaluation so we pick up generated sources
-        project.afterEvaluate {
-            javaFiles = project.sourceSets.collect({it.allJava})
-            inputs.files(javaFiles)
-        }
+    }
+
+    /**
+     * The list of java files to check. protected so the afterEvaluate closure in the
+     * constructor can write to it.
+     */
+    @InputFiles
+    @SkipWhenEmpty
+    public List<FileCollection> getJavaFiles() {
+        return project.sourceSets.collect({it.allJava})
     }
 
     /**
@@ -89,13 +98,12 @@ public class LicenseHeadersTask extends AntTask {
         Files.deleteIfExists(reportFile.toPath())
 
         // run rat, going to the file
-        List<FileCollection> input = javaFiles
         ant.ratReport(reportFile: reportFile.absolutePath, addDefaultLicenseMatchers: true) {
-            for (FileCollection dirSet : input) {
+            for (FileCollection dirSet : javaFiles) {
                for (File dir: dirSet.srcDirs) {
                    // sometimes these dirs don't exist, e.g. site-plugin has no actual java src/main...
                    if (dir.exists()) {
-                       ant.fileset(dir: dir)
+                       ant.fileset(dir: dir, excludes: excludes.join(' '))
                    }
                }
             }

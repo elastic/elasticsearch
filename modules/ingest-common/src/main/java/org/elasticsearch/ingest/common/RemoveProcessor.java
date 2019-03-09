@@ -39,10 +39,12 @@ public final class RemoveProcessor extends AbstractProcessor {
     public static final String TYPE = "remove";
 
     private final List<TemplateScript.Factory> fields;
+    private final boolean ignoreMissing;
 
-    RemoveProcessor(String tag, List<TemplateScript.Factory> fields) {
+    RemoveProcessor(String tag, List<TemplateScript.Factory> fields, boolean ignoreMissing) {
         super(tag);
         this.fields = new ArrayList<>(fields);
+        this.ignoreMissing = ignoreMissing;
     }
 
     public List<TemplateScript.Factory> getFields() {
@@ -50,8 +52,18 @@ public final class RemoveProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument document) {
-       fields.forEach(document::removeField);
+    public IngestDocument execute(IngestDocument document) {
+        if (ignoreMissing) {
+            fields.forEach(field -> {
+                String path = document.renderTemplate(field);
+                if (document.hasField(path)) {
+                    document.removeField(path);
+                }
+            });
+        } else {
+            fields.forEach(document::removeField);
+        }
+        return document;
     }
 
     @Override
@@ -73,7 +85,9 @@ public final class RemoveProcessor extends AbstractProcessor {
             final List<String> fields = new ArrayList<>();
             final Object field = ConfigurationUtils.readObject(TYPE, processorTag, config, "field");
             if (field instanceof List) {
-                fields.addAll((List) field);
+                @SuppressWarnings("unchecked")
+                List<String> stringList = (List<String>) field;
+                fields.addAll(stringList);
             } else {
                 fields.add((String) field);
             }
@@ -81,7 +95,8 @@ public final class RemoveProcessor extends AbstractProcessor {
             final List<TemplateScript.Factory> compiledTemplates = fields.stream()
                 .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", f, scriptService))
                 .collect(Collectors.toList());
-            return new RemoveProcessor(processorTag, compiledTemplates);
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            return new RemoveProcessor(processorTag, compiledTemplates, ignoreMissing);
         }
     }
 }

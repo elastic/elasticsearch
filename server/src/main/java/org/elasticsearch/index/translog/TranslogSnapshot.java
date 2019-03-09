@@ -19,6 +19,7 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -32,6 +33,7 @@ final class TranslogSnapshot extends BaseTranslogReader {
 
     private final ByteBuffer reusableBuffer;
     private long position;
+    private int skippedOperations;
     private int readOperations;
     private BufferedChecksumStreamInput reuse;
 
@@ -39,19 +41,23 @@ final class TranslogSnapshot extends BaseTranslogReader {
      * Create a snapshot of translog file channel.
      */
     TranslogSnapshot(final BaseTranslogReader reader, final long length) {
-        super(reader.generation, reader.channel, reader.path, reader.firstOperationOffset);
+        super(reader.generation, reader.channel, reader.path, reader.header);
         this.length = length;
         this.totalOperations = reader.totalOperations();
         this.checkpoint = reader.getCheckpoint();
         this.reusableBuffer = ByteBuffer.allocate(1024);
-        readOperations = 0;
-        position = firstOperationOffset;
-        reuse = null;
+        this.readOperations = 0;
+        this.position = reader.getFirstOperationOffset();
+        this.reuse = null;
     }
 
     @Override
     public int totalOperations() {
         return totalOperations;
+    }
+
+    int skippedOperations(){
+        return skippedOperations;
     }
 
     @Override
@@ -60,11 +66,14 @@ final class TranslogSnapshot extends BaseTranslogReader {
     }
 
     public Translog.Operation next() throws IOException {
-        if (readOperations < totalOperations) {
-            return readOperation();
-        } else {
-            return null;
+        while (readOperations < totalOperations) {
+            final Translog.Operation operation = readOperation();
+            if (operation.seqNo() <= checkpoint.trimmedAboveSeqNo || checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                return operation;
+            }
+            skippedOperations++;
         }
+        return null;
     }
 
     protected Translog.Operation readOperation() throws IOException {
@@ -85,10 +94,12 @@ final class TranslogSnapshot extends BaseTranslogReader {
      */
     protected void readBytes(ByteBuffer buffer, long position) throws IOException {
         if (position >= length) {
-            throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "], generation: [" + getGeneration() + "], path: [" + path + "]");
+            throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "], generation: [" +
+                getGeneration() + "], path: [" + path + "]");
         }
         if (position < getFirstOperationOffset()) {
-            throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" + getFirstOperationOffset() + "], generation: [" + getGeneration() + "], path: [" + path + "]");
+            throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" +
+                getFirstOperationOffset() + "], generation: [" + getGeneration() + "], path: [" + path + "]");
         }
         Channels.readFromFileChannelWithEofException(channel, position, buffer);
     }
@@ -104,5 +115,4 @@ final class TranslogSnapshot extends BaseTranslogReader {
                 ", reusableBuffer=" + reusableBuffer +
                 '}';
     }
-
 }

@@ -287,7 +287,7 @@ public class MoreLikeThisQuery extends Query {
 
     /**
      * Number of terms that must match the generated query expressed in the
-     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     * common syntax for minimum should match. Defaults to {@code 30%}.
      *
      * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
      */

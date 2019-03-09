@@ -9,9 +9,6 @@ setup:
 
 ---
 "Translog retention":
-  - skip:
-      version: " - 5.99.0"
-      reason: translog retention was added in 6.0.0
   - do:
       indices.stats:
         metric: [ translog ]
@@ -20,7 +17,6 @@ setup:
   - do:
       index:
         index: test
-        type:  bar
         id:    1
         body:  { "foo": "bar" }
 
@@ -76,7 +72,6 @@ setup:
   - do:
       index:
         index: test
-        type:  bar
         id:    1
         body:  { "foo": "bar" }
 

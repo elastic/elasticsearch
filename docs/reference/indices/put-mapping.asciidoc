@@ -8,7 +8,7 @@ The PUT mapping API allows you to add fields to an existing index or to change s
 PUT twitter <1>
 {}
 
-PUT twitter/_mapping/_doc <2>
+PUT twitter/_mapping <2>
 {
   "properties": {
     "email": {
@@ -18,11 +18,14 @@ PUT twitter/_mapping/_doc <2>
 }
 --------------------------------------------------
 // CONSOLE
-<1> <<indices-create-index,Creates an index>> called `twitter` without any type mapping.
-<2> Uses the PUT mapping API to add a new field called `email` to the `_doc` mapping type.
+<1> <<indices-create-index,Creates an index>> called `twitter` without any mapping.
+<2> Uses the PUT mapping API to add a new field called `email`.
 
-More information on how to define type mappings can be found in the
-<<mapping,mapping>> section.
+More information on how to define mappings can be found in the <<mapping,mapping>> section.
+
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
+types in requests is now deprecated, a type can still be provided if the request parameter
+include_type_name is set. For more details, please see <<removal-of-types>>.
 
 [float]
 === Multi-index
@@ -37,7 +40,7 @@ PUT twitter-1
 PUT twitter-2
 
 # Update both mappings
-PUT /twitter-1,twitter-2/_mapping/_doc <1>
+PUT /twitter-1,twitter-2/_mapping <1>
 {
   "properties": {
     "user_name": {
@@ -68,24 +71,22 @@ For example:
 PUT my_index <1>
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "name": {
-          "properties": {
-            "first": {
-              "type": "text"
-            }
+    "properties": {
+      "name": {
+        "properties": {
+          "first": {
+            "type": "text"
           }
-        },
-        "user_id": {
-          "type": "keyword"
         }
+      },
+      "user_id": {
+        "type": "keyword"
       }
     }
   }
 }
 
-PUT my_index/_mapping/_doc
+PUT my_index/_mapping
 {
   "properties": {
     "name": {

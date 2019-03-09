@@ -57,10 +57,9 @@
             index: test
             body:
                 mappings:
-                    type_1:
-                        properties:
-                            foo:
-                                type: text
+                    properties:
+                        foo:
+                            type: text
 
   - do:
         indices.put_alias:
@@ -128,10 +127,6 @@
 
 ---
 "Multiple alias names":
-
-  - skip:
-      version: " - 5.99.99"
-      reason:  multiple aliases are supported only from 6.0.0 on
 
   - do:
         indices.create:
@@ -264,10 +259,6 @@
 
 ---
 "Alias sorting":
-
-  - skip:
-      version: " - 5.0.99"
-      reason:  sorting was introduced in 5.1.0
 
   - do:
       indices.create:

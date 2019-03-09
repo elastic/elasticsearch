@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,7 +50,7 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
  * A sort builder to sort based on a document field.
  */
 public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(FieldSortBuilder.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(FieldSortBuilder.class));
 
     public static final String NAME = "field_sort";
     public static final ParseField MISSING = new ParseField("missing");
@@ -93,7 +93,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         this.setNestedPath(template.getNestedPath());
         if (template.getNestedSort() != null) {
             this.setNestedSort(template.getNestedSort());
-        };
+        }
     }
 
     /**
@@ -145,8 +145,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     /**
-     * Sets the value when a field is missing in a doc. Can also be set to <tt>_last</tt> or
-     * <tt>_first</tt> to sort missing last or first respectively.
+     * Sets the value when a field is missing in a doc. Can also be set to {@code _last} or
+     * {@code _first} to sort missing last or first respectively.
      */
     public FieldSortBuilder missing(Object missing) {
         this.missing = missing;
@@ -162,7 +162,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Set the type to use in case the current field is not mapped in an index.
      * Specifying a type tells Elasticsearch what type the sort values should
      * have, which is important for cross-index search, if there are sort fields
-     * that exist on some indices only. If the unmapped type is <tt>null</tt>
+     * that exist on some indices only. If the unmapped type is {@code null}
      * then query execution will fail if one or more indices don't have a
      * mapping for the current field.
      */
@@ -332,6 +332,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
             final Nested nested;
             if (nestedSort != null) {
+                if (context.indexVersionCreated().before(Version.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
+                    throw new QueryShardException(context,
+                        "max_children is only supported on v6.5.0 or higher");
+                }
+                if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
+                    throw new QueryShardException(context,
+                        "max_children is only supported on last level of nested sort");
+                }
                 // new nested sorts takes priority
                 nested = resolveNested(context, nestedSort);
             } else {
@@ -394,14 +402,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     static {
         PARSER.declareField(FieldSortBuilder::missing, p -> p.objectText(),  MISSING, ValueType.VALUE);
         PARSER.declareString((fieldSortBuilder, nestedPath) -> {
-            DEPRECATION_LOGGER.deprecated("[nested_path] has been deprecated in favor of the [nested] parameter");
+            deprecationLogger.deprecated("[nested_path] has been deprecated in favor of the [nested] parameter");
             fieldSortBuilder.setNestedPath(nestedPath);
         }, NESTED_PATH_FIELD);
         PARSER.declareString(FieldSortBuilder::unmappedType , UNMAPPED_TYPE);
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)) , ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORT_MODE);
         PARSER.declareObject(FieldSortBuilder::setNestedFilter, (p, c) -> {
-            DEPRECATION_LOGGER.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
+            deprecationLogger.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
             return SortBuilder.parseNestedFilter(p);
         }, NESTED_FILTER_FIELD);
         PARSER.declareObject(FieldSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);

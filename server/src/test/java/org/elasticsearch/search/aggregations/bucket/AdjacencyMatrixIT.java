@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.metrics.avg.Avg;
+import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -101,7 +101,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
                 builders.add(client().prepareIndex("idx", "type", "" + i).setSource(source));
             }
         }
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
+        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i)
                     .setSource(jsonBuilder().startObject().field("value", i * 2).endObject()));
@@ -114,7 +114,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(adjacencyMatrix("tags",
                         newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2"))))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -147,7 +147,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(adjacencyMatrix("tags", "\t",
                         newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2"))))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -172,7 +172,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(adjacencyMatrix("tags",
                         newMap("all", emptyFilter).add("tag1", termQuery("tag", "tag1"))))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -197,7 +197,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
                                     .add("tag2", termQuery("tag", "tag2"))
                                     .add("both", boolQ))
                                .subAggregation(avg("avg_value").field("value")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -309,7 +309,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
         try {
             client().prepareSearch("idx")
                 .addAggregation(adjacencyMatrix("tags", "\t", filtersMap))
-                .execute().actionGet();
+                .get();
             fail("SearchPhaseExecutionException should have been thrown");
         } catch (SearchPhaseExecutionException ex) {
             assertThat(ex.getCause().getMessage(), containsString("Number of filters is too large"));
@@ -342,7 +342,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
                     .addAggregation(adjacencyMatrix("tags",
                             newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2")))
                             .subAggregation(avg("avg_value")))
-                    .execute().actionGet();
+                    .get();
 
             fail("expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source"
                     + "context which the sub-aggregation can inherit");
@@ -356,9 +356,9 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx").setQuery(matchAllQuery()).addAggregation(histogram("histo").field("value").interval(1L)
                         .minDocCount(0).subAggregation(adjacencyMatrix("matrix", newMap("all", matchAllQuery()))))
-                .execute().actionGet();
+                .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);

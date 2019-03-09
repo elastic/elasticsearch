@@ -1,0 +1,20 @@
+//
+// Spec used for debugging a certain test (without having to alter the spec suite of which it might be part of)
+//
+
+debug
+SELECT first_name f, last_name l, dep.from_date d FROM test_emp WHERE dep.dep_name = 'Production' ORDER BY f LIMIT 5;
+
+f:s                  | l:s                  | d:ts
+
+Alain                | Chappelet            | 589420800000        
+Chirstian            | Koblick              | 533779200000        
+Duangkaew            | Piveteau             | 848793600000        
+Elvis                | Demeyer              | 761443200000        
+Gino                 | Leonhardt            | 607996800000    
+;
+
+//SELECT YEAR(dep.from_date) start FROM test_emp WHERE dep.dep_name = 'Production' GROUP BY start LIMIT 5;
+//table:s
+//test_emp
+//;

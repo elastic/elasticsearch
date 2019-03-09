@@ -33,12 +33,12 @@ PUT test
           "trigram": {
             "type": "custom",
             "tokenizer": "standard",
-            "filter": ["standard", "shingle"]
+            "filter": ["shingle"]
           },
           "reverse": {
             "type": "custom",
             "tokenizer": "standard",
-            "filter": ["standard", "reverse"]
+            "filter": ["reverse"]
           }
         },
         "filter": {
@@ -52,28 +52,26 @@ PUT test
     }
   },
   "mappings": {
-    "test": {
-      "properties": {
-        "title": {
-          "type": "text",
-          "fields": {
-            "trigram": {
-              "type": "text",
-              "analyzer": "trigram"
-            },
-            "reverse": {
-              "type": "text",
-              "analyzer": "reverse"
-            }
+    "properties": {
+      "title": {
+        "type": "text",
+        "fields": {
+          "trigram": {
+            "type": "text",
+            "analyzer": "trigram"
+          },
+          "reverse": {
+            "type": "text",
+            "analyzer": "reverse"
           }
         }
       }
     }
   }
 }
-POST test/test?refresh=true
+POST test/_doc?refresh=true
 {"title": "noble warriors"}
-POST test/test?refresh=true
+POST test/_doc?refresh=true
 {"title": "nobel prize"}
 --------------------------------------------------
 // CONSOLE
@@ -141,21 +139,21 @@ The response contains suggestions scored by the most likely spell correction fir
 
 [horizontal]
 `field`::
-    the name of the field used to do n-gram lookups for the
+    The name of the field used to do n-gram lookups for the
     language model, the suggester will use this field to gain statistics to
     score corrections. This field is mandatory.
 
 `gram_size`::
-    sets max size of the n-grams (shingles) in the `field`.
-    If the field doesn't contain n-grams (shingles) this should be omitted
+    Sets max size of the n-grams (shingles) in the `field`.
+    If the field doesn't contain n-grams (shingles), this should be omitted
     or set to `1`. Note that Elasticsearch tries to detect the gram size
-    based on the specified `field`. If the field uses a `shingle` filter the
+    based on the specified `field`. If the field uses a `shingle` filter, the
     `gram_size` is set to the `max_shingle_size` if not explicitly set.
 
 `real_word_error_likelihood`::
-    the likelihood of a term being a
+    The likelihood of a term being a
     misspelled even if the term exists in the dictionary. The default is
-    `0.95` corresponding to 5% of the real words are misspelled.
+    `0.95`, meaning 5% of the real words are misspelled.
 
 
 `confidence`::
@@ -167,33 +165,33 @@ The response contains suggestions scored by the most likely spell correction fir
     to `0.0` the top N candidates are returned. The default is `1.0`.
 
 `max_errors`::
-    the maximum percentage of the terms that at most
+    The maximum percentage of the terms 
     considered to be misspellings in order to form a correction. This method
     accepts a float value in the range `[0..1)` as a fraction of the actual
     query terms or a number `>=1` as an absolute number of query terms. The
-    default is set to `1.0` which corresponds to that only corrections with
-    at most 1 misspelled term are returned.  Note that setting this too high
-    can negatively impact performance. Low values like `1` or `2` are recommended
+    default is set to `1.0`, meaning only corrections with
+    at most one misspelled term are returned.  Note that setting this too high
+    can negatively impact performance. Low values like `1` or `2` are recommended;
     otherwise the time spend in suggest calls might exceed the time spend in
     query execution.
 
 `separator`::
-    the separator that is used to separate terms in the
+    The separator that is used to separate terms in the
     bigram field. If not set the whitespace character is used as a
     separator.
 
 `size`::
-    the number of candidates that are generated for each
-    individual query term Low numbers like `3` or `5` typically produce good
+    The number of candidates that are generated for each
+    individual query term. Low numbers like `3` or `5` typically produce good
     results. Raising this can bring up terms with higher edit distances. The
     default is `5`.
 
 `analyzer`::
-    Sets the analyzer to analyse to suggest text with.
+    Sets the analyzer to analyze to suggest text with.
     Defaults to the search analyzer of the suggest field passed via `field`.
 
 `shard_size`::
-    Sets the maximum number of suggested term to be
+    Sets the maximum number of suggested terms to be
     retrieved from each individual shard. During the reduce phase, only the
     top N suggestions are returned based on the `size` option. Defaults to
     `5`.
@@ -204,7 +202,7 @@ The response contains suggestions scored by the most likely spell correction fir
 `highlight`::
     Sets up suggestion highlighting.  If not provided then
     no `highlighted` field is returned.  If provided must
-    contain exactly `pre_tag` and `post_tag` which are
+    contain exactly `pre_tag` and `post_tag`, which are
     wrapped around the changed tokens.  If multiple tokens
     in a row are changed the entire phrase of changed tokens
     is wrapped rather than each token.
@@ -219,7 +217,7 @@ The response contains suggestions scored by the most likely spell correction fir
     variable, which should be used in your query.  You can still specify
     your own template `params` -- the `suggestion` value will be added to the
     variables you specify. Additionally, you can specify a `prune` to control
-    if all phrase suggestions will be returned, when set to `true` the suggestions
+    if all phrase suggestions will be returned; when set to `true` the suggestions
     will have an additional option `collate_match`, which will be `true` if
     matching documents for the phrase was found, `false` otherwise.
     The default value for `prune` is `false`.
@@ -273,19 +271,19 @@ the index) and frequent grams (appear at least once in the index).
 
 [horizontal]
 `stupid_backoff`::
-    a simple backoff model that backs off to lower
+    A simple backoff model that backs off to lower
     order n-gram models if the higher order count is `0` and discounts the
     lower order n-gram model by a constant factor. The default `discount` is
     `0.4`. Stupid Backoff is the default model.
 
 `laplace`::
-    a smoothing model that uses an additive smoothing where a
+    A smoothing model that uses an additive smoothing where a
     constant (typically `1.0` or smaller) is added to all counts to balance
-    weights, The default `alpha` is `0.5`.
+    weights. The default `alpha` is `0.5`.
 
 `linear_interpolation`::
-    a smoothing model that takes the weighted
-    mean of the unigrams, bigrams and trigrams based on user supplied
+    A smoothing model that takes the weighted
+    mean of the unigrams, bigrams, and trigrams based on user supplied
     weights (lambdas). Linear Interpolation doesn't have any default values.
     All parameters (`trigram_lambda`, `bigram_lambda`, `unigram_lambda`)
     must be supplied.
@@ -296,11 +294,11 @@ The `phrase` suggester uses candidate generators to produce a list of
 possible terms per term in the given text. A single candidate generator
 is similar to a `term` suggester called for each individual term in the
 text. The output of the generators is subsequently scored in combination
-with the candidates from the other terms to for suggestion candidates.
+with the candidates from the other terms for suggestion candidates.
 
 Currently only one type of candidate generator is supported, the
 `direct_generator`. The Phrase suggest API accepts a list of generators
-under the key `direct_generator` each of the generators in the list are
+under the key `direct_generator`; each of the generators in the list is
 called per term in the original text.
 
 ==== Direct Generators
@@ -322,7 +320,7 @@ The direct generators support the following parameters:
     as an optimization to generate fewer suggestions to test on each shard and
     are not rechecked when combining the suggestions generated on each
     shard. Thus `missing` will generate suggestions for terms on shards that do
-    not contain them even other shards do contain them. Those should be
+    not contain them even if other shards do contain them. Those should be
     filtered out using `confidence`. Three possible values can be specified:
     ** `missing`: Only generate suggestions for terms that are not in the
                  shard. This is the default.
@@ -334,7 +332,7 @@ The direct generators support the following parameters:
 `max_edits`::
     The maximum edit distance candidate suggestions can have
     in order to be considered as a suggestion. Can only be a value between 1
-    and 2. Any other value result in an bad request error being thrown.
+    and 2. Any other value results in a bad request error being thrown.
     Defaults to 2.
 
 `prefix_length`::
@@ -349,7 +347,7 @@ The direct generators support the following parameters:
 
 `max_inspections`::
     A factor that is used to multiply with the
-    `shards_size` in order to inspect more candidate spell corrections on
+    `shards_size` in order to inspect more candidate spelling corrections on
     the shard level. Can improve accuracy at the cost of performance.
     Defaults to 5.
 
@@ -358,32 +356,31 @@ The direct generators support the following parameters:
     suggestion should appear in. This can be specified as an absolute number
     or as a relative percentage of number of documents. This can improve
     quality by only suggesting high frequency terms. Defaults to 0f and is
-    not enabled. If a value higher than 1 is specified then the number
+    not enabled. If a value higher than 1 is specified, then the number
     cannot be fractional. The shard level document frequencies are used for
     this option.
 
 `max_term_freq`::
-    The maximum threshold in number of documents a
+    The maximum threshold in number of documents in which a
     suggest text token can exist in order to be included. Can be a relative
-    percentage number (e.g 0.4) or an absolute number to represent document
-    frequencies. If an value higher than 1 is specified then fractional can
+    percentage number (e.g., 0.4) or an absolute number to represent document
+    frequencies. If a value higher than 1 is specified, then fractional can
     not be specified. Defaults to 0.01f. This can be used to exclude high
-    frequency terms from being spellchecked. High frequency terms are
-    usually spelled correctly on top of this also improves the spellcheck
+    frequency terms -- which are usually spelled correctly -- from being spellchecked. This also improves the spellcheck
     performance. The shard level document frequencies are used for this
     option.
 
 `pre_filter`::
-    a filter (analyzer) that is applied to each of the
+    A filter (analyzer) that is applied to each of the
     tokens passed to this candidate generator. This filter is applied to the
     original token before candidates are generated.
 
 `post_filter`::
-    a filter (analyzer) that is applied to each of the
+    A filter (analyzer) that is applied to each of the
     generated tokens before they are passed to the actual phrase scorer.
 
-The following example shows a `phrase` suggest call with two generators,
-the first one is using a field containing ordinary indexed terms and the
+The following example shows a `phrase` suggest call with two generators:
+the first one is using a field containing ordinary indexed terms, and the
 second one uses a field that uses terms indexed with a `reverse` filter
 (tokens are index in reverse order). This is used to overcome the limitation
 of the direct generators to require a constant prefix to provide
@@ -418,6 +415,6 @@ POST _search
 
 `pre_filter` and `post_filter` can also be used to inject synonyms after
 candidates are generated. For instance for the query `captain usq` we
-might generate a candidate `usa` for term `usq` which is a synonym for
-`america` which allows to present `captain america` to the user if this
+might generate a candidate `usa` for the term `usq`, which is a synonym for
+`america`. This allows us to present `captain america` to the user if this
 phrase scores high enough.

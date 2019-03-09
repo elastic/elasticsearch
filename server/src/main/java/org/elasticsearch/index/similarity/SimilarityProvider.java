@@ -20,32 +20,58 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService;
+
+import java.util.Objects;
 
 /**
- * Provider for {@link Similarity} instances
+ * Wrapper around a {@link Similarity} and its name.
  */
-public interface SimilarityProvider {
+public final class SimilarityProvider {
+
+    private final String name;
+    private final Similarity similarity;
+
+    public SimilarityProvider(String name, Similarity similarity) {
+        this.name = name;
+        this.similarity = similarity;
+    }
 
     /**
-     * Returns the name associated with the Provider
-     *
-     * @return Name of the Provider
+     * Return the name of this {@link Similarity}.
      */
-    String name();
+    public String name() {
+        return name;
+    }
 
     /**
-     * Returns the {@link Similarity} the Provider is for
-     *
-     * @return Provided {@link Similarity}
+     * Return the wrapped {@link Similarity}.
      */
-    Similarity get();
+    public Similarity get() {
+        return similarity;
+    }
 
-    /** Factory of {@link SimilarityProvider} */
-    @FunctionalInterface
-    interface Factory {
-        /** Create a new {@link SimilarityProvider}. */
-        SimilarityProvider create(String name, Settings settings, Settings indexSettings, ScriptService scriptService);
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SimilarityProvider that = (SimilarityProvider) o;
+        /**
+         * We check <code>name</code> only because the <code>similarity</code> is
+         * re-created for each new instance and they don't implement equals.
+         * This is not entirely correct though but we only use equality checks
+         * for similarities inside the same index and names are unique in this case.
+         **/
+        return Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        /**
+         * We use <code>name</code> only because the <code>similarity</code> is
+         * re-created for each new instance and they don't implement equals.
+         * This is not entirely correct though but we only use equality checks
+         * for similarities a single index and names are unique in this case.
+         **/
+        return Objects.hash(name);
     }
 }

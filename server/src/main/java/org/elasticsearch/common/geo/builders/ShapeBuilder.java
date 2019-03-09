@@ -19,19 +19,20 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Assertions;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
@@ -51,9 +52,10 @@ import java.util.Objects;
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
  */
-public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>> implements NamedWriteable, ToXContentObject {
+public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.geo.geometry.Geometry,
+    E extends ShapeBuilder<T, G, E>> implements NamedWriteable, ToXContentObject {
 
-    protected static final Logger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
+    protected static final Logger LOGGER = LogManager.getLogger(ShapeBuilder.class);
 
     private static final boolean DEBUG;
     static {
@@ -109,7 +111,13 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
     }
 
     protected static Coordinate readFromStream(StreamInput in) throws IOException {
-        return new Coordinate(in.readDouble(), in.readDouble());
+        double x = in.readDouble();
+        double y = in.readDouble();
+        Double z = null;
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            z = in.readOptionalDouble();
+        }
+        return z == null ? new Coordinate(x, y) : new Coordinate(x, y, z);
     }
 
     @Override
@@ -123,6 +131,9 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
     protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {
         out.writeDouble(coordinate.x);
         out.writeDouble(coordinate.y);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeOptionalDouble(Double.isNaN(coordinate.z) ? null : coordinate.z);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -201,7 +212,14 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
      * the builder looses its validity. So this method should only be called once on a builder
      * @return new {@link Shape} defined by the builder
      */
-    public abstract T build();
+    public abstract T buildS4J();
+
+    /**
+     * build lucene geometry.
+     *
+     * @return GeoPoint, double[][], Line, Line[], Polygon, Polygon[], Rectangle, Object[]
+     */
+    public abstract G buildGeometry();
 
     protected static Coordinate shift(Coordinate coordinate, double dateline) {
         if (dateline == 0) {
@@ -216,6 +234,9 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
      * @return type of the shape
      */
     public abstract GeoShapeType type();
+
+    /** tracks number of dimensions for this shape */
+    public abstract int numDimensions();
 
     /**
      * Calculate the intersection of a line segment and a vertical dateline.
@@ -429,7 +450,11 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
     }
 
     protected static XContentBuilder toXContent(XContentBuilder builder, Coordinate coordinate) throws IOException {
-        return builder.startArray().value(coordinate.x).value(coordinate.y).endArray();
+        builder.startArray().value(coordinate.x).value(coordinate.y);
+        if (Double.isNaN(coordinate.z) == false) {
+            builder.value(coordinate.z);
+        }
+        return builder.endArray();
     }
 
     /**
@@ -460,7 +485,7 @@ public abstract class ShapeBuilder<T extends Shape, E extends ShapeBuilder<T,E>>
         if (this == o) return true;
         if (!(o instanceof ShapeBuilder)) return false;
 
-        ShapeBuilder<?,?> that = (ShapeBuilder<?,?>) o;
+        ShapeBuilder<?,?,?> that = (ShapeBuilder<?,?,?>) o;
 
         return Objects.equals(coordinates, that.coordinates);
     }

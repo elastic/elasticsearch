@@ -1,8 +1,0 @@
-[[breaking_70_java_changes]]
-=== Java API changes
-
-==== `isShardsAcked` deprecated in `6.2` has been removed
-
-`isShardsAcked` has been replaced by `isShardsAcknowledged` in
-`CreateIndexResponse`, `RolloverResponse` and
-`CreateIndexClusterStateUpdateResponse`.

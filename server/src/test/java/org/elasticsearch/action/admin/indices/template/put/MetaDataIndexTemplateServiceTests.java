@@ -69,7 +69,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 containsString("Failed to parse value [0] for setting [index.number_of_shards] must be >= 1"));
         assertThat(throwables.get(0).getMessage(),
                 containsString("unknown value for [index.shard.check_on_startup] " +
-                                "must be one of [true, false, fix, checksum] but was: blargh"));
+                                "must be one of [true, false, checksum] but was: blargh"));
     }
 
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
@@ -97,17 +97,6 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors.get(0).getMessage(), equalTo("Alias [foobar] cannot be the same as any pattern in [foo, foobar]"));
     }
 
-    public void testIndexTemplateWithValidateEmptyMapping() throws Exception {
-        PutRequest request = new PutRequest("api", "validate_template");
-        request.patterns(Collections.singletonList("validate_template"));
-        request.putMapping("type1", "{}");
-
-        List<Throwable> errors = putTemplateDetail(request);
-        assertThat(errors.size(), equalTo(1));
-        assertThat(errors.get(0), instanceOf(MapperParsingException.class));
-        assertThat(errors.get(0).getMessage(), containsString("malformed mapping no root object found"));
-    }
-
     public void testIndexTemplateWithValidateMapping() throws Exception {
         PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(Collections.singletonList("te*"));
@@ -130,17 +119,6 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors.size(), equalTo(1));
         assertThat(errors.get(0), instanceOf(MapperParsingException.class));
         assertThat(errors.get(0).getMessage(), containsString("Failed to parse mapping "));
-    }
-
-    public void testBlankMapping() throws Exception {
-        PutRequest request = new PutRequest("api", "blank_mapping");
-        request.patterns(Collections.singletonList("te*"));
-        request.putMapping("type1", "{}");
-
-        List<Throwable> errors = putTemplateDetail(request);
-        assertThat(errors.size(), equalTo(1));
-        assertThat(errors.get(0), instanceOf(MapperParsingException.class));
-        assertThat(errors.get(0).getMessage(), containsString("malformed mapping no root object found"));
     }
 
     public void testAliasInvalidFilterInvalidJson() throws Exception {
@@ -178,9 +156,13 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null,
                 null,
                 null,
-                null, null, null, xContentRegistry);
-        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService,
-                new AliasValidator(Settings.EMPTY), null,
+                null,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                null,
+                xContentRegistry,
+                true);
+        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(null, createIndexService,
+                new AliasValidator(), null,
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry);
 
         final List<Throwable> throwables = new ArrayList<>();
@@ -202,17 +184,18 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(
-            Settings.EMPTY,
-            clusterService,
-            indicesService,
-            null,
-            null,
-            null,
-            null,
-            null,
-            xContentRegistry());
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                null,
+                null,
+                null,
+                null,
+                xContentRegistry(),
+                true);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(
-                Settings.EMPTY, clusterService, createIndexService, new AliasValidator(Settings.EMPTY), indicesService,
+                clusterService, createIndexService, new AliasValidator(), indicesService,
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
 
         final List<Throwable> throwables = new ArrayList<>();

@@ -18,20 +18,21 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
 
@@ -82,7 +83,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private ValueType valueType = null;
     private String format = null;
     private Object missing = null;
-    private DateTimeZone timeZone = null;
+    private ZoneId timeZone = null;
     protected ValuesSourceConfig<VS> config;
 
     protected ValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
@@ -145,8 +146,10 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
         format = in.readOptionalString();
         missing = in.readGenericValue();
-        if (in.readBoolean()) {
-            timeZone = DateTimeZone.forID(in.readString());
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            timeZone = DateUtils.dateTimeZoneToZoneId(in.readOptionalTimeZone());
+        } else {
+            timeZone = in.readOptionalZoneId();
         }
     }
 
@@ -168,10 +171,10 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
         out.writeOptionalString(format);
         out.writeGenericValue(missing);
-        boolean hasTimeZone = timeZone != null;
-        out.writeBoolean(hasTimeZone);
-        if (hasTimeZone) {
-            out.writeString(timeZone.getID());
+        if (out.getVersion().before(Version.V_7_0_0)) {
+            out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
+        } else {
+            out.writeOptionalZoneId(timeZone);
         }
         innerWriteTo(out);
     }
@@ -290,7 +293,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
      * Sets the time zone to use for this aggregation
      */
     @SuppressWarnings("unchecked")
-    public AB timeZone(DateTimeZone timeZone) {
+    public AB timeZone(ZoneId timeZone) {
         if (timeZone == null) {
             throw new IllegalArgumentException("[timeZone] must not be null: [" + name + "]");
         }
@@ -301,7 +304,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     /**
      * Gets the time zone to use for this aggregation
      */
-    public DateTimeZone timeZone() {
+    public ZoneId timeZone() {
         return timeZone;
     }
 
@@ -338,7 +341,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
             builder.field("format", format);
         }
         if (timeZone != null) {
-            builder.field("time_zone", timeZone);
+            builder.field("time_zone", timeZone.toString());
         }
         if (valueType != null) {
             builder.field("value_type", valueType.getPreferredName());

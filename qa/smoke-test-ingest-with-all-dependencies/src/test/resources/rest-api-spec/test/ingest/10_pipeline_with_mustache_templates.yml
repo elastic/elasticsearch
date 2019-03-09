@@ -332,7 +332,7 @@
           wait_for_status: green
 
   - do:
-      catch: request
+      catch: bad_request
       ingest.put_pipeline:
         id: "my_pipeline_1"
         body:  >
@@ -347,6 +347,6 @@
               }
             ]
           }
-  - match: { error.header.processor_type: "set" }
-  - match: { error.type: "general_script_exception" }
-  - match: { error.reason: "Failed to compile inline script [{{#join}}{{/join}}] using lang [mustache]" }
+  - match: { error.processor_type: "set" }
+  - match: { error.type: "script_exception" }
+  - match: { error.reason: "Mustache function [join] must contain one and only one identifier" }

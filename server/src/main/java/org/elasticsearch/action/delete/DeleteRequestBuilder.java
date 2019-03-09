@@ -56,15 +56,6 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
     }
 
     /**
-     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
-     * used for routing with delete requests.
-     */
-    public DeleteRequestBuilder setParent(String parent) {
-        request.parent(parent);
-        return this;
-    }
-
-    /**
      * Controls the shard routing of the delete request. Using this value to hash the shard
      * and not the id.
      */
@@ -89,4 +80,29 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
         request.versionType(versionType);
         return this;
     }
+
+    /**
+     * only perform this delete request if the document was last modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public DeleteRequestBuilder setIfSeqNo(long seqNo) {
+        request.setIfSeqNo(seqNo);
+        return this;
+    }
+
+    /**
+     * only perform this delete request if the document was last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public DeleteRequestBuilder setIfPrimaryTerm(long term) {
+        request.setIfPrimaryTerm(term);
+        return this;
+    }
+
 }

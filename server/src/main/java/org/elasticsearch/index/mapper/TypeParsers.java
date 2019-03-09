@@ -21,12 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -48,36 +43,6 @@ public class TypeParsers {
     public static final String INDEX_OPTIONS_POSITIONS = "positions";
     public static final String INDEX_OPTIONS_OFFSETS = "offsets";
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TypeParsers.class));
-
-    //TODO 22298: Remove this method and have all call-sites use <code>XContentMapValues.nodeBooleanValue(node)</code> directly.
-    public static boolean nodeBooleanValue(String fieldName, String propertyName, Object node,
-                                           Mapper.TypeParser.ParserContext parserContext) {
-        if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1)) {
-            return XContentMapValues.nodeBooleanValue(node, fieldName + "." + propertyName);
-        } else {
-            return nodeBooleanValueLenient(fieldName, propertyName, node);
-        }
-    }
-
-    //TODO 22298: Remove this method and have all call-sites use <code>XContentMapValues.nodeBooleanValue(node)</code> directly.
-    public static boolean nodeBooleanValueLenient(String fieldName, String propertyName, Object node) {
-        if (Booleans.isBoolean(node.toString()) == false) {
-            DEPRECATION_LOGGER.deprecated("Expected a boolean for property [{}] for field [{}] but got [{}]",
-                propertyName, fieldName, node);
-        }
-        if (node instanceof Boolean) {
-            return (Boolean) node;
-        }
-        if (node instanceof Number) {
-            return ((Number) node).intValue() != 0;
-        }
-        @SuppressWarnings("deprecated")
-        boolean value = Booleans.parseBooleanLenient(node.toString(), false);
-        return value;
-    }
-
-
     private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
                                                      Mapper.TypeParser.ParserContext parserContext) {
         NamedAnalyzer indexAnalyzer = null;
@@ -92,17 +57,16 @@ public class TypeParsers {
                 parseTermVector(name, propNode.toString(), builder);
                 iterator.remove();
             } else if (propName.equals("store_term_vectors")) {
-                builder.storeTermVectors(nodeBooleanValue(name, "store_term_vectors", propNode, parserContext));
+                builder.storeTermVectors(XContentMapValues.nodeBooleanValue(propNode, name + ".store_term_vectors"));
                 iterator.remove();
             } else if (propName.equals("store_term_vector_offsets")) {
-                builder.storeTermVectorOffsets(nodeBooleanValue(name, "store_term_vector_offsets", propNode, parserContext));
+                builder.storeTermVectorOffsets(XContentMapValues.nodeBooleanValue(propNode, name + ".store_term_vector_offsets"));
                 iterator.remove();
             } else if (propName.equals("store_term_vector_positions")) {
-                builder.storeTermVectorPositions(
-                    nodeBooleanValue(name, "store_term_vector_positions", propNode, parserContext));
+                builder.storeTermVectorPositions(XContentMapValues.nodeBooleanValue(propNode, name + ".store_term_vector_positions"));
                 iterator.remove();
             } else if (propName.equals("store_term_vector_payloads")) {
-                builder.storeTermVectorPayloads(nodeBooleanValue(name,"store_term_vector_payloads", propNode, parserContext));
+                builder.storeTermVectorPayloads(XContentMapValues.nodeBooleanValue(propNode, name + ".store_term_vector_payloads"));
                 iterator.remove();
             } else if (propName.equals("analyzer")) {
                 NamedAnalyzer analyzer = parserContext.getIndexAnalyzers().get(propNode.toString());
@@ -156,9 +120,8 @@ public class TypeParsers {
         }
     }
 
-    public static void parseNorms(FieldMapper.Builder builder, String fieldName, Object propNode,
-                                     Mapper.TypeParser.ParserContext parserContext) {
-        builder.omitNorms(nodeBooleanValue(fieldName, "norms", propNode, parserContext) == false);
+    public static void parseNorms(FieldMapper.Builder builder, String fieldName, Object propNode) {
+        builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode, fieldName + ".norms") == false);
     }
 
     /**
@@ -174,7 +137,7 @@ public class TypeParsers {
             final String propName = entry.getKey();
             final Object propNode = entry.getValue();
             if ("norms".equals(propName)) {
-                parseNorms(builder, name, propNode, parserContext);
+                parseNorms(builder, name, propNode);
                 iterator.remove();
             }
         }
@@ -197,13 +160,13 @@ public class TypeParsers {
                 throw new MapperParsingException("[" + propName + "] must not have a [null] value");
             }
             if (propName.equals("store")) {
-                builder.store(nodeBooleanValue(name,"store", propNode.toString(), parserContext));
+                builder.store(XContentMapValues.nodeBooleanValue(propNode, name + ".store"));
                 iterator.remove();
             } else if (propName.equals("index")) {
-                builder.index(nodeBooleanValue(name, "index", propNode, parserContext));
+                builder.index(XContentMapValues.nodeBooleanValue(propNode, name + ".index"));
                 iterator.remove();
             } else if (propName.equals(DOC_VALUES)) {
-                builder.docValues(nodeBooleanValue(name, DOC_VALUES, propNode, parserContext));
+                builder.docValues(XContentMapValues.nodeBooleanValue(propNode, name + "." + DOC_VALUES));
                 iterator.remove();
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
@@ -264,7 +227,9 @@ public class TypeParsers {
                 } else {
                     throw new MapperParsingException("no type specified for property [" + multiFieldName + "]");
                 }
-                if (type.equals(ObjectMapper.CONTENT_TYPE) || type.equals(ObjectMapper.NESTED_CONTENT_TYPE)) {
+                if (type.equals(ObjectMapper.CONTENT_TYPE)
+                        || type.equals(ObjectMapper.NESTED_CONTENT_TYPE)
+                        || type.equals(FieldAliasMapper.CONTENT_TYPE)) {
                     throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
                 }
 
@@ -296,8 +261,11 @@ public class TypeParsers {
         }
     }
 
-    public static FormatDateTimeFormatter parseDateTimeFormatter(Object node) {
-        return Joda.forPattern(node.toString());
+    public static DateFormatter parseDateTimeFormatter(Object node) {
+        if (node instanceof String) {
+            return DateFormatter.forPattern((String) node);
+        }
+        throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }
 
     public static void parseTermVector(String fieldName, String termVector, FieldMapper.Builder builder) throws MapperParsingException {

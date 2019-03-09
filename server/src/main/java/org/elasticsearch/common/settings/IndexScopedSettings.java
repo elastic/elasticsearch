@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -58,10 +59,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY,
-        IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING,
         MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
+        IndexMetaData.SETTING_INDEX_VERSION_CREATED,
         IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
         IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
         IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
@@ -95,6 +96,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
         MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
@@ -130,6 +132,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.MAX_REGEX_LENGTH_SETTING,
         ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
         IndexSettings.INDEX_GC_DELETES_SETTING,
+        IndexSettings.INDEX_SOFT_DELETES_SETTING,
+        IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING,
+        IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING,
         IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
         UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING,
         EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
@@ -139,6 +144,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
         IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
         IndexSettings.INDEX_SEARCH_IDLE_AFTER,
+        IndexSettings.INDEX_SEARCH_THROTTLED,
         IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
         FieldMapper.IGNORE_MALFORMED_SETTING,
         FieldMapper.COERCE_SETTING,
@@ -152,11 +158,12 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexModule.INDEX_STORE_TYPE_SETTING,
         IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
         IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
-        IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
+        Store.FORCE_RAM_TERM_DICT,
         EngineConfig.INDEX_CODEC_SETTING,
-        EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
         IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
+        IndexSettings.DEFAULT_PIPELINE,
+        MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {
@@ -175,7 +182,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 
     public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
-        super(settings, settingsSet, Property.IndexScope);
+        super(settings, settingsSet, Collections.emptySet(), Property.IndexScope);
     }
 
     private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetaData metaData) {
@@ -199,17 +206,15 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         switch (key) {
             case IndexMetaData.SETTING_CREATION_DATE:
             case IndexMetaData.SETTING_INDEX_UUID:
-            case IndexMetaData.SETTING_VERSION_CREATED:
             case IndexMetaData.SETTING_VERSION_UPGRADED:
             case IndexMetaData.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyConfig.INDEX_MERGE_ENABLED:
-            case IndexMetaData.INDEX_SHRINK_SOURCE_UUID_KEY:
-            case IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY:
+                // we keep the shrink settings for BWC - this can be removed in 8.0
+                // we can't remove in 7 since this setting might be baked into an index coming in via a full cluster restart from 6.0
+            case "index.shrink.source.uuid":
+            case "index.shrink.source.name":
             case IndexMetaData.INDEX_RESIZE_SOURCE_UUID_KEY:
             case IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY:
-            case IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY:
-                // this was settable in 5.x but not anymore in 6.x so we have to preserve the value ie. make it read-only
-                // this can be removed in later versions
                 return true;
             default:
                 return IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);

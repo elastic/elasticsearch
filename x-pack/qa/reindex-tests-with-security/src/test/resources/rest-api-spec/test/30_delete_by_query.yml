@@ -1,0 +1,236 @@
+setup:
+  - skip:
+      features: headers
+---
+"Delete_by_query as same user works":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      delete_by_query:
+        refresh: true
+        index: source
+        body:
+          query:
+            match_all: {}
+  - match: {deleted: 1}
+
+  - do:
+      count:
+        index: source
+  - match: {count: 0}
+
+---
+"Delete_by_query with runas user works":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: powerful_user}
+      delete_by_query:
+        refresh: true
+        index: source
+        body:
+          query:
+            match_all: {}
+  - match: {deleted: 1}
+
+  - do:
+      count:
+        index: source
+  - match: {count: 0}
+
+---
+"Delete_by_query with runas user with minimal privileges works":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: minimal_user}
+      delete_by_query:
+        refresh: true
+        index: source
+        body:
+          query:
+            match_all: {}
+  - match: {deleted: 1}
+
+  - do:
+      count:
+        index: source
+  - match: {count: 0}
+
+---
+"Delete_by_query as readonly user is forbidden":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: readonly_user}
+      catch: forbidden
+      delete_by_query:
+        refresh: true
+        index: source
+        body:
+          query:
+            match_all: {}
+
+  - do:
+      count:
+        index: source
+  - match: {count: 1}
+
+---
+"Delete_by_query as user that can't read from the source is forbidden":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: dest_only_user}
+      catch: forbidden
+      delete_by_query:
+        refresh: true
+        index: source
+        body:
+          query:
+            match_all: {}
+
+  - do:
+      count:
+        index: source
+  - match: {count: 1}
+
+---
+"Delete_by_query misses hidden docs":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test", "hidden": false }
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      2
+        body:    { "text": "test", "hidden": true }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: can_not_see_hidden_docs_user}
+      delete_by_query:
+        refresh: true
+        index: source
+        body:
+          query:
+            match:
+              text: "test"
+  - match: {deleted: 1}
+
+  # We only deleted one doc, presumably the one without the hidden field
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: source
+        body:
+          query:
+            match:
+              text: "test"
+  - match: { hits.total: 1 }
+
+  # We didn't delete the doc with the hidden field set to "true"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: source
+        body:
+          query:
+            bool:
+              must:
+                - match:
+                    text: "test"
+                - match:
+                    hidden: true
+  - match: { hits.total: 1 }
+
+  # But the doc with the hidden field set to "false" must have been deleted
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: source
+        body:
+          query:
+            bool:
+              must:
+                - match:
+                    text: "test"
+                - match:
+                    hidden: false
+  - match: { hits.total: 0 }
+
+---
+"Delete_by_query misses hidden fields":
+
+  - do:
+      index:
+        index:   source
+        type:    _doc
+        id:      1
+        body:    { "text": "test", "foo": "z", "bar": "z" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers: {es-security-runas-user: can_not_see_hidden_fields_user}
+      delete_by_query:
+        refresh: true
+        index: source
+        body:
+          query:
+            match:
+              text: "test"
+  - match: {deleted: 0}
+
+  # The "text" field was not visible to the user running the delete_by_query
+  # so the document survived.
+  - do:
+      count:
+        index: source
+  - match: {count: 1}

@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.common.geo;
 
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.GeometryFactory;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.ShapeCollection;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
@@ -49,16 +49,22 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
     public abstract void testParseEnvelope() throws IOException;
     public abstract void testParseGeometryCollection() throws IOException;
 
-    protected void assertValidException(XContentBuilder builder, Class expectedException) throws IOException {
-        XContentParser parser = createParser(builder);
-        parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidException(parser, expectedException);
+    protected void assertValidException(XContentBuilder builder, Class<?> expectedException) throws IOException {
+        try (XContentParser parser = createParser(builder)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertValidException(parser, expectedException);
+        }
     }
 
-    protected void assertGeometryEquals(Shape expected, XContentBuilder geoJson) throws IOException {
-        XContentParser parser = createParser(geoJson);
-        parser.nextToken();
-        ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).build());
+    protected void assertGeometryEquals(Object expected, XContentBuilder geoJson, boolean useJTS) throws IOException {
+        try (XContentParser parser = createParser(geoJson)) {
+            parser.nextToken();
+            if (useJTS) {
+                ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).buildS4J());
+            } else {
+                ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).buildGeometry());
+            }
+        }
     }
 
     protected ShapeCollection<Shape> shapeCollection(Shape... shapes) {

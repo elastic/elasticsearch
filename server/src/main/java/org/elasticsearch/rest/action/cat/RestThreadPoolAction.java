@@ -88,7 +88,8 @@ public class RestThreadPoolAction extends AbstractCatAction {
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
-                                return RestTable.buildResponse(buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse), channel);
+                                return RestTable.buildResponse(
+                                    buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse), channel);
                             }
                         });
                     }
@@ -124,14 +125,15 @@ public class RestThreadPoolAction extends AbstractCatAction {
         table.addCell("name", "default:true;alias:n;desc:thread pool name");
         table.addCell("type", "alias:t;default:false;desc:thread pool type");
         table.addCell("active", "alias:a;default:true;text-align:right;desc:number of active threads");
-        table.addCell("size", "alias:s;default:false;text-align:right;desc:number of threads");
+        table.addCell("pool_size", "alias:psz;default:false;text-align:right;desc:number of threads");
         table.addCell("queue", "alias:q;default:true;text-align:right;desc:number of tasks currently in queue");
         table.addCell("queue_size", "alias:qs;default:false;text-align:right;desc:maximum number of tasks permitted in queue");
         table.addCell("rejected", "alias:r;default:true;text-align:right;desc:number of rejected tasks");
         table.addCell("largest", "alias:l;default:false;text-align:right;desc:highest number of seen active threads");
         table.addCell("completed", "alias:c;default:false;text-align:right;desc:number of completed tasks");
-        table.addCell("min", "alias:mi;default:false;text-align:right;desc:minimum number of threads");
-        table.addCell("max", "alias:ma;default:false;text-align:right;desc:maximum number of threads");
+        table.addCell("core", "alias:cr;default:false;text-align:right;desc:core number of threads in a scaling thread pool");
+        table.addCell("max", "alias:mx;default:false;text-align:right;desc:maximum number of threads in a scaling thread pool");
+        table.addCell("size", "alias:sz;default:false;text-align:right;desc:number of threads in a fixed thread pool");
         table.addCell("keep_alive", "alias:ka;default:false;text-align:right;desc:thread keep alive time");
         table.endHeaders();
         return table;
@@ -201,8 +203,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
                 Long maxQueueSize = null;
                 String keepAlive = null;
-                Integer minThreads = null;
-                Integer maxThreads = null;
+                Integer core = null;
+                Integer max = null;
+                Integer size = null;
 
                 if (poolInfo != null) {
                     if (poolInfo.getQueueSize() != null) {
@@ -211,11 +214,15 @@ public class RestThreadPoolAction extends AbstractCatAction {
                     if (poolInfo.getKeepAlive() != null) {
                         keepAlive = poolInfo.getKeepAlive().toString();
                     }
-                    if (poolInfo.getMin() >= 0) {
-                        minThreads = poolInfo.getMin();
-                    }
-                    if (poolInfo.getMax() >= 0) {
-                        maxThreads = poolInfo.getMax();
+
+                    if (poolInfo.getThreadPoolType() == ThreadPool.ThreadPoolType.SCALING) {
+                        assert poolInfo.getMin() >= 0;
+                        core = poolInfo.getMin();
+                        assert poolInfo.getMax() > 0;
+                        max = poolInfo.getMax();
+                    } else {
+                        assert poolInfo.getMin() == poolInfo.getMax() && poolInfo.getMax() > 0;
+                        size = poolInfo.getMax();
                     }
                 }
 
@@ -228,8 +235,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 table.addCell(poolStats == null ? null : poolStats.getRejected());
                 table.addCell(poolStats == null ? null : poolStats.getLargest());
                 table.addCell(poolStats == null ? null : poolStats.getCompleted());
-                table.addCell(minThreads);
-                table.addCell(maxThreads);
+                table.addCell(core);
+                table.addCell(max);
+                table.addCell(size);
                 table.addCell(keepAlive);
 
                 table.endRow();

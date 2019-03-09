@@ -24,9 +24,15 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -35,6 +41,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 public class GeoUtils {
 
@@ -226,7 +233,11 @@ public class GeoUtils {
      * @return The normalized longitude.
      */
     public static double normalizeLon(double lon) {
-        return centeredModulus(lon, 360);
+        if (lon > 180d || lon <= -180d) {
+            lon = centeredModulus(lon, 360);
+        }
+        // avoid -0.0
+        return lon + 0d;
     }
 
     /**
@@ -243,13 +254,16 @@ public class GeoUtils {
      * @see #normalizePoint(GeoPoint)
      */
     public static double normalizeLat(double lat) {
-        lat = centeredModulus(lat, 360);
-        if (lat < -90) {
-            lat = -180 - lat;
-        } else if (lat > 90) {
-            lat = 180 - lat;
+        if (lat > 90d || lat < -90d) {
+            lat = centeredModulus(lat, 360);
+            if (lat < -90) {
+                lat = -180 - lat;
+            } else if (lat > 90) {
+                lat = 180 - lat;
+            }
         }
-        return lat;
+        // avoid -0.0
+        return lat + 0d;
     }
 
     /**
@@ -345,6 +359,60 @@ public class GeoUtils {
         return parseGeoPoint(parser, new GeoPoint());
     }
 
+
+    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point) throws IOException, ElasticsearchParseException {
+        return parseGeoPoint(parser, point, false);
+    }
+
+    /**
+     * Parses the value as a geopoint. The following types of values are supported:
+     * <p>
+     * Object: has to contain either lat and lon or geohash fields
+     * <p>
+     * String: expected to be in "latitude, longitude" format or a geohash
+     * <p>
+     * Array: two or more elements, the first element is longitude, the second is latitude, the rest is ignored if ignoreZValue is true
+     */
+    public static GeoPoint parseGeoPoint(Object value, final boolean ignoreZValue) throws ElasticsearchParseException {
+        try {
+            XContentBuilder content = JsonXContent.contentBuilder();
+            content.startObject();
+            content.field("null_value", value);
+            content.endObject();
+
+            try (InputStream stream = BytesReference.bytes(content).streamInput();
+                 XContentParser parser = JsonXContent.jsonXContent.createParser(
+                     NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                parser.nextToken(); // start object
+                parser.nextToken(); // field name
+                parser.nextToken(); // field value
+                return parseGeoPoint(parser, new GeoPoint(), ignoreZValue);
+            }
+
+        } catch (IOException ex) {
+            throw new ElasticsearchParseException("error parsing geopoint", ex);
+        }
+    }
+
+    /**
+     * Represents the point of the geohash cell that should be used as the value of geohash
+     */
+    public enum EffectivePoint {
+        TOP_LEFT,
+        TOP_RIGHT,
+        BOTTOM_LEFT,
+        BOTTOM_RIGHT
+    }
+
+    /**
+     * Parse a geopoint represented as an object, string or an array. If the geopoint is represented as a geohash,
+     * the left bottom corner of the geohash cell is used as the geopoint coordinates.GeoBoundingBoxQueryBuilder.java
+     */
+    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue)
+            throws IOException, ElasticsearchParseException {
+        return parseGeoPoint(parser, point, ignoreZValue, EffectivePoint.BOTTOM_LEFT);
+    }
+
     /**
      * Parse a {@link GeoPoint} with a {@link XContentParser}. A geopoint has one of the following forms:
      *
@@ -359,7 +427,8 @@ public class GeoUtils {
      * @param point A {@link GeoPoint} that will be reset by the values parsed
      * @return new {@link GeoPoint} parsed from the parse
      */
-    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point) throws IOException, ElasticsearchParseException {
+    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue, EffectivePoint effectivePoint)
+            throws IOException, ElasticsearchParseException {
         double lat = Double.NaN;
         double lon = Double.NaN;
         String geohash = null;
@@ -415,7 +484,7 @@ public class GeoUtils {
                 if(!Double.isNaN(lat) || !Double.isNaN(lon)) {
                     throw new ElasticsearchParseException("field must be either lat/lon or geohash");
                 } else {
-                    return point.resetFromGeoHash(geohash);
+                    return parseGeoHash(point, geohash, effectivePoint);
                 }
             } else if (numberFormatException != null) {
                 throw new ElasticsearchParseException("[{}] and [{}] must be valid double values", numberFormatException, LATITUDE,
@@ -438,7 +507,7 @@ public class GeoUtils {
                     } else if(element == 2) {
                         lat = parser.doubleValue();
                     } else {
-                        throw new ElasticsearchParseException("only two values allowed");
+                        GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
                     }
                 } else {
                     throw new ElasticsearchParseException("numeric value expected");
@@ -446,23 +515,79 @@ public class GeoUtils {
             }
             return point.reset(lat, lon);
         } else if(parser.currentToken() == Token.VALUE_STRING) {
-            String data = parser.text();
-            return parseGeoPoint(data, point);
+            String val = parser.text();
+            if (val.contains(",")) {
+                return point.resetFromString(val, ignoreZValue);
+            } else {
+                return parseGeoHash(point, val, effectivePoint);
+            }
+
         } else {
             throw new ElasticsearchParseException("geo_point expected");
         }
     }
 
-    /** parse a {@link GeoPoint} from a String */
-    public static GeoPoint parseGeoPoint(String data, GeoPoint point) {
-        int comma = data.indexOf(',');
-        if(comma > 0) {
-            double lat = Double.parseDouble(data.substring(0, comma).trim());
-            double lon = Double.parseDouble(data.substring(comma + 1).trim());
-            return point.reset(lat, lon);
+    private static GeoPoint parseGeoHash(GeoPoint point, String geohash, EffectivePoint effectivePoint) {
+        if (effectivePoint == EffectivePoint.BOTTOM_LEFT) {
+            return point.resetFromGeoHash(geohash);
         } else {
-            return point.resetFromGeoHash(data);
+            Rectangle rectangle = GeoHashUtils.bbox(geohash);
+            switch (effectivePoint) {
+                case TOP_LEFT:
+                    return point.reset(rectangle.maxLat, rectangle.minLon);
+                case TOP_RIGHT:
+                    return point.reset(rectangle.maxLat, rectangle.maxLon);
+                case BOTTOM_RIGHT:
+                    return point.reset(rectangle.minLat, rectangle.maxLon);
+                default:
+                    throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
+            }
         }
+    }
+
+    /**
+     * Parse a precision that can be expressed as an integer or a distance measure like "1km", "10m".
+     *
+     * The precision is expressed as a number between 1 and 12 and indicates the length of geohash
+     * used to represent geo points.
+     *
+     * @param parser {@link XContentParser} to parse the value from
+     * @return int representing precision
+     */
+    public static int parsePrecision(XContentParser parser) throws IOException, ElasticsearchParseException {
+        XContentParser.Token token = parser.currentToken();
+        if (token.equals(XContentParser.Token.VALUE_NUMBER)) {
+            return XContentMapValues.nodeIntegerValue(parser.intValue());
+        } else {
+            String precision = parser.text();
+            try {
+                // we want to treat simple integer strings as precision levels, not distances
+                return XContentMapValues.nodeIntegerValue(precision);
+            } catch (NumberFormatException e) {
+                // try to parse as a distance value
+                final int parsedPrecision = GeoUtils.geoHashLevelsForPrecision(precision);
+                try {
+                    return checkPrecisionRange(parsedPrecision);
+                } catch (IllegalArgumentException e2) {
+                    // this happens when distance too small, so precision > 12. We'd like to see the original string
+                    throw new IllegalArgumentException("precision too high [" + precision + "]", e2);
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks that the precision is within range supported by elasticsearch - between 1 and 12
+     *
+     * Returns the precision value if it is in the range and throws an IllegalArgumentException if it
+     * is outside the range.
+     */
+    public static int checkPrecisionRange(int precision) {
+        if ((precision < 1) || (precision > 12)) {
+            throw new IllegalArgumentException("Invalid geohash aggregation precision of " + precision
+                + ". Must be between 1 and 12.");
+        }
+        return precision;
     }
 
     /** Returns the maximum distance/radius (in meters) from the point 'center' before overlapping */

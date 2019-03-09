@@ -23,7 +23,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 
 /** Holds a deleted version, which just adds a timestamp to {@link VersionValue} so we know when we can expire the deletion. */
 
-class DeleteVersionValue extends VersionValue {
+final class DeleteVersionValue extends VersionValue {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DeleteVersionValue.class);
 

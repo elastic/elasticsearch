@@ -71,4 +71,16 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
 
         assertEquals(json, "my_type", parsed.type());
     }
+
+    @Override
+    public void testToQuery() throws IOException {
+        super.testToQuery();
+        assertWarnings(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        super.testMustRewrite();
+        assertWarnings(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
+    }
 }

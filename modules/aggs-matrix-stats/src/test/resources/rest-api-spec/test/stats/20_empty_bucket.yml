@@ -7,24 +7,21 @@
           settings:
             number_of_shards: "3"
           mappings:
-            test:
-              "properties":
-                "value":
-                  "type": "integer"
-                "val1":
-                  "type": "double"
+            "properties":
+              "value":
+                "type": "integer"
+              "val1":
+                "type": "double"
 
   - do:
       index:
         index:  empty_bucket_idx
-        type:   test
         id:     1
         body:   { "value": 0, "val1": 3.1 }
 
   - do:
       index:
         index:  empty_bucket_idx
-        type:   test
         id:     2
         body:   { "value": 2, "val1": -3.1 }
 
@@ -34,15 +31,15 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: empty_bucket_idx
-        type: test
 
   - match: {hits.total: 2}
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: empty_bucket_idx
-        type:  test
         body: {"aggs": {"histo": {"histogram": {"field": "val1", "interval": 1, "min_doc_count": 0}, "aggs": { "mfs" : { "matrix_stats": {"fields": ["value", "val1"]} } } } } }
 
   - match: {hits.total: 2}

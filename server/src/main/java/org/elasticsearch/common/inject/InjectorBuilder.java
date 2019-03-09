@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.internal.Stopwatch;
 import org.elasticsearch.common.inject.spi.Dependency;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Builds a tree of injectors. This is a primary injector, plus child injectors needed for each

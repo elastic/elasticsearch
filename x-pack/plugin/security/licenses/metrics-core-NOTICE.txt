@@ -1,0 +1,4 @@
+Dropwizard
+Copyright 2010-2013 Coda Hale and Yammer, Inc., 2014-2016 Dropwizard Team
+
+This product includes software developed by Coda Hale and Yammer, Inc.

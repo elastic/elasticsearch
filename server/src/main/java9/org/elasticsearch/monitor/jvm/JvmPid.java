@@ -19,8 +19,6 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import java.lang.ProcessHandle;
-
 class JvmPid {
 
     static long getPid() {

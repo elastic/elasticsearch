@@ -21,10 +21,13 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -34,9 +37,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
-import org.elasticsearch.search.aggregations.metrics.stats.Stats;
-import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Stats;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -46,6 +49,7 @@ import java.util.List;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -57,6 +61,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -110,7 +115,7 @@ public class NestedIT extends ESIntegTestCase {
             builders.add(client().prepareIndex("idx", "type", ""+i+1).setSource(source));
         }
 
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "nested", "type=nested").execute().actionGet();
+        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "nested", "type=nested").get();
         ensureGreen("empty_bucket_idx");
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
@@ -170,7 +175,7 @@ public class NestedIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(nested("nested", "nested")
                         .subAggregation(stats("nested_value_stats").field("nested.value")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -208,7 +213,7 @@ public class NestedIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .addAggregation(nested("nested", "value")
                         .subAggregation(stats("nested_value_stats").field("nested.value")))
-                .execute().actionGet();
+                .get();
 
         Nested nested = searchResponse.getAggregations().get("nested");
         assertThat(nested, Matchers.notNullValue());
@@ -221,7 +226,7 @@ public class NestedIT extends ESIntegTestCase {
                 .addAggregation(nested("nested", "nested")
                         .subAggregation(terms("values").field("nested.value").size(100)
                                 .collectMode(aggCollectionMode)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -273,7 +278,7 @@ public class NestedIT extends ESIntegTestCase {
                         .collectMode(aggCollectionMode)
                         .subAggregation(nested("nested", "nested")
                                 .subAggregation(max("max_value").field("nested.value"))))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -335,9 +340,9 @@ public class NestedIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
                         .subAggregation(nested("nested", "nested")))
-                .execute().actionGet();
+                .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -354,7 +359,7 @@ public class NestedIT extends ESIntegTestCase {
             client().prepareSearch("idx")
                     .setQuery(matchAllQuery())
                     .addAggregation(nested("object_field", "incorrect"))
-                    .execute().actionGet();
+                    .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString(), containsString("[nested] nested path [incorrect] is not nested"));
@@ -399,8 +404,14 @@ public class NestedIT extends ESIntegTestCase {
         ensureGreen("idx2");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
-        indexRequests.add(client().prepareIndex("idx2", "provider", "1").setSource("{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, \"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": [{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
-        indexRequests.add(client().prepareIndex("idx2", "provider", "2").setSource("{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, \"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": [{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
+        indexRequests.add(client().prepareIndex("idx2", "provider", "1")
+                .setSource("{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, " +
+                        "\"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": [" +
+                        "{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
+        indexRequests.add(client().prepareIndex("idx2", "provider", "2")
+                .setSource("{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, " +
+                        "\"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": [" +
+                        "{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
         indexRandom(true, indexRequests);
 
         SearchResponse response = client().prepareSearch("idx2").setTypes("provider")
@@ -647,7 +658,8 @@ public class NestedIT extends ESIntegTestCase {
 
         response = client().prepareSearch("classes").addAggregation(nested("to_method", "methods")
                 .subAggregation(terms("return_type").field("methods.return_type").subAggregation(
-                                filter("num_string_params", nestedQuery("methods.parameters", termQuery("methods.parameters.type", "String"), ScoreMode.None))
+                                filter("num_string_params", nestedQuery("methods.parameters",
+                                        termQuery("methods.parameters.type", "String"), ScoreMode.None))
                         )
                 )).get();
         toMethods = response.getAggregations().get("to_method");
@@ -666,5 +678,47 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(1L));
         numStringParams = bucket.getAggregations().get("num_string_params");
         assertThat(numStringParams.getDocCount(), equalTo(0L));
+    }
+
+    public void testExtractInnerHitBuildersWithDuplicateHitName() throws Exception {
+        assertAcked(
+            prepareCreate("idxduplicatehitnames")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+        );
+        ensureGreen("idxduplicatehitnames");
+
+        SearchRequestBuilder searchRequestBuilder = client()
+            .prepareSearch("idxduplicatehitnames")
+            .setQuery(boolQuery()
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1")))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih2")))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1"))));
+
+        assertFailures(
+            searchRequestBuilder,
+            RestStatus.BAD_REQUEST,
+            containsString("[inner_hits] already contains an entry for key [ih1]"));
+    }
+
+    public void testExtractInnerHitBuildersWithDuplicatePath() throws Exception {
+        assertAcked(
+            prepareCreate("idxnullhitnames")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+        );
+        ensureGreen("idxnullhitnames");
+
+        SearchRequestBuilder searchRequestBuilder = client()
+            .prepareSearch("idxnullhitnames")
+            .setQuery(boolQuery()
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder())));
+
+        assertFailures(
+            searchRequestBuilder,
+            RestStatus.BAD_REQUEST,
+            containsString("[inner_hits] already contains an entry for key [property]"));
     }
 }

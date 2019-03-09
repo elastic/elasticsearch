@@ -28,17 +28,17 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -47,7 +47,7 @@ import java.util.Objects;
  */
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
-    public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
+    public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("dateOptionalTime").withZone(ZoneOffset.UTC);
 
     public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =
         Setting.positiveTimeSetting("index.unassigned.node_left.delayed_timeout", TimeValue.timeValueMinutes(1), Property.Dynamic,
@@ -118,7 +118,11 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         /**
          * Forced manually to allocate
          */
-        MANUAL_ALLOCATION
+        MANUAL_ALLOCATION,
+        /**
+         * Unassigned as a result of closing an index.
+         */
+        INDEX_CLOSED
     }
 
     /**
@@ -159,11 +163,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
         AllocationStatus(byte id) {
             this.id = id;
-        }
-
-        // package private for testing
-        byte getId() {
-            return id;
         }
 
         @Override
@@ -269,6 +268,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().before(Version.V_6_0_0_beta2) && reason == Reason.MANUAL_ALLOCATION) {
             out.writeByte((byte) Reason.ALLOCATION_FAILED.ordinal());
+        } else if (out.getVersion().before(Version.V_7_0_0) && reason == Reason.INDEX_CLOSED) {
+            out.writeByte((byte) Reason.REINITIALIZED.ordinal());
         } else {
             out.writeByte((byte) reason.ordinal());
         }
@@ -279,10 +280,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-    }
-
-    public UnassignedInfo readFrom(StreamInput in) throws IOException {
-        return new UnassignedInfo(in);
     }
 
     /**
@@ -409,7 +406,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     public String shortSummary() {
         StringBuilder sb = new StringBuilder();
         sb.append("[reason=").append(reason).append("]");
-        sb.append(", at[").append(DATE_TIME_FORMATTER.printer().print(unassignedTimeMillis)).append("]");
+        sb.append(", at[").append(DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis))).append("]");
         if (failedAllocations >  0) {
             sb.append(", failed_attempts[").append(failedAllocations).append("]");
         }
@@ -432,7 +429,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("unassigned_info");
         builder.field("reason", reason);
-        builder.field("at", DATE_TIME_FORMATTER.printer().print(unassignedTimeMillis));
+        builder.field("at", DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis)));
         if (failedAllocations >  0) {
             builder.field("failed_attempts", failedAllocations);
         }

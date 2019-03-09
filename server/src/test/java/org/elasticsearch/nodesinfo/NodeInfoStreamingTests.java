@@ -118,7 +118,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
             String name = randomAlphaOfLengthBetween(3, 10);
             String arch = randomAlphaOfLengthBetween(3, 10);
             String version = randomAlphaOfLengthBetween(3, 10);
-            osInfo = new OsInfo(refreshInterval, availableProcessors, allocatedProcessors, name, arch, version);
+            osInfo = new OsInfo(refreshInterval, availableProcessors, allocatedProcessors, name, name, arch, version);
         }
         ProcessInfo process = randomBoolean() ? null : new ProcessInfo(randomInt(), randomBoolean(), randomNonNegativeLong());
         JvmInfo jvm = randomBoolean() ? null : JvmInfo.jvmInfo();
@@ -137,7 +137,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
                 new TransportAddress[]{buildNewFakeTransportAddress()}, buildNewFakeTransportAddress());
         profileAddresses.put("test_address", dummyBoundTransportAddress);
         TransportInfo transport = randomBoolean() ? null : new TransportInfo(dummyBoundTransportAddress, profileAddresses);
-        HttpInfo httpInfo = randomBoolean() ? null : new HttpInfo(dummyBoundTransportAddress, randomLong());
+        HttpInfo httpInfo = randomBoolean() ? null : new HttpInfo(dummyBoundTransportAddress, randomNonNegativeLong());
 
         PluginsAndModules pluginsAndModules = null;
         if (randomBoolean()) {

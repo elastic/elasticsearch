@@ -30,17 +30,17 @@ import org.elasticsearch.common.settings.Settings;
 
 /**
  * An allocation decider that prevents multiple instances of the same shard to
- * be allocated on the same <tt>node</tt>.
+ * be allocated on the same {@code node}.
  *
  * The {@link #CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING} setting allows to perform a check to prevent
- * allocation of multiple instances of the same shard on a single <tt>host</tt>,
+ * allocation of multiple instances of the same shard on a single {@code host},
  * based on host name and host address. Defaults to `false`, meaning that no
  * check is performed by default.
  *
  * <p>
  * Note: this setting only applies if multiple nodes are started on the same
- * <tt>host</tt>. Allocations of multiple copies of the same shard on the same
- * <tt>node</tt> are not allowed independently of this setting.
+ * {@code host}. Allocations of multiple copies of the same shard on the same
+ * {@code node} are not allowed independently of this setting.
  * </p>
  */
 public class SameShardAllocationDecider extends AllocationDecider {
@@ -53,7 +53,6 @@ public class SameShardAllocationDecider extends AllocationDecider {
     private volatile boolean sameHost;
 
     public SameShardAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         this.sameHost = CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING, this::setSameHost);
     }

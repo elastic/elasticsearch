@@ -1,0 +1,17 @@
+==== Running Elasticsearch from the command line
+
+Elasticsearch can be started from the command line as follows:
+
+[source,sh]
+--------------------------------------------
+./bin/elasticsearch
+--------------------------------------------
+
+By default, Elasticsearch runs in the foreground, prints its logs to the
+standard output (`stdout`), and can be stopped by pressing `Ctrl-C`.
+
+NOTE: All scripts packaged with Elasticsearch require a version of Bash
+that supports arrays and assume that Bash is available at `/bin/bash`.
+As such, Bash should be available at this path either directly or via a
+symbolic link.
+

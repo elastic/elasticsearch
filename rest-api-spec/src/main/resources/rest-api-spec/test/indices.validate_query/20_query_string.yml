@@ -5,12 +5,11 @@
           index:  test
           body:
             mappings:
-              test:
-                properties:
-                  field:
-                    type: text
-                  number:
-                    type: integer
+              properties:
+                field:
+                  type: text
+                number:
+                  type: integer
 
   - do:
       indices.validate_query:
@@ -32,14 +31,6 @@
         index: test
         q: field:foo field:xyz
         default_operator: AND
-
-  - is_true: valid
-
-  - do:
-      indices.validate_query:
-        index: test
-        q: field:bars
-        analyzer: snowball
 
   - is_true: valid
 

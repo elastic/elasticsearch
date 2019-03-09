@@ -43,7 +43,6 @@ class MultiPassStats {
         this.fieldBKey = fieldBName;
     }
 
-    @SuppressWarnings("unchecked")
     void computeStats(final List<Double> fieldA, final List<Double> fieldB) {
         // set count
         count = fieldA.size();
@@ -114,6 +113,30 @@ class MultiPassStats {
     }
 
     void assertNearlyEqual(MatrixStatsResults stats) {
+        assertEquals(count, stats.getDocCount());
+        assertEquals(count, stats.getFieldCount(fieldAKey));
+        assertEquals(count, stats.getFieldCount(fieldBKey));
+        // means
+        assertTrue(nearlyEqual(means.get(fieldAKey), stats.getMean(fieldAKey), 1e-7));
+        assertTrue(nearlyEqual(means.get(fieldBKey), stats.getMean(fieldBKey), 1e-7));
+        // variances
+        assertTrue(nearlyEqual(variances.get(fieldAKey), stats.getVariance(fieldAKey), 1e-7));
+        assertTrue(nearlyEqual(variances.get(fieldBKey), stats.getVariance(fieldBKey), 1e-7));
+        // skewness (multi-pass is more susceptible to round-off error so we need to slightly relax the tolerance)
+        assertTrue(nearlyEqual(skewness.get(fieldAKey), stats.getSkewness(fieldAKey), 1e-4));
+        assertTrue(nearlyEqual(skewness.get(fieldBKey), stats.getSkewness(fieldBKey), 1e-4));
+        // kurtosis (multi-pass is more susceptible to round-off error so we need to slightly relax the tolerance)
+        assertTrue(nearlyEqual(kurtosis.get(fieldAKey), stats.getKurtosis(fieldAKey), 1e-4));
+        assertTrue(nearlyEqual(kurtosis.get(fieldBKey), stats.getKurtosis(fieldBKey), 1e-4));
+        // covariances
+        assertTrue(nearlyEqual(covariances.get(fieldAKey).get(fieldBKey),stats.getCovariance(fieldAKey, fieldBKey), 1e-7));
+        assertTrue(nearlyEqual(covariances.get(fieldBKey).get(fieldAKey),stats.getCovariance(fieldBKey, fieldAKey), 1e-7));
+        // correlation
+        assertTrue(nearlyEqual(correlations.get(fieldAKey).get(fieldBKey), stats.getCorrelation(fieldAKey, fieldBKey), 1e-7));
+        assertTrue(nearlyEqual(correlations.get(fieldBKey).get(fieldAKey), stats.getCorrelation(fieldBKey, fieldAKey), 1e-7));
+    }
+
+    void assertNearlyEqual(InternalMatrixStats stats) {
         assertEquals(count, stats.getDocCount());
         assertEquals(count, stats.getFieldCount(fieldAKey));
         assertEquals(count, stats.getFieldCount(fieldBKey));

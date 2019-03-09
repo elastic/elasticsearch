@@ -121,6 +121,9 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 }
             }
         }
+        if (randomBoolean()) {
+            result.ignoreUnmapped(result.ignoreUnmapped() == false);
+        }
         return result;
     }
 
@@ -154,7 +157,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     @Override
     protected GeoDistanceSortBuilder mutate(GeoDistanceSortBuilder original) throws IOException {
         GeoDistanceSortBuilder result = new GeoDistanceSortBuilder(original);
-        int parameter = randomIntBetween(0, 7);
+        int parameter = randomIntBetween(0, 8);
         switch (parameter) {
         case 0:
             while (Arrays.deepEquals(original.points(), result.points())) {
@@ -194,6 +197,9 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         case 7:
             result.validation(randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
             break;
+        case 8:
+            result.ignoreUnmapped(result.ignoreUnmapped() == false);
+            break;
         }
         return result;
     }
@@ -226,12 +232,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "  \"distance_type\" : \"arc\",\n" +
                 "  \"mode\" : \"SUM\"\n" +
                 "}";
-        XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
-        itemParser.nextToken();
+        try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
+            itemParser.nextToken();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> GeoDistanceSortBuilder.fromXContent(itemParser, ""));
-        assertEquals("sort_mode [sum] isn't supported for sorting by geo distance", e.getMessage());
+            assertEquals("sort_mode [sum] isn't supported for sorting by geo distance", e.getMessage());
+        }
     }
 
     public void testGeoDistanceSortCanBeParsedFromGeoHash() throws IOException {
@@ -252,16 +259,17 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    },\n" +
                 "    \"validation_method\" : \"STRICT\"\n" +
                 "  }";
-        XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
-        itemParser.nextToken();
+        try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
+            itemParser.nextToken();
 
-        GeoDistanceSortBuilder result = GeoDistanceSortBuilder.fromXContent(itemParser, json);
-        assertEquals("[-19.700583312660456, -2.8225036337971687, "
+            GeoDistanceSortBuilder result = GeoDistanceSortBuilder.fromXContent(itemParser, json);
+            assertEquals("[-19.700583312660456, -2.8225036337971687, "
                 + "31.537466906011105, -74.63590376079082, "
                 + "43.71844606474042, -5.548660643398762, "
                 + "-37.20467280596495, 38.71751043945551, "
                 + "-69.44606635719538, 84.25200328230858, "
                 + "-39.03717711567879, 44.74099852144718]", Arrays.toString(result.points()));
+        }
     }
 
     public void testGeoDistanceSortParserManyPointsNoException() throws Exception {
@@ -374,9 +382,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     private GeoDistanceSortBuilder parse(XContentBuilder sortBuilder) throws Exception {
-        XContentParser parser = createParser(sortBuilder);
-        parser.nextToken();
-        return GeoDistanceSortBuilder.fromXContent(parser, null);
+        try (XContentParser parser = createParser(sortBuilder)) {
+            parser.nextToken();
+            return GeoDistanceSortBuilder.fromXContent(parser, null);
+        }
     }
 
     @Override
@@ -436,7 +445,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     /**
-     * Test that the sort builder order gets transfered correctly to the SortField
+     * Test that the sort builder order gets transferred correctly to the SortField
      */
     public void testBuildSortFieldOrder() throws IOException {
         QueryShardContext shardContextMock = createMockShardContext();
@@ -451,7 +460,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     /**
-     * Test that the sort builder mode gets transfered correctly to the SortField
+     * Test that the sort builder mode gets transferred correctly to the SortField
      */
     public void testMultiValueMode() throws IOException {
         QueryShardContext shardContextMock = createMockShardContext();

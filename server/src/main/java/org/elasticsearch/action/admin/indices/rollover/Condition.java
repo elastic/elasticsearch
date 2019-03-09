@@ -71,6 +71,14 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
         return "[" + name + ": " + value + "]";
     }
 
+    public T value() {
+        return value;
+    }
+
+    public String name() {
+        return name;
+    }
+
     /**
      * Holder for index stats used to evaluate conditions
      */
@@ -90,10 +98,10 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
      * Holder for evaluated condition result
      */
     public static class Result {
-        public final Condition condition;
+        public final Condition<?> condition;
         public final boolean matched;
 
-        protected Result(Condition condition, boolean matched) {
+        protected Result(Condition<?> condition, boolean matched) {
             this.condition = condition;
             this.matched = matched;
         }

@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -48,8 +48,8 @@ import java.util.Objects;
  */
 public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
-            ESLoggerFactory.getLogger(FieldNamesFieldMapper.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+            LogManager.getLogger(FieldNamesFieldMapper.class));
 
     public static final String NAME = "_field_names";
 
@@ -73,21 +73,14 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, FieldNamesFieldMapper> {
+    private static class Builder extends MetadataFieldMapper.Builder<Builder, FieldNamesFieldMapper> {
         private boolean enabled = Defaults.ENABLED;
 
-        public Builder(MappedFieldType existing) {
+        private Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
         }
 
-        @Override
-        @Deprecated
-        public Builder index(boolean index) {
-            enabled(index);
-            return super.index(index);
-        }
-
-        public Builder enabled(boolean enabled) {
+        private Builder enabled(boolean enabled) {
             this.enabled = enabled;
             return this;
         }
@@ -104,7 +97,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                                      ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -112,7 +106,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(TypeParsers.nodeBooleanValue(name, "enabled", fieldNode, parserContext));
+                    builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled"));
                     iterator.remove();
                 }
             }
@@ -184,7 +178,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (isEnabled() == false) {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
-            DEPRECATION_LOGGER.deprecated(
+            deprecationLogger.deprecated(
                     "terms query on the _field_names field is deprecated and will be removed, use exists query instead");
             return super.termQuery(value, context);
         }
@@ -204,20 +198,19 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
+    public void preParse(ParseContext context) {
     }
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        if (context.indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).before(Version.V_6_1_0)) {
+        if (context.indexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
             super.parse(context);
         }
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // Adding values to the _field_names field is handled by the mappers for each field type
-        return null;
     }
 
     static Iterable<String> extractFieldNames(final String fullPath) {
@@ -262,7 +255,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         if (fieldType().isEnabled() == false) {
             return;
         }
-        for (ParseContext.Document document : context.docs()) {
+        for (ParseContext.Document document : context) {
             final List<String> paths = new ArrayList<>(document.getFields().size());
             String previousPath = ""; // used as a sentinel - field names can't be empty
             for (IndexableField field : document.getFields()) {

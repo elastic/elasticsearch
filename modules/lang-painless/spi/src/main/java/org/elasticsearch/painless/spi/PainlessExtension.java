@@ -19,10 +19,10 @@
 
 package org.elasticsearch.painless.spi;
 
+import org.elasticsearch.script.ScriptContext;
+
 import java.util.List;
 import java.util.Map;
-
-import org.elasticsearch.script.ScriptContext;
 
 public interface PainlessExtension {
 

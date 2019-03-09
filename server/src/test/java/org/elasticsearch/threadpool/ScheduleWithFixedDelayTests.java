@@ -33,15 +33,14 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -83,7 +82,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(runnable, delay, Names.GENERIC, threadPool,
                 (e) -> {}, (e) -> {});
         // this call was made during construction of the runnable
-        verify(threadPool, times(1)).schedule(delay, Names.GENERIC, reschedulingRunnable);
+        verify(threadPool, times(1)).schedule(reschedulingRunnable, delay, Names.GENERIC);
 
         // create a thread and start the runnable
         Thread runThread = new Thread() {
@@ -103,7 +102,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         runThread.join();
 
         // validate schedule was called again
-        verify(threadPool, times(2)).schedule(delay, Names.GENERIC, reschedulingRunnable);
+        verify(threadPool, times(2)).schedule(reschedulingRunnable, delay, Names.GENERIC);
     }
 
     public void testThatRunnableIsRescheduled() throws Exception {
@@ -251,7 +250,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         terminate(threadPool);
         threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "fixed delay tests").build()) {
             @Override
-            public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
                 if (command instanceof ReschedulingRunnable) {
                     ((ReschedulingRunnable) command).onRejection(new EsRejectedExecutionException());
                 } else {
@@ -266,8 +265,8 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         assertTrue(reschedulingRunnable.isCancelled());
     }
 
-    public void testRunnableRunsAtMostOnceAfterCancellation() throws Exception {
-        final int iterations = scaledRandomIntBetween(1, 12);
+    public void testRunnableDoesNotRunAfterCancellation() throws Exception {
+        final int iterations = scaledRandomIntBetween(2, 12);
         final AtomicInteger counter = new AtomicInteger();
         final CountDownLatch doneLatch = new CountDownLatch(iterations);
         final Runnable countingRunnable = () -> {
@@ -275,17 +274,19 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
             doneLatch.countDown();
         };
 
-        final Cancellable cancellable = threadPool.scheduleWithFixedDelay(countingRunnable, TimeValue.timeValueMillis(10L), Names.GENERIC);
+        final TimeValue interval = TimeValue.timeValueMillis(50L);
+        final Cancellable cancellable = threadPool.scheduleWithFixedDelay(countingRunnable, interval, Names.GENERIC);
         doneLatch.await();
         cancellable.cancel();
+
         final int counterValue = counter.get();
-        assertThat(counterValue, isOneOf(iterations, iterations + 1));
+        assertThat(counterValue, equalTo(iterations));
 
         if (rarely()) {
             awaitBusy(() -> {
                 final int value = counter.get();
-                return value == iterations || value == iterations + 1;
-            }, 50L, TimeUnit.MILLISECONDS);
+                return value == iterations;
+            }, 5 * interval.millis(), TimeUnit.MILLISECONDS);
         }
     }
 

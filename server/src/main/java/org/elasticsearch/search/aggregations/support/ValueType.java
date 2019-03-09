@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,9 +28,9 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 
 public enum ValueType implements Writeable {
 
@@ -37,56 +38,17 @@ public enum ValueType implements Writeable {
             IndexFieldData.class, DocValueFormat.RAW),
     LONG((byte) 2, "byte|short|integer|long", "long",
                     ValuesSourceType.NUMERIC,
-            IndexNumericFieldData.class, DocValueFormat.RAW) {
-        @Override
-        public boolean isNumeric() {
-            return true;
-        }
-    },
-    DOUBLE((byte) 3, "float|double", "double", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW) {
-        @Override
-        public boolean isNumeric() {
-            return true;
-        }
-
-        @Override
-        public boolean isFloatingPoint() {
-            return true;
-        }
-    },
-    NUMBER((byte) 4, "number", "number", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW) {
-        @Override
-        public boolean isNumeric() {
-            return true;
-        }
-    },
+            IndexNumericFieldData.class, DocValueFormat.RAW),
+    DOUBLE((byte) 3, "float|double", "double", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
+    NUMBER((byte) 4, "number", "number", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
     DATE((byte) 5, "date", "date", ValuesSourceType.NUMERIC, IndexNumericFieldData.class,
-            new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateTimeZone.UTC)) {
-        @Override
-        public boolean isNumeric() {
-            return true;
-        }
-    },
+            new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC,
+                DateFieldMapper.Resolution.MILLISECONDS)),
     IP((byte) 6, "ip", "ip", ValuesSourceType.BYTES, IndexFieldData.class, DocValueFormat.IP),
     // TODO: what is the difference between "number" and "numeric"?
-    NUMERIC((byte) 7, "numeric", "numeric", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW) {
-        @Override
-        public boolean isNumeric() {
-            return true;
-        }
-    },
-    GEOPOINT((byte) 8, "geo_point", "geo_point", ValuesSourceType.GEOPOINT, IndexGeoPointFieldData.class, DocValueFormat.GEOHASH) {
-        @Override
-        public boolean isGeoPoint() {
-            return true;
-        }
-    },
-    BOOLEAN((byte) 9, "boolean", "boolean", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.BOOLEAN) {
-        @Override
-        public boolean isNumeric() {
-            return super.isNumeric();
-        }
-    };
+    NUMERIC((byte) 7, "numeric", "numeric", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
+    GEOPOINT((byte) 8, "geo_point", "geo_point", ValuesSourceType.GEOPOINT, IndexGeoPointFieldData.class, DocValueFormat.GEOHASH),
+    BOOLEAN((byte) 9, "boolean", "boolean", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.BOOLEAN);
 
     final String description;
     final ValuesSourceType valuesSourceType;
@@ -94,6 +56,8 @@ public enum ValueType implements Writeable {
     final DocValueFormat defaultFormat;
     private final byte id;
     private String preferredName;
+
+    public static final ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
 
     ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
             Class<? extends IndexFieldData> fieldDataType, DocValueFormat defaultFormat) {
@@ -105,20 +69,12 @@ public enum ValueType implements Writeable {
         this.defaultFormat = defaultFormat;
     }
 
-    public String description() {
-        return description;
-    }
-
     public String getPreferredName() {
         return preferredName;
     }
-    
+
     public ValuesSourceType getValuesSourceType() {
         return valuesSourceType;
-    }
-
-    public boolean compatibleWith(IndexFieldData fieldData) {
-        return fieldDataType.isInstance(fieldData);
     }
 
     public boolean isA(ValueType valueType) {
@@ -132,18 +88,6 @@ public enum ValueType implements Writeable {
 
     public DocValueFormat defaultFormat() {
         return defaultFormat;
-    }
-
-    public boolean isNumeric() {
-        return false;
-    }
-
-    public boolean isFloatingPoint() {
-        return false;
-    }
-
-    public boolean isGeoPoint() {
-        return false;
     }
 
     public static ValueType resolveForScript(String type) {

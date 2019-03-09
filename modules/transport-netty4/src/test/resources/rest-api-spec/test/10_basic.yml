@@ -1,6 +1,9 @@
 # Integration tests for Netty transport
 #
 "Netty loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 
@@ -10,7 +13,7 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.modules.0.name: transport-netty4  }
+    - contains:  { nodes.$master.modules: { name: transport-netty4  } }
 
     - do:
         cluster.stats: {}

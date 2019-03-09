@@ -35,9 +35,9 @@ consistent across queries.
 
 This work around has another benefit: when two documents have the same score,
 they will be sorted by their internal Lucene doc id (which is unrelated to the
-`_id` or `_uid`) by default. However these doc ids could be different across
-copies of the same shard. So by always hitting the same shard, we would get
-more consistent ordering of documents that have the same scores.
+`_id`) by default. However these doc ids could be different across copies of
+the same shard. So by always hitting the same shard, we would get more
+consistent ordering of documents that have the same scores.
 
 [float]
 ==== Relevancy looks wrong

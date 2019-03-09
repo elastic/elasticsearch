@@ -3,12 +3,12 @@
 
 The delete API allows one to delete a typed JSON document from a specific
 index based on its id. The following example deletes the JSON document
-from an index called twitter, under a type called tweet, with id valued
+from an index called twitter, under a type called `_doc`, with id valued
 1:
 
 [source,java]
 --------------------------------------------------
-DeleteResponse response = client.prepareDelete("twitter", "tweet", "1").get();
+DeleteResponse response = client.prepareDelete("twitter", "_doc", "1").get();
 --------------------------------------------------
 
 For more information on the delete operation, check out the

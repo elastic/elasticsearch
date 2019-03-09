@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.document.DoubleRange;
 import org.apache.lucene.document.FloatRange;
 import org.apache.lucene.document.InetAddressPoint;
@@ -31,13 +30,15 @@ import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -47,6 +48,8 @@ import org.junit.Before;
 import java.net.InetAddress;
 import java.util.Locale;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class RangeFieldTypeTests extends FieldTypeTestCase {
     RangeType type;
     protected static String FIELDNAME = "field";
@@ -55,47 +58,79 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     @Before
     public void setupProperties() {
-        type = RandomPicks.randomFrom(random(), RangeType.values());
+        type = randomFrom(RangeType.values());
         nowInMillis = randomNonNegativeLong();
         if (type == RangeType.DATE) {
             addModifier(new Modifier("format", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldMapper.RangeFieldType) ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
+                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date"));
                 }
             });
             addModifier(new Modifier("locale", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldMapper.RangeFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
+                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("date_optional_time").withLocale(Locale.CANADA));
                 }
             });
         }
     }
 
     @Override
-    protected RangeFieldMapper.RangeFieldType createDefaultFieldType() {
-        return new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
+    protected RangeFieldType createDefaultFieldType() {
+        return new RangeFieldType(type);
     }
 
     public void testRangeQuery() throws Exception {
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-            writableRegistry(), null, null, () -> nowInMillis, null);
-        RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
+        QueryShardContext context = createContext();
+        RangeFieldType ft = new RangeFieldType(type);
         ft.setName(FIELDNAME);
         ft.setIndexOptions(IndexOptions.DOCS);
 
-        ShapeRelation relation = RandomPicks.randomFrom(random(), ShapeRelation.values());
-        boolean includeLower = random().nextBoolean();
-        boolean includeUpper = random().nextBoolean();
+        ShapeRelation relation = randomFrom(ShapeRelation.values());
+        boolean includeLower = randomBoolean();
+        boolean includeUpper = randomBoolean();
         Object from = nextFrom();
         Object to = nextTo(from);
 
         assertEquals(getExpectedRangeQuery(relation, from, to, includeLower, includeUpper),
             ft.rangeQuery(from, to, includeLower, includeUpper, relation, null, null, context));
+    }
+
+    private QueryShardContext createContext() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
+        return new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
+            writableRegistry(), null, null, () -> nowInMillis, null);
+    }
+
+    public void testDateRangeQueryUsingMappingFormat() {
+        QueryShardContext context = createContext();
+        RangeFieldType fieldType = new RangeFieldType(RangeType.DATE);
+        fieldType.setName(FIELDNAME);
+        fieldType.setIndexOptions(IndexOptions.DOCS);
+        fieldType.setHasDocValues(false);
+        ShapeRelation relation = randomFrom(ShapeRelation.values());
+
+        // dates will break the default format, month/day of month is turned around in the format
+        final String from = "2016-15-06T15:29:50+08:00";
+        final String to = "2016-16-06T15:29:50+08:00";
+
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
+            () -> fieldType.rangeQuery(from, to, true, true, relation, null, null, context));
+        assertThat(ex.getMessage(),
+            containsString("failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_optional_time||epoch_millis]")
+        );
+
+        // setting mapping format which is compatible with those dates
+        final DateFormatter formatter = DateFormatter.forPattern("yyyy-dd-MM'T'HH:mm:ssZZZZZ");
+        assertEquals(1465975790000L, formatter.parseMillis(from));
+        assertEquals(1466062190000L, formatter.parseMillis(to));
+
+        fieldType.setDateTimeFormatter(formatter);
+        final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, null, context);
+        assertEquals("field:<ranges:[1465975790000 : 1466062190000]>", query.toString());
     }
 
     private Query getExpectedRangeQuery(ShapeRelation relation, Object from, Object to, boolean includeLower, boolean includeUpper) {
@@ -277,14 +312,10 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(InetAddresses.forString("::1"), RangeFieldMapper.RangeType.IP.parse(new BytesRef("::1"), randomBoolean()));
     }
 
-    public void testTermQuery() throws Exception, IllegalArgumentException {
+    public void testTermQuery() throws Exception {
         // See https://github.com/elastic/elasticsearch/issues/25950
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-            writableRegistry(), null, null, () -> nowInMillis, null);
-        RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
+        QueryShardContext context = createContext();
+        RangeFieldType ft = new RangeFieldType(type);
         ft.setName(FIELDNAME);
         ft.setIndexOptions(IndexOptions.DOCS);
 

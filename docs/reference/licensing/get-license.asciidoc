@@ -1,0 +1,79 @@
+[role="xpack"]
+[testenv="basic"]
+[[get-license]]
+=== Get license API
+++++
+<titleabbrev>Get license</titleabbrev>
+++++
+
+This API enables you to retrieve licensing information.
+
+[float]
+==== Request
+
+`GET /_license`
+
+[float]
+==== Description
+
+This API returns information about the type of license, when it was issued, and
+when it expires, for example.
+
+For more information about the different types of licenses, see
+https://www.elastic.co/subscriptions.
+
+
+[float]
+==== Query Parameters
+
+`local`::
+  (boolean) Specifies whether to retrieve local information. The default value
+  is `false`, which means the information is retrieved from the master node.
+
+
+[float]
+==== Authorization
+
+You must have `monitor` cluster privileges to use this API.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+
+
+[float]
+==== Examples
+
+The following example provides information about a trial license:
+
+[source,js]
+--------------------------------------------------
+GET /_license
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
+{
+  "license" : {
+    "status" : "active",
+    "uid" : "cbff45e7-c553-41f7-ae4f-9205eabd80xx",
+    "type" : "trial",
+    "issue_date" : "2018-10-20T22:05:12.332Z",
+    "issue_date_in_millis" : 1540073112332,
+    "expiry_date" : "2018-11-19T22:05:12.332Z",
+    "expiry_date_in_millis" : 1542665112332,
+    "max_nodes" : 1000,
+    "issued_to" : "test",
+    "issuer" : "elasticsearch",
+    "start_date_in_millis" : -1
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"cbff45e7-c553-41f7-ae4f-9205eabd80xx"/$body.license.uid/]
+// TESTRESPONSE[s/"basic"/$body.license.type/]
+// TESTRESPONSE[s/"2018-10-20T22:05:12.332Z"/$body.license.issue_date/]
+// TESTRESPONSE[s/1540073112332/$body.license.issue_date_in_millis/]
+// TESTRESPONSE[s/"2018-11-19T22:05:12.332Z"/$body.license.expiry_date/]
+// TESTRESPONSE[s/1542665112332/$body.license.expiry_date_in_millis/]
+// TESTRESPONSE[s/1000/$body.license.max_nodes/]
+// TESTRESPONSE[s/"test"/$body.license.issued_to/]
+// TESTRESPONSE[s/"elasticsearch"/$body.license.issuer/]

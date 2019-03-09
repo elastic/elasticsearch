@@ -21,17 +21,55 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.RestActionTestCase;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
-public class RestIndexActionTests extends ESTestCase {
+public class RestIndexActionTests extends RestActionTestCase {
 
-    public void testCreateOpTypeValidation() throws Exception {
+    private RestIndexAction action;
+
+    @Before
+    public void setUpAction() {
+        action =  new RestIndexAction(Settings.EMPTY, controller());
+    }
+
+    public void testTypeInPath() {
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.PUT)
+            .withPath("/some_index/some_type/some_id")
+            .build();
+        dispatchRequest(deprecatedRequest);
+        assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
+
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.PUT)
+            .withPath("/some_index/_doc/some_id")
+            .build();
+        dispatchRequest(validRequest);
+    }
+
+    public void testCreateWithTypeInPath() {
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.PUT)
+            .withPath("/some_index/some_type/some_id/_create")
+            .build();
+        dispatchRequest(deprecatedRequest);
+        assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
+
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.PUT)
+            .withPath("/some_index/_create/some_id")
+            .build();
+        dispatchRequest(validRequest);
+    }
+
+    public void testCreateOpTypeValidation() {
         Settings settings = settings(Version.CURRENT).build();
-        RestIndexAction.CreateHandler create = new RestIndexAction(settings, mock(RestController.class)).new CreateHandler(settings);
+        RestIndexAction.CreateHandler create = action.new CreateHandler(settings);
 
         String opType = randomFrom("CREATE", null);
         create.validateOpType(opType);

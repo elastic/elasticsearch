@@ -1,22 +1,13 @@
 [[node.name]]
 === `node.name`
 
-By default, Elasticsearch will use the first seven characters of the randomly
-generated UUID as the node id.Note that the node id is persisted and does
-not change when a node restarts and therefore the default node name will also
-not change.
-
-It is worth configuring a more meaningful name which will also have the
-advantage of persisting after restarting the node:
+Elasticsearch uses `node.name` as a human readable identifier for a
+particular instance of Elasticsearch so it is included in the response
+of many APIs. It defaults to the hostname that the machine has when
+Elasticsearch starts but can be configured explicitly in
+`elasticsearch.yml` as follows:
 
 [source,yaml]
 --------------------------------------------------
 node.name: prod-data-2
---------------------------------------------------
-
-The `node.name` can also be set to the server's HOSTNAME as follows:
-
-[source,yaml]
---------------------------------------------------
-node.name: ${HOSTNAME}
 --------------------------------------------------

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.document;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -127,11 +126,7 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
             // Stored fields values are converted using MappedFieldType#valueForDisplay.
             // As a result they can either be Strings, Numbers, or Booleans, that's
             // all.
-            if (value instanceof BytesReference) {
-                builder.binaryValue(((BytesReference) value).toBytesRef());
-            } else {
-                builder.value(value);
-            }
+            builder.value(value);
         }
         builder.endArray();
         return builder;

@@ -97,7 +97,8 @@ public class IntermittentLongGCDisruption extends LongGCDisruption {
                     TimeValue duration = new TimeValue(delayDurationMin + random.nextInt((int) (delayDurationMax - delayDurationMin)));
                     simulateLongGC(duration);
 
-                    duration = new TimeValue(intervalBetweenDelaysMin + random.nextInt((int) (intervalBetweenDelaysMax - intervalBetweenDelaysMin)));
+                    duration = new TimeValue(intervalBetweenDelaysMin
+                            + random.nextInt((int) (intervalBetweenDelaysMax - intervalBetweenDelaysMin)));
                     if (disrupting) {
                         Thread.sleep(duration.millis());
                     }

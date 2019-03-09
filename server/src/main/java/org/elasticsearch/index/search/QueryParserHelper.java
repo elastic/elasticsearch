@@ -19,45 +19,22 @@
 
 package org.elasticsearch.index.search;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.SearchModule;
 
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Helpers to extract and expand field names and boosts
  */
 public final class QueryParserHelper {
-    // Mapping types the "all-ish" query can be executed against
-    // TODO: Fix the API so that we don't need a hardcoded list of types
-    private static final Set<String> ALLOWED_QUERY_MAPPER_TYPES;
-
-    static {
-        ALLOWED_QUERY_MAPPER_TYPES = new HashSet<>();
-        ALLOWED_QUERY_MAPPER_TYPES.add(DateFieldMapper.CONTENT_TYPE);
-        ALLOWED_QUERY_MAPPER_TYPES.add(IpFieldMapper.CONTENT_TYPE);
-        ALLOWED_QUERY_MAPPER_TYPES.add(KeywordFieldMapper.CONTENT_TYPE);
-        for (NumberFieldMapper.NumberType nt : NumberFieldMapper.NumberType.values()) {
-            ALLOWED_QUERY_MAPPER_TYPES.add(nt.typeName());
-        }
-        ALLOWED_QUERY_MAPPER_TYPES.add("scaled_float");
-        ALLOWED_QUERY_MAPPER_TYPES.add(TextFieldMapper.CONTENT_TYPE);
-    }
-
     private QueryParserHelper() {}
 
     /**
@@ -81,21 +58,6 @@ public final class QueryParserHelper {
             fieldsAndWeights.put(fieldName, boost);
         }
         return fieldsAndWeights;
-    }
-
-    /**
-     * Get a {@link FieldMapper} associated with a field name or null.
-     * @param mapperService The mapper service where to find the mapping.
-     * @param field The field name to search.
-     */
-    public static FieldMapper getFieldMapper(MapperService mapperService, String field) {
-        for (DocumentMapper mapper : mapperService.docMappers(true)) {
-            FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper(field);
-            if (fieldMapper != null) {
-                return fieldMapper;
-            }
-        }
-        return null;
     }
 
     public static Map<String, Float> resolveMappingFields(QueryShardContext context,
@@ -124,7 +86,7 @@ public final class QueryParserHelper {
                 !multiField, !allField, fieldSuffix);
             resolvedFields.putAll(fieldMap);
         }
-        checkForTooManyFields(resolvedFields);
+        checkForTooManyFields(resolvedFields, context);
         return resolvedFields;
     }
 
@@ -135,8 +97,7 @@ public final class QueryParserHelper {
      * @param fieldOrPattern The field name or the pattern to resolve
      * @param weight The weight for the field
      * @param acceptAllTypes Whether all field type should be added when a pattern is expanded.
-     *                       If false, only {@link #ALLOWED_QUERY_MAPPER_TYPES} are accepted and other field types
-     *                       are discarded from the query.
+     *                       If false, only searchable field types are added.
      * @param acceptMetadataField Whether metadata fields should be added when a pattern is expanded.
      */
     public static Map<String, Float> resolveMappingField(QueryShardContext context, String fieldOrPattern, float weight,
@@ -151,8 +112,7 @@ public final class QueryParserHelper {
      * @param fieldOrPattern The field name or the pattern to resolve
      * @param weight The weight for the field
      * @param acceptAllTypes Whether all field type should be added when a pattern is expanded.
-     *                       If false, only {@link #ALLOWED_QUERY_MAPPER_TYPES} are accepted and other field types
-     *                       are discarded from the query.
+     *                       If false, only searchable field types are added.
      * @param acceptMetadataField Whether metadata fields should be added when a pattern is expanded.
      * @param fieldSuffix The suffix name to add to the expanded field names if a mapping exists for that name.
      *                    The original name of the field is kept if adding the suffix to the field name does not point to a valid field
@@ -166,32 +126,39 @@ public final class QueryParserHelper {
             if (fieldSuffix != null && context.fieldMapper(fieldName + fieldSuffix) != null) {
                 fieldName = fieldName + fieldSuffix;
             }
-            FieldMapper mapper = getFieldMapper(context.getMapperService(), fieldName);
-            if (mapper == null) {
-                // Unmapped fields are not ignored
-                fields.put(fieldOrPattern, weight);
+
+            MappedFieldType fieldType = context.getMapperService().fullName(fieldName);
+            if (fieldType == null) {
+                // Note that we don't ignore unmapped fields.
+                fields.put(fieldName, weight);
                 continue;
             }
-            if (acceptMetadataField == false && mapper instanceof MetadataFieldMapper) {
+
+            if (acceptMetadataField == false && fieldType.name().startsWith("_")) {
                 // Ignore metadata fields
                 continue;
             }
-            // Ignore fields that are not in the allowed mapper types. Some
-            // types do not support term queries, and thus we cannot generate
-            // a special query for them.
-            String mappingType = mapper.fieldType().typeName();
-            if (acceptAllTypes == false && ALLOWED_QUERY_MAPPER_TYPES.contains(mappingType) == false) {
-                continue;
+
+            if (acceptAllTypes == false) {
+                try {
+                    fieldType.termQuery("", context);
+                } catch (QueryShardException | UnsupportedOperationException e) {
+                    // field type is never searchable with term queries (eg. geo point): ignore
+                    continue;
+                } catch (IllegalArgumentException | ElasticsearchParseException e) {
+                    // other exceptions are parsing errors or not indexed fields: keep
+                }
             }
             fields.put(fieldName, weight);
         }
-        checkForTooManyFields(fields);
+        checkForTooManyFields(fields, context);
         return fields;
     }
 
-    private static void checkForTooManyFields(Map<String, Float> fields) {
-        if (fields.size() > 1024) {
-            throw new IllegalArgumentException("field expansion matches too many fields, limit: 1024, got: " + fields.size());
+    private static void checkForTooManyFields(Map<String, Float> fields, QueryShardContext context) {
+        Integer limit = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
+        if (fields.size() > limit) {
+            throw new IllegalArgumentException("field expansion matches too many fields, limit: " + limit + ", got: " + fields.size());
         }
     }
 }

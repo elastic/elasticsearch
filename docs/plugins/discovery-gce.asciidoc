@@ -1,7 +1,8 @@
 [[discovery-gce]]
 === GCE Discovery Plugin
 
-The Google Compute Engine Discovery plugin uses the GCE API for unicast discovery.
+The Google Compute Engine Discovery plugin uses the GCE API to identify the
+addresses of seed hosts.
 
 :plugin_name: discovery-gce
 include::install_remove.asciidoc[]
@@ -9,8 +10,8 @@ include::install_remove.asciidoc[]
 [[discovery-gce-usage]]
 ==== GCE Virtual Machine Discovery
 
-Google Compute Engine VM discovery allows to use the google APIs to perform automatic discovery (similar to multicast
-in non hostile multicast environments). Here is a simple sample configuration:
+Google Compute Engine VM discovery allows to use the google APIs to perform
+automatic discovery of seed hosts. Here is a simple sample configuration:
 
 [source,yaml]
 --------------------------------------------------
@@ -19,19 +20,24 @@ cloud:
       project_id: <your-google-project-id>
       zone: <your-zone>
 discovery:
-      zen.hosts_provider: gce
+      seed_providers: gce
 --------------------------------------------------
 
 The following gce settings (prefixed with `cloud.gce`) are supported:
 
  `project_id`::
 
-     Your Google project id (mandatory).
+     Your Google project id.
+     By default the project id will be derived from the instance metadata.
+
+     Note: Deriving the project id from system properties or environment variables
+     (`GOOGLE_CLOUD_PROJECT` or `GCLOUD_PROJECT`) is not supported.
 
  `zone`::
 
-     helps to retrieve instances running in a given zone (mandatory). It should be one of the
-     https://developers.google.com/compute/docs/zones#available[GCE supported zones].
+     helps to retrieve instances running in a given zone.
+     It should be one of the https://developers.google.com/compute/docs/zones#available[GCE supported zones].
+     By default the zone will be derived from the instance metadata.
      See also <<discovery-gce-usage-zones>>.
 
  `retry`::
@@ -227,7 +233,7 @@ cloud:
       project_id: es-cloud
       zone: europe-west1-a
 discovery:
-      zen.hosts_provider: gce
+      seed_providers: gce
 --------------------------------------------------
 
 
@@ -341,7 +347,7 @@ cloud:
       project_id: <your-google-project-id>
       zone: ["<your-zone1>", "<your-zone2>"]
 discovery:
-      zen.hosts_provider: gce
+      seed_providers: gce
 --------------------------------------------------
 
 
@@ -353,11 +359,10 @@ The GCE discovery can also filter machines to include in the cluster based on ta
 For example, setting `discovery.gce.tags` to `dev` will only filter instances having a tag set to `dev`. Several tags
 set will require all of those tags to be set for the instance to be included.
 
-One practical use for tag filtering is when an GCE cluster contains many nodes that are not running
-Elasticsearch. In this case (particularly with high `discovery.zen.ping_timeout` values) there is a risk that a new
-node's discovery phase will end before it has found the cluster (which will result in it declaring itself master of a
-new cluster with the same name - highly undesirable). Adding tag on Elasticsearch GCE nodes and then filtering by that
-tag will resolve this issue.
+One practical use for tag filtering is when a GCE cluster contains many nodes
+that are not master-eligible {es} nodes. In this case, tagging the GCE
+instances that _are_ running the master-eligible {es} nodes, and then filtering
+by that tag, will help discovery to run more efficiently.
 
 Add your tag when building the new instance:
 
@@ -377,7 +382,7 @@ cloud:
       project_id: es-cloud
       zone: europe-west1-a
 discovery:
-      zen.hosts_provider: gce
+      seed_providers: gce
       gce:
             tags: elasticsearch, dev
 --------------------------------------------------
@@ -492,7 +497,7 @@ cloud:
       project_id: es-cloud
       zone: europe-west1-a
 discovery:
-      zen.hosts_provider: gce
+      seed_providers: gce
 --------------------------------------------------
 
 Replaces `project_id` and `zone` with your settings.

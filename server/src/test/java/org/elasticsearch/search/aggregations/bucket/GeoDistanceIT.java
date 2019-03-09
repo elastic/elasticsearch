@@ -27,7 +27,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -35,13 +34,11 @@ import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -63,12 +60,11 @@ import static org.hamcrest.core.IsNull.nullValue;
 public class GeoDistanceIT extends ESIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
-    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
-            Version.CURRENT);
+    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
 
     private IndexRequestBuilder indexCity(String idx, String name, String... latLons) throws Exception {
         XContentBuilder source = jsonBuilder().startObject().field("city", name);
@@ -86,11 +82,11 @@ public class GeoDistanceIT extends ESIntegTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         prepareCreate("idx").setSettings(settings)
                 .addMapping("type", "location", "type=geo_point", "city", "type=keyword")
-                .execute().actionGet();
+                .get();
 
         prepareCreate("idx-multi")
                 .addMapping("type", "location", "type=geo_point", "city", "type=keyword")
-                .execute().actionGet();
+                .get();
 
         createIndex("idx_unmapped");
 
@@ -115,9 +111,12 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         cities.clear();
         cities.addAll(Arrays.asList(
-                indexCity("idx-multi", "city1", "52.3890, 4.637", "50.097679,14.441314"), // first point is within the ~17.5km, the second is ~710km
-                indexCity("idx-multi", "city2", "52.540, 13.409", "52.0945, 5.116"), // first point is ~576km, the second is within the ~35km
-                indexCity("idx-multi", "city3", "32.0741, 34.777"))); // above 1000km
+                // first point is within the ~17.5km, the second is ~710km
+                indexCity("idx-multi", "city1", "52.3890, 4.637", "50.097679,14.441314"),
+                // first point is ~576km, the second is within the ~35km
+                indexCity("idx-multi", "city2", "52.540, 13.409", "52.0945, 5.116"),
+                // above 1000km
+                indexCity("idx-multi", "city3", "32.0741, 34.777")));
 
         // random cities with no location
         for (String cityName : Arrays.asList("london", "singapour", "tokyo", "milan")) {
@@ -125,7 +124,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         }
         indexRandom(true, cities);
         prepareCreate("empty_bucket_idx")
-                .addMapping("type", "value", "type=integer", "location", "type=geo_point").execute().actionGet();
+                .addMapping("type", "value", "type=integer", "location", "type=geo_point").get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
@@ -146,7 +145,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addUnboundedTo(500)
                         .addRange(500, 1000)
                         .addUnboundedFrom(1000))
-                        .execute().actionGet();
+                        .get();
 
         assertSearchResponse(response);
 
@@ -193,7 +192,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addUnboundedTo("ring1", 500)
                         .addRange("ring2", 500, 1000)
                         .addUnboundedFrom("ring3", 1000))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -233,7 +232,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().get();
 
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894))
@@ -242,7 +241,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addUnboundedTo(500)
                         .addRange(500, 1000)
                         .addUnboundedFrom(1000))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -289,7 +288,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addUnboundedTo(500)
                         .addRange(500, 1000)
                         .addUnboundedFrom(1000))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -338,7 +337,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addUnboundedFrom(1000)
                         .subAggregation(terms("cities").field("city")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -418,10 +417,11 @@ public class GeoDistanceIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0)
-                        .subAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location").addRange("0-100", 0.0, 100.0)))
-                .execute().actionGet();
+                        .subAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location")
+                                .addRange("0-100", 0.0, 100.0)))
+                .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -445,7 +445,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         try {
             client().prepareSearch("idx")
                 .addAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)))
-                .execute().actionGet();
+                .get();
             fail();
         } catch (SearchPhaseExecutionException spee){
             Throwable rootCause = spee.getCause().getCause();
@@ -463,7 +463,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addUnboundedTo(500)
                         .addRange(500, 1000)
                         .addUnboundedFrom(1000))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 

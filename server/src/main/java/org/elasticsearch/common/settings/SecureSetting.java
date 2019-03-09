@@ -69,7 +69,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
     }
 
     @Override
-    public String getRaw(Settings settings) {
+    String innerGetRaw(final Settings settings) {
         throw new UnsupportedOperationException("secure settings are not strings");
     }
 

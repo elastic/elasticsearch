@@ -60,7 +60,9 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     private static PrefixQueryBuilder randomPrefixQuery() {
-        String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
+        String fieldName = randomFrom(STRING_FIELD_NAME,
+            STRING_ALIAS_FIELD_NAME,
+            randomAlphaOfLengthBetween(1, 10));
         String value = randomAlphaOfLengthBetween(1, 10);
         return new PrefixQueryBuilder(fieldName, value);
     }
@@ -69,7 +71,9 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(PrefixQuery.class));
         PrefixQuery prefixQuery = (PrefixQuery) query;
-        assertThat(prefixQuery.getPrefix().field(), equalTo(queryBuilder.fieldName()));
+
+        String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
+        assertThat(prefixQuery.getPrefix().field(), equalTo(expectedFieldName));
         assertThat(prefixQuery.getPrefix().text(), equalTo(queryBuilder.value()));
     }
 
@@ -105,7 +109,6 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     public void testNumeric() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         PrefixQueryBuilder query = prefixQuery(INT_FIELD_NAME, "12*");
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class,

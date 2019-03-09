@@ -20,6 +20,7 @@
 package org.elasticsearch.client.sniff;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientTestCase;
 
@@ -46,7 +47,7 @@ public class SniffOnFailureListenerTests extends RestClientTestCase {
         }
 
         try (RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
-            try (Sniffer sniffer = Sniffer.builder(restClient).setHostsSniffer(new MockHostsSniffer()).build()) {
+            try (Sniffer sniffer = Sniffer.builder(restClient).setNodesSniffer(new MockNodesSniffer()).build()) {
                 listener.setSniffer(sniffer);
                 try {
                     listener.setSniffer(sniffer);
@@ -54,7 +55,7 @@ public class SniffOnFailureListenerTests extends RestClientTestCase {
                 } catch(IllegalStateException e) {
                     assertEquals("sniffer can only be set once", e.getMessage());
                 }
-                listener.onFailure(new HttpHost("localhost", 9200));
+                listener.onFailure(new Node(new HttpHost("localhost", 9200)));
             }
         }
     }

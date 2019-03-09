@@ -21,15 +21,21 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreInfo;
 
 import java.io.IOException;
+import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Contains information about restores snapshot
@@ -85,5 +91,43 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
         }
         builder.endObject();
         return builder;
+    }
+
+    public static final ConstructingObjectParser<RestoreSnapshotResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "restore_snapshot", true, v -> {
+            RestoreInfo restoreInfo = (RestoreInfo) v[0];
+            Boolean accepted = (Boolean) v[1];
+            assert (accepted == null && restoreInfo != null) ||
+                   (accepted != null && accepted && restoreInfo == null) :
+                "accepted: [" + accepted + "], restoreInfo: [" + restoreInfo + "]";
+            return new RestoreSnapshotResponse(restoreInfo);
+    });
+
+    static {
+        PARSER.declareObject(optionalConstructorArg(), (parser, context) -> RestoreInfo.fromXContent(parser), new ParseField("snapshot"));
+        PARSER.declareBoolean(optionalConstructorArg(), new ParseField("accepted"));
+    }
+
+
+    public static RestoreSnapshotResponse fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RestoreSnapshotResponse that = (RestoreSnapshotResponse) o;
+        return Objects.equals(restoreInfo, that.restoreInfo);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(restoreInfo);
+    }
+
+    @Override
+    public String toString() {
+        return "RestoreSnapshotResponse{" + "restoreInfo=" + restoreInfo + '}';
     }
 }

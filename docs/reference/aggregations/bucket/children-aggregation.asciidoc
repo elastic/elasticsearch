@@ -14,13 +14,11 @@ For example, let's say we have an index of questions and answers. The answer typ
 PUT child_example
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "join": {
-          "type": "join",
-          "relations": {
-            "question": "answer"
-          }
+    "properties": {
+      "join": {
+        "type": "join",
+        "relations": {
+          "question": "answer"
         }
       }
     }
@@ -137,14 +135,17 @@ Possible response:
   "took": 25,
   "timed_out": false,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },
   "hits": {
-    "total": 3,
-    "max_score": 0.0,
+    "total" : {
+      "value": 3,
+      "relation": "eq"
+    },
+    "max_score": null,
     "hits": []
   },
   "aggregations": {

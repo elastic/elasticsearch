@@ -21,28 +21,22 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -50,21 +44,14 @@ import java.util.Map;
 
 import static org.elasticsearch.ingest.common.IngestCommonPlugin.GROK_PATTERNS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.OK;
 
-public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Request,
-    GrokProcessorGetAction.Response, GrokProcessorGetAction.RequestBuilder> {
+public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Response> {
 
-    public static final GrokProcessorGetAction INSTANCE = new GrokProcessorGetAction();
-    public static final String NAME = "cluster:admin/ingest/processor/grok/get";
+    static final GrokProcessorGetAction INSTANCE = new GrokProcessorGetAction();
+    static final String NAME = "cluster:admin/ingest/processor/grok/get";
 
     private GrokProcessorGetAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -79,16 +66,10 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Reques
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
-        public RequestBuilder(ElasticsearchClient client) {
-            super(client, GrokProcessorGetAction.INSTANCE, new Request());
-        }
-    }
-
     public static class Response extends ActionResponse implements ToXContentObject {
         private Map<String, String> grokPatterns;
 
-        public Response(Map<String, String> grokPatterns) {
+        Response(Map<String, String> grokPatterns) {
             this.grokPatterns = grokPatterns;
         }
 
@@ -121,14 +102,12 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Reques
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, Request::new);
+        public TransportAction(TransportService transportService, ActionFilters actionFilters) {
+            super(NAME, transportService, actionFilters, Request::new);
         }
 
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             try {
                 listener.onResponse(new Response(GROK_PATTERNS));
             } catch (Exception e) {
@@ -138,7 +117,7 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Reques
     }
 
     public static class RestAction extends BaseRestHandler {
-        public RestAction(Settings settings, RestController controller) {
+        RestAction(Settings settings, RestController controller) {
             super(settings);
             controller.registerHandler(GET, "/_ingest/processor/grok", this);
         }
@@ -149,14 +128,8 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Reques
         }
 
         @Override
-        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-            return channel -> client.executeLocally(INSTANCE, new Request(), new RestBuilderListener<Response>(channel) {
-                @Override
-                public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-                    response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    return new BytesRestResponse(OK, builder);
-                }
-            });
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+            return channel -> client.executeLocally(INSTANCE, new Request(), new RestToXContentListener<>(channel));
         }
     }
 }

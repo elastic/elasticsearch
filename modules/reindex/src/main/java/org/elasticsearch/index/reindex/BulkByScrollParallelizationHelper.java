@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskId;
@@ -61,7 +61,7 @@ class BulkByScrollParallelizationHelper {
     static <Request extends AbstractBulkByScrollRequest<Request>> void startSlicedAction(
             Request request,
             BulkByScrollTask task,
-            Action<Request, BulkByScrollResponse, ?> action,
+            Action<BulkByScrollResponse> action,
             ActionListener<BulkByScrollResponse> listener,
             Client client,
             DiscoveryNode node,
@@ -85,7 +85,7 @@ class BulkByScrollParallelizationHelper {
     private static <Request extends AbstractBulkByScrollRequest<Request>> void sliceConditionally(
             Request request,
             BulkByScrollTask task,
-            Action<Request, BulkByScrollResponse, ?> action,
+            Action<BulkByScrollResponse> action,
             ActionListener<BulkByScrollResponse> listener,
             Client client,
             DiscoveryNode node,
@@ -118,7 +118,7 @@ class BulkByScrollParallelizationHelper {
 
     private static <Request extends AbstractBulkByScrollRequest<Request>> void sendSubRequests(
             Client client,
-            Action<Request, BulkByScrollResponse, ?> action,
+            Action<BulkByScrollResponse> action,
             String localNodeId,
             BulkByScrollTask task,
             Request request,
@@ -127,7 +127,7 @@ class BulkByScrollParallelizationHelper {
         LeaderBulkByScrollTaskState worker = task.getLeaderState();
         int totalSlices = worker.getSlices();
         TaskId parentTaskId = new TaskId(localNodeId, task.getId());
-        for (final SearchRequest slice : sliceIntoSubRequests(request.getSearchRequest(), UidFieldMapper.NAME, totalSlices)) {
+        for (final SearchRequest slice : sliceIntoSubRequests(request.getSearchRequest(), IdFieldMapper.NAME, totalSlices)) {
             // TODO move the request to the correct node. maybe here or somehow do it as part of startup for reindex in general....
             Request requestForSlice = request.forSlice(parentTaskId, slice, totalSlices);
             ActionListener<BulkByScrollResponse> sliceListener = ActionListener.wrap(
@@ -154,19 +154,9 @@ class BulkByScrollParallelizationHelper {
                 }
                 slicedSource = request.source().copyWithNewSlice(sliceBuilder);
             }
-            slices[slice] = new SearchRequest()
-                    .source(slicedSource)
-                    .searchType(request.searchType())
-                    .indices(request.indices())
-                    .types(request.types())
-                    .routing(request.routing())
-                    .preference(request.preference())
-                    .requestCache(request.requestCache())
-                    .scroll(request.scroll())
-                    .indicesOptions(request.indicesOptions());
-            if (request.allowPartialSearchResults() != null) {
-                slices[slice].allowPartialSearchResults(request.allowPartialSearchResults());
-            }
+            SearchRequest searchRequest = new SearchRequest(request);
+            searchRequest.source(slicedSource);
+            slices[slice] = searchRequest;
         }
         return slices;
     }

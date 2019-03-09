@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -59,10 +58,6 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
         routing = in.readOptionalString();
         preference = in.readOptionalString();
 
-        if (in.getVersion().onOrBefore(Version.V_5_1_1)) {
-            //types
-            in.readStringArray();
-        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
@@ -78,10 +73,6 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
 
-        if (out.getVersion().onOrBefore(Version.V_5_1_1)) {
-            //types
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
         indicesOptions.writeIndicesOptions(out);
     }
 
@@ -146,7 +137,7 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public ClusterSearchShardsRequest preference(String preference) {

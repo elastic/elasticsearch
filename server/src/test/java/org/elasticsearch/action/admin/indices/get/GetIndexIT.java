@@ -42,7 +42,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -74,7 +73,7 @@ public class GetIndexIT extends ESIntegTestCase {
             client().admin().indices().prepareGetIndex().addIndices("missing_idx").get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
+            assertThat(e.getMessage(), is("no such index [missing_idx]"));
         }
     }
 
@@ -198,7 +197,8 @@ public class GetIndexIT extends ESIntegTestCase {
 
         try {
             enableIndexBlock("idx", SETTING_BLOCKS_METADATA);
-            assertBlocked(client().admin().indices().prepareGetIndex().addIndices("idx").addFeatures(Feature.MAPPINGS, Feature.ALIASES), INDEX_METADATA_BLOCK);
+            assertBlocked(client().admin().indices().prepareGetIndex().addIndices("idx").addFeatures(Feature.MAPPINGS, Feature.ALIASES),
+                INDEX_METADATA_BLOCK);
         } finally {
             disableIndexBlock("idx", SETTING_BLOCKS_METADATA);
         }

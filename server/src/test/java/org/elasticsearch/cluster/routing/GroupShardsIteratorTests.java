@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.action.OriginalIndicesTests;
+import org.elasticsearch.action.search.SearchShardIterator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -29,20 +31,44 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+
 public class GroupShardsIteratorTests extends ESTestCase {
+
+    public static List<ShardRouting> randomShardRoutings(ShardId shardId) {
+        return randomShardRoutings(shardId, randomIntBetween(0, 2));
+    }
+
+    private static List<ShardRouting> randomShardRoutings(ShardId shardId, int numReplicas) {
+        List<ShardRouting> shardRoutings = new ArrayList<>();
+        shardRoutings.add(TestShardRouting.newShardRouting(shardId, randomAlphaOfLengthBetween(5, 10), true, STARTED));
+        for (int j = 0; j < numReplicas; j++) {
+            shardRoutings.add(TestShardRouting.newShardRouting(shardId, randomAlphaOfLengthBetween(5, 10), false, STARTED));
+        }
+        return shardRoutings;
+    }
 
     public void testSize() {
         List<ShardIterator> list = new ArrayList<>();
         Index index = new Index("foo", "na");
-
-        list.add(new PlainShardIterator(new ShardId(index, 0), Arrays.asList(newRouting(index, 0, true), newRouting(index, 0, true),
-            newRouting(index, 0, true))));
+        {
+            ShardId shardId = new ShardId(index, 0);
+            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId, 2)));
+        }
         list.add(new PlainShardIterator(new ShardId(index, 1), Collections.emptyList()));
-        list.add(new PlainShardIterator(new ShardId(index, 2), Arrays.asList(newRouting(index, 2, true))));
+        {
+            ShardId shardId = new ShardId(index, 2);
+            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId, 0)));
+        }
         index = new Index("foo_1", "na");
-
-        list.add(new PlainShardIterator(new ShardId(index, 0), Arrays.asList(newRouting(index, 0, true))));
-        list.add(new PlainShardIterator(new ShardId(index, 1), Arrays.asList(newRouting(index, 1, true))));
+        {
+            ShardId shardId = new ShardId(index, 0);
+            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId, 0)));
+        }
+        {
+            ShardId shardId = new ShardId(index, 1);
+            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId, 0)));
+        }
         GroupShardsIterator iter = new GroupShardsIterator<>(list);
         assertEquals(7, iter.totalSizeWith1ForEmpty());
         assertEquals(5, iter.size());
@@ -52,21 +78,35 @@ public class GroupShardsIteratorTests extends ESTestCase {
     public void testIterate() {
         List<ShardIterator> list = new ArrayList<>();
         Index index = new Index("foo", "na");
-
-        list.add(new PlainShardIterator(new ShardId(index, 0), Arrays.asList(newRouting(index, 0, true), newRouting(index, 0, true),
-            newRouting(index, 0, true))));
+        {
+            ShardId shardId = new ShardId(index, 0);
+            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId)));
+        }
         list.add(new PlainShardIterator(new ShardId(index, 1), Collections.emptyList()));
-        list.add(new PlainShardIterator(new ShardId(index, 2), Arrays.asList(newRouting(index, 2, true))));
-
-        list.add(new PlainShardIterator(new ShardId(index, 0), Arrays.asList(newRouting(index, 0, true))));
-        list.add(new PlainShardIterator(new ShardId(index, 1), Arrays.asList(newRouting(index, 1, true))));
-
+        {
+            ShardId shardId = new ShardId(index, 2);
+            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId)));
+        }
+        {
+            ShardId shardId = new ShardId(index, 0);
+            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId)));
+        }
+        {
+            ShardId shardId = new ShardId(index, 1);
+            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId)));
+        }
         index = new Index("foo_2", "na");
-        list.add(new PlainShardIterator(new ShardId(index, 0), Arrays.asList(newRouting(index, 0, true))));
-        list.add(new PlainShardIterator(new ShardId(index, 1), Arrays.asList(newRouting(index, 1, true))));
+        {
+            ShardId shardId = new ShardId(index, 0);
+            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId)));
+        }
+        {
+            ShardId shardId = new ShardId(index, 1);
+            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId)));
+        }
 
         Collections.shuffle(list, random());
-        ArrayList<ShardIterator> actualIterators = new ArrayList<>();
+        List<ShardIterator> actualIterators = new ArrayList<>();
         GroupShardsIterator<ShardIterator> iter = new GroupShardsIterator<>(list);
         for (ShardIterator shardsIterator : iter) {
             actualIterators.add(shardsIterator);
@@ -75,13 +115,39 @@ public class GroupShardsIteratorTests extends ESTestCase {
         assertEquals(actualIterators, list);
     }
 
-    public ShardRouting newRouting(Index index, int id, boolean started) {
-        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, id), true,
-            RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        shardRouting = ShardRoutingHelper.initialize(shardRouting, "some node");
-        if (started) {
-            shardRouting = ShardRoutingHelper.moveToStarted(shardRouting);
+    public void testOrderingWithSearchShardIterators() {
+        String[] indices = generateRandomStringArray(10, 10, false, false);
+        Arrays.sort(indices);
+        String[] uuids = generateRandomStringArray(5, 10, false, false);
+        Arrays.sort(uuids);
+        String[] clusters = generateRandomStringArray(5, 10, false, false);
+        Arrays.sort(clusters);
+
+        List<SearchShardIterator> expected = new ArrayList<>();
+        int numShards = randomIntBetween(1, 10);
+        for (int i = 0; i < numShards; i++) {
+            for (String index : indices) {
+                for (String uuid : uuids) {
+                    ShardId shardId = new ShardId(index, uuid, i);
+                    SearchShardIterator shardIterator = new SearchShardIterator(null, shardId,
+                        GroupShardsIteratorTests.randomShardRoutings(shardId), OriginalIndicesTests.randomOriginalIndices());
+                    expected.add(shardIterator);
+                    for (String cluster : clusters) {
+                        SearchShardIterator remoteIterator = new SearchShardIterator(cluster, shardId,
+                            GroupShardsIteratorTests.randomShardRoutings(shardId), OriginalIndicesTests.randomOriginalIndices());
+                        expected.add(remoteIterator);
+                    }
+                }
+            }
         }
-        return shardRouting;
-    };
+
+        List<SearchShardIterator> shuffled = new ArrayList<>(expected);
+        Collections.shuffle(shuffled, random());
+        List<ShardIterator> actualIterators = new ArrayList<>();
+        GroupShardsIterator<SearchShardIterator> iter = new GroupShardsIterator<>(shuffled);
+        for (SearchShardIterator searchShardIterator : iter) {
+            actualIterators.add(searchShardIterator);
+        }
+        assertEquals(expected, actualIterators);
+    }
 }

@@ -30,7 +30,7 @@ import org.elasticsearch.search.SearchHit;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.OptionalInt;
 
 import javax.naming.directory.SearchResult;
 
@@ -144,8 +144,8 @@ public class PrecisionAtK implements EvaluationMetric {
     }
 
     @Override
-    public Optional<Integer> forcedSearchSize() {
-        return Optional.of(k);
+    public OptionalInt forcedSearchSize() {
+        return OptionalInt.of(k);
     }
 
     public static PrecisionAtK fromXContent(XContentParser parser) {
@@ -164,9 +164,9 @@ public class PrecisionAtK implements EvaluationMetric {
         int falsePositives = 0;
         List<RatedSearchHit> ratedSearchHits = joinHitsWithRatings(hits, ratedDocs);
         for (RatedSearchHit hit : ratedSearchHits) {
-            Optional<Integer> rating = hit.getRating();
+            OptionalInt rating = hit.getRating();
             if (rating.isPresent()) {
-                if (rating.get() >= this.relevantRatingThreshhold) {
+                if (rating.getAsInt() >= this.relevantRatingThreshhold) {
                     truePositives++;
                 } else {
                     falsePositives++;
@@ -181,7 +181,7 @@ public class PrecisionAtK implements EvaluationMetric {
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, precision);
         evalQueryQuality.setMetricDetails(
-                new PrecisionAtK.Breakdown(truePositives, truePositives + falsePositives));
+                new PrecisionAtK.Detail(truePositives, truePositives + falsePositives));
         evalQueryQuality.addHitsAndRatings(ratedSearchHits);
         return evalQueryQuality;
     }
@@ -217,19 +217,19 @@ public class PrecisionAtK implements EvaluationMetric {
         return Objects.hash(relevantRatingThreshhold, ignoreUnlabeled, k);
     }
 
-    static class Breakdown implements MetricDetail {
+    public static final class Detail implements MetricDetail {
 
         private static final ParseField DOCS_RETRIEVED_FIELD = new ParseField("docs_retrieved");
         private static final ParseField RELEVANT_DOCS_RETRIEVED_FIELD = new ParseField("relevant_docs_retrieved");
         private int relevantRetrieved;
         private int retrieved;
 
-        Breakdown(int relevantRetrieved, int retrieved) {
+        Detail(int relevantRetrieved, int retrieved) {
             this.relevantRetrieved = relevantRetrieved;
             this.retrieved = retrieved;
         }
 
-        Breakdown(StreamInput in) throws IOException {
+        Detail(StreamInput in) throws IOException {
             this.relevantRetrieved = in.readVInt();
             this.retrieved = in.readVInt();
         }
@@ -242,8 +242,8 @@ public class PrecisionAtK implements EvaluationMetric {
             return builder;
         }
 
-        private static final ConstructingObjectParser<Breakdown, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
-            return new Breakdown((Integer) args[0], (Integer) args[1]);
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
+            return new Detail((Integer) args[0], (Integer) args[1]);
         });
 
         static {
@@ -251,7 +251,7 @@ public class PrecisionAtK implements EvaluationMetric {
             PARSER.declareInt(constructorArg(), DOCS_RETRIEVED_FIELD);
         }
 
-        public static Breakdown fromXContent(XContentParser parser) {
+        public static Detail fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
 
@@ -266,29 +266,29 @@ public class PrecisionAtK implements EvaluationMetric {
             return NAME;
         }
 
-        int getRelevantRetrieved() {
+        public int getRelevantRetrieved() {
             return relevantRetrieved;
         }
 
-        int getRetrieved() {
+        public int getRetrieved() {
             return retrieved;
         }
 
         @Override
-        public final boolean equals(Object obj) {
+        public boolean equals(Object obj) {
             if (this == obj) {
                 return true;
             }
             if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            PrecisionAtK.Breakdown other = (PrecisionAtK.Breakdown) obj;
+            PrecisionAtK.Detail other = (PrecisionAtK.Detail) obj;
             return Objects.equals(relevantRetrieved, other.relevantRetrieved)
                     && Objects.equals(retrieved, other.retrieved);
         }
 
         @Override
-        public final int hashCode() {
+        public int hashCode() {
             return Objects.hash(relevantRetrieved, retrieved);
         }
     }

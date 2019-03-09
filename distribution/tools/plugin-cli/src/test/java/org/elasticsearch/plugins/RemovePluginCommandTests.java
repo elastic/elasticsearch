@@ -23,7 +23,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -103,16 +102,6 @@ public class RemovePluginCommandTests extends ESTestCase {
                 "classname", "SomeClass");
     }
 
-    void createMetaPlugin(String name, String... plugins) throws Exception {
-        PluginTestUtil.writeMetaPluginProperties(
-            env.pluginsFile().resolve(name),
-            "description", "dummy",
-            "name", name);
-        for (String plugin : plugins) {
-            createPlugin(env.pluginsFile().resolve(name), plugin);
-        }
-    }
-
     static MockTerminal removePlugin(String name, Path home, boolean purge) throws Exception {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
@@ -148,28 +137,24 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     public void testRemoveOldVersion() throws Exception {
+        Version previous = VersionUtils.getPreviousVersion();
+        if (previous.before(Version.CURRENT.minimumIndexCompatibilityVersion()) ) {
+            // Can happen when bumping majors: 8.0 is only compat back to 7.0, but that's not released yet
+            // In this case, ignore what's released and just find that latest version before current
+            previous = VersionUtils.allVersions().stream()
+                .filter(v -> v.before(Version.CURRENT))
+                .max(Version::compareTo)
+                .get();
+        }
         createPlugin(
                 "fake",
                 VersionUtils.randomVersionBetween(
                         random(),
                         Version.CURRENT.minimumIndexCompatibilityVersion(),
-                        VersionUtils.getPreviousVersion()));
+                        previous));
         removePlugin("fake", home, randomBoolean());
         assertThat(Files.exists(env.pluginsFile().resolve("fake")), equalTo(false));
         assertRemoveCleaned(env);
-    }
-
-    public void testBasicMeta() throws Exception {
-        createMetaPlugin("meta", "fake1");
-        createPlugin("other");
-        removePlugin("meta", home, randomBoolean());
-        assertFalse(Files.exists(env.pluginsFile().resolve("meta")));
-        assertTrue(Files.exists(env.pluginsFile().resolve("other")));
-        assertRemoveCleaned(env);
-
-        UserException exc =
-            expectThrows(UserException.class, () -> removePlugin("fake1", home, randomBoolean()));
-        assertThat(exc.getMessage(), containsString("plugin [fake1] not found"));
     }
 
     public void testBin() throws Exception {

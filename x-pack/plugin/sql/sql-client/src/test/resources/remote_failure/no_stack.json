@@ -1,0 +1,6 @@
+{
+  "error" : {
+    "type" : "illegal_argument_exception",
+    "reason" : "[sql/query] unknown field [test], parser not found"
+  }
+}

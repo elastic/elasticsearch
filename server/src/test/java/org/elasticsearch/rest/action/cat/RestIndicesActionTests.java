@@ -25,20 +25,20 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
-import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -62,6 +62,7 @@ import org.elasticsearch.usage.UsageService;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -73,44 +74,61 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class RestIndicesActionTests extends ESTestCase {
 
-    public void testBuildTable() {
-        final Settings settings = Settings.EMPTY;
-        UsageService usageService = new UsageService(settings);
-        final RestController restController = new RestController(settings, Collections.emptySet(), null, null, null, usageService);
-        final RestIndicesAction action = new RestIndicesAction(settings, restController, new IndexNameExpressionResolver(settings));
-
+    private IndexMetaData[] buildRandomIndicesMetaData(int numIndices) {
         // build a (semi-)random table
-        final int numIndices = randomIntBetween(0, 5);
-        Index[] indices = new Index[numIndices];
+        final IndexMetaData[] indicesMetaData = new IndexMetaData[numIndices];
         for (int i = 0; i < numIndices; i++) {
-            indices[i] = new Index(randomAlphaOfLength(5), UUIDs.randomBase64UUID());
-        }
-
-        final MetaData.Builder metaDataBuilder = MetaData.builder();
-        for (final Index index : indices) {
-            metaDataBuilder.put(IndexMetaData.builder(index.getName())
+            indicesMetaData[i] = IndexMetaData.builder(randomAlphaOfLength(5) + i)
                                     .settings(Settings.builder()
-                                                  .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                                                  .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID()))
+                                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                        .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
                                     .creationDate(System.currentTimeMillis())
                                     .numberOfShards(1)
                                     .numberOfReplicas(1)
-                                    .state(IndexMetaData.State.OPEN));
+                                    .state(IndexMetaData.State.OPEN)
+                                    .build();
+        }
+        return indicesMetaData;
+    }
+
+    private ClusterState buildClusterState(IndexMetaData[] indicesMetaData) {
+        final MetaData.Builder metaDataBuilder = MetaData.builder();
+        for (IndexMetaData indexMetaData : indicesMetaData) {
+            metaDataBuilder.put(indexMetaData, false);
         }
         final MetaData metaData = metaDataBuilder.build();
-
         final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                                               .metaData(metaData)
                                               .build();
-        final String[] indicesStr = new String[indices.length];
-        for (int i = 0; i < indices.length; i++) {
-            indicesStr[i] = indices[i].getName();
+        return clusterState;
+    }
+
+    private ClusterHealthResponse buildClusterHealthResponse(ClusterState clusterState, IndexMetaData[] indicesMetaData) {
+        final String[] indicesStr = new String[indicesMetaData.length];
+        for (int i = 0; i < indicesMetaData.length; i++) {
+            indicesStr[i] = indicesMetaData[i].getIndex().getName();
         }
-        final ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
+        final ClusterHealthResponse clusterHealthResponse = new ClusterHealthResponse(
             clusterState.getClusterName().value(), indicesStr, clusterState, 0, 0, 0, TimeValue.timeValueMillis(1000L)
         );
+        return clusterHealthResponse;
+    }
 
-        final Table table = action.buildTable(new FakeRestRequest(), indices, clusterHealth, randomIndicesStatsResponse(indices), metaData);
+    public void testBuildTable() {
+        final Settings settings = Settings.EMPTY;
+        UsageService usageService = new UsageService();
+        final RestController restController = new RestController(Collections.emptySet(), null, null, null, usageService);
+        final RestIndicesAction action = new RestIndicesAction(settings, restController, new IndexNameExpressionResolver());
+
+        final IndexMetaData[] generatedIndicesMetaData = buildRandomIndicesMetaData(randomIntBetween(1, 5));
+        final ClusterState clusterState = buildClusterState(generatedIndicesMetaData);
+        final ClusterHealthResponse clusterHealthResponse = buildClusterHealthResponse(clusterState, generatedIndicesMetaData);
+
+        final IndexMetaData[] sortedIndicesMetaData = action.getOrderedIndexMetaData(new String[0], clusterState,
+            IndicesOptions.strictExpand());
+        final IndexMetaData[] smallerSortedIndicesMetaData = removeRandomElement(sortedIndicesMetaData);
+        final Table table = action.buildTable(new FakeRestRequest(), sortedIndicesMetaData, clusterHealthResponse,
+                randomIndicesStatsResponse(smallerSortedIndicesMetaData));
 
         // now, verify the table is correct
         int count = 0;
@@ -121,29 +139,29 @@ public class RestIndicesActionTests extends ESTestCase {
         assertThat(headers.get(count++).value, equalTo("uuid"));
 
         List<List<Table.Cell>> rows = table.getRows();
-        assertThat(rows.size(), equalTo(indices.length));
+        assertThat(rows.size(), equalTo(smallerSortedIndicesMetaData.length));
         // TODO: more to verify (e.g. randomize cluster health, num primaries, num replicas, etc)
         for (int i = 0; i < rows.size(); i++) {
             count = 0;
             final List<Table.Cell> row = rows.get(i);
             assertThat(row.get(count++).value, equalTo("red*")); // all are red because cluster state doesn't have routing entries
             assertThat(row.get(count++).value, equalTo("open")); // all are OPEN for now
-            assertThat(row.get(count++).value, equalTo(indices[i].getName()));
-            assertThat(row.get(count++).value, equalTo(indices[i].getUUID()));
+            assertThat(row.get(count++).value, equalTo(smallerSortedIndicesMetaData[i].getIndex().getName()));
+            assertThat(row.get(count++).value, equalTo(smallerSortedIndicesMetaData[i].getIndexUUID()));
         }
     }
 
-    private IndicesStatsResponse randomIndicesStatsResponse(final Index[] indices) {
+    private IndicesStatsResponse randomIndicesStatsResponse(final IndexMetaData[] indices) {
         List<ShardStats> shardStats = new ArrayList<>();
-        for (final Index index : indices) {
-            int numShards = randomInt(5);
+        for (final IndexMetaData index : indices) {
+            int numShards = randomIntBetween(1, 3);
             int primaryIdx = randomIntBetween(-1, numShards - 1); // -1 means there is no primary shard.
             for (int i = 0; i < numShards; i++) {
-                ShardId shardId = new ShardId(index, i);
+                ShardId shardId = new ShardId(index.getIndex(), i);
                 boolean primary = (i == primaryIdx);
-                Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(i));
+                Path path = createTempDir().resolve("indices").resolve(index.getIndexUUID()).resolve(String.valueOf(i));
                 ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, primary,
-                    primary ? StoreRecoverySource.EMPTY_STORE_INSTANCE : PeerRecoverySource.INSTANCE,
+                    primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
                     );
                 shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -163,11 +181,21 @@ public class RestIndicesActionTests extends ESTestCase {
                 stats.get = new GetStats();
                 stats.flush = new FlushStats();
                 stats.warmer = new WarmerStats();
-                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null));
+                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null));
             }
         }
         return IndicesStatsTests.newIndicesStatsResponse(
             shardStats.toArray(new ShardStats[shardStats.size()]), shardStats.size(), shardStats.size(), 0, emptyList()
         );
+    }
+
+    private IndexMetaData[] removeRandomElement(IndexMetaData[] array) {
+        assert array != null;
+        assert array.length > 0;
+        final List<IndexMetaData> collectionLessAnItem = new ArrayList<>();
+        collectionLessAnItem.addAll(Arrays.asList(array));
+        final int toRemoveIndex = randomIntBetween(0, array.length - 1);
+        collectionLessAnItem.remove(toRemoveIndex);
+        return collectionLessAnItem.toArray(new IndexMetaData[0]);
     }
 }

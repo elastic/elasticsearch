@@ -28,9 +28,12 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 /**
  * Request builder for {@link IndicesShardStoresRequest}
  */
-public class IndicesShardStoreRequestBuilder extends MasterNodeReadOperationRequestBuilder<IndicesShardStoresRequest, IndicesShardStoresResponse, IndicesShardStoreRequestBuilder> {
+public class IndicesShardStoreRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+        IndicesShardStoresRequest,
+        IndicesShardStoresResponse,
+        IndicesShardStoreRequestBuilder> {
 
-    public IndicesShardStoreRequestBuilder(ElasticsearchClient client, Action<IndicesShardStoresRequest, IndicesShardStoresResponse, IndicesShardStoreRequestBuilder> action, String... indices) {
+    public IndicesShardStoreRequestBuilder(ElasticsearchClient client, Action<IndicesShardStoresResponse> action, String... indices) {
         super(client, action, new IndicesShardStoresRequest(indices));
     }
 

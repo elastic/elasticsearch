@@ -21,12 +21,14 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -34,21 +36,20 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_ALIAS_FIELD_NAME;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhraseQueryBuilder> {
     @Override
     protected MatchPhraseQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(STRING_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
+        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
                 DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
-        if (fieldName.equals(DATE_FIELD_NAME)) {
-            assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        }
         Object value;
-        if (fieldName.equals(STRING_FIELD_NAME)) {
+        if (isTextField(fieldName)) {
             int terms = randomIntBetween(0, 3);
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < terms; i++) {
@@ -61,13 +62,18 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
 
         MatchPhraseQueryBuilder matchQuery = new MatchPhraseQueryBuilder(fieldName, value);
 
-        if (randomBoolean()) {
+        if (randomBoolean() && isTextField(fieldName)) {
             matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
 
         if (randomBoolean()) {
             matchQuery.slop(randomIntBetween(0, 10));
         }
+
+        if (randomBoolean()) {
+            matchQuery.zeroTermsQuery(randomFrom(ZeroTermsQuery.ALL, ZeroTermsQuery.NONE));
+        }
+
         return matchQuery;
     }
 
@@ -88,6 +94,12 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
     @Override
     protected void doAssertLuceneQuery(MatchPhraseQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, notNullValue());
+
+        if (query instanceof MatchAllDocsQuery) {
+            assertThat(queryBuilder.zeroTermsQuery(), equalTo(ZeroTermsQuery.ALL));
+            return;
+        }
+
         assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(PhraseQuery.class))
                 .or(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class))
                 .or(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
@@ -108,7 +120,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
         assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
     }
 
-    public void testPhraseMatchQuery() throws IOException {
+    public void testFromSimpleJson() throws IOException {
         String json1 = "{\n" +
                 "    \"match_phrase\" : {\n" +
                 "        \"message\" : \"this is a test\"\n" +
@@ -120,12 +132,33 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
                 "    \"message\" : {\n" +
                 "      \"query\" : \"this is a test\",\n" +
                 "      \"slop\" : 0,\n" +
+                "      \"zero_terms_query\" : \"NONE\",\n" +
                 "      \"boost\" : 1.0\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";
         MatchPhraseQueryBuilder qb = (MatchPhraseQueryBuilder) parseQuery(json1);
         checkGeneratedJson(expected, qb);
+    }
+
+    public void testFromJson() throws IOException {
+        String json = "{\n" +
+                "  \"match_phrase\" : {\n" +
+                "    \"message\" : {\n" +
+                "      \"query\" : \"this is a test\",\n" +
+                "      \"slop\" : 2,\n" +
+                "      \"zero_terms_query\" : \"ALL\",\n" +
+                "      \"boost\" : 1.0\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        MatchPhraseQueryBuilder parsed = (MatchPhraseQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "this is a test", parsed.value());
+        assertEquals(json, 2, parsed.slop());
+        assertEquals(json, ZeroTermsQuery.ALL, parsed.zeroTermsQuery());
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {

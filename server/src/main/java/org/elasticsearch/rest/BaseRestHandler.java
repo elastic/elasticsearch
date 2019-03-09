@@ -18,13 +18,13 @@
  */
 
 package org.elasticsearch.rest;
-
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -51,15 +51,27 @@ import java.util.stream.Collectors;
  * are copied, but a selected few. It is possible to control what headers are copied over by returning them in
  * {@link ActionPlugin#getRestHeaders()}.
  */
-public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
+public abstract class BaseRestHandler implements RestHandler {
 
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
 
     private final LongAdder usageCount = new LongAdder();
+    /**
+     * @deprecated declare your own logger.
+     */
+    @Deprecated
+    protected Logger logger = LogManager.getLogger(getClass());
+
+    /**
+     * Parameter that controls whether certain REST apis should include type names in their requests or responses.
+     * Note: Support for this parameter will be removed after the transition period to typeless APIs.
+     */
+    public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
+    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
     protected BaseRestHandler(Settings settings) {
-        super(settings);
+        // TODO drop settings from ctor
     }
 
     public final long getUsageCount() {
@@ -92,6 +104,10 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
             throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
         }
 
+        if (request.hasContent() && request.isContentConsumed() == false) {
+            throw new IllegalArgumentException("request [" + request.method() + " " + request.path() + "] does not support having a body");
+        }
+
         usageCount.increment();
         // execute the action
         action.accept(channel);
@@ -110,7 +126,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
             invalids.size() > 1 ? "s" : ""));
         boolean first = true;
         for (final String invalid : invalids) {
-            final LevensteinDistance ld = new LevensteinDistance();
+            final LevenshteinDistance ld = new LevenshteinDistance();
             final List<Tuple<Float, String>> scoredParams = new ArrayList<>();
             for (final String candidate : candidates) {
                 final float distance = ld.getDistance(invalid, candidate);

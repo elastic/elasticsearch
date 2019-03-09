@@ -74,7 +74,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             BinaryFieldMapper fieldMapper = PercolatorFieldMapper.Builder.createQueryBuilderFieldBuilder(
                 new Mapper.BuilderContext(settings, new ContentPath(0)));
 
-            Version version = randomBoolean() ? Version.V_5_6_0 : Version.V_6_0_0_beta2;
+            Version version = Version.V_6_0_0_beta2;
             try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
                 for (int i = 0; i < queryBuilders.length; i++) {
                     queryBuilders[i] = new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(8));

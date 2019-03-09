@@ -19,10 +19,9 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -31,21 +30,15 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.repositories.RepositoriesModule;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -56,6 +49,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.UnaryOperator;
 
 /**
@@ -72,12 +66,21 @@ import java.util.function.UnaryOperator;
  * <li>{@link RepositoryPlugin}
  * <li>{@link ScriptPlugin}
  * <li>{@link SearchPlugin}
+ * <li>{@link ReloadablePlugin}
  * </ul>
- * <p>In addition to extension points this class also declares some {@code @Deprecated} {@code public final void onModule} methods. These
- * methods should cause any extensions of {@linkplain Plugin} that used the pre-5.x style extension syntax to fail to build and point the
- * plugin author at the new extension syntax. We hope that these make the process of upgrading a plugin from 2.x to 5.x only mildly painful.
  */
 public abstract class Plugin implements Closeable {
+
+    /**
+     * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link MetaData.Custom}; see
+     * also {@link ClusterState.FeatureAware}.
+     *
+     * @return a feature set represented by this plugin, or the empty optional if the plugin does not expose cluster state or metadata
+     * customs
+     */
+    protected Optional<String> getFeature() {
+        return Optional.empty();
+    }
 
     /**
      * Node level guice modules.
@@ -159,6 +162,15 @@ public abstract class Plugin implements Closeable {
     public List<String> getSettingsFilter() { return Collections.emptyList(); }
 
     /**
+     * Get the setting upgraders provided by this plugin.
+     *
+     * @return the settings upgraders
+     */
+    public List<SettingUpgrader<?>> getSettingUpgraders() {
+        return Collections.emptyList();
+    }
+
+    /**
      * Provides a function to modify global custom meta data on startup.
      * <p>
      * Plugins should return the input custom map via {@link UnaryOperator#identity()} if no upgrade is required.
@@ -233,95 +245,4 @@ public abstract class Plugin implements Closeable {
     public void close() throws IOException {
 
     }
-
-    /**
-     * Old-style guice index level extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
-     * from 2.x.
-     *
-     * @deprecated use #onIndexModule instead
-     */
-    @Deprecated
-    public final void onModule(IndexModule indexModule) {}
-
-
-    /**
-     * Old-style guice settings extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
-     * from 2.x.
-     *
-     * @deprecated use #getSettings and #getSettingsFilter instead
-     */
-    @Deprecated
-    public final void onModule(SettingsModule settingsModule) {}
-
-    /**
-     * Old-style guice scripting extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
-     * from 2.x.
-     *
-     * @deprecated implement {@link ScriptPlugin} instead
-     */
-    @Deprecated
-    public final void onModule(ScriptModule module) {}
-
-    /**
-     * Old-style analysis extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
-     * from 2.x.
-     *
-     * @deprecated implement {@link AnalysisPlugin} instead
-     */
-    @Deprecated
-    public final void onModule(AnalysisModule module) {}
-
-    /**
-     * Old-style action extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
-     * from 2.x.
-     *
-     * @deprecated implement {@link ActionPlugin} instead
-     */
-    @Deprecated
-    public final void onModule(ActionModule module) {}
-
-    /**
-     * Old-style search extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
-     * from 2.x.
-     *
-     * @deprecated implement {@link SearchPlugin} instead
-     */
-    @Deprecated
-    public final void onModule(SearchModule module) {}
-
-    /**
-     * Old-style network extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
-     * from 2.x.
-     *
-     * @deprecated implement {@link NetworkPlugin} instead
-     */
-    @Deprecated
-    public final void onModule(NetworkModule module) {}
-
-    /**
-     * Old-style snapshot/restore extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
-     * from 2.x.
-     *
-     * @deprecated implement {@link RepositoryPlugin} instead
-     */
-    @Deprecated
-    public final void onModule(RepositoriesModule module) {}
-
-    /**
-     * Old-style cluster extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
-     * from 2.x.
-     *
-     * @deprecated implement {@link ClusterPlugin} instead
-     */
-    @Deprecated
-    public final void onModule(ClusterModule module) {}
-
-    /**
-     * Old-style discovery extension point. {@code @Deprecated} and {@code final} to act as a signpost for plugin authors upgrading
-     * from 2.x.
-     *
-     * @deprecated implement {@link DiscoveryPlugin} instead
-     */
-    @Deprecated
-    public final void onModule(DiscoveryModule module) {}
 }

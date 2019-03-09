@@ -6,13 +6,22 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.util.Collections;
 
 public class MlDeprecationChecksTests extends ESTestCase {
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
 
     @Override
     protected boolean enableWarningsCheck() {
@@ -22,8 +31,8 @@ public class MlDeprecationChecksTests extends ESTestCase {
     public void testCheckDataFeedQuery() {
         DatafeedConfig.Builder goodDatafeed = new DatafeedConfig.Builder("good-df", "job-id");
         goodDatafeed.setIndices(Collections.singletonList("some-index"));
-        goodDatafeed.setParsedQuery(new TermQueryBuilder("foo", "bar"));
-        assertNull(MlDeprecationChecks.checkDataFeedQuery(goodDatafeed.build()));
+        goodDatafeed.setParsedQuery(QueryBuilders.termQuery("foo", "bar"));
+        assertNull(MlDeprecationChecks.checkDataFeedQuery(goodDatafeed.build(), xContentRegistry()));
 
         DatafeedConfig.Builder deprecatedDatafeed = new DatafeedConfig.Builder("df-with-deprecated-query", "job-id");
         deprecatedDatafeed.setIndices(Collections.singletonList("some-index"));
@@ -34,7 +43,9 @@ public class MlDeprecationChecksTests extends ESTestCase {
         qs.put("query", "foo");
         qs.put("use_dis_max", true);
         Map<String, Object> query = Collections.singletonMap("query_string", qs);
-        deprecatedDatafeed.setQuery(query);
+        deprecatedDatafeed.setQueryProvider(new QueryProvider(query,
+            XContentObjectTransformer.queryBuilderTransformer(xContentRegistry()).fromMap(query),
+            null));
         
         DeprecationIssue issue = MlDeprecationChecks.checkDataFeedQuery(deprecatedDatafeed.build());
         assertNotNull(issue);

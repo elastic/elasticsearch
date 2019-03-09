@@ -125,6 +125,12 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
+    @Override
     protected Settings externalClusterClientSettings() {
         Path key;
         Path certificate;

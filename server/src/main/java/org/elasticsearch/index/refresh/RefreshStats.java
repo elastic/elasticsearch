@@ -22,6 +22,7 @@ package org.elasticsearch.index.refresh;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RefreshStats implements Streamable, ToXContentFragment {
+public class RefreshStats implements Streamable, Writeable, ToXContentFragment {
 
     private long total;
 
@@ -41,7 +42,12 @@ public class RefreshStats implements Streamable, ToXContentFragment {
     private int listeners;
 
     public RefreshStats() {
+    }
 
+    public RefreshStats(StreamInput in) throws IOException {
+        total = in.readVLong();
+        totalTimeInMillis = in.readVLong();
+        listeners = in.readVInt();
     }
 
     public RefreshStats(long total, long totalTimeInMillis, int listeners) {
@@ -103,9 +109,7 @@ public class RefreshStats implements Streamable, ToXContentFragment {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        total = in.readVLong();
-        totalTimeInMillis = in.readVLong();
-        listeners = in.readVInt();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -234,12 +234,12 @@ public class CommonStats implements Writeable, ToXContentFragment {
         get = in.readOptionalWriteable(GetStats::new);
         search = in.readOptionalWriteable(SearchStats::new);
         merge = in.readOptionalWriteable(MergeStats::new);
-        refresh = in.readOptionalStreamable(RefreshStats::new);
+        refresh = in.readOptionalWriteable(RefreshStats::new);
         flush = in.readOptionalWriteable(FlushStats::new);
         warmer = in.readOptionalWriteable(WarmerStats::new);
         queryCache = in.readOptionalWriteable(QueryCacheStats::new);
         fieldData = in.readOptionalWriteable(FieldDataStats::new);
-        completion = in.readOptionalStreamable(CompletionStats::new);
+        completion = in.readOptionalWriteable(CompletionStats::new);
         segments = in.readOptionalWriteable(SegmentsStats::new);
         translog = in.readOptionalWriteable(TranslogStats::new);
         requestCache = in.readOptionalWriteable(RequestCacheStats::new);

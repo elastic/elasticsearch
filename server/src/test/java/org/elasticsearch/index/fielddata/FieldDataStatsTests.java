@@ -36,8 +36,8 @@ public class FieldDataStatsTests extends ESTestCase {
         StreamInput input = out.bytes().streamInput();
         FieldDataStats read = new FieldDataStats(input);
         assertEquals(-1, input.read());
-        assertEquals(stats.evictions, read.evictions);
-        assertEquals(stats.memorySize, read.memorySize);
+        assertEquals(stats.getEvictions(), read.getEvictions());
+        assertEquals(stats.getMemorySize(), read.getMemorySize());
         assertEquals(stats.getFields(), read.getFields());
     }
 }

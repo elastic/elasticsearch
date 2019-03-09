@@ -71,4 +71,4 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
   - match: { hits.hits.0._source.text_field: "quick red fox lazy brown dog" }
-  - match: { hits.hits.0.highlight.a_field.0: "quick <em>red fo</em>x lazy brown dog" }
+  - match: { hits.hits.0.highlight.a_field.0: "quick <em>red</em> fox lazy brown dog" }

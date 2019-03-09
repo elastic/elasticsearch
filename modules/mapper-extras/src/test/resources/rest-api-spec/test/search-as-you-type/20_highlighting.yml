@@ -1,10 +1,7 @@
 setup:
   - skip:
-      version: " - 6.99.99"
-      reason: "search-as-you-type field type was introduced in 7.0.0"
-  #- skip: todo fix this after merging master
-  #    version: " - 7.0.99"
-  #    reason: "search-as-you-type field type was introduced in 7.1.0"
+      version: " - 7.0.99"
+      reason: "search-as-you-type field type was introduced in 7.1.0"
 
   - do:
       indices.create:
@@ -13,15 +10,14 @@ setup:
           settings:
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                a_field:
-                  type: search_as_you_type
-                  analyzer: simple
-                  max_shingle_size: 4
-                text_field:
-                  type: text
-                  analyzer: simple
+            properties:
+              a_field:
+                type: search_as_you_type
+                analyzer: simple
+                max_shingle_size: 4
+              text_field:
+                type: text
+                analyzer: simple
 
   - do:
       index:
@@ -57,7 +53,7 @@ setup:
   - match: { hits.hits.0.highlight.a_field.0: "quick <em>red</em> fox lazy brown dog" }
 
 ---
-"phrase prefix query unified with full term":
+"boolean prefix query unified with full term":
 
   - do:
       search:
@@ -65,28 +61,7 @@ setup:
         index: test
         body:
           query:
-            match_phrase_prefix:
-              a_field: "red fo"
-          highlight:
-            fields:
-              a_field:
-                type: unified
-
-  - match: { hits.total: 1 }
-  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
-  - match: { hits.hits.0._source.text_field: "quick red fox lazy brown dog" }
-  - match: { hits.hits.0.highlight.a_field.0: "quick <em>red fo</em>x lazy brown dog" }
-
----
-"prefix query unified with full term":
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          query:
-            match_phrase_prefix:
+            boolean_prefix:
               a_field: "red fo"
           highlight:
             fields:

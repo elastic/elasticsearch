@@ -27,7 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-class AggProvider implements Writeable, ToXContentObject {
+public class AggProvider implements Writeable, ToXContentObject {
 
     private static final Logger logger = LogManager.getLogger(AggProvider.class);
 
@@ -44,6 +44,9 @@ class AggProvider implements Writeable, ToXContentObject {
                 throw new Exception("aggs cannot be empty");
             }
             parsedAggs = XContentObjectTransformer.aggregatorTransformer(parser.getXContentRegistry()).fromMap(aggs);
+            if (lenient == false) {
+                aggs = XContentObjectTransformer.aggregatorTransformer(parser.getXContentRegistry()).toMap(parsedAggs);
+            }
         } catch(Exception ex) {
             if (ex.getCause() instanceof IllegalArgumentException) {
                 ex = (Exception)ex.getCause();
@@ -77,7 +80,7 @@ class AggProvider implements Writeable, ToXContentObject {
         }
     }
 
-    AggProvider(Map<String, Object> aggs, AggregatorFactories.Builder parsedAggs, Exception parsingException) {
+    public AggProvider(Map<String, Object> aggs, AggregatorFactories.Builder parsedAggs, Exception parsingException) {
         this.aggs = Collections.unmodifiableMap(new LinkedHashMap<>(Objects.requireNonNull(aggs, "[aggs] must not be null")));
         this.parsedAggs = parsedAggs;
         this.parsingException = parsingException;

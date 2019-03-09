@@ -13,6 +13,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
@@ -47,7 +48,9 @@ public class MlDeprecationChecksTests extends ESTestCase {
         qs.put("query", "foo");
         qs.put("use_dis_max", true);
         Map<String, Object> query = Collections.singletonMap("query_string", qs);
-        deprecatedDatafeed.setParsedQuery(XContentObjectTransformer.queryBuilderTransformer(xContentRegistry()).fromMap(query));
+        deprecatedDatafeed.setQueryProvider(new QueryProvider(query,
+            XContentObjectTransformer.queryBuilderTransformer(xContentRegistry()).fromMap(query),
+            null));
         
         DeprecationIssue issue = MlDeprecationChecks.checkDataFeedQuery(deprecatedDatafeed.build(), xContentRegistry());
         assertNotNull(issue);

@@ -73,18 +73,18 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
     }
 
     public static AggProvider createRandomValidAggProvider(String name, String field) {
-        Map<String, Object> agg = Collections.singletonMap(name,
-            Collections.singletonMap("avg", Collections.singletonMap("field", field)));
         try {
             SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+            Map<String, Object> agg = Collections.singletonMap(name,
+                Collections.singletonMap("avg", Collections.singletonMap("field", field)));
             AggregatorFactories.Builder aggs =
                 XContentObjectTransformer.aggregatorTransformer(new NamedXContentRegistry(searchModule.getNamedXContents()))
                     .fromMap(agg);
+            agg = XContentObjectTransformer.aggregatorTransformer(NamedXContentRegistry.EMPTY).toMap(aggs);
             return new AggProvider(agg, aggs, null);
         } catch (IOException ex) {
-            fail(ex.getMessage());
+            throw new ElasticsearchException(ex);
         }
-        return null;
     }
 
     public void testEmptyAggMap() throws IOException {

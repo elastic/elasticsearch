@@ -19,10 +19,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -76,15 +74,13 @@ public class QueryProviderTests extends AbstractSerializingTestCase<QueryProvide
     }
 
     public static QueryProvider createRandomValidQueryProvider(String field, String value) {
-        Map<String, Object> terms = Collections.singletonMap(BoolQueryBuilder.NAME,
-            Collections.singletonMap("filter",
-                Collections.singletonList(
-                    Collections.singletonMap(TermQueryBuilder.NAME,
-                        Collections.singletonMap(field, value)))));
-        return new QueryProvider(
-            terms,
-            QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(field, value)),
-            null);
+        try {
+            QueryBuilder parsedQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(field, value));
+            Map<String, Object> terms = XContentObjectTransformer.queryBuilderTransformer(NamedXContentRegistry.EMPTY).toMap(parsedQuery);
+            return new QueryProvider(terms, parsedQuery, null);
+        } catch (IOException ex) {
+            throw new ElasticsearchException(ex);
+        }
     }
 
     public void testEmptyQueryMap() throws IOException {

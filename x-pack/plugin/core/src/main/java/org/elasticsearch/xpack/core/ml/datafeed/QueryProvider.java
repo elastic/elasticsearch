@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -29,19 +28,23 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-class QueryProvider implements Writeable, ToXContentObject {
+public class QueryProvider implements Writeable, ToXContentObject {
 
-    private static final Logger logger = LogManager.getLogger(AggProvider.class);
+    private static final Logger logger = LogManager.getLogger(QueryProvider.class);
 
     private Exception parsingException;
     private QueryBuilder parsedQuery;
     private Map<String, Object> query;
 
     static QueryProvider defaultQuery() {
-        return new QueryProvider(
-            Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap()),
-            QueryBuilders.matchAllQuery(),
-            null);
+        try {
+            QueryBuilder parsedQuery = QueryBuilders.matchAllQuery();
+            Map<String, Object> query = XContentObjectTransformer.queryBuilderTransformer(NamedXContentRegistry.EMPTY).toMap(parsedQuery);
+            return new QueryProvider(query, parsedQuery, null);
+        } catch (IOException ex) {
+            logger.error("Unexpected error creating default query", ex);
+            throw new ElasticsearchException("Unexpected error creating default query", ex);
+        }
     }
 
     static QueryProvider fromXContent(XContentParser parser, boolean lenient) throws IOException {
@@ -50,6 +53,9 @@ class QueryProvider implements Writeable, ToXContentObject {
         Exception exception = null;
         try {
             parsedQuery = XContentObjectTransformer.queryBuilderTransformer(parser.getXContentRegistry()).fromMap(query);
+            if (lenient == false) {
+                query = XContentObjectTransformer.queryBuilderTransformer(parser.getXContentRegistry()).toMap(parsedQuery);
+            }
         } catch(Exception ex) {
             if (ex.getCause() instanceof IllegalArgumentException) {
                 ex = (Exception)ex.getCause();
@@ -83,7 +89,7 @@ class QueryProvider implements Writeable, ToXContentObject {
         }
     }
 
-    QueryProvider(Map<String, Object> query, QueryBuilder parsedQuery, Exception parsingException) {
+    public QueryProvider(Map<String, Object> query, QueryBuilder parsedQuery, Exception parsingException) {
         this.query = Collections.unmodifiableMap(new LinkedHashMap<>(Objects.requireNonNull(query, "[query] must not be null")));
         this.parsedQuery = parsedQuery;
         this.parsingException = parsingException;

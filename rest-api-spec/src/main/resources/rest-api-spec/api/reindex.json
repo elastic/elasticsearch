@@ -30,6 +30,11 @@
           "default": 0,
           "description": "The throttle to set on this request in sub-requests per second. -1 means no throttle."
         },
+        "scroll": {
+          "type" : "time",
+          "description" : "Control how long to keep the search context alive",
+          "default" : "5m"
+        },
         "slices": {
           "type": "number",
           "default": 1,

@@ -95,7 +95,7 @@ public class RestBulkAction extends BaseRestHandler {
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultType, defaultRouting,
-            defaultFetchSourceContext, defaultPipeline, null, allowExplicitIndex, request.getXContentType());
+            defaultFetchSourceContext, defaultPipeline, allowExplicitIndex, request.getXContentType());
 
         return channel -> client.bulk(bulkRequest, new RestStatusToXContentListener<>(channel));
     }

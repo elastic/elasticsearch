@@ -84,7 +84,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -1173,47 +1172,21 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception,
-                                      Runnable onSuccess, Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception, ActionListener<Void> listener) {
             // This does not need to fail the shard. The idea is that this
             // is a non-write operation (something like a refresh or a global
             // checkpoint sync) and therefore the replica should still be
             // "alive" if it were to fail.
-            onSuccess.run();
+            listener.onResponse(null);
         }
 
         @Override
-        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, Runnable onSuccess,
-                                                 Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, ActionListener<Void> listener) {
             // This does not need to make the shard stale. The idea is that this
             // is a non-write operation (something like a refresh or a global
             // checkpoint sync) and therefore the replica should still be
             // "alive" if it were to be marked as stale.
-            onSuccess.run();
-        }
-
-        protected final ActionListener<Void> createShardActionListener(final Runnable onSuccess,
-                                                                            final Consumer<Exception> onPrimaryDemoted,
-                                                                            final Consumer<Exception> onIgnoredFailure) {
-            return new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void aVoid) {
-                    onSuccess.run();
-                }
-
-                @Override
-                public void onFailure(Exception shardFailedError) {
-                    if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
-                        onPrimaryDemoted.accept(shardFailedError);
-                    } else {
-                        // these can occur if the node is shutting down and are okay
-                        // any other exception here is not expected and merits investigation
-                        assert shardFailedError instanceof TransportException ||
-                            shardFailedError instanceof NodeClosedException : shardFailedError;
-                        onIgnoredFailure.accept(shardFailedError);
-                    }
-                }
-            };
+            listener.onResponse(null);
         }
     }
 

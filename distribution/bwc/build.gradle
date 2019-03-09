@@ -20,7 +20,7 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionCollection
+import org.elasticsearch.gradle.BwcVersions
 
 import java.nio.charset.StandardCharsets
 
@@ -33,7 +33,7 @@ import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
  *  unreleased versions are when Gradle projects are set up, so we use "build-unreleased-version-*" as placeholders
  *  and configure them to build various versions here.
  */
-bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unreleasedVersion -> project("${unreleasedVersion.gradleProjectPath}") {
+bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleasedVersion -> project("${unreleasedVersion.gradleProjectPath}") {
     Version bwcVersion = unreleasedVersion.version
     String bwcBranch = unreleasedVersion.branch
     apply plugin: 'distribution'

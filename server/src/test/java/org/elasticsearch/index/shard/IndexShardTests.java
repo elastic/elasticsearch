@@ -3314,7 +3314,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"foo\"}");
         primary.refresh("forced refresh");
 
-        SegmentsStats ss = primary.segmentStats(randomBoolean());
+        SegmentsStats ss = primary.segmentStats(randomBoolean(), randomBoolean());
         CircuitBreaker breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(ss.getMemoryInBytes(), equalTo(breaker.getUsed()));
         final long preRefreshBytes = ss.getMemoryInBytes();
@@ -3323,13 +3323,13 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"baz\"}");
         indexDoc(primary, "_doc", "3", "{\"foo\" : \"eggplant\"}");
 
-        ss = primary.segmentStats(randomBoolean());
+        ss = primary.segmentStats(randomBoolean(), randomBoolean());
         breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(preRefreshBytes, equalTo(breaker.getUsed()));
 
         primary.refresh("refresh");
 
-        ss = primary.segmentStats(randomBoolean());
+        ss = primary.segmentStats(randomBoolean(), randomBoolean());
         breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(breaker.getUsed(), equalTo(ss.getMemoryInBytes()));
         assertThat(breaker.getUsed(), greaterThan(preRefreshBytes));
@@ -3339,7 +3339,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Forces a refresh with the INTERNAL scope
         ((InternalEngine) primary.getEngine()).writeIndexingBuffer();
 
-        ss = primary.segmentStats(randomBoolean());
+        ss = primary.segmentStats(randomBoolean(), randomBoolean());
         breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(breaker.getUsed(), equalTo(ss.getMemoryInBytes()));
         assertThat(breaker.getUsed(), greaterThan(preRefreshBytes));
@@ -3356,7 +3356,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         primary.refresh("force refresh");
 
-        ss = primary.segmentStats(randomBoolean());
+        ss = primary.segmentStats(randomBoolean(), randomBoolean());
         breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(breaker.getUsed(), lessThan(postRefreshBytes));
 
@@ -3447,7 +3447,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IOUtils.close(searchers);
         primary.refresh("test");
 
-        SegmentsStats ss = primary.segmentStats(randomBoolean());
+        SegmentsStats ss = primary.segmentStats(randomBoolean(), randomBoolean());
         CircuitBreaker breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         long segmentMem = ss.getMemoryInBytes();
         long breakerMem = breaker.getUsed();

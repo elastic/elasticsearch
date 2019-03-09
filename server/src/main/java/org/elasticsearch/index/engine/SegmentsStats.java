@@ -394,4 +394,8 @@ public class SegmentsStats implements Streamable, Writeable, ToXContentFragment 
             out.writeLong(entry.value.longValue());
         }
     }
+
+    public void clearFileSizes() {
+        fileSizes = ImmutableOpenMap.of();
+    }
 }

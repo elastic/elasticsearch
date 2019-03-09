@@ -21,8 +21,10 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction.Request;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction.Response;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Request;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.dataframe.persistence.DataFramePersistentTaskUtils;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 

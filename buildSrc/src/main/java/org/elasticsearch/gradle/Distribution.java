@@ -20,23 +20,59 @@ package org.elasticsearch.gradle;
 
 public enum Distribution {
 
-    INTEG_TEST("integ-test", "zip"),
-    ZIP("elasticsearch", "zip"),
-    ZIP_OSS("elasticsearch-oss", "zip");
+    INTEG_TEST("elasticsearch", "integ-test-zip"),
+    DEFAULT("elasticsearch", "elasticsearch"),
+    OSS("elasticsearch-oss", "elasticsearch-oss");
 
-    private final String fileName;
-    private final String fileExtension;
+    private final String artifactName;
+    private final String group;
 
-    Distribution(String name, String fileExtension) {
-        this.fileName = name;
-        this.fileExtension = fileExtension;
+    Distribution(String name, String group) {
+        this.artifactName = name;
+        this.group = group;
     }
 
-    public String getFileName() {
-        return fileName;
+    public String getArtifactName() {
+        return artifactName;
+    }
+
+    public String getGroup() {
+        return "org.elasticsearch.distribution." + group;
     }
 
     public String getFileExtension() {
-        return fileExtension;
+        if (this.equals(INTEG_TEST)) {
+            return "zip";
+        } else {
+            return OS.conditionalString()
+                .onUnix(() -> "tar.gz")
+                .onWindows(() -> "zip")
+                .supply();
+        }
     }
+
+    public String getClassifier() {
+        if (this.equals(INTEG_TEST)) {
+            return "";
+        } else {
+            return OS.<String>conditional()
+                .onLinux(() -> "linux-x86_64")
+                .onWindows(() -> "windows-x86_64")
+                .onMac(() -> "darwin-x86_64")
+                .supply();
+        }
+    }
+
+    public String getLiveConfiguration() {
+        if (this.equals(INTEG_TEST)) {
+            return "integ-test-zip";
+        } else {
+            return (this.equals(OSS) ? "oss-" : "") + OS.<String>conditional()
+                .onLinux(() -> "linux-tar")
+                .onWindows(() -> "windows-zip")
+                .onMac(() -> "darwin-tar")
+                .supply();
+        }
+    }
+
 }

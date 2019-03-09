@@ -192,7 +192,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final IndexingMemoryController indexingMemoryController;
     private final TimeValue cleanInterval;
-    private final IndicesRequestCache indicesRequestCache;
+    final IndicesRequestCache indicesRequestCache; // pkg-private for testing
     private final IndicesQueryCache indicesQueryCache;
     private final MetaStateService metaStateService;
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
@@ -481,9 +481,9 @@ public class IndicesService extends AbstractLifecycleComponent
             @Override
             public void onStoreClosed(ShardId shardId) {
                 try {
-                    indicesRefCount.decRef();
-                } finally {
                     indicesQueryCache.onClose(shardId);
+                } finally {
+                    indicesRefCount.decRef();
                 }
             }
         };

@@ -38,24 +38,27 @@ public class DependencyLicensesTasksIT extends GradleIntegrationTestCase {
     public void testNoDependenciesWithFolder() {
         GradleRunner runner = getRunner("no_dependencies_with_folder");
 
-        assertTaskFailed(runner.build(), ":no_dependencies_and_no_folder:dependencyLicenses");
+        assertTaskFailed(runner.buildAndFail(), ":no_dependencies_and_no_folder:dependencyLicenses");
     }
 
     public void testDependenciesMissing() {
         GradleRunner runner = getRunner("dependencies_missing");
 
-        assertTaskFailed(runner.build(), ":dependencies_missing:dependencyLicenses");
+        assertTaskFailed(runner.buildAndFail(), ":dependencies_missing:dependencyLicenses");
     }
 
     public void testTooManyDependencies() {
         GradleRunner runner = getRunner("no_dependencies_with_folder");
 
-        assertTaskFailed(runner.build(), ":dependencies_too_much:dependencyLicenses");
+        assertTaskFailed(runner.buildAndFail(), ":dependencies_too_much:dependencyLicenses");
     }
 
     private GradleRunner getRunner(String subProject) {
+        String task = ":" + subProject + ":dependencyLicenses";
+
         return getGradleRunner("licenses")
-            .withArguments("clean", ":" + subProject + ":dependencyLicenses", "-i", "-s");
+            .withArguments("clean", task, "-Dlocal.repo.path=" + getLocalTestRepoPath())
+            .withPluginClasspath();
     }
 
 }

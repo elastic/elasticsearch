@@ -4,7 +4,16 @@ subprojects {
 
     repositories {
         jcenter()
+        repositories {
+            maven {
+                url System.getProperty("local.repo.path")
+            }
+        }
     }
 
     unitTest.enabled = false
+    dependenciesInfo.enabled = false
+    forbiddenApisMain.enabled = false
+    forbiddenApisTest.enabled = false
+    thirdPartyAudit.enabled = false
 }

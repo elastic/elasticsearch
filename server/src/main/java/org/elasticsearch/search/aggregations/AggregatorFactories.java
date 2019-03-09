@@ -123,8 +123,12 @@ public class AggregatorFactories {
                             aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName,
                                     new AggParseContext(aggregationName));
                         } catch (UnknownNamedObjectException ex) {
-                            throw new ParsingException(new XContentLocation(ex.getLineNumber(), ex.getColumnNumber()),
-                                "Unknown Aggregation [" + fieldName + "]");
+                            if (ex.getCategoryClass().equals(BaseAggregationBuilder.class.getName())) {
+                                throw new ParsingException(new XContentLocation(ex.getLineNumber(), ex.getColumnNumber()),
+                                    "Unknown Aggregation [" + fieldName + "]", ex);
+                            } else {
+                                throw ex;
+                            }
                         }
                     }
                 } else {
@@ -167,8 +171,7 @@ public class AggregatorFactories {
         }
     }
 
-    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory<?>[0],
-            new ArrayList<PipelineAggregationBuilder>());
+    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory<?>[0], new ArrayList<>());
 
     private AggregatorFactory<?>[] factories;
     private List<PipelineAggregationBuilder> pipelineAggregatorFactories;

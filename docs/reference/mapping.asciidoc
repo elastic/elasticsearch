@@ -36,6 +36,9 @@ treated. Examples of meta-fields include the document's
 A mapping type contains a list of fields or `properties` pertinent to the
 document.
 
+`index.mapping.field.name.length.limit`::
+    Setting for the maximum length of a field name. The default value is Long.MAX_VALUE (no limit)
+
 
 [float]
 == Field datatypes

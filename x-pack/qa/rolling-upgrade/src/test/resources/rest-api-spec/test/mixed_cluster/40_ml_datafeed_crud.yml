@@ -1,5 +1,8 @@
 ---
 "Test old cluster datafeed":
+  - skip:
+      reason: "Skip past versions until #39776 backported"
+      version: "all"
   - do:
       ml.get_datafeeds:
         datafeed_id: old-cluster-datafeed
@@ -15,7 +18,9 @@
 
 ---
 "Put job and datafeed in mixed cluster":
-
+  - skip:
+      reason: "Skip past versions until #39776 backported"
+      version: "all"
   - do:
       ml.put_job:
         job_id: mixed-cluster-datafeed-job

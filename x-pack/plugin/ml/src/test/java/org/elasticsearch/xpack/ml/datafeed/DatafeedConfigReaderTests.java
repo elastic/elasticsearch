@@ -9,6 +9,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -32,6 +35,12 @@ import static org.mockito.Mockito.mock;
 public class DatafeedConfigReaderTests extends ESTestCase {
 
     private final String JOB_ID_FOO = "foo";
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
 
     @SuppressWarnings("unchecked")
     private void mockProviderWithExpectedIds(DatafeedConfigProvider mockedProvider, String expression, SortedSet<String> datafeedIds) {
@@ -112,9 +121,9 @@ public class DatafeedConfigReaderTests extends ESTestCase {
     public void testExpandDatafeedConfigs_SplitBetweenClusterStateAndIndex() {
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         mlMetadata.putJob(buildJobBuilder("job-a").build(), false);
-        mlMetadata.putDatafeed(createDatafeedConfig("cs-df", "job-a"), Collections.emptyMap());
+        mlMetadata.putDatafeed(createDatafeedConfig("cs-df", "job-a"), Collections.emptyMap(), xContentRegistry());
         mlMetadata.putJob(buildJobBuilder("job-b").build(), false);
-        mlMetadata.putDatafeed(createDatafeedConfig("ll-df", "job-b"), Collections.emptyMap());
+        mlMetadata.putDatafeed(createDatafeedConfig("ll-df", "job-b"), Collections.emptyMap(), xContentRegistry());
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("datafeedconfigreadertests"))
                 .metaData(MetaData.builder()
@@ -144,7 +153,7 @@ public class DatafeedConfigReaderTests extends ESTestCase {
         // TODO
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         mlMetadata.putJob(buildJobBuilder("datafeed-in-clusterstate").build(), false);
-        mlMetadata.putDatafeed(createDatafeedConfig("df1", "datafeed-in-clusterstate"), Collections.emptyMap());
+        mlMetadata.putDatafeed(createDatafeedConfig("df1", "datafeed-in-clusterstate"), Collections.emptyMap(), xContentRegistry());
         ClusterState clusterState = ClusterState.builder(new ClusterName("datafeedconfigreadertests"))
                 .metaData(MetaData.builder()
                         .putCustom(MlMetadata.TYPE, mlMetadata.build()))
@@ -168,7 +177,7 @@ public class DatafeedConfigReaderTests extends ESTestCase {
     private ClusterState buildClusterStateWithJob(DatafeedConfig datafeed) {
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         mlMetadata.putJob(buildJobBuilder(JOB_ID_FOO).build(), false);
-        mlMetadata.putDatafeed(datafeed, Collections.emptyMap());
+        mlMetadata.putDatafeed(datafeed, Collections.emptyMap(), xContentRegistry());
 
         return ClusterState.builder(new ClusterName("datafeedconfigreadertests"))
                 .metaData(MetaData.builder()

@@ -15,10 +15,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,6 +66,12 @@ public class TransportCloseJobActionTests extends ESTestCase {
     private ClusterService clusterService;
     private JobManager jobManager;
     private DatafeedConfigProvider datafeedConfigProvider;
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
 
     @Before
     private void setupMocks() {
@@ -147,7 +155,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         dfBuilder.setIndices(Collections.singletonList("beats*"));
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder()
                 .putJob(BaseMlIntegTestCase.createFareQuoteJob(jobId).build(new Date()), false)
-                .putDatafeed(dfBuilder.build(), Collections.emptyMap());
+                .putDatafeed(dfBuilder.build(), Collections.emptyMap(), xContentRegistry());
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<TransportCloseJobAction.OpenAndClosingIds> responseHolder = new AtomicReference<>();

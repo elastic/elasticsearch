@@ -147,7 +147,6 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         datafeedBuilder.setIndices(Collections.singletonList("i_1"));
         datafeedBuilder.setTypes(Collections.singletonList("t_1"));
         DatafeedConfig datafeed = datafeedBuilder.build();
-
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
         update.setJobId("bar");
         update.setIndices(Collections.singletonList("i_2"));
@@ -202,7 +201,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig(JobTests.randomValidJobId());
             if (datafeed.getAggregations() != null) {
                 DatafeedConfig.Builder withoutAggs = new DatafeedConfig.Builder(datafeed);
-                withoutAggs.setAggregations(null);
+                withoutAggs.setAggProvider(null);
                 datafeed = withoutAggs.build();
             }
             DatafeedUpdate update = createRandomized(datafeed.getId(), datafeed);

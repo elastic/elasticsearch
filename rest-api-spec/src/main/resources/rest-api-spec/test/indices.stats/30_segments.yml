@@ -14,6 +14,11 @@ setup:
 
 ---
 "Segment Stats":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: forbid_closed_indices is not supported in ealier version
+
   - do:
       indices.stats:
         metric: [ segments ]

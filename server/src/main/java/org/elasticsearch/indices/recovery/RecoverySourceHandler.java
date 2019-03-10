@@ -798,16 +798,18 @@ public class RecoverySourceHandler {
                 if (bytesRead == -1) {
                     throw new EOFException("position [" + position + "] md [" + md + "]");
                 }
-                final boolean lastChunk = position + bytesRead == md.length();
-                if (lastChunk) {
-                    synchronized (this) {
+                final boolean lastChunk;
+                final long chunkPosition;
+                synchronized (this) {
+                    chunkPosition = this.position;
+                    this.position += bytesRead;
+                    lastChunk = this.position == md.length();
+                    if (lastChunk) {
                         IOUtils.close(currentInput, () -> currentInput = null);
                     }
                 }
                 final long seqId = requestSeqIdTracker.generateSeqNo();
-                final FileChunk chunk = new FileChunk(seqId, md, new BytesArray(buffer, 0, bytesRead), position, lastChunk);
-                position += bytesRead;
-                return chunk;
+                return new FileChunk(seqId, md, new BytesArray(buffer, 0, bytesRead), chunkPosition, lastChunk);
             } catch (Exception e) {
                 throw handleErrorOnSendFiles(md, e);
             }

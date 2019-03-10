@@ -17,9 +17,6 @@ setup:
 
 ---
 "Test old and mixed cluster datafeeds":
-  - skip:
-      reason: "Skip past versions until #39776 backported"
-      version: "all"
   - do:
       ml.get_datafeeds:
         datafeed_id: old-cluster-datafeed

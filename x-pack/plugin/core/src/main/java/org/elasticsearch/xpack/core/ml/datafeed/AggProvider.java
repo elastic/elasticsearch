@@ -68,7 +68,7 @@ class AggProvider implements Writeable, ToXContentObject {
     }
 
     static AggProvider fromStream(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.CURRENT)) { // Has our bug fix for query/agg providers
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) { // Has our bug fix for query/agg providers
             return new AggProvider(in.readMap(), in.readOptionalWriteable(AggregatorFactories.Builder::new), in.readException());
         } else if (in.getVersion().onOrAfter(Version.V_6_6_0)) { // Has the bug, but supports lazy objects
             return new AggProvider(in.readMap(), null, null);
@@ -91,7 +91,7 @@ class AggProvider implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.CURRENT)) { // Has our bug fix for query/agg providers
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) { // Has our bug fix for query/agg providers
             out.writeMap(aggs);
             out.writeOptionalWriteable(parsedAggs);
             out.writeException(parsingException);

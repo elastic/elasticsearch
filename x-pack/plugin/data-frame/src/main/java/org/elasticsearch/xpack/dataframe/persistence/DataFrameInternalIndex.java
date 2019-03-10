@@ -38,9 +38,6 @@ public final class DataFrameInternalIndex {
     public static final String DOUBLE = "double";
     public static final String KEYWORD = "keyword";
 
-    // internal document types, e.g. "transform_config"
-    public static final String DOC_TYPE = "doc_type";
-
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
         IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(INDEX_TEMPLATE_NAME)
                 .patterns(Collections.singletonList(INDEX_TEMPLATE_NAME))
@@ -68,7 +65,7 @@ public final class DataFrameInternalIndex {
         // the schema definitions
         builder.startObject(PROPERTIES);
         // overall doc type
-        builder.startObject(DOC_TYPE).field(TYPE, KEYWORD).endObject();
+        builder.startObject(DataFrameField.INDEX_DOC_TYPE.getPreferredName()).field(TYPE, KEYWORD).endObject();
         // add the schema for transform configurations
         addDataFrameTransformsConfigMappings(builder);
 

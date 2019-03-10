@@ -352,7 +352,7 @@ public class BulkRequestTests extends ESTestCase {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk11.json");
         IllegalArgumentException expectThrows = expectThrows(IllegalArgumentException.class, () -> new BulkRequest()
                 .add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON));
-        assertEquals("The bulk request must be terminated by a newline [\n]", expectThrows.getMessage());
+        assertEquals("The bulk request must be terminated by a newline [\\n]", expectThrows.getMessage());
 
         String bulkActionWithNewLine = bulkAction + "\n";
         BulkRequest bulkRequestWithNewLine = new BulkRequest();

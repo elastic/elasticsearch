@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -134,10 +133,8 @@ public class SnapshotStats implements Streamable, ToXContentObject {
         out.writeVLong(incrementalSize);
         out.writeVLong(processedSize);
 
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeVInt(totalFileCount);
-            out.writeVLong(totalSize);
-        }
+        out.writeVInt(totalFileCount);
+        out.writeVLong(totalSize);
     }
 
     @Override
@@ -151,13 +148,8 @@ public class SnapshotStats implements Streamable, ToXContentObject {
         incrementalSize = in.readVLong();
         processedSize = in.readVLong();
 
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            totalFileCount = in.readVInt();
-            totalSize = in.readVLong();
-        } else {
-            totalFileCount = incrementalFileCount;
-            totalSize = incrementalSize;
-        }
+        totalFileCount = in.readVInt();
+        totalSize = in.readVLong();
     }
 
     static final class Fields {

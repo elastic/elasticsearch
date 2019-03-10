@@ -251,11 +251,6 @@ public class TcpTransportTests extends ESTestCase {
         }
 
         @Override
-        public String getProfile() {
-            return null;
-        }
-
-        @Override
         public void addCloseListener(ActionListener<Void> listener) {
         }
 

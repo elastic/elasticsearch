@@ -25,10 +25,6 @@ import java.io.IOException;
 
 public class NotSerializableTransportException extends TransportException {
 
-    public NotSerializableTransportException(Throwable t) {
-        super(buildMessage(t));
-    }
-
     public NotSerializableTransportException(StreamInput in) throws IOException {
         super(in);
     }
@@ -38,13 +34,4 @@ public class NotSerializableTransportException extends TransportException {
         return null;
     }
 
-    private static String buildMessage(Throwable t) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("[").append(t.getClass().getName()).append("] ");
-        while (t != null) {
-            sb.append(t.getMessage()).append("; ");
-            t = t.getCause();
-        }
-        return sb.toString();
-    }
 }

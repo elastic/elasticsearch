@@ -177,11 +177,11 @@ problem can be remedied before the follower falls fatally behind.
 
 If a follower falls sufficiently behind a leader that it can no longer replicate
 operations this can be detected using the
-{ref}/ccr-get-follow-stats.html[get follow stats api]. It will be reported as a
+{ref}/ccr-get-follow-stats.html[get follow stats API]. It will be reported as a
 `indices[].fatal_exception`.
 
 In order to restart the follower, the following process must be paused, the follower
-index closed, and the create follower api called again.
+index closed, and the create follower API called again.
 
 ["source","js"]
 ----------------------------------------------------------------------

@@ -6,20 +6,29 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_SETTING;
+import static org.elasticsearch.search.SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING;
 
 public class ClusterDeprecationChecks {
+    private static final Logger logger = LogManager.getLogger(ClusterDeprecationChecks.class);
 
     static DeprecationIssue checkShardLimit(ClusterState state) {
         int shardsPerNode = MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(state.metaData().settings());
@@ -91,5 +100,42 @@ public class ClusterDeprecationChecks {
         }
         return null;
 
+    }
+
+    static DeprecationIssue checkTemplatesWithTooManyFields(ClusterState state) {
+        Integer maxClauseCount = INDICES_MAX_CLAUSE_COUNT_SETTING.get(state.getMetaData().settings());
+        List<String> templatesOverLimit = new ArrayList<>();
+        state.getMetaData().getTemplates().forEach((templateCursor) -> {
+            AtomicInteger maxFields = new AtomicInteger(0);
+            String templateName = templateCursor.key;
+            boolean defaultFieldSet = templateCursor.value.getSettings().get(IndexSettings.DEFAULT_FIELD_SETTING_KEY) != null;
+            templateCursor.value.getMappings().forEach((mappingCursor) -> {
+                String mappingTypeName = mappingCursor.key;
+                MappingMetaData mappingMetaData = null;
+                try {
+                    mappingMetaData = new MappingMetaData(mappingCursor.value);
+                } catch (IOException e) {
+                    logger.error("failed to parse mapping for type {}: {}", mappingTypeName, e);
+                }
+                if (mappingMetaData != null && defaultFieldSet == false) {
+                    maxFields.set(IndexDeprecationChecks.countFieldsRecursively(mappingMetaData.type(), mappingMetaData.sourceAsMap()));
+                }
+                if (maxFields.get() > maxClauseCount) {
+                    templatesOverLimit.add(templateName);
+                }
+            });
+        });
+
+        if (templatesOverLimit.isEmpty() == false) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Fields in index template exceed automatic field expansion limit",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
+                    "#_limiting_the_number_of_auto_expanded_fields",
+                "Index templates " + templatesOverLimit + " have a number of fields which exceeds the automatic field expansion " +
+                    "limit of [" + maxClauseCount + "] and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING_KEY + "] set, which " +
+                    "may cause queries which use automatic field expansion, such as query_string, simple_query_string, and multi_match " +
+                    "to fail if fields are not explicitly specified in the query.");
+        }
+        return null;
     }
 }

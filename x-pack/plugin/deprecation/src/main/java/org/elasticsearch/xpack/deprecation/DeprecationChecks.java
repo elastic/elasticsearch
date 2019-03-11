@@ -37,7 +37,8 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkShardLimit,
             ClusterDeprecationChecks::checkNoMasterBlock,
-            ClusterDeprecationChecks::checkClusterName
+            ClusterDeprecationChecks::checkClusterName,
+            ClusterDeprecationChecks::checkTemplatesWithTooManyFields
         ));
 
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS =
@@ -71,7 +72,8 @@ public class DeprecationChecks {
 			IndexDeprecationChecks::nodeLeftDelayedTimeCheck,
             IndexDeprecationChecks::shardOnStartupCheck,
             IndexDeprecationChecks::classicSimilarityMappingCheck,
-            IndexDeprecationChecks::classicSimilaritySettingsCheck
+            IndexDeprecationChecks::classicSimilaritySettingsCheck,
+            IndexDeprecationChecks::tooManyFieldsCheck
         ));
 
     static List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> ML_SETTINGS_CHECKS =

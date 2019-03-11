@@ -39,7 +39,9 @@ Features/Watcher::
 * Only flush Watcher's bulk processor if Watcher is enabled {pull}38803[#38803] (issue: {issue}38798[#38798])
 
 Machine Learning::
-* [ML] Stop the ML memory tracker before closing node {pull}39111[#39111] (issue: {issue}37117[#37117])
+* Stop the ML memory tracker before closing nodes {pull}39111[#39111] (issue: {issue}37117[#37117])
+* Fix an issue where interim results would be calculated after advancing time
+into an empty bucket {ml-pull}416[#416]
 
 SQL::
 * SQL: Fix merging of incompatible multi-fields {pull}39560[#39560] (issue: {issue}39547[#39547])

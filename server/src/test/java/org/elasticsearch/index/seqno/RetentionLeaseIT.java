@@ -338,9 +338,8 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         primaryTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.startsWith(RetentionLeaseBackgroundSyncAction.ACTION_NAME)) {
                 backgroundSyncRequestSent.set(true);
-            } else {
-                connection.sendRequest(requestId, action, request, options);
             }
+            connection.sendRequest(requestId, action, request, options);
         });
         final long start = System.nanoTime();
         ensureGreen("index");

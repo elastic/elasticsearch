@@ -89,7 +89,7 @@ pages independently of the query.
 There are two main queries that allow combining static score contributions with
 textual relevance, eg. as computed with BM25:
  - <<query-dsl-script-score-query,script_score query>>
- - <<query-dsl-feature-query,feature query>>
+ - <<query-dsl-rank-feature-query,rank_feature query>>
 
 For instance imagine that you have a `pagerank` field that you wish to
 combine with the BM25 score so that the final score is equal to
@@ -156,7 +156,7 @@ PUT index
                 "type": "text"
             },
             "pagerank": {
-                "type": "feature"
+                "type": "rank_feature"
             }
         }
     }
@@ -177,7 +177,7 @@ GET _search
                 "match": { "body": "elasticsearch" }
             },
             "should": {
-                "feature": {
+                "rank_feature": {
                     "field": "pagerank", <1>
                     "saturation": {
                         "pivot": 10
@@ -194,8 +194,9 @@ GET _search
 While both options would return similar scores, there are trade-offs:
 <<query-dsl-script-score-query,script_score>> provides a lot of flexibility,
 enabling you to combine the text relevance score with static signals as you
-prefer. On the other hand, the <<feature,`feature` query>> only exposes a couple
-ways to incorporate static signails into the score. However, it relies on the
-<<feature,`feature`>> and <<feature-vector,`feature_vector`>> fields, which
-index values in a special way that allows the <<feature,`feature` query>> to
-skip over non-competitive documents and get the top matches of a query faster.
+prefer. On the other hand, the <<rank-feature,`rank_feature` query>> only
+exposes a couple ways to incorporate static signails into the score. However,
+it relies on the <<rank-feature,`rank_feature`>> and
+<<rank-features,`rank_features`>> fields, which index values in a special way
+that allows the <<feature,`feature` query>> to skip over non-competitive
+documents and get the top matches of a query faster.

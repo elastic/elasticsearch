@@ -22,6 +22,8 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestValidator;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -103,6 +105,22 @@ public interface ActionPlugin {
 
     /**
      * Returns a function used to wrap each rest request before handling the request.
+     * The returned {@link UnaryOperator} is called for every incoming rest request and receives
+     * the original rest handler as it's input. This allows adding arbitrary functionality around
+     * rest request handlers to do for instance logging or authentication.
+     * A simple example of how to only allow GET request is here:
+     * <pre>
+     * {@code
+     *    UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+     *      return originalHandler -> (RestHandler) (request, channel, client) -> {
+     *        if (request.method() != Method.GET) {
+     *          throw new IllegalStateException("only GET requests are allowed");
+     *        }
+     *        originalHandler.handleRequest(request, channel, client);
+     *      };
+     *    }
+     * }
+     * </pre>
      *
      * Note: Only one installed plugin may implement a rest wrapper.
      */
@@ -162,5 +180,13 @@ public interface ActionPlugin {
         public int hashCode() {
             return Objects.hash(action, transportAction, supportTransportActions);
         }
+    }
+
+    /**
+     * Returns a collection of validators that are used by {@link TransportPutMappingAction.RequestValidators} to
+     * validate a {@link org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest} before the executing it.
+     */
+    default Collection<MappingRequestValidator> mappingRequestValidators() {
+        return Collections.emptyList();
     }
 }

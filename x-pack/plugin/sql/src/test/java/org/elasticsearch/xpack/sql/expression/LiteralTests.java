@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
-import org.elasticsearch.xpack.sql.tree.LocationTests;
+import org.elasticsearch.xpack.sql.tree.SourceTests;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
@@ -51,7 +51,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
     public static Literal randomLiteral() {
         ValueAndCompatibleTypes gen = randomFrom(GENERATORS);
-        return new Literal(LocationTests.randomLocation(), gen.valueSupplier.get(), randomFrom(gen.validDataTypes));
+        return new Literal(SourceTests.randomSource(), gen.valueSupplier.get(), randomFrom(gen.validDataTypes));
     }
 
     @Override
@@ -61,7 +61,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
     @Override
     protected Literal copy(Literal instance) {
-        return new Literal(instance.location(), instance.value(), instance.dataType());
+        return new Literal(instance.source(), instance.name(), instance.value(), instance.dataType());
     }
 
     @Override
@@ -69,11 +69,11 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
         List<Function<Literal, Literal>> mutators = new ArrayList<>();
         // Changing the location doesn't count as mutation because..... it just doesn't, ok?!
         // Change the value to another valid value
-        mutators.add(l -> new Literal(l.location(), randomValueOfTypeOtherThan(l.value(), l.dataType()), l.dataType()));
+        mutators.add(l -> new Literal(l.source(), randomValueOfTypeOtherThan(l.value(), l.dataType()), l.dataType()));
         // If we can change the data type then add that as an option as well
         List<DataType> validDataTypes = validReplacementDataTypes(instance.value(), instance.dataType());
         if (validDataTypes.size() > 1) {
-            mutators.add(l -> new Literal(l.location(), l.value(), randomValueOtherThan(l.dataType(), () -> randomFrom(validDataTypes))));
+            mutators.add(l -> new Literal(l.source(), l.value(), randomValueOtherThan(l.dataType(), () -> randomFrom(validDataTypes))));
         }
         return randomFrom(mutators).apply(instance);
     }
@@ -84,14 +84,14 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
         // Replace value
         Object newValue = randomValueOfTypeOtherThan(literal.value(), literal.dataType());
-        assertEquals(new Literal(literal.location(), newValue, literal.dataType()),
+        assertEquals(new Literal(literal.source(), newValue, literal.dataType()),
                 literal.transformPropertiesOnly(p -> p == literal.value() ? newValue : p, Object.class));
 
         // Replace data type if there are more compatible data types
         List<DataType> validDataTypes = validReplacementDataTypes(literal.value(), literal.dataType());
         if (validDataTypes.size() > 1) {
             DataType newDataType = randomValueOtherThan(literal.dataType(), () -> randomFrom(validDataTypes));
-            assertEquals(new Literal(literal.location(), literal.value(), newDataType),
+            assertEquals(new Literal(literal.source(), literal.value(), newDataType),
                 literal.transformPropertiesOnly(p -> newDataType, DataType.class));
         }
     }

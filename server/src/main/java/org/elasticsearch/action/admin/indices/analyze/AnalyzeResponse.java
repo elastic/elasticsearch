@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -191,15 +190,10 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             startOffset = in.readInt();
             endOffset = in.readInt();
             position = in.readVInt();
-            if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
-                Integer len = in.readOptionalVInt();
-                if (len != null) {
-                    positionLength = len;
-                } else {
-                    positionLength = 1;
-                }
-            }
-            else {
+            Integer len = in.readOptionalVInt();
+            if (len != null) {
+                positionLength = len;
+            } else {
                 positionLength = 1;
             }
             type = in.readOptionalString();
@@ -212,9 +206,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             out.writeInt(startOffset);
             out.writeInt(endOffset);
             out.writeVInt(position);
-            if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
-                out.writeOptionalVInt(positionLength > 1 ? positionLength : null);
-            }
+            out.writeOptionalVInt(positionLength > 1 ? positionLength : null);
             out.writeOptionalString(type);
             out.writeMapWithConsistentOrder(attributes);
         }

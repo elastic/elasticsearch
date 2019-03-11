@@ -2,7 +2,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'shadow')
+  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
   testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
 }
 
@@ -18,5 +18,6 @@ integTestCluster {
 }
 
 if (!pagerDutyServiceKey) {
-    integTest.enabled = false
+  integTest.enabled = false
+  testingConventions.enabled = false
 }

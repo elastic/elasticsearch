@@ -22,7 +22,7 @@ parser grammar PainlessParser;
 options { tokenVocab=PainlessLexer; }
 
 source
-    : function* statement* dstatement? EOF
+    : function* statement* EOF
     ;
 
 function
@@ -35,7 +35,7 @@ parameters
 
 statement
     : rstatement
-    | dstatement SEMICOLON
+    | dstatement ( SEMICOLON | EOF )
     ;
 
 // Note we use a predicate on the if/else case here to prevent the
@@ -55,7 +55,7 @@ dstatement
     | declaration                     # decl
     | CONTINUE                        # continue
     | BREAK                           # break
-    | RETURN expression               # return
+    | RETURN expression?              # return
     | THROW expression                # throw
     | expression                      # expr
     ;

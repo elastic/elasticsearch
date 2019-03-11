@@ -28,11 +28,11 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,7 +72,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
             scripts.put("1", vars -> 1.0d);
-            scripts.put("get score value", vars -> ((ScoreAccessor) vars.get("_score")).doubleValue());
+            scripts.put("get score value", vars -> ((Number) vars.get("_score")).doubleValue());
             scripts.put("return (doc['num'].value)", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Longs num = (ScriptDocValues.Longs) doc.get("num");
@@ -132,8 +132,8 @@ public class FunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testMinScoreFunctionScoreBasic() throws IOException {
-        float score = randomFloat();
-        float minScore = randomFloat();
+        float score = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, ESTestCase::randomFloat);
+        float minScore = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, ESTestCase::randomFloat);
         index(INDEX, TYPE, jsonBuilder().startObject()
             .field("num", 2)
             .field("random_score", score) // Pass the random score as a document field so that it can be extracted in the script
@@ -146,9 +146,9 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 searchRequest().source(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)))
         ).actionGet();
         if (score < minScore) {
-            assertThat(searchResponse.getHits().getTotalHits(), is(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value, is(0L));
         } else {
-            assertThat(searchResponse.getHits().getTotalHits(), is(1L));
+            assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
         }
 
         searchResponse = client().search(
@@ -158,17 +158,17 @@ public class FunctionScoreIT extends ESIntegTestCase {
                         }).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)))
                 ).actionGet();
         if (score < minScore) {
-            assertThat(searchResponse.getHits().getTotalHits(), is(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value, is(0L));
         } else {
-            assertThat(searchResponse.getHits().getTotalHits(), is(1L));
+            assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
         }
     }
 
     public void testMinScoreFunctionScoreManyDocsAndRandomMinScore() throws IOException, ExecutionException, InterruptedException {
         List<IndexRequestBuilder> docs = new ArrayList<>();
         int numDocs = randomIntBetween(1, 100);
-        int scoreOffset = randomIntBetween(-2 * numDocs, 2 * numDocs);
-        int minScore = randomIntBetween(-2 * numDocs, 2 * numDocs);
+        int scoreOffset = randomIntBetween(0, 2 * numDocs);
+        int minScore = randomIntBetween(0, 2 * numDocs);
         for (int i = 0; i < numDocs; i++) {
             docs.add(client().prepareIndex(INDEX, TYPE, Integer.toString(i)).setSource("num", i + scoreOffset));
         }
@@ -197,9 +197,9 @@ public class FunctionScoreIT extends ESIntegTestCase {
 
     protected void assertMinScoreSearchResponses(int numDocs, SearchResponse searchResponse, int numMatchingDocs) {
         assertSearchResponse(searchResponse);
-        assertThat((int) searchResponse.getHits().getTotalHits(), is(numMatchingDocs));
+        assertThat((int) searchResponse.getHits().getTotalHits().value, is(numMatchingDocs));
         int pos = 0;
-        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().getTotalHits(); hitId--) {
+        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().getTotalHits().value; hitId--) {
             assertThat(searchResponse.getHits().getAt(pos).getId(), equalTo(Integer.toString(hitId)));
             pos++;
         }
@@ -216,7 +216,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                     searchSource().explain(true).query(
                             termQuery("text", "text")))).get();
         assertSearchResponse(termQuery);
-        assertThat(termQuery.getHits().getTotalHits(), equalTo(1L));
+        assertThat(termQuery.getHits().getTotalHits().value, equalTo(1L));
         float termQueryScore = termQuery.getHits().getAt(0).getScore();
 
         for (CombineFunction combineFunction : CombineFunction.values()) {
@@ -230,7 +230,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(0.1f)))).get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
 
         response = client().search(
@@ -239,7 +239,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                                 functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(2f)))).get();
 
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits(), equalTo(0L));
+        assertThat(response.getHits().getTotalHits().value, equalTo(0L));
     }
 }
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.MinDocQuery;
@@ -27,7 +29,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.EarlyTerminatingSortingCollector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -35,11 +36,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.util.Counter;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
@@ -58,6 +58,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.LinkedList;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.search.query.QueryCollectorContext.createCancellableCollectorContext;
@@ -73,15 +74,16 @@ import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDo
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
  */
 public class QueryPhase implements SearchPhase {
+    private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
 
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
-    private RescorePhase rescorePhase;
+    private final RescorePhase rescorePhase;
 
-    public QueryPhase(Settings settings) {
+    public QueryPhase() {
         this.aggregationPhase = new AggregationPhase();
-        this.suggestPhase = new SuggestPhase(settings);
-        this.rescorePhase = new RescorePhase(settings);
+        this.suggestPhase = new SuggestPhase();
+        this.rescorePhase = new RescorePhase();
     }
 
     @Override
@@ -94,11 +96,16 @@ public class QueryPhase implements SearchPhase {
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
             // TODO: fix this once we can fetch docs for suggestions
-            searchContext.queryResult().topDocs(
-                    new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0),
+            searchContext.queryResult().topDocs(new TopDocsAndMaxScore(
+                    new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
                     new DocValueFormat[0]);
             return;
         }
+
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
+        }
+
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
@@ -138,7 +145,7 @@ public class QueryPhase implements SearchPhase {
 
             final ScrollContext scrollContext = searchContext.scrollContext();
             if (scrollContext != null) {
-                if (scrollContext.totalHits == -1) {
+                if (scrollContext.totalHits == null) {
                     // first round
                     assert scrollContext.lastEmittedDoc == null;
                     // there is not much that we can optimize here since we want to collect all
@@ -150,26 +157,22 @@ public class QueryPhase implements SearchPhase {
                         // now this gets interesting: since we sort in index-order, we can directly
                         // skip to the desired doc
                         if (after != null) {
-                            BooleanQuery bq = new BooleanQuery.Builder()
+                            query = new BooleanQuery.Builder()
                                 .add(query, BooleanClause.Occur.MUST)
                                 .add(new MinDocQuery(after.doc + 1), BooleanClause.Occur.FILTER)
                                 .build();
-                            query = bq;
                         }
                         // ... and stop collecting after ${size} matches
                         searchContext.terminateAfter(searchContext.size());
-                        searchContext.trackTotalHits(false);
                     } else if (canEarlyTerminate(reader, searchContext.sort())) {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
                         if (after != null) {
-                            BooleanQuery bq = new BooleanQuery.Builder()
+                            query = new BooleanQuery.Builder()
                                 .add(query, BooleanClause.Occur.MUST)
                                 .add(new SearchAfterSortedDocQuery(searchContext.sort().sort, (FieldDoc) after), BooleanClause.Occur.FILTER)
                                 .build();
-                            query = bq;
                         }
-                        searchContext.trackTotalHits(false);
                     }
                 }
             }
@@ -207,12 +210,11 @@ public class QueryPhase implements SearchPhase {
 
             final Runnable timeoutRunnable;
             if (timeoutSet) {
-                final Counter counter = searchContext.timeEstimateCounter();
-                final long startTime = counter.get();
+                final long startTime = searchContext.getRelativeTimeInMillis();
                 final long timeout = searchContext.timeout().millis();
                 final long maxTime = startTime + timeout;
                 timeoutRunnable = () -> {
-                    final long time = counter.get();
+                    final long time = searchContext.getRelativeTimeInMillis();
                     if (time > maxTime) {
                         throw new TimeExceededException();
                     }
@@ -231,7 +233,10 @@ public class QueryPhase implements SearchPhase {
 
             final Runnable checkCancelled;
             if (timeoutRunnable != null && cancellationRunnable != null) {
-                checkCancelled = () -> { timeoutRunnable.run(); cancellationRunnable.run(); };
+                checkCancelled = () -> {
+                    timeoutRunnable.run();
+                    cancellationRunnable.run();
+                };
             } else if (timeoutRunnable != null) {
                 checkCancelled = timeoutRunnable;
             } else if (cancellationRunnable != null) {
@@ -268,7 +273,7 @@ public class QueryPhase implements SearchPhase {
                 queryResult.terminatedEarly(true);
             } catch (TimeExceededException e) {
                 assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
-                
+
                 if (searchContext.request().allowPartialSearchResults() == false) {
                     // Can't rethrow TimeExceededException because not serializable
                     throw new QueryPhaseExecutionException(searchContext, "Time exceeded");
@@ -282,8 +287,7 @@ public class QueryPhase implements SearchPhase {
             for (QueryCollectorContext ctx : collectors) {
                 ctx.postProcess(result);
             }
-            EsThreadPoolExecutor executor = (EsThreadPoolExecutor)
-                    searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+            ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
             if (executor instanceof QueueResizingEsThreadPoolExecutor) {
                 QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
                 queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
@@ -304,7 +308,7 @@ public class QueryPhase implements SearchPhase {
      * @param query The query to execute
      * @param sf The query sort
      */
-    static boolean returnsDocsInOrder(Query query, SortAndFormats sf) {
+    private static boolean returnsDocsInOrder(Query query, SortAndFormats sf) {
         if (sf == null || Sort.RELEVANCE.equals(sf.sort)) {
             // sort by score
             // queries that return constant scores will return docs in index
@@ -320,14 +324,14 @@ public class QueryPhase implements SearchPhase {
      * Returns whether collection within the provided <code>reader</code> can be early-terminated if it sorts
      * with <code>sortAndFormats</code>.
      **/
-    static boolean canEarlyTerminate(IndexReader reader, SortAndFormats sortAndFormats) {
+    private static boolean canEarlyTerminate(IndexReader reader, SortAndFormats sortAndFormats) {
         if (sortAndFormats == null || sortAndFormats.sort == null) {
             return false;
         }
         final Sort sort = sortAndFormats.sort;
         for (LeafReaderContext ctx : reader.leaves()) {
             Sort indexSort = ctx.reader().getMetaData().getSort();
-            if (indexSort == null || EarlyTerminatingSortingCollector.canEarlyTerminate(sort, indexSort) == false) {
+            if (indexSort == null || Lucene.canEarlyTerminate(sort, indexSort) == false) {
                 return false;
             }
         }

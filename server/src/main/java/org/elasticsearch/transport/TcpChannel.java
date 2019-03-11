@@ -19,19 +19,12 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 
 /**
@@ -42,19 +35,14 @@ import java.util.concurrent.TimeoutException;
 public interface TcpChannel extends CloseableChannel {
 
     /**
+     * Indicates if the channel is an inbound server channel.
+     */
+    boolean isServerChannel();
+
+    /**
      * This returns the profile for this channel.
      */
     String getProfile();
-
-
-    /**
-     * This sets the low level socket option {@link java.net.StandardSocketOptions} SO_LINGER on a channel.
-     *
-     * @param value to set for SO_LINGER
-     * @throws IOException that can be throw by the low level socket implementation
-     */
-    void setSoLinger(int value) throws IOException;
-
 
     /**
      * Returns the local address for this channel.
@@ -80,42 +68,34 @@ public interface TcpChannel extends CloseableChannel {
     void sendMessage(BytesReference reference, ActionListener<Void> listener);
 
     /**
-     * Awaits for all of the pending connections to complete. Will throw an exception if at least one of the
-     * connections fails.
+     * Adds a listener that will be executed when the channel is connected. If the channel is still
+     * unconnected when this listener is added, the listener will be executed by the thread that eventually
+     * finishes the channel connection. If the channel is already connected when the listener is added the
+     * listener will immediately be executed by the thread that is attempting to add the listener.
      *
-     * @param discoveryNode the node for the pending connections
-     * @param connectionFutures representing the pending connections
-     * @param connectTimeout to wait for a connection
-     * @throws ConnectTransportException if one of the connections fails
+     * @param listener to be executed
      */
-    static void awaitConnected(DiscoveryNode discoveryNode, List<ActionFuture<Void>> connectionFutures, TimeValue connectTimeout)
-        throws ConnectTransportException {
-        Exception connectionException = null;
-        boolean allConnected = true;
+    void addConnectListener(ActionListener<Void> listener);
 
-        for (ActionFuture<Void> connectionFuture : connectionFutures) {
-            try {
-                connectionFuture.get(connectTimeout.getMillis(), TimeUnit.MILLISECONDS);
-            } catch (TimeoutException e) {
-                allConnected = false;
-                break;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException(e);
-            } catch (ExecutionException e) {
-                allConnected = false;
-                connectionException = (Exception) e.getCause();
-                break;
-            }
+    /**
+     * Returns stats about this channel
+     */
+    ChannelStats getChannelStats();
+
+    class ChannelStats {
+
+        private volatile long lastAccessedTime;
+
+        public ChannelStats() {
+            lastAccessedTime = TimeValue.nsecToMSec(System.nanoTime());
         }
 
-        if (allConnected == false) {
-            if (connectionException == null) {
-                throw new ConnectTransportException(discoveryNode, "connect_timeout[" + connectTimeout + "]");
-            } else {
-                throw new ConnectTransportException(discoveryNode, "connect_exception", connectionException);
-            }
+        void markAccessed(long relativeMillisTime) {
+            lastAccessedTime = relativeMillisTime;
+        }
+
+        long lastAccessedTime() {
+            return lastAccessedTime;
         }
     }
-
 }

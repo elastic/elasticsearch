@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
@@ -60,7 +59,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
     Map<String /* node id */, Map<ShardId, ShardRouting>> knownAllocations = new HashMap<>();
     DiscoveryNodes currentNodes = DiscoveryNodes.EMPTY_NODES;
 
-    PrimaryShardAllocator primaryShardAllocator = new PrimaryShardAllocator(Settings.EMPTY) {
+    PrimaryShardAllocator primaryShardAllocator = new PrimaryShardAllocator() {
         @Override
         protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // for now always return immediately what we know
@@ -81,7 +80,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
         }
     };
 
-    ReplicaShardAllocator replicaShardAllocator = new ReplicaShardAllocator(Settings.EMPTY) {
+    ReplicaShardAllocator replicaShardAllocator = new ReplicaShardAllocator() {
         @Override
         protected AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // for now, just pretend no node has data
@@ -94,10 +93,6 @@ public class TestGatewayAllocator extends GatewayAllocator {
             return true;
         }
     };
-
-    public TestGatewayAllocator() {
-        super(Settings.EMPTY);
-    }
 
     @Override
     public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {

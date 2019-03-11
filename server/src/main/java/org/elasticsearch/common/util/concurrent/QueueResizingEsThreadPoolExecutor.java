@@ -20,9 +20,9 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Locale;
@@ -41,12 +41,11 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
     // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
     public static double EWMA_ALPHA = 0.3;
 
-    private static final Logger logger =
-            ESLoggerFactory.getLogger(QueueResizingEsThreadPoolExecutor.class);
+    private static final Logger logger = LogManager.getLogger(QueueResizingEsThreadPoolExecutor.class);
     // The amount the queue size is adjusted by for each calcuation
     private static final int QUEUE_ADJUSTMENT_AMOUNT = 50;
 
-    private final Function<Runnable, Runnable> runnableWrapper;
+    private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ResizableBlockingQueue<Runnable> workQueue;
     private final int tasksPerFrame;
     private final int minQueueSize;
@@ -61,7 +60,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
 
     QueueResizingEsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
                                       ResizableBlockingQueue<Runnable> workQueue, int minQueueSize, int maxQueueSize,
-                                      Function<Runnable, Runnable> runnableWrapper, final int tasksPerFrame,
+                                      Function<Runnable, WrappedRunnable> runnableWrapper, final int tasksPerFrame,
                                       TimeValue targetedResponseTime, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
                                       ThreadContext contextHolder) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit,
@@ -79,12 +78,18 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
     }
 
     @Override
-    protected void doExecute(final Runnable command) {
-        // we are submitting a task, it has not yet started running (because super.excute() has not
-        // been called), but it could be immediately run, or run at a later time. We need the time
-        // this task entered the queue, which we get by creating a TimedRunnable, which starts the
-        // clock as soon as it is created.
-        super.doExecute(this.runnableWrapper.apply(command));
+    protected Runnable wrapRunnable(Runnable command) {
+        return super.wrapRunnable(this.runnableWrapper.apply(command));
+    }
+
+    @Override
+    protected Runnable unwrap(Runnable runnable) {
+        final Runnable unwrapped = super.unwrap(runnable);
+        if (unwrapped instanceof WrappedRunnable) {
+            return ((WrappedRunnable) unwrapped).unwrap();
+        } else {
+            return unwrapped;
+        }
     }
 
     /**
@@ -120,13 +125,6 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
     }
 
     /**
-     * Returns the current queue capacity
-     */
-    public int getCurrentCapacity() {
-        return workQueue.capacity();
-    }
-
-    /**
      * Returns the exponentially weighted moving average of the task execution time
      */
     public double getTaskExecutionEWMA() {
@@ -147,11 +145,12 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
         // total time as a combination of the time in the queue and time spent running the task. We
         // only want runnables that did not throw errors though, because they could be fast-failures
         // that throw off our timings, so only check when t is null.
-        assert r instanceof TimedRunnable : "expected only TimedRunnables in queue";
-        final long taskNanos = ((TimedRunnable) r).getTotalNanos();
+        assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
+        final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
+        final long taskNanos = timedRunnable.getTotalNanos();
         final long totalNanos = totalTaskNanos.addAndGet(taskNanos);
 
-        final long taskExecutionNanos = ((TimedRunnable) r).getTotalExecutionNanos();
+        final long taskExecutionNanos = timedRunnable.getTotalExecutionNanos();
         assert taskExecutionNanos >= 0 : "expected task to always take longer than 0 nanoseconds, got: " + taskExecutionNanos;
         executionEWMA.addValue(taskExecutionNanos);
 

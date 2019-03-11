@@ -14,9 +14,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -125,6 +125,20 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
         assertThat(e.validationErrors().size(), equalTo(0));
     }
 
+    public void testValidateWeek() {
+        ActionRequestValidationException e = new ActionRequestValidationException();
+        Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
+
+        // Have to mock fieldcaps because the ctor's aren't public...
+        FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(true);
+        responseMap.put("my_field", Collections.singletonMap("date", fieldCaps));
+
+        DateHistogramGroupConfig config = new DateHistogramGroupConfig("my_field", new DateHistogramInterval("1w"), null, null);
+        config.validateMappings(responseMap, e);
+        assertThat(e.validationErrors().size(), equalTo(0));
+    }
+
     /**
      * Tests that a DateHistogramGroupConfig can be serialized/deserialized correctly after
      * the timezone was changed from DateTimeZone to String.
@@ -141,28 +155,28 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
             DateHistogramInterval interval = new DateHistogramInterval(in);
             String field = in.readString();
             DateHistogramInterval delay = in.readOptionalWriteable(DateHistogramInterval::new);
-            DateTimeZone timeZone = in.readTimeZone();
+            ZoneId timeZone = in.readZoneId();
 
-            assertEqualInstances(reference, new DateHistogramGroupConfig(field, interval, delay, timeZone.getID()));
+            assertEqualInstances(reference, new DateHistogramGroupConfig(field, interval, delay, timeZone.getId()));
         }
 
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             final String field = ConfigTestHelpers.randomField(random());
             final DateHistogramInterval interval = ConfigTestHelpers.randomInterval();
             final DateHistogramInterval delay = randomBoolean() ? ConfigTestHelpers.randomInterval() : null;
-            final DateTimeZone timezone = randomDateTimeZone();
+            final ZoneId timezone = randomZone();
 
             // previous way to serialize a DateHistogramGroupConfig
             final BytesStreamOutput out = new BytesStreamOutput();
             interval.writeTo(out);
             out.writeString(field);
             out.writeOptionalWriteable(delay);
-            out.writeTimeZone(timezone);
+            out.writeZoneId(timezone);
 
             final StreamInput in = out.bytes().streamInput();
             DateHistogramGroupConfig deserialized = new DateHistogramGroupConfig(in);
 
-            assertEqualInstances(new DateHistogramGroupConfig(field, interval, delay, timezone.getID()), deserialized);
+            assertEqualInstances(new DateHistogramGroupConfig(field, interval, delay, timezone.getId()), deserialized);
         }
     }
 }

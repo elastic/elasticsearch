@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.PluginInfo;
@@ -59,6 +60,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
     private final FsInfo.Path fs;
     private final Set<PluginInfo> plugins;
     private final NetworkTypes networkTypes;
+    private final DiscoveryTypes discoveryTypes;
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
@@ -90,6 +92,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         this.process = new ProcessStats(nodeStats);
         this.jvm = new JvmStats(nodeInfos, nodeStats);
         this.networkTypes = new NetworkTypes(nodeInfos);
+        this.discoveryTypes = new DiscoveryTypes(nodeInfos);
     }
 
     public Counts getCounts() {
@@ -167,6 +170,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
         builder.startObject(Fields.NETWORK_TYPES);
         networkTypes.toXContent(builder, params);
         builder.endObject();
+
+        discoveryTypes.toXContent(builder, params);
         return builder;
     }
 
@@ -226,6 +231,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         final int availableProcessors;
         final int allocatedProcessors;
         final ObjectIntHashMap<String> names;
+        final ObjectIntHashMap<String> prettyNames;
         final org.elasticsearch.monitor.os.OsStats.Mem mem;
 
         /**
@@ -233,6 +239,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
          */
         private OsStats(List<NodeInfo> nodeInfos, List<NodeStats> nodeStatsList) {
             this.names = new ObjectIntHashMap<>();
+            this.prettyNames = new ObjectIntHashMap<>();
             int availableProcessors = 0;
             int allocatedProcessors = 0;
             for (NodeInfo nodeInfo : nodeInfos) {
@@ -241,6 +248,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
                 if (nodeInfo.getOs().getName() != null) {
                     names.addTo(nodeInfo.getOs().getName(), 1);
+                }
+                if (nodeInfo.getOs().getPrettyName() != null) {
+                    prettyNames.addTo(nodeInfo.getOs().getPrettyName(), 1);
                 }
             }
             this.availableProcessors = availableProcessors;
@@ -280,6 +290,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
             static final String ALLOCATED_PROCESSORS = "allocated_processors";
             static final String NAME = "name";
             static final String NAMES = "names";
+            static final String PRETTY_NAME = "pretty_name";
+            static final String PRETTY_NAMES = "pretty_names";
             static final String COUNT = "count";
         }
 
@@ -289,11 +301,27 @@ public class ClusterStatsNodes implements ToXContentFragment {
             builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
             builder.field(Fields.ALLOCATED_PROCESSORS, allocatedProcessors);
             builder.startArray(Fields.NAMES);
-            for (ObjectIntCursor<String> name : names) {
-                builder.startObject();
-                builder.field(Fields.NAME, name.key);
-                builder.field(Fields.COUNT, name.value);
-                builder.endObject();
+            {
+                for (ObjectIntCursor<String> name : names) {
+                    builder.startObject();
+                    {
+                        builder.field(Fields.NAME, name.key);
+                        builder.field(Fields.COUNT, name.value);
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+            builder.startArray(Fields.PRETTY_NAMES);
+            {
+                for (final ObjectIntCursor<String> prettyName : prettyNames) {
+                    builder.startObject();
+                    {
+                        builder.field(Fields.PRETTY_NAME, prettyName.key);
+                        builder.field(Fields.COUNT, prettyName.value);
+                    }
+                    builder.endObject();
+                }
             }
             builder.endArray();
             mem.toXContent(builder, params);
@@ -587,6 +615,31 @@ public class ClusterStatsNodes implements ToXContentFragment {
             return builder;
         }
 
+    }
+
+    static class DiscoveryTypes implements ToXContentFragment {
+
+        private final Map<String, AtomicInteger> discoveryTypes;
+
+        DiscoveryTypes(final List<NodeInfo> nodeInfos) {
+            final Map<String, AtomicInteger> discoveryTypes = new HashMap<>();
+            for (final NodeInfo nodeInfo : nodeInfos) {
+                final Settings settings = nodeInfo.getSettings();
+                final String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
+                discoveryTypes.computeIfAbsent(discoveryType, k -> new AtomicInteger()).incrementAndGet();
+            }
+            this.discoveryTypes = Collections.unmodifiableMap(discoveryTypes);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("discovery_types");
+            for (final Map.Entry<String, AtomicInteger> entry : discoveryTypes.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue().get());
+            }
+            builder.endObject();
+            return builder;
+        }
     }
 
 }

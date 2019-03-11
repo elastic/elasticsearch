@@ -188,8 +188,9 @@ public final class KeyValueProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument document) {
+    public IngestDocument execute(IngestDocument document) {
         execution.accept(document);
+        return document;
     }
 
     @Override

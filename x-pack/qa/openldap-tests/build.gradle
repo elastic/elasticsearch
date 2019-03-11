@@ -5,7 +5,8 @@ apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.vagrantsupport'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    testCompile project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
@@ -22,13 +23,9 @@ task copyIdpTrust(type: Copy) {
 }
 if (project.rootProject.vagrantSupported) {
   project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpTrust)
-  test.dependsOn openLdapFixture
-  test.finalizedBy idpFixtureProject.halt
+  unitTest.dependsOn openLdapFixture
+  unitTest.finalizedBy idpFixtureProject.halt
 } else {
-  test.enabled = false
-}
-
-namingConventions {
-    // integ tests use Tests instead of IT
-    skipIntegTestInDisguise = true
+    unitTest.enabled = false
+  testingConventions.enabled = false
 }

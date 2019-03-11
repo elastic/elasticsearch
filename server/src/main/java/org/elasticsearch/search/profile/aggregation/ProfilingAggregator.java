@@ -20,6 +20,7 @@
 package org.elasticsearch.search.profile.aggregation;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -45,8 +46,8 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public boolean needsScores() {
-        return delegate.needsScores();
+    public ScoreMode scoreMode() {
+        return delegate.scoreMode();
     }
 
     @Override

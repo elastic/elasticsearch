@@ -19,10 +19,8 @@
 
 package org.elasticsearch.painless;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-
 import java.lang.invoke.LambdaConversionException;
+import java.time.Instant;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
@@ -59,15 +57,15 @@ public class FunctionRefTests extends ScriptTestCase {
     public void testQualifiedVirtualMethodReference() {
         long instant = randomLong();
         assertEquals(instant, exec(
-                "List l = [params.d]; return l.stream().mapToLong(org.joda.time.ReadableDateTime::getMillis).sum()",
-                singletonMap("d", new DateTime(instant, DateTimeZone.UTC)), true));
+                "List l = [params.d]; return l.stream().mapToLong(Instant::toEpochMilli).sum()",
+                singletonMap("d", Instant.ofEpochMilli(instant)), true));
     }
 
     public void testQualifiedVirtualMethodReferenceDef() {
         long instant = randomLong();
         assertEquals(instant, exec(
-                "def l = [params.d]; return l.stream().mapToLong(org.joda.time.ReadableDateTime::getMillis).sum()",
-                singletonMap("d", new DateTime(instant, DateTimeZone.UTC)), true));
+                "def l = [params.d]; return l.stream().mapToLong(Instant::toEpochMilli).sum()",
+                singletonMap("d", Instant.ofEpochMilli(instant)), true));
     }
 
     public void testCtorMethodReference() {
@@ -197,10 +195,10 @@ public class FunctionRefTests extends ScriptTestCase {
 
     public void testQualifiedMethodMissing() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("List l = [2, 1]; l.sort(org.joda.time.ReadableDateTime::bogus); return l.get(0);", false);
+            exec("List l = [2, 1]; l.sort(java.time.Instant::bogus); return l.get(0);", false);
         });
         assertThat(e.getMessage(),
-                containsString("function reference [org.joda.time.ReadableDateTime::bogus/2] matching [java.util.Comparator"));
+                containsString("function reference [java.time.Instant::bogus/2] matching [java.util.Comparator, compare/2"));
     }
 
     public void testClassMissing() {

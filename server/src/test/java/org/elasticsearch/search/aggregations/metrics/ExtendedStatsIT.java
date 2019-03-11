@@ -30,8 +30,7 @@ import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats.Bounds;
+import org.elasticsearch.search.aggregations.metrics.ExtendedStats.Bounds;
 import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.Collection;
@@ -74,7 +73,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
             sum += val;
             sumOfSqrs += val * val;
         }
-        return (sumOfSqrs - ((sum * sum) / vals.length)) / vals.length;
+        double variance  = (sumOfSqrs - ((sum * sum) / vals.length)) / vals.length;
+        return variance < 0  ? 0 : variance;
     }
 
     @Override
@@ -83,9 +83,9 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(extendedStats("stats").field("value")))
-                .execute().actionGet();
+                .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -110,9 +110,9 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(extendedStats("stats").field("value"))
-                .execute().actionGet();
+                .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
         ExtendedStats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -153,7 +153,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(extendedStats("stats").field("value").sigma(sigma))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -177,7 +177,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(extendedStats("stats").field("value"))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -198,7 +198,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
     public void testSingleValuedField_WithFormatter() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").format("0000.0").field("value").sigma(sigma)).execute().actionGet();
+                .addAggregation(extendedStats("stats").format("0000.0").field("value").sigma(sigma)).get();
 
         assertHitCount(searchResponse, 10);
 
@@ -226,7 +226,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
     @Override
     public void testSingleValuedFieldGetProperty() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(global("global").subAggregation(extendedStats("stats").field("value"))).execute().actionGet();
+                .addAggregation(global("global").subAggregation(extendedStats("stats").field("value"))).get();
 
         assertHitCount(searchResponse, 10);
 
@@ -275,7 +275,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
                 .setQuery(matchAllQuery())
                 .addAggregation(extendedStats("stats").field("value").sigma(sigma))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -304,7 +304,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                                 .script(new Script(ScriptType.INLINE,
                                     AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))
                                 .sigma(sigma))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -334,7 +334,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                                 .field("value")
                                 .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params))
                                 .sigma(sigma))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -358,7 +358,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(extendedStats("stats").field("values").sigma(sigma))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -387,7 +387,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                                 .script(new Script(ScriptType.INLINE,
                                     AggregationTestScriptsPlugin.NAME, "_value - 1", Collections.emptyMap()))
                                 .sigma(sigma))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -445,7 +445,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                                 .script(new Script(ScriptType.INLINE,
                                     AggregationTestScriptsPlugin.NAME, "doc['value'].value", Collections.emptyMap()))
                                 .sigma(sigma))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -477,7 +477,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                         extendedStats("stats")
                                 .script(script)
                                 .sigma(sigma))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -503,9 +503,9 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         extendedStats("stats")
                                 .script(new Script(ScriptType.INLINE,
-                                    AggregationTestScriptsPlugin.NAME, "doc['values'].values", Collections.emptyMap()))
+                                    AggregationTestScriptsPlugin.NAME, "doc['values']", Collections.emptyMap()))
                                 .sigma(sigma))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -538,7 +538,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                         extendedStats("stats")
                                 .script(script)
                                 .sigma(sigma))
-                .execute().actionGet();
+                .get();
 
         assertHitCount(searchResponse, 10);
 
@@ -562,7 +562,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
             .addAggregation(terms("value").field("value")
                 .subAggregation(missing("values").field("values")
                     .subAggregation(extendedStats("stats").field("value"))))
-            .execute().actionGet();
+            .get();
 
         assertHitCount(searchResponse, 10);
 

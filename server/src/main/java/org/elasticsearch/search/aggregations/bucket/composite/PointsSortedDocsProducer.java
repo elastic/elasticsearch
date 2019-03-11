@@ -25,7 +25,7 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.DocIdSetBuilder;
-import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.FutureArrays;
 
 import java.io.IOException;
 import java.util.function.ToLongFunction;
@@ -54,7 +54,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             return DocIdSet.EMPTY;
         }
         long lowerBucket = Long.MIN_VALUE;
-        Comparable<?> lowerValue = queue.getLowerValueLeadSource();
+        Comparable lowerValue = queue.getLowerValueLeadSource();
         if (lowerValue != null) {
             if (lowerValue.getClass() != Long.class) {
                 throw new IllegalStateException("expected Long, got " + lowerValue.getClass());
@@ -63,7 +63,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
         }
 
         long upperBucket = Long.MAX_VALUE;
-        Comparable<?> upperValue = queue.getUpperValueLeadSource();
+        Comparable upperValue = queue.getUpperValueLeadSource();
         if (upperValue != null) {
             if (upperValue.getClass() != Long.class) {
                 throw new IllegalStateException("expected Long, got " + upperValue.getClass());
@@ -147,8 +147,10 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            if ((upperPointQuery != null && StringHelper.compare(bytesPerDim, minPackedValue, 0, upperPointQuery, 0) > 0) ||
-                    (lowerPointQuery != null && StringHelper.compare(bytesPerDim, maxPackedValue, 0, lowerPointQuery, 0) < 0)) {
+            if ((upperPointQuery != null &&
+                    FutureArrays.compareUnsigned(minPackedValue, 0, bytesPerDim, upperPointQuery, 0, bytesPerDim) > 0) ||
+                    (lowerPointQuery != null &&
+                        FutureArrays.compareUnsigned(maxPackedValue, 0, bytesPerDim, lowerPointQuery, 0, bytesPerDim) < 0)) {
                 // does not match the query
                 return PointValues.Relation.CELL_OUTSIDE_QUERY;
             }

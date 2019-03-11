@@ -52,7 +52,7 @@ public class RemoteClusterClientTests extends ESTestCase {
 
             Settings localSettings = Settings.builder()
                 .put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), true)
-                .put("search.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
+                .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
                 service.start();
                 service.acceptIncomingRequests();
@@ -62,10 +62,10 @@ public class RemoteClusterClientTests extends ESTestCase {
                 ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().execute().get();
                 assertNotNull(clusterStateResponse);
                 assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
-                // also test a failure, there is no handler for search registered
+                // also test a failure, there is no handler for scroll registered
                 ActionNotFoundTransportException ex = expectThrows(ActionNotFoundTransportException.class,
-                    () -> client.prepareSearch().get());
-                assertEquals("No handler for action [indices:data/read/search]", ex.getMessage());
+                    () -> client.prepareSearchScroll("").get());
+                assertEquals("No handler for action [indices:data/read/scroll]", ex.getMessage());
             }
         }
     }
@@ -77,17 +77,19 @@ public class RemoteClusterClientTests extends ESTestCase {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
             Settings localSettings = Settings.builder()
                 .put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), true)
-                .put("search.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
+                .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
                 Semaphore semaphore = new Semaphore(1);
                 service.start();
-                service.addConnectionListener(new TransportConnectionListener() {
-                    @Override
-                    public void onNodeDisconnected(DiscoveryNode node) {
-                        if (remoteNode.equals(node)) {
-                            semaphore.release();
+                service.getRemoteClusterService().getConnections().forEach(con -> {
+                    con.getConnectionManager().addListener(new TransportConnectionListener() {
+                        @Override
+                        public void onNodeDisconnected(DiscoveryNode node) {
+                            if (remoteNode.equals(node)) {
+                                semaphore.release();
+                            }
                         }
-                    }
+                    });
                 });
                 // this test is not perfect since we might reconnect concurrently but it will fail most of the time if we don't have
                 // the right calls in place in the RemoteAwareClient
@@ -95,7 +97,9 @@ public class RemoteClusterClientTests extends ESTestCase {
                 for (int i = 0; i < 10; i++) {
                     semaphore.acquire();
                     try {
-                        service.disconnectFromNode(remoteNode);
+                        service.getRemoteClusterService().getConnections().forEach(con -> {
+                            con.getConnectionManager().disconnectFromNode(remoteNode);
+                        });
                         semaphore.acquire();
                         RemoteClusterService remoteClusterService = service.getRemoteClusterService();
                         Client client = remoteClusterService.getRemoteClusterClient(threadPool, "test");

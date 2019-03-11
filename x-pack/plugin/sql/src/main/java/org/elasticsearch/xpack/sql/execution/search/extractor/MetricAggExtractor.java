@@ -9,7 +9,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
+import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
+import org.elasticsearch.search.aggregations.metrics.InternalStats;
+import org.elasticsearch.search.aggregations.metrics.PercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 
@@ -67,16 +73,51 @@ public class MetricAggExtractor implements BucketExtractor {
         if (agg == null) {
             throw new SqlIllegalArgumentException("Cannot find an aggregation named {}", name);
         }
+
+        if (!containsValues(agg)) {
+            return null;
+        }
+
         if (agg instanceof InternalNumericMetricsAggregation.MultiValue) {
             //TODO: need to investigate when this can be not-null
             //if (innerKey == null) {
             //    throw new SqlIllegalArgumentException("Invalid innerKey {} specified for aggregation {}", innerKey, name);
             //}
             return ((InternalNumericMetricsAggregation.MultiValue) agg).value(property);
+        } else if (agg instanceof InternalFilter) {
+            // COUNT(expr) and COUNT(ALL expr) uses this type of aggregation to account for non-null values only
+            return ((InternalFilter) agg).getDocCount();
         }
 
         Object v = agg.getProperty(property);
         return innerKey != null && v instanceof Map ? ((Map<?, ?>) v).get(innerKey) : v;
+    }
+
+    /**
+     * Check if the given aggregate has been executed and has computed values
+     * or not (the bucket is null).
+     * 
+     * Waiting on https://github.com/elastic/elasticsearch/issues/34903
+     */
+    private static boolean containsValues(InternalAggregation agg) {
+        // Stats & ExtendedStats
+        if (agg instanceof InternalStats) {
+            return ((InternalStats) agg).getCount() != 0;
+        }
+        if (agg instanceof MatrixStats) {
+            return ((MatrixStats) agg).getDocCount() != 0;
+        }
+        // sum returns 0 even for null; since that's a common case, we return it as such
+        if (agg instanceof SingleValue) {
+            return Double.isFinite(((SingleValue) agg).value());
+        }
+        if (agg instanceof PercentileRanks) {
+            return Double.isFinite(((PercentileRanks) agg).percent(0));
+        }
+        if (agg instanceof Percentiles) {
+            return Double.isFinite(((Percentiles) agg).percentile(0));
+        }
+        return true;
     }
 
     @Override

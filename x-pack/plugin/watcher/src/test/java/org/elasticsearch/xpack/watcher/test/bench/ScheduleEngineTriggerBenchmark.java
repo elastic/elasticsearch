@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -33,9 +31,6 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 
 @SuppressForbidden(reason = "benchmark")
 public class ScheduleEngineTriggerBenchmark {
-
-    private static final Logger logger = ESLoggerFactory.getLogger(ScheduleEngineTriggerBenchmark.class);
-
     public static void main(String[] args) throws Exception {
         int numWatches = 1000;
         int interval = 2;
@@ -61,8 +56,8 @@ public class ScheduleEngineTriggerBenchmark {
                 .build();
         List<Watch> watches = new ArrayList<>(numWatches);
         for (int i = 0; i < numWatches; i++) {
-            watches.add(new Watch("job_" + i, new ScheduleTrigger(interval(interval + "s")), new ExecutableNoneInput(logger),
-                    InternalAlwaysCondition.INSTANCE, null, null, Collections.emptyList(), null, null, 1L));
+            watches.add(new Watch("job_" + i, new ScheduleTrigger(interval(interval + "s")), new ExecutableNoneInput(),
+                    InternalAlwaysCondition.INSTANCE, null, null, Collections.emptyList(), null, null, 1L, 1L));
         }
         ScheduleRegistry scheduleRegistry = new ScheduleRegistry(emptySet());
 
@@ -82,8 +77,8 @@ public class ScheduleEngineTriggerBenchmark {
                 if (running.get()) {
                     for (TriggerEvent event : events) {
                         ScheduleTriggerEvent scheduleTriggerEvent = (ScheduleTriggerEvent) event;
-                        measure(total, triggerMetric, tooEarlyMetric, event.triggeredTime().getMillis(),
-                                scheduleTriggerEvent.scheduledTime().getMillis());
+                        measure(total, triggerMetric, tooEarlyMetric, event.triggeredTime().toInstant().toEpochMilli(),
+                                scheduleTriggerEvent.scheduledTime().toInstant().toEpochMilli());
                     }
                 }
             }

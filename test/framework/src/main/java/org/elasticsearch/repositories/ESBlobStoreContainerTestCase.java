@@ -103,7 +103,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
             int length = randomIntBetween(10, 100);
             String name = "bar-0-";
             generatedBlobs.put(name, (long) length);
-            byte[] data = writeRandomBlob(container, name, length);
+            writeRandomBlob(container, name, length);
 
             Map<String, BlobMetaData> blobs = container.listBlobs();
             assertThat(blobs.size(), equalTo(numberOfFooBlobs + numberOfBarBlobs));

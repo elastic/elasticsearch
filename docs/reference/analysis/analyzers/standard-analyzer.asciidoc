@@ -273,7 +273,6 @@ Tokenizer::
 * <<analysis-standard-tokenizer,Standard Tokenizer>>
 
 Token Filters::
-* <<analysis-standard-tokenfilter,Standard Token Filter>>
 * <<analysis-lowercase-tokenfilter,Lower Case Token Filter>>
 * <<analysis-stop-tokenfilter,Stop Token Filter>> (disabled by default)
 
@@ -292,7 +291,6 @@ PUT /standard_example
         "rebuilt_standard": {
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase"       <1>
           ]
         }

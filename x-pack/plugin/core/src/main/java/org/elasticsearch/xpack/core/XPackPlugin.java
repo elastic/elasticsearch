@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
@@ -28,31 +29,41 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.rest.action.RestFreezeIndexAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
@@ -67,15 +78,17 @@ import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, ExtensiblePlugin {
+public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, ExtensiblePlugin, RepositoryPlugin, EnginePlugin {
 
-    private static Logger logger = ESLoggerFactory.getLogger(XPackPlugin.class);
+    private static Logger logger = LogManager.getLogger(XPackPlugin.class);
     private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final String XPACK_INSTALLED_NODE_ATTR = "xpack.installed";
@@ -93,6 +106,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
                 public Void run() {
                     try {
                         Class.forName("com.unboundid.util.Debug");
+                        Class.forName("com.unboundid.ldap.sdk.LDAPConnectionOptions");
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }
@@ -114,7 +128,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     //private final Environment env;
     protected boolean transportClientMode;
     protected final Licensing licensing;
-    // These should not be directly accessed as they cannot be overriden in tests. Please use the getters so they can be overridden.
+    // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
     private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
@@ -238,7 +252,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         List<Object> components = new ArrayList<>();
 
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
-        new SSLConfigurationReloader(settings, environment, getSslService(), resourceWatcherService);
+        new SSLConfigurationReloader(environment, getSslService(), resourceWatcherService);
 
         setLicenseService(new LicenseService(settings, clusterService, getClock(),
                 environment, resourceWatcherService, getLicenseState()));
@@ -256,6 +270,8 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, TransportXPackInfoAction.class));
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, TransportXPackUsageAction.class));
+        actions.add(new ActionHandler<>(TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
+            TransportFreezeIndexAction.class));
         actions.addAll(licensing.getActions());
         return actions;
     }
@@ -282,6 +298,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestXPackInfoAction(settings, restController));
         handlers.add(new RestXPackUsageAction(settings, restController));
+        handlers.add(new RestFreezeIndexAction(settings, restController));
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
         return handlers;
@@ -340,4 +357,35 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         }
     }
 
+    @Override
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
+    }
+
+    @Override
+    public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+        if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
+            return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());
+        } else if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN)) {
+            return Optional.of(FrozenEngine::new);
+        }
+
+        return Optional.empty();
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> settings = super.getSettings();
+        settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
+        settings.add(FrozenEngine.INDEX_FROZEN);
+        return settings;
+    }
+
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        if (FrozenEngine.INDEX_FROZEN.get(indexModule.getSettings())) {
+            indexModule.addSearchOperationListener(new FrozenEngine.ReacquireEngineSearcherListener());
+        }
+        super.onIndexModule(indexModule);
+    }
 }

@@ -89,7 +89,10 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, Collections.emptyList());
         Version minCompat = Version.CURRENT.minimumIndexCompatibilityVersion();
-        Version indexUpgraded = VersionUtils.randomVersionBetween(random(), minCompat, VersionUtils.getPreviousVersion(Version.CURRENT));
+        Version indexUpgraded = VersionUtils.randomVersionBetween(random(),
+            minCompat,
+            Version.max(minCompat, VersionUtils.getPreviousVersion(Version.CURRENT))
+        );
         Version indexCreated = Version.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
         final IndexMetaData metaData = newIndexMeta("foo", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_UPGRADED, indexUpgraded)
@@ -147,7 +150,7 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_CREATION_DATE, 1)
             .put(IndexMetaData.SETTING_INDEX_UUID, "BOOM")
-            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_5_0_0_beta1)
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_6_0_0_alpha1)
             .put(indexSettings)
             .build();
         return IndexMetaData.builder(name).settings(build).build();

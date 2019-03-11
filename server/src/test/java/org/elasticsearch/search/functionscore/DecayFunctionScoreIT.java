@@ -37,18 +37,14 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -74,9 +70,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 public class DecayFunctionScoreIT extends ESIntegTestCase {
+
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     private final QueryBuilder baseQuery = constantScoreQuery(termQuery("test", "value"));
@@ -126,7 +123,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                         searchSource().query(baseQuery)));
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
@@ -134,7 +131,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                 functionScoreQuery(baseQuery, gaussDecayFunction("loc", lonlat, "1000km")))));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
 
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
@@ -145,7 +142,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                         searchSource().query(baseQuery)));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
@@ -153,7 +150,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                 functionScoreQuery(baseQuery, linearDecayFunction("loc", lonlat, "1000km")))));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
 
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
@@ -164,7 +161,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                         searchSource().query(baseQuery)));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
@@ -172,7 +169,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                 functionScoreQuery(baseQuery, exponentialDecayFunction("loc", lonlat, "1000km")))));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
 
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
@@ -210,7 +207,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                         .boostMode(CombineFunction.REPLACE))));
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
         assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getScore(), equalTo(sh.getAt(0).getScore()));
@@ -229,7 +226,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                         CombineFunction.REPLACE))));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
         assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getScore(), equalTo(sh.getAt(0).getScore()));
@@ -245,7 +242,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                         .boostMode(CombineFunction.REPLACE))));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
         assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getScore(), equalTo(sh.getAt(0).getScore()));
@@ -295,7 +292,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                         CombineFunction.MULTIPLY))));
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (2)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (2)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
 
@@ -305,7 +302,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                         searchSource().query(termQuery("test", "value"))));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (2)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (2)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
 
@@ -316,7 +313,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                         CombineFunction.REPLACE))));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (2)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (2)));
         assertThat(sh.getAt(0).getId(), equalTo("2"));
         assertThat(sh.getAt(1).getId(), equalTo("1"));
 
@@ -350,7 +347,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                         CombineFunction.REPLACE))));
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(1.0, 1.e-5));
         // this is equivalent to new GeoPoint(20, 11); just flipped so scores must be same
@@ -362,7 +359,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                         CombineFunction.REPLACE))));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(1.0f, 1.e-5));
     }
@@ -385,7 +382,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                     .boostMode(CombineFunction.MULTIPLY))));
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(1.0, 1.e-5));
 
@@ -396,7 +393,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                     .boostMode(CombineFunction.REPLACE))));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(0.5, 1.e-5));
 
@@ -407,7 +404,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                     .boostMode(CombineFunction.SUM))));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(2.0 + 0.5, 1.e-5));
         logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).getId(), sr.getHits().getAt(0).getExplanation());
@@ -419,7 +416,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                     .boostMode(CombineFunction.AVG))));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo((2.0 + 0.5) / 2, 1.e-5));
 
@@ -430,7 +427,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                     .boostMode(CombineFunction.MIN))));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(0.5, 1.e-5));
 
@@ -441,7 +438,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                     .boostMode(CombineFunction.MAX))));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(2.0, 1.e-5));
 
@@ -613,7 +610,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testManyDocsLin() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("test").field("type", "text").endObject().startObject("date").field("type", "date")
@@ -771,7 +768,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         SearchResponse sr = response.actionGet();
         assertSearchHits(sr, "1", "2");
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) (2)));
+        assertThat(sh.getTotalHits().value, equalTo((long) (2)));
 
         List<Float> lonlat = new ArrayList<>();
         lonlat.add(20f);

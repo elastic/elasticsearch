@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -24,9 +23,9 @@ public abstract class WatcherTransportAction<Request extends ActionRequest, Resp
 
     protected final XPackLicenseState licenseState;
 
-    public WatcherTransportAction(Settings settings, String actionName, TransportService transportService,
+    public WatcherTransportAction(String actionName, TransportService transportService,
                                   ActionFilters actionFilters, XPackLicenseState licenseState, Writeable.Reader<Request> request) {
-        super(settings, actionName, transportService, actionFilters, request);
+        super(actionName, transportService, actionFilters, request);
         this.licenseState = licenseState;
     }
 

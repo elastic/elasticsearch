@@ -7,13 +7,14 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Percentile;
+import org.elasticsearch.search.aggregations.metrics.Percentiles;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,6 +36,14 @@ public final class AggregationTestUtils {
         Aggregations aggs = createAggs(subAggregations);
         when(bucket.getAggregations()).thenReturn(aggs);
         return bucket;
+    }
+
+    static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, List<Aggregation> subAggregations) {
+        SingleBucketAggregation singleBucketAggregation = mock(SingleBucketAggregation.class);
+        when(singleBucketAggregation.getName()).thenReturn(name);
+        when(singleBucketAggregation.getDocCount()).thenReturn(docCount);
+        when(singleBucketAggregation.getAggregations()).thenReturn(createAggs(subAggregations));
+        return singleBucketAggregation;
     }
 
     static Histogram.Bucket createHistogramBucket(long timestamp, long docCount) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.client.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -38,8 +40,8 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -62,7 +64,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     private volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     private final Object requestHandlerMutex = new Object();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
-    private TransportConnectionListener listener;
+    private TransportMessageListener listener;
 
     private boolean connectMode = true;
 
@@ -79,8 +81,8 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     protected abstract ClusterState getMockClusterState(DiscoveryNode node);
 
     @Override
-    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-        return new CloseableConnection() {
+    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> connectionListener) {
+        connectionListener.onResponse(new CloseableConnection() {
 
             @Override
             public DiscoveryNode getNode() {
@@ -99,7 +101,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                     } else if (ClusterStateAction.NAME.equals(action)) {
                         TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
                         ClusterState clusterState = getMockClusterState(node);
-                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L));
+                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L, false));
                     } else if (TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
                         TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
                         Version version = node.getVersion();
@@ -134,7 +136,9 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                     }
                 }
             }
-        };
+        });
+
+        return () -> {};
     }
 
     protected abstract Response newResponse();
@@ -223,13 +227,15 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
         return requestHandlers.get(action);
     }
 
+
     @Override
-    public void addConnectionListener(TransportConnectionListener listener) {
+    public void addMessageListener(TransportMessageListener listener) {
         this.listener = listener;
     }
 
     @Override
-    public boolean removeConnectionListener(TransportConnectionListener listener) {
+    public boolean removeMessageListener(TransportMessageListener listener) {
         throw new UnsupportedOperationException();
     }
+
 }

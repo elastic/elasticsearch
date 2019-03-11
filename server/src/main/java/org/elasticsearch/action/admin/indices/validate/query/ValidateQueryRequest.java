@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -88,14 +87,22 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
 
     /**
      * The types of documents the query will run against. Defaults to all types.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
      */
+    @Deprecated
     public String[] types() {
         return this.types;
     }
 
     /**
      * The types of documents the query will run against. Defaults to all types.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
      */
+    @Deprecated
     public ValidateQueryRequest types(String... types) {
         this.types = types;
         return this;
@@ -156,9 +163,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
         }
         explain = in.readBoolean();
         rewrite = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
-            allShards = in.readBoolean();
-        }
+        allShards = in.readBoolean();
     }
 
     @Override
@@ -171,9 +176,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
         }
         out.writeBoolean(explain);
         out.writeBoolean(rewrite);
-        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
-            out.writeBoolean(allShards);
-        }
+        out.writeBoolean(allShards);
     }
 
     @Override

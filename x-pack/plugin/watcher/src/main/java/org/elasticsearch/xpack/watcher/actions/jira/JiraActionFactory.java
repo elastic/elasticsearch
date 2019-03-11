@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.jira;
 
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
@@ -19,8 +18,8 @@ public class JiraActionFactory extends ActionFactory {
     private final TextTemplateEngine templateEngine;
     private final JiraService jiraService;
 
-    public JiraActionFactory(Settings settings, TextTemplateEngine templateEngine, JiraService jiraService) {
-        super(Loggers.getLogger(ExecutableJiraAction.class, settings));
+    public JiraActionFactory(TextTemplateEngine templateEngine, JiraService jiraService) {
+        super(LogManager.getLogger(ExecutableJiraAction.class));
         this.templateEngine = templateEngine;
         this.jiraService = jiraService;
     }

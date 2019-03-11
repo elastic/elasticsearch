@@ -120,7 +120,7 @@ public class Schema implements Iterable<Entry> {
             }
             sb.append(names.get(i));
             sb.append(":");
-            sb.append(types.get(i).esType);
+            sb.append(types.get(i).typeName);
         }
         sb.append("]");
         return sb.toString();

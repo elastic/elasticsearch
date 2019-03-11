@@ -33,7 +33,7 @@ import java.util.Objects;
 public abstract class ShardOperationFailedException implements Streamable, ToXContent {
 
     protected String index;
-    protected int shardId;
+    protected int shardId = -1;
     protected String reason;
     protected RestStatus status;
     protected Throwable cause;

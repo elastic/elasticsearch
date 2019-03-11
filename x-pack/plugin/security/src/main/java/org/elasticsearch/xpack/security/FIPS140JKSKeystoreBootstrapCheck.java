@@ -13,12 +13,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 
 public class FIPS140JKSKeystoreBootstrapCheck implements BootstrapCheck {
 
-    private final boolean fipsModeEnabled;
-
-    FIPS140JKSKeystoreBootstrapCheck(Settings settings) {
-        this.fipsModeEnabled = XPackSettings.FIPS_MODE_ENABLED.get(settings);
-    }
-
     /**
      * Test if the node fails the check.
      *
@@ -28,8 +22,8 @@ public class FIPS140JKSKeystoreBootstrapCheck implements BootstrapCheck {
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
 
-        if (fipsModeEnabled) {
-            final Settings settings = context.settings;
+        if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings())) {
+            final Settings settings = context.settings();
             Settings keystoreTypeSettings = settings.filter(k -> k.endsWith("keystore.type"))
                 .filter(k -> settings.get(k).equalsIgnoreCase("jks"));
             if (keystoreTypeSettings.isEmpty() == false) {
@@ -50,6 +44,6 @@ public class FIPS140JKSKeystoreBootstrapCheck implements BootstrapCheck {
 
     @Override
     public boolean alwaysEnforce() {
-        return fipsModeEnabled;
+        return true;
     }
 }

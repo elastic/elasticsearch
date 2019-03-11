@@ -10,7 +10,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -43,7 +43,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         Authentication authentication = Authentication.getAuthentication(threadContext);
         if (authentication == null) {
             throw new IllegalStateException("No user authenticated, only use this processor via authenticated user");
@@ -86,6 +86,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             }
         }
         ingestDocument.setFieldValue(field, userObject);
+        return ingestDocument;
     }
 
     @Override

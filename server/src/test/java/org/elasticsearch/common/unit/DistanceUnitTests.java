@@ -53,8 +53,10 @@ public class DistanceUnitTests extends ESTestCase {
         double testValue = 12345.678;
         for (DistanceUnit unit : DistanceUnit.values()) {
             assertThat("Unit can be parsed from '" + unit.toString() + "'", DistanceUnit.fromString(unit.toString()), equalTo(unit));
-            assertThat("Unit can be parsed from '" + testValue + unit.toString() + "'", DistanceUnit.fromString(unit.toString()), equalTo(unit));
-            assertThat("Value can be parsed from '" + testValue + unit.toString() + "'", DistanceUnit.Distance.parseDistance(unit.toString(testValue)).value, equalTo(testValue));
+            assertThat("Unit can be parsed from '" + testValue + unit.toString() + "'",
+                DistanceUnit.fromString(unit.toString()), equalTo(unit));
+            assertThat("Value can be parsed from '" + testValue + unit.toString() + "'",
+                DistanceUnit.Distance.parseDistance(unit.toString(testValue)).value, equalTo(testValue));
         }
     }
 

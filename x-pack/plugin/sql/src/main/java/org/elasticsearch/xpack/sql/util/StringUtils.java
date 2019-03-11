@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.util;
 
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -16,6 +16,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -248,7 +249,7 @@ public abstract class StringUtils {
     }
 
     public static List<String> findSimilar(String match, Iterable<String> potentialMatches) {
-        LevensteinDistance ld = new LevensteinDistance();
+        LevenshteinDistance ld = new LevenshteinDistance();
         List<Tuple<Float, String>> scoredMatches = new ArrayList<>();
         for (String potentialMatch : potentialMatches) {
             float distance = ld.getDistance(match, potentialMatch);
@@ -260,5 +261,40 @@ public abstract class StringUtils {
         return scoredMatches.stream()
                 .map(a -> a.v2())
                 .collect(toList());
+    }
+
+    public static double parseDouble(String string) throws SqlIllegalArgumentException {
+        double value;
+        try {
+            value = Double.parseDouble(string);
+        } catch (NumberFormatException nfe) {
+            throw new SqlIllegalArgumentException("Cannot parse number [{}]", string);
+        }
+
+        if (Double.isInfinite(value)) {
+            throw new SqlIllegalArgumentException("Number [{}] is too large", string);
+        }
+        if (Double.isNaN(value)) {
+            throw new SqlIllegalArgumentException("[{}] cannot be parsed as a number (NaN)", string);
+        }
+        return value;
+    }
+
+    public static long parseLong(String string) throws SqlIllegalArgumentException {
+        try {
+            return Long.parseLong(string);
+        } catch (NumberFormatException nfe) {
+            try {
+                BigInteger bi = new BigInteger(string);
+                try {
+                    bi.longValueExact();
+                } catch (ArithmeticException ae) {
+                    throw new SqlIllegalArgumentException("Number [{}] is too large", string);
+                }
+            } catch (NumberFormatException ex) {
+                // parsing fails, go through
+            }
+            throw new SqlIllegalArgumentException("Cannot parse number [{}]", string);
+        }
     }
 }

@@ -9,10 +9,9 @@ If {xpack} is installed, there is an additional node type:
 <<ml-node,Machine learning node>>::
 
 A node that has `xpack.ml.enabled` and `node.ml` set to `true`, which is the
-default behavior when {xpack} is installed. If you want to use {xpackml}
-features, there must be at least one {ml} node in your cluster. For more
-information about {xpackml} features,
-see {xpack-ref}/xpack-ml.html[Machine Learning in the Elastic Stack].
+default behavior when {xpack} is installed. If you want to use {ml-features}, there must be at least one {ml} node in your cluster. For more
+information about {ml-features},
+see {stack-ov}/xpack-ml.html[Machine learning in the {stack}].
 
 IMPORTANT: Do not set use the `node.ml` setting unless {xpack} is installed.
 Otherwise, the node fails to start.
@@ -59,7 +58,7 @@ To create a dedicated ingest node when {xpack} is installed, set:
 node.master: false <1>
 node.data: false <2>
 node.ingest: true <3>
-search.remote.connect: false <4>
+cluster.remote.connect: false <4>
 node.ml: false <5>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
@@ -75,7 +74,7 @@ To create a dedicated coordinating node when {xpack} is installed, set:
 node.master: false <1>
 node.data: false <2>
 node.ingest: false <3>
-search.remote.connect: false <4>
+cluster.remote.connect: false <4>
 node.ml: false <5>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
@@ -88,11 +87,11 @@ node.ml: false <5>
 [[ml-node]]
 === [xpack]#Machine learning node#
 
-The {xpackml} features provide {ml} nodes, which run jobs and handle {ml} API
+The {ml-features} provide {ml} nodes, which run jobs and handle {ml} API
 requests. If `xpack.ml.enabled` is set to true and `node.ml` is set to `false`,
 the node can service API requests but it cannot run jobs.
 
-If you want to use {xpackml} features in your cluster, you must enable {ml}
+If you want to use {ml-features} in your cluster, you must enable {ml}
 (set `xpack.ml.enabled` to `true`) on all master-eligible nodes. Do not use
 these settings if you do not have {xpack} installed.
 
@@ -105,7 +104,7 @@ To create a dedicated {ml} node, set:
 node.master: false <1>
 node.data: false <2>
 node.ingest: false <3>
-search.remote.connect: false <4>
+cluster.remote.connect: false <4>
 node.ml: true <5>
 xpack.ml.enabled: true <6>
 -------------------

@@ -20,8 +20,14 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.TestAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregationBuilder;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 public class SerialDifferenceTests extends BasePipelineAggregationTestCase<SerialDiffPipelineAggregationBuilder> {
 
@@ -41,5 +47,32 @@ public class SerialDifferenceTests extends BasePipelineAggregationTestCase<Seria
         }
         return factory;
     }
+    
+    /**
+     * The validation should verify the parent aggregation is allowed.
+     */
+    public void testValidate() throws IOException {
+        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        aggBuilders.add(createTestAggregatorFactory());
 
+        final SerialDiffPipelineAggregationBuilder builder = new SerialDiffPipelineAggregationBuilder("name", "valid");
+        builder.validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
+    }
+
+    /**
+     * The validation should throw an IllegalArgumentException, since parent
+     * aggregation is not a type of HistogramAggregatorFactory,
+     * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
+     */
+    public void testValidateException() throws IOException {
+        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        aggBuilders.add(createTestAggregatorFactory());
+        TestAggregatorFactory parentFactory = TestAggregatorFactory.createInstance();
+
+        final SerialDiffPipelineAggregationBuilder builder = new SerialDiffPipelineAggregationBuilder("name", "invalid_agg>metric");
+        IllegalStateException ex = expectThrows(IllegalStateException.class,
+                () -> builder.validate(parentFactory, Collections.emptySet(), aggBuilders));
+        assertEquals("serial_diff aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent",
+                ex.getMessage());
+    }
 }

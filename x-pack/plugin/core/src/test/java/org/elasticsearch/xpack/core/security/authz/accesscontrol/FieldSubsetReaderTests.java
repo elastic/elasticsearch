@@ -23,6 +23,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -35,12 +36,12 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TermsEnum.SeekStatus;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -55,6 +56,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -78,7 +80,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /** Simple tests for this filterreader */
 public class FieldSubsetReaderTests extends ESTestCase {
-    
+
     /**
      * test filtering two string fields
      */
@@ -86,16 +88,16 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new StringField("fieldA", "test", Field.Store.NO));
         doc.add(new StringField("fieldB", "test", Field.Store.NO));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
         Set<String> seenFields = new HashSet<>();
@@ -105,11 +107,11 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertEquals(Collections.singleton("fieldA"), seenFields);
         assertNotNull(segmentReader.terms("fieldA"));
         assertNull(segmentReader.terms("fieldB"));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering two int points
      */
@@ -148,7 +150,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertEquals(Integer.BYTES, points.getBytesPerDimension());
 
         // number of dimensions
-        assertEquals(1, points.getNumDimensions());
+        assertEquals(1, points.getNumIndexDimensions());
 
         // walk the trees: we should see stuff in fieldA
         AtomicBoolean sawDoc = new AtomicBoolean(false);
@@ -181,25 +183,25 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new StoredField("fieldA", "testA"));
         doc.add(new StoredField("fieldB", "testB"));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         Document d2 = ir.document(0);
         assertEquals(1, d2.getFields().size());
         assertEquals("testA", d2.get("fieldA"));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering two stored fields (binary)
      */
@@ -207,25 +209,25 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new StoredField("fieldA", new BytesRef("testA")));
         doc.add(new StoredField("fieldB", new BytesRef("testB")));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         Document d2 = ir.document(0);
         assertEquals(1, d2.getFields().size());
         assertEquals(new BytesRef("testA"), d2.getBinaryValue("fieldA"));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering two stored fields (int)
      */
@@ -233,25 +235,25 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new StoredField("fieldA", 1));
         doc.add(new StoredField("fieldB", 2));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         Document d2 = ir.document(0);
         assertEquals(1, d2.getFields().size());
         assertEquals(1, d2.getField("fieldA").numericValue());
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering two stored fields (long)
      */
@@ -259,25 +261,25 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new StoredField("fieldA", 1L));
         doc.add(new StoredField("fieldB", 2L));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         Document d2 = ir.document(0);
         assertEquals(1, d2.getFields().size());
         assertEquals(1L, d2.getField("fieldA").numericValue());
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering two stored fields (float)
      */
@@ -285,25 +287,25 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new StoredField("fieldA", 1F));
         doc.add(new StoredField("fieldB", 2F));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         Document d2 = ir.document(0);
         assertEquals(1, d2.getFields().size());
         assertEquals(1F, d2.getField("fieldA").numericValue());
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering two stored fields (double)
      */
@@ -311,25 +313,25 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new StoredField("fieldA", 1D));
         doc.add(new StoredField("fieldB", 2D));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         Document d2 = ir.document(0);
         assertEquals(1, d2.getFields().size());
         assertEquals(1D, d2.getField("fieldA").numericValue());
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering two vector fields
      */
@@ -337,7 +339,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         FieldType ft = new FieldType(StringField.TYPE_NOT_STORED);
@@ -345,10 +347,10 @@ public class FieldSubsetReaderTests extends ESTestCase {
         doc.add(new Field("fieldA", "testA", ft));
         doc.add(new Field("fieldB", "testB", ft));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         Fields vectors = ir.getTermVectors(0);
         Set<String> seenFields = new HashSet<>();
@@ -356,11 +358,11 @@ public class FieldSubsetReaderTests extends ESTestCase {
             seenFields.add(field);
         }
         assertEquals(Collections.singleton("fieldA"), seenFields);
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering two text fields
      */
@@ -368,25 +370,25 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random()));
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new TextField("fieldA", "test", Field.Store.NO));
         doc.add(new TextField("fieldB", "test", Field.Store.NO));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
         assertNotNull(segmentReader.getNormValues("fieldA"));
         assertNull(segmentReader.getNormValues("fieldB"));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering two numeric dv fields
      */
@@ -394,16 +396,16 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new NumericDocValuesField("fieldA", 1));
         doc.add(new NumericDocValuesField("fieldB", 2));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
         NumericDocValues values = segmentReader.getNumericDocValues("fieldA");
@@ -411,11 +413,11 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertTrue(values.advanceExact(0));
         assertEquals(1, values.longValue());
         assertNull(segmentReader.getNumericDocValues("fieldB"));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering two binary dv fields
      */
@@ -423,16 +425,16 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new BinaryDocValuesField("fieldA", new BytesRef("testA")));
         doc.add(new BinaryDocValuesField("fieldB", new BytesRef("testB")));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
         BinaryDocValues values = segmentReader.getBinaryDocValues("fieldA");
@@ -444,7 +446,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering two sorted dv fields
      */
@@ -452,16 +454,16 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new SortedDocValuesField("fieldA", new BytesRef("testA")));
         doc.add(new SortedDocValuesField("fieldB", new BytesRef("testB")));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
         SortedDocValues values = segmentReader.getSortedDocValues("fieldA");
@@ -469,11 +471,11 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertTrue(values.advanceExact(0));
         assertEquals(new BytesRef("testA"), values.binaryValue());
         assertNull(segmentReader.getSortedDocValues("fieldB"));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering two sortedset dv fields
      */
@@ -481,16 +483,16 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new SortedSetDocValuesField("fieldA", new BytesRef("testA")));
         doc.add(new SortedSetDocValuesField("fieldB", new BytesRef("testB")));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
         SortedSetDocValues dv = segmentReader.getSortedSetDocValues("fieldA");
@@ -500,11 +502,11 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertEquals(SortedSetDocValues.NO_MORE_ORDS, dv.nextOrd());
         assertEquals(new BytesRef("testA"), dv.lookupOrd(0));
         assertNull(segmentReader.getSortedSetDocValues("fieldB"));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering two sortednumeric dv fields
      */
@@ -512,16 +514,16 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new SortedNumericDocValuesField("fieldA", 1));
         doc.add(new SortedNumericDocValuesField("fieldB", 2));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
         SortedNumericDocValues dv = segmentReader.getSortedNumericDocValues("fieldA");
@@ -530,11 +532,11 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertEquals(1, dv.docValueCount());
         assertEquals(1, dv.nextValue());
         assertNull(segmentReader.getSortedNumericDocValues("fieldB"));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test we have correct fieldinfos metadata
      */
@@ -542,27 +544,27 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new StringField("fieldA", "test", Field.Store.NO));
         doc.add(new StringField("fieldB", "test", Field.Store.NO));
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
         FieldInfos infos = segmentReader.getFieldInfos();
         assertEquals(1, infos.size());
         assertNotNull(infos.fieldInfo("fieldA"));
         assertNull(infos.fieldInfo("fieldB"));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test special handling for _source field.
      */
@@ -570,7 +572,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new StringField("fieldA", "testA", Field.Store.NO));
@@ -578,16 +580,16 @@ public class FieldSubsetReaderTests extends ESTestCase {
         byte bytes[] = "{\"fieldA\":\"testA\", \"fieldB\":\"testB\"}".getBytes(StandardCharsets.UTF_8);
         doc.add(new StoredField(SourceFieldMapper.NAME, bytes, 0, bytes.length));
         iw.addDocument(doc);
-        
+
         // open reader
         Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", SourceFieldMapper.NAME));
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
-        
+
         // see only one field
         Document d2 = ir.document(0);
         assertEquals(1, d2.getFields().size());
         assertEquals("{\"fieldA\":\"testA\"}", d2.getBinaryValue(SourceFieldMapper.NAME).utf8ToString());
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
@@ -741,7 +743,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new StringField("fieldA", "test", Field.Store.NO));
@@ -749,37 +751,49 @@ public class FieldSubsetReaderTests extends ESTestCase {
         doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldA", Field.Store.NO));
         doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldB", Field.Store.NO));
         iw.addDocument(doc);
-        
+
         // open reader
         Set<String> fields = new HashSet<>();
         fields.add("fieldA");
         Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", FieldNamesFieldMapper.NAME));
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
-        
+
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
         Terms terms = segmentReader.terms(FieldNamesFieldMapper.NAME);
         TermsEnum termsEnum = terms.iterator();
         assertEquals(new BytesRef("fieldA"), termsEnum.next());
         assertNull(termsEnum.next());
-        
-        // seekExact 
+
+        // seekExact
         termsEnum = terms.iterator();
         assertTrue(termsEnum.seekExact(new BytesRef("fieldA")));
         assertFalse(termsEnum.seekExact(new BytesRef("fieldB")));
-        
-        // seekCeil 
+
+        // seekExact with TermState
+        // first, collect TermState from underlying reader
+        LeafReader unwrappedReader = FilterDirectoryReader.unwrap(ir).leaves().get(0).reader();
+        Terms unwrappedTerms = unwrappedReader.terms(FieldNamesFieldMapper.NAME);
+        TermsEnum unwrappedTE = unwrappedTerms.iterator();
+        assertTrue(unwrappedTE.seekExact(new BytesRef("fieldB")));
+        TermState termState = unwrappedTE.termState();
+
+        // now try and seekExact with it
+        TermsEnum badEnum = terms.iterator();
+        expectThrows(IllegalStateException.class, () -> badEnum.seekExact(new BytesRef("fieldB"), termState));
+
+        // seekCeil
         termsEnum = terms.iterator();
         assertEquals(SeekStatus.FOUND, termsEnum.seekCeil(new BytesRef("fieldA")));
         assertEquals(SeekStatus.NOT_FOUND, termsEnum.seekCeil(new BytesRef("field0000")));
         assertEquals(new BytesRef("fieldA"), termsEnum.term());
         assertEquals(SeekStatus.END, termsEnum.seekCeil(new BytesRef("fieldAAA")));
         assertEquals(SeekStatus.END, termsEnum.seekCeil(new BytesRef("fieldB")));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test special handling for _field_names field (three fields, to exercise termsenum better)
      */
@@ -787,7 +801,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new StringField("fieldA", "test", Field.Store.NO));
@@ -797,11 +811,11 @@ public class FieldSubsetReaderTests extends ESTestCase {
         doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldB", Field.Store.NO));
         doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldC", Field.Store.NO));
         iw.addDocument(doc);
-        
+
         // open reader
         Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", "fieldC", FieldNamesFieldMapper.NAME));
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
-        
+
         // see only two fields
         LeafReader segmentReader = ir.leaves().get(0).reader();
         Terms terms = segmentReader.terms(FieldNamesFieldMapper.NAME);
@@ -809,24 +823,24 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertEquals(new BytesRef("fieldA"), termsEnum.next());
         assertEquals(new BytesRef("fieldC"), termsEnum.next());
         assertNull(termsEnum.next());
-        
-        // seekExact 
+
+        // seekExact
         termsEnum = terms.iterator();
         assertTrue(termsEnum.seekExact(new BytesRef("fieldA")));
         assertFalse(termsEnum.seekExact(new BytesRef("fieldB")));
         assertTrue(termsEnum.seekExact(new BytesRef("fieldC")));
-        
-        // seekCeil 
+
+        // seekCeil
         termsEnum = terms.iterator();
         assertEquals(SeekStatus.FOUND, termsEnum.seekCeil(new BytesRef("fieldA")));
         assertEquals(SeekStatus.NOT_FOUND, termsEnum.seekCeil(new BytesRef("fieldB")));
         assertEquals(new BytesRef("fieldC"), termsEnum.term());
         assertEquals(SeekStatus.END, termsEnum.seekCeil(new BytesRef("fieldD")));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test _field_names where a field is permitted, but doesn't exist in the segment.
      */
@@ -834,7 +848,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new StringField("fieldA", "test", Field.Store.NO));
@@ -842,27 +856,27 @@ public class FieldSubsetReaderTests extends ESTestCase {
         doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldA", Field.Store.NO));
         doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldB", Field.Store.NO));
         iw.addDocument(doc);
-        
+
         // open reader
         Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", "fieldC", FieldNamesFieldMapper.NAME));
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
-        
+
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
         Terms terms = segmentReader.terms(FieldNamesFieldMapper.NAME);
-        
-        // seekExact 
+
+        // seekExact
         TermsEnum termsEnum = terms.iterator();
         assertFalse(termsEnum.seekExact(new BytesRef("fieldC")));
-        
-        // seekCeil 
+
+        // seekCeil
         termsEnum = terms.iterator();
         assertEquals(SeekStatus.END, termsEnum.seekCeil(new BytesRef("fieldC")));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test where _field_names does not exist
      */
@@ -870,25 +884,25 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         doc.add(new StringField("fieldA", "test", Field.Store.NO));
         doc.add(new StringField("fieldB", "test", Field.Store.NO));
         iw.addDocument(doc);
-        
+
         // open reader
         Automaton automaton = Automatons.patterns(Arrays.asList("fieldA", SourceFieldMapper.NAME));
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(automaton));
-        
+
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
         assertNull(segmentReader.terms(FieldNamesFieldMapper.NAME));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /** test that core cache key (needed for NRT) is working */
     public void testCoreCacheKey() throws Exception {
         Directory dir = newDirectory();
@@ -896,7 +910,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         iwc.setMaxBufferedDocs(100);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add two docs, id:0 and id:1
         Document doc = new Document();
         Field idField = new StringField("id", "", Field.Store.NO);
@@ -905,7 +919,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         iw.addDocument(doc);
         idField.setStringValue("1");
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("id")));
         assertEquals(2, ir.numDocs());
@@ -914,17 +928,17 @@ public class FieldSubsetReaderTests extends ESTestCase {
         // delete id:0 and reopen
         iw.deleteDocuments(new Term("id", "0"));
         DirectoryReader ir2 = DirectoryReader.openIfChanged(ir);
-        
+
         // we should have the same cache key as before
         assertEquals(1, ir2.numDocs());
         assertEquals(1, ir2.leaves().size());
         assertSame(ir.leaves().get(0).reader().getCoreCacheHelper().getKey(),
                 ir2.leaves().get(0).reader().getCoreCacheHelper().getKey());
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, ir2, iw, dir);
     }
-    
+
     /**
      * test filtering the only vector fields
      */
@@ -932,7 +946,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        
+
         // add document with 2 fields
         Document doc = new Document();
         FieldType ft = new FieldType(StringField.TYPE_NOT_STORED);
@@ -940,17 +954,17 @@ public class FieldSubsetReaderTests extends ESTestCase {
         doc.add(new Field("fieldA", "testA", ft));
         doc.add(new StringField("fieldB", "testB", Field.Store.NO)); // no vectors
         iw.addDocument(doc);
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldB")));
-        
+
         // sees no fields
         assertNull(ir.getTermVectors(0));
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
-    
+
     /**
      * test filtering an index with no fields
      */
@@ -959,10 +973,10 @@ public class FieldSubsetReaderTests extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
         iw.addDocument(new Document());
-        
+
         // open reader
         DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw), new CharacterRunAutomaton(Automata.makeString("fieldA")));
-        
+
         // see no fields
         LeafReader segmentReader = ir.leaves().get(0).reader();
         Set<String> seenFields = new HashSet<>();
@@ -971,14 +985,14 @@ public class FieldSubsetReaderTests extends ESTestCase {
         }
         assertEquals(0, seenFields.size());
         assertNull(segmentReader.terms("foo"));
-        
+
         // see no vectors
         assertNull(segmentReader.getTermVectors(0));
-        
+
         // see no stored fields
         Document document = segmentReader.document(0);
         assertEquals(0, document.getFields().size());
-        
+
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }

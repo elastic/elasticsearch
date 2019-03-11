@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction.Response;
 
-public class ForecastJobActionResponseTests extends AbstractStreamableTestCase<Response> {
+public class ForecastJobActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
@@ -16,8 +17,7 @@ public class ForecastJobActionResponseTests extends AbstractStreamableTestCase<R
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected Writeable.Reader<Response> instanceReader() {
+        return Response::new;
     }
-
 }

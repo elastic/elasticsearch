@@ -1,0 +1,26 @@
+[role="xpack"]
+[testenv="basic"]
+[[rollup-agg-limitations]]
+== Rollup Aggregation Limitations
+
+experimental[]
+
+There are some limitations to how fields can be rolled up / aggregated.  This page highlights the major limitations so that
+you are aware of them.
+
+[float]
+=== Limited aggregation components
+
+The Rollup functionality allows fields to be grouped with the following aggregations:
+
+- Date Histogram aggregation
+- Histogram aggregation
+- Terms aggregation
+
+And the following metrics are allowed to be specified for numeric fields:
+
+- Min aggregation
+- Max aggregation
+- Sum aggregation
+- Average aggregation
+- Value Count aggregation

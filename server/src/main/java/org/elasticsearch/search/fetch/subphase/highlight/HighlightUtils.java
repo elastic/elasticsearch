@@ -18,10 +18,13 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -70,8 +73,18 @@ public final class HighlightUtils {
         return textsToHighlight;
     }
 
-    static class Encoders {
-        static final Encoder DEFAULT = new DefaultEncoder();
-        static final Encoder HTML = new SimpleHTMLEncoder();
+    public static class Encoders {
+        public static final Encoder DEFAULT = new DefaultEncoder();
+        public static final Encoder HTML = new SimpleHTMLEncoder();
     }
+    
+    static Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type) {
+        if (type instanceof KeywordFieldMapper.KeywordFieldType) {
+            KeywordFieldMapper.KeywordFieldType keywordFieldType = (KeywordFieldMapper.KeywordFieldType) type;
+            if (keywordFieldType.normalizer() != null) {
+                return  keywordFieldType.normalizer();
+            }
+        }
+        return docMapper.mappers().indexAnalyzer();
+    }    
 }

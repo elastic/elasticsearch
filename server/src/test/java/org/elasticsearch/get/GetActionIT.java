@@ -19,7 +19,6 @@
 
 package org.elasticsearch.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -214,7 +213,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(exception.getMessage(), endsWith("can't execute a single index op"));
     }
 
-    private static String indexOrAlias() {
+    static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
     }
 
@@ -524,41 +523,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[2].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
     }
 
-    public void testGetFieldsMetaDataWithRouting() throws Exception {
-        assertAcked(prepareCreate("test")
-            .addMapping("_doc", "field1", "type=keyword,store=true")
-            .addAlias(new Alias("alias"))
-            .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.version.created", Version.V_5_6_0.id)));
-            // multi types in 5.6
-
-        client().prepareIndex("test", "_doc", "1")
-            .setRouting("1")
-            .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
-            .get();
-
-        GetResponse getResponse = client().prepareGet(indexOrAlias(), "_doc", "1")
-            .setRouting("1")
-            .setStoredFields("field1")
-            .get();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getField("field1").isMetadataField(), equalTo(false));
-        assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
-        assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
-        assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
-
-        flush();
-
-        getResponse = client().prepareGet(indexOrAlias(), "_doc", "1")
-            .setStoredFields("field1")
-            .setRouting("1")
-            .get();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getField("field1").isMetadataField(), equalTo(false));
-        assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
-        assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
-        assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
-    }
-
     public void testGetFieldsNonLeafField() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("my-type1", jsonBuilder().startObject().startObject("my-type1").startObject("properties")
@@ -653,7 +617,10 @@ public class GetActionIT extends ESIntegTestCase {
         FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").setForce(true).get();
         if (flushResponse.getSuccessfulShards() == 0) {
             StringBuilder sb = new StringBuilder("failed to flush at least one shard. total shards [")
-                    .append(flushResponse.getTotalShards()).append("], failed shards: [").append(flushResponse.getFailedShards()).append("]");
+                    .append(flushResponse.getTotalShards())
+                    .append("], failed shards: [")
+                    .append(flushResponse.getFailedShards())
+                    .append("]");
             for (DefaultShardOperationFailedException failure: flushResponse.getShardFailures()) {
                 sb.append("\nShard failure: ").append(failure);
             }

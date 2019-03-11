@@ -62,7 +62,7 @@ public class VectorHighlighterTests extends ESTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
-        assertThat(topDocs.totalHits, equalTo(1L));
+        assertThat(topDocs.totalHits.value, equalTo(1L));
 
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
         String fragment = highlighter.getBestFragment(highlighter.getFieldQuery(new TermQuery(new Term("content", "bad"))),
@@ -88,7 +88,7 @@ public class VectorHighlighterTests extends ESTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
-        assertThat(topDocs.totalHits, equalTo(1L));
+        assertThat(topDocs.totalHits.value, equalTo(1L));
 
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
 
@@ -129,7 +129,7 @@ public class VectorHighlighterTests extends ESTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
-        assertThat(topDocs.totalHits, equalTo(1L));
+        assertThat(topDocs.totalHits.value, equalTo(1L));
 
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
         String fragment = highlighter.getBestFragment(highlighter.getFieldQuery(new TermQuery(new Term("content", "bad"))),
@@ -150,7 +150,7 @@ public class VectorHighlighterTests extends ESTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
-        assertThat(topDocs.totalHits, equalTo(1L));
+        assertThat(topDocs.totalHits.value, equalTo(1L));
 
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
         String fragment = highlighter.getBestFragment(highlighter.getFieldQuery(new TermQuery(new Term("content", "bad"))),

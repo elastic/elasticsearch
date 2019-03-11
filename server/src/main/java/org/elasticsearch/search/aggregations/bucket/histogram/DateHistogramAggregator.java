@@ -20,10 +20,11 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -86,8 +87,11 @@ class DateHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public boolean needsScores() {
-        return (valuesSource != null && valuesSource.needsScores()) || super.needsScores();
+    public ScoreMode scoreMode() {
+        if (valuesSource != null && valuesSource.needsScores()) {
+            return ScoreMode.COMPLETE;
+        }
+        return super.scoreMode();
     }
 
     @Override

@@ -21,6 +21,11 @@ package org.elasticsearch.tools.launchers;
 
 import org.elasticsearch.tools.java_version_checker.SuppressForbidden;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
+
 /**
  * Utility methods for launchers.
  */
@@ -54,6 +59,11 @@ final class Launchers {
     @SuppressForbidden(reason = "System#exit")
     static void exit(final int status) {
         System.exit(status);
+    }
+
+    @SuppressForbidden(reason = "Files#createTempDirectory(String, FileAttribute...)")
+    static Path createTempDirectory(final String prefix, final FileAttribute<?>... attrs) throws IOException {
+        return Files.createTempDirectory(prefix, attrs);
     }
 
 }

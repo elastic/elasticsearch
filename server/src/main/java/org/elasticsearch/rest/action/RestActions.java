@@ -90,8 +90,7 @@ public class RestActions {
         builder.field(FAILED_FIELD.getPreferredName(), failed);
         if (shardFailures != null && shardFailures.length > 0) {
             builder.startArray(FAILURES_FIELD.getPreferredName());
-            final boolean group = params.paramAsBoolean("group_shard_failures", true); // we group by default
-            for (ShardOperationFailedException shardFailure : group ? ExceptionsHelper.groupBy(shardFailures) : shardFailures) {
+            for (ShardOperationFailedException shardFailure : ExceptionsHelper.groupBy(shardFailures)) {
                 builder.startObject();
                 shardFailure.toXContent(builder, params);
                 builder.endObject();

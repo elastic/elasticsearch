@@ -8,7 +8,10 @@
 directly to configure and access {xpack} features.
 
 * <<info-api,Info API>>
+* <<ccr-apis,Cross-cluster replication APIs>>
 * <<graph-explore-api,Graph Explore API>>
+* <<freeze-index-api>>, <<unfreeze-index-api>>
+* <<index-lifecycle-management-api,Index lifecycle management APIs>>
 * <<licensing-apis,Licensing APIs>>
 * <<ml-apis,Machine Learning APIs>>
 * <<security-api,Security APIs>>
@@ -19,11 +22,15 @@ directly to configure and access {xpack} features.
 
 
 include::info.asciidoc[]
-include::{xes-repo-dir}/rest-api/graph/explore.asciidoc[]
+include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
+include::{es-repo-dir}/graph/explore.asciidoc[]
+include::{es-repo-dir}/indices/apis/freeze.asciidoc[]
+include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
 include::{es-repo-dir}/licensing/index.asciidoc[]
 include::{es-repo-dir}/migration/migration.asciidoc[]
-include::{xes-repo-dir}/rest-api/ml-api.asciidoc[]
-include::{xes-repo-dir}/rest-api/rollup-api.asciidoc[]
+include::{es-repo-dir}/ml/apis/ml-api.asciidoc[]
+include::{es-repo-dir}/rollup/rollup-api.asciidoc[]
 include::{xes-repo-dir}/rest-api/security.asciidoc[]
+include::{es-repo-dir}/indices/apis/unfreeze.asciidoc[]
 include::{xes-repo-dir}/rest-api/watcher.asciidoc[]
-include::{xes-repo-dir}/rest-api/defs.asciidoc[]
+include::defs.asciidoc[]

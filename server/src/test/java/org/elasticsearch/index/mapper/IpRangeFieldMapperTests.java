@@ -60,7 +60,7 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
         cases.put("192.168.0.0/17", "192.168.127.255");
         for (final Map.Entry<String, String> entry : cases.entrySet()) {
             ParsedDocument doc =
-                mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+                mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", entry.getKey())
                         .endObject()),
@@ -71,7 +71,7 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
             IndexableField dvField = fields[0];
             assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
             IndexableField pointField = fields[1];
-            assertEquals(2, pointField.fieldType().pointDimensionCount());
+            assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
             IndexableField storedField = fields[2];
             assertTrue(storedField.fieldType().stored());
             String strVal =

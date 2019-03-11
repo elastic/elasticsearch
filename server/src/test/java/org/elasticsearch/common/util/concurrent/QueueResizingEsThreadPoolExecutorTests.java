@@ -226,19 +226,13 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         context.close();
     }
 
-    private Function<Runnable, Runnable> randomBetweenLimitsWrapper(final int minNs, final int maxNs) {
-        return (runnable) -> {
-            return new SettableTimedRunnable(randomIntBetween(minNs, maxNs));
-        };
-    }
-
-    private Function<Runnable, Runnable> fastWrapper() {
+    private Function<Runnable, WrappedRunnable> fastWrapper() {
         return (runnable) -> {
             return new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(100));
         };
     }
 
-    private Function<Runnable, Runnable> slowWrapper() {
+    private Function<Runnable, WrappedRunnable> slowWrapper() {
         return (runnable) -> {
             return new SettableTimedRunnable(TimeUnit.MINUTES.toNanos(2));
         };

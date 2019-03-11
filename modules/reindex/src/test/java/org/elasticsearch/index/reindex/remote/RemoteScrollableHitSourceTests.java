@@ -69,7 +69,6 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -104,7 +103,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             }
 
             @Override
-            public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
                 command.run();
                 return null;
             }
@@ -150,13 +149,15 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertTrue(called.get());
         called.set(false);
         sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, "main/5_0_0_alpha_3.json").lookupRemoteVersion(v -> {
-            assertEquals(Version.V_5_0_0_alpha3, v);
+            // assert for V_5_0_0 (no qualifier) since we no longer consider qualifier in Version since 7
+            assertEquals(Version.fromId(5000099), v);
             called.set(true);
         });
         assertTrue(called.get());
         called.set(false);
         sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, "main/with_unknown_fields.json").lookupRemoteVersion(v -> {
-            assertEquals(Version.V_5_0_0_alpha3, v);
+            // V_5_0_0 since we no longer consider qualifier in Version
+            assertEquals(Version.fromId(5000099), v);
             called.set(true);
         });
         assertTrue(called.get());

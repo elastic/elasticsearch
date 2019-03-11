@@ -45,7 +45,7 @@ public class SnippetsTask extends DefaultTask {
     private static final String WARNING = /warning:(.+)/
     private static final String CAT = /(_cat)/
     private static final String TEST_SYNTAX =
-        /(?:$CATCH|$SUBSTITUTION|$SKIP|(continued)|$SETUP|$WARNING) ?/
+        /(?:$CATCH|$SUBSTITUTION|$SKIP|(continued)|$SETUP|$WARNING|(skip_shard_failures)) ?/
 
     /**
      * Action to take on each snippet. Called with a single parameter, an
@@ -122,7 +122,9 @@ public class SnippetsTask extends DefaultTask {
                             + "contain `curl`.")
                     }
                 }
-                if (snippet.testResponse && snippet.language == 'js') {
+                if (snippet.testResponse
+                        && 'js' == snippet.language
+                        && null == snippet.skip) {
                     String quoted = snippet.contents
                         // quote values starting with $
                         .replaceAll(/([:,])\s*(\$[^ ,\n}]+)/, '$1 "$2"')
@@ -216,7 +218,7 @@ public class SnippetsTask extends DefaultTask {
                                 return
                             }
                             if (it.group(4) != null) {
-                                snippet.skipTest = it.group(4)
+                                snippet.skip = it.group(4)
                                 return
                             }
                             if (it.group(5) != null) {
@@ -229,6 +231,10 @@ public class SnippetsTask extends DefaultTask {
                             }
                             if (it.group(7) != null) {
                                 snippet.warnings.add(it.group(7))
+                                return
+                            }
+                            if (it.group(8) != null) {
+                                snippet.skipShardsFailures = true
                                 return
                             }
                             throw new InvalidUserDataException(
@@ -249,7 +255,7 @@ public class SnippetsTask extends DefaultTask {
                             substitutions = []
                         }
                         String loc = "$file:$lineNumber"
-                        parse(loc, matcher.group(2), /(?:$SUBSTITUTION|$CAT) ?/) {
+                        parse(loc, matcher.group(2), /(?:$SUBSTITUTION|$CAT|$SKIP) ?/) {
                             if (it.group(1) != null) {
                                 // TESTRESPONSE[s/adsf/jkl/]
                                 substitutions.add([it.group(1), it.group(2)])
@@ -259,6 +265,9 @@ public class SnippetsTask extends DefaultTask {
                                 substitutions.add(['\n$', '\\\\s*/'])
                                 substitutions.add(['( +)', '$1\\\\s+'])
                                 substitutions.add(['\n', '\\\\s*\n '])
+                            } else if (it.group(4) != null) {
+                                // TESTRESPONSE[skip:reason]
+                                snippet.skip = it.group(4)
                             }
                         }
                     }
@@ -266,6 +275,10 @@ public class SnippetsTask extends DefaultTask {
                 }
                 if (line ==~ /\/\/\s*TESTSETUP\s*/) {
                     snippet.testSetup = true
+                    return
+                }
+                if (line ==~ /\/\/\s*TEARDOWN\s*/) {
+                    snippet.testTearDown = true
                     return
                 }
                 if (snippet == null) {
@@ -312,13 +325,15 @@ public class SnippetsTask extends DefaultTask {
         boolean test = false
         boolean testResponse = false
         boolean testSetup = false
-        String skipTest = null
+        boolean testTearDown = false
+        String skip = null
         boolean continued = false
         String language = null
         String catchPart = null
         String setup = null
         boolean curl
         List warnings = new ArrayList()
+        boolean skipShardsFailures = false
 
         @Override
         public String toString() {
@@ -337,8 +352,8 @@ public class SnippetsTask extends DefaultTask {
                 if (catchPart) {
                     result += "[catch: $catchPart]"
                 }
-                if (skipTest) {
-                    result += "[skip=$skipTest]"
+                if (skip) {
+                    result += "[skip=$skip]"
                 }
                 if (continued) {
                     result += '[continued]'
@@ -349,9 +364,15 @@ public class SnippetsTask extends DefaultTask {
                 for (String warning in warnings) {
                     result += "[warning:$warning]"
                 }
+                if (skipShardsFailures) {
+                    result += '[skip_shard_failures]'
+                }
             }
             if (testResponse) {
                 result += '// TESTRESPONSE'
+                if (skip) {
+                    result += "[skip=$skip]"
+                }
             }
             if (testSetup) {
                 result += '// TESTSETUP'

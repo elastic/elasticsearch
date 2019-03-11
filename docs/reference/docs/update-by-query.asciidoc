@@ -39,9 +39,9 @@ That will return something like this:
 // TESTRESPONSE[s/"took" : 147/"took" : "$body.took"/]
 
 `_update_by_query` gets a snapshot of the index when it starts and indexes what
-it finds using `internal` versioning. That means that you'll get a version
+it finds using `internal` versioning. That means you'll get a version
 conflict if the document changes between the time when the snapshot was taken
-and when the index request is processed. When the versions match the document
+and when the index request is processed. When the versions match, the document
 is updated and the version number is incremented.
 
 NOTE: Since `internal` versioning does not support the value 0 as a valid
@@ -55,10 +55,10 @@ aborted. While the first failure causes the abort, all failures that are
 returned by the failing bulk request are returned in the `failures` element; therefore
 it's possible for there to be quite a few failed entities.
 
-If you want to simply count version conflicts not cause the `_update_by_query`
-to abort you can set `conflicts=proceed` on the url or `"conflicts": "proceed"`
+If you want to simply count version conflicts, and not cause the `_update_by_query`
+to abort, you can set `conflicts=proceed` on the url or `"conflicts": "proceed"`
 in the request body. The first example does this because it is just trying to
-pick up an online mapping change and a version conflict simply means that the
+pick up an online mapping change, and a version conflict simply means that the
 conflicting document was updated between the start of the `_update_by_query`
 and the time when it attempted to update the document. This is fine because
 that update will have picked up the online mapping update.
@@ -92,7 +92,7 @@ POST twitter/_update_by_query?conflicts=proceed
 
 <1> The query must be passed as a value to the `query` key, in the same
 way as the <<search-search,Search API>>. You can also use the `q`
-parameter in the same way as the search api.
+parameter in the same way as the search API.
 
 So far we've only been updating documents without changing their source. That
 is genuinely useful for things like
@@ -121,7 +121,7 @@ POST twitter/_update_by_query
 Just as in <<docs-update,Update API>> you can set `ctx.op` to change the
 operation that is executed:
 
-
+[horizontal]
 `noop`::
 
 Set `ctx.op = "noop"` if your script decides that it doesn't have to make any
@@ -199,12 +199,13 @@ POST twitter/_update_by_query?pipeline=set-foo
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Update By Query API
-also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`
+also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,
 and `scroll`.
 
 Sending the `refresh` will update all shards in the index being updated when
-the request completes. This is different than the Index API's `refresh`
-parameter which causes just the shard that received the new data to be indexed.
+the request completes. This is different than the Update API's `refresh`
+parameter, which causes just the shard that received the new data to be indexed.
+Also unlike the Update API it does not support `wait_for`.
 
 If the request contains `wait_for_completion=false` then Elasticsearch will
 perform some preflight checks, launch the request, and then return a `task`
@@ -218,12 +219,12 @@ Elasticsearch can reclaim the space it uses.
 before proceeding with the request. See <<index-wait-for-active-shards,here>>
 for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
-<<docs-bulk,Bulk API>>. As `_update_by_query` uses scroll search, you can also specify
+<<docs-bulk,Bulk API>>. Because `_update_by_query` uses scroll search, you can also specify
 the `scroll` parameter to control how long it keeps the "search context" alive,
-eg `?scroll=10m`, by default it's 5 minutes.
+e.g. `?scroll=10m`. By default it's 5 minutes.
 
 `requests_per_second` can be set to any positive decimal number (`1.4`, `6`,
-`1000`, etc) and throttles rate at which `_update_by_query` issues batches of
+`1000`, etc.) and throttles the rate at which `_update_by_query` issues batches of
 index operations by padding each batch with a wait time. The throttling can be
 disabled by setting `requests_per_second` to `-1`.
 
@@ -236,10 +237,10 @@ batch size is `1000`, so if the `requests_per_second` is set to `500`:
 [source,txt]
 --------------------------------------------------
 target_time = 1000 / 500 per second = 2 seconds
-wait_time = target_time - delete_time = 2 seconds - .5 seconds = 1.5 seconds
+wait_time = target_time - write_time = 2 seconds - .5 seconds = 1.5 seconds
 --------------------------------------------------
 
-Since the batch is issued as a single `_bulk` request large batch sizes will
+Since the batch is issued as a single `_bulk` request, large batch sizes will
 cause Elasticsearch to create many requests and then wait for a while before
 starting the next set. This is "bursty" instead of "smooth". The default is `-1`.
 
@@ -282,6 +283,7 @@ The JSON response looks like this:
 --------------------------------------------------
 // TESTRESPONSE[s/"took" : 147/"took" : "$body.took"/]
 
+[horizontal]
 `took`::
 
 The number of milliseconds from start to end of the whole operation.
@@ -318,8 +320,8 @@ the update by query returned a `noop` value for `ctx.op`.
 
 `retries`::
 
-The number of retries attempted by update-by-query. `bulk` is the number of bulk
-actions retried and `search` is the number of search actions retried.
+The number of retries attempted by update by query. `bulk` is the number of bulk
+actions retried, and `search` is the number of search actions retried.
 
 `throttled_millis`::
 
@@ -331,7 +333,7 @@ The number of requests per second effectively executed during the update by quer
 
 `throttled_until_millis`::
 
-This field should always be equal to zero in a delete by query response. It only
+This field should always be equal to zero in an `_update_by_query` response. It only
 has meaning when using the <<docs-update-by-query-task-api, Task API>>, where it
 indicates the next time (in milliseconds since epoch) a throttled request will be
 executed again in order to conform to `requests_per_second`.
@@ -340,8 +342,8 @@ executed again in order to conform to `requests_per_second`.
 
 Array of failures if there were any unrecoverable errors during the process. If
 this is non-empty then the request aborted because of those failures.
-Update-by-query is implemented using batches and any failure causes the entire
-process to abort but all failures in the current batch are collected into the
+Update by query is implemented using batches. Any failure causes the entire
+process to abort, but all failures in the current batch are collected into the
 array. You can use the `conflicts` option to prevent reindex from aborting on
 version conflicts.
 
@@ -351,7 +353,7 @@ version conflicts.
 [[docs-update-by-query-task-api]]
 === Works with the Task API
 
-You can fetch the status of all running update-by-query requests with the
+You can fetch the status of all running update by query requests with the
 <<tasks,Task API>>:
 
 [source,js]
@@ -359,6 +361,7 @@ You can fetch the status of all running update-by-query requests with the
 GET _tasks?detailed=true&actions=*byquery
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:No tasks to retrieve]
 
 The responses looks like:
 
@@ -392,7 +395,7 @@ The responses looks like:
             "retries": {
               "bulk": 0,
               "search": 0
-            }
+            },
             "throttled_millis": 0
           },
           "description" : ""
@@ -402,28 +405,27 @@ The responses looks like:
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
-// We can't test tasks output
+// TESTRESPONSE
 
-<1> this object contains the actual status. It is just like the response json
+<1> This object contains the actual status. It is just like the response JSON
 with the important addition of the `total` field. `total` is the total number
 of operations that the reindex expects to perform. You can estimate the
 progress by adding the `updated`, `created`, and `deleted` fields. The request
 will finish when their sum is equal to the `total` field.
 
-With the task id you can look up the task directly:
+With the task id you can look up the task directly. The following example 
+retrieves information about task `r1A2WoRbTwKZ516z6NEs5A:36619`:
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/task_id
+GET /_tasks/r1A2WoRbTwKZ516z6NEs5A:36619
 --------------------------------------------------
 // CONSOLE
-// TEST[s/task_id/node_id:1/]
 // TEST[catch:missing]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
 to transparently return the status of completed tasks. If the task is completed
-and `wait_for_completion=false` was set on it them it'll come back with a
+and `wait_for_completion=false` was set on it, then it'll come back with a
 `results` or an `error` field. The cost of this feature is the document that
 `wait_for_completion=false` creates at `.tasks/task/${taskId}`. It is up to
 you to delete that document.
@@ -433,19 +435,19 @@ you to delete that document.
 [[docs-update-by-query-cancel-task-api]]
 === Works with the Cancel Task API
 
-Any Update By Query can be canceled using the <<tasks,Task Cancel API>>:
+Any update by query can be cancelled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id/_cancel
+POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 --------------------------------------------------
 // CONSOLE
-// TEST[s/task_id/node_id:1/]
 
-The `task_id` can be found using the tasks API above.
+The task ID can be found using the <<tasks,tasks API>>.
 
-Cancellation should happen quickly but might take a few seconds. The task status
-API above will continue to list the task until it is wakes to cancel itself.
+Cancellation should happen quickly but might take a few seconds. The task status 
+API above will continue to list the update by query task until this task checks 
+that it has been cancelled and terminates itself.
 
 
 [float]
@@ -457,32 +459,31 @@ using the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _update_by_query/task_id/_rethrottle?requests_per_second=-1
+POST _update_by_query/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
-// TEST[s/task_id/node_id:1/]
 
-The `task_id` can be found using the tasks API above.
+The task ID can be found using the <<tasks, tasks API>>.
 
-Just like when setting it on the `_update_by_query` API `requests_per_second`
+Just like when setting it on the `_update_by_query` API, `requests_per_second`
 can be either `-1` to disable throttling or any decimal number
 like `1.7` or `12` to throttle to that level. Rethrottling that speeds up the
-query takes effect immediately but rethrotting that slows down the query will
-take effect on after completing the current batch. This prevents scroll
+query takes effect immediately, but rethrotting that slows down the query will
+take effect after completing the current batch. This prevents scroll
 timeouts.
 
 [float]
 [[docs-update-by-query-slice]]
 === Slicing
 
-Update-by-query supports <<sliced-scroll>> to parallelize the updating process.
+Update by query supports <<sliced-scroll>> to parallelize the updating process.
 This parallelization can improve efficiency and provide a convenient way to
 break the request down into smaller parts.
 
 [float]
 [[docs-update-by-query-manual-slice]]
 ==== Manual slicing
-Slice an update-by-query manually by providing a slice id and total number of
+Slice an update by query manually by providing a slice id and total number of
 slices to each request:
 
 [source,js]
@@ -527,7 +528,10 @@ Which results in a sensible `total` like this one:
 ----------------------------------------------------------------
 {
   "hits": {
-    "total": 120
+    "total": {
+        "value": 120,
+        "relation": "eq"
+    }
   }
 }
 ----------------------------------------------------------------
@@ -537,7 +541,7 @@ Which results in a sensible `total` like this one:
 [[docs-update-by-query-automatic-slice]]
 ==== Automatic slicing
 
-You can also let update-by-query automatically parallelize using
+You can also let update by query automatically parallelize using
 <<sliced-scroll>> to slice on `_id`. Use `slices` to specify the number of
 slices to use:
 
@@ -568,7 +572,10 @@ Which results in a sensible `total` like this one:
 ----------------------------------------------------------------
 {
   "hits": {
-    "total": 120
+    "total": {
+        "value": 120,
+        "relation": "eq"
+    }
   }
 }
 ----------------------------------------------------------------
@@ -599,8 +606,8 @@ be larger than others. Expect larger slices to have a more even distribution.
 are distributed proportionally to each sub-request. Combine that with the point
 above about distribution being uneven and you should conclude that the using
 `size` with `slices` might not result in exactly `size` documents being
-`_update_by_query`ed.
-* Each sub-requests gets a slightly different snapshot of the source index
+updated.
+* Each sub-request gets a slightly different snapshot of the source index
 though these are all taken at approximately the same time.
 
 [float]
@@ -635,11 +642,9 @@ added a mapping value to pick up more fields from the data:
 PUT test
 {
   "mappings": {
-    "_doc": {
-      "dynamic": false,   <1>
-      "properties": {
-        "text": {"type": "text"}
-      }
+    "dynamic": false,   <1>
+    "properties": {
+      "text": {"type": "text"}
     }
   }
 }
@@ -654,7 +659,7 @@ POST test/_doc?refresh
   "text": "words words",
   "flag": "foo"
 }
-PUT test/_mapping/_doc   <2>
+PUT test/_mapping   <2>
 {
   "properties": {
     "text": {"type": "text"},
@@ -689,7 +694,10 @@ POST test/_search?filter_path=hits.total
 --------------------------------------------------
 {
   "hits" : {
-    "total" : 0
+    "total": {
+        "value": 0,
+        "relation": "eq"
+    }
   }
 }
 --------------------------------------------------
@@ -716,7 +724,10 @@ POST test/_search?filter_path=hits.total
 --------------------------------------------------
 {
   "hits" : {
-    "total" : 1
+    "total": {
+        "value": 1,
+        "relation": "eq"
+    }
   }
 }
 --------------------------------------------------

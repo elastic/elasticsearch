@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,12 +26,11 @@ import java.util.Map;
 /**
  * Components that registers all persistent task executors
  */
-public class PersistentTasksExecutorRegistry extends AbstractComponent {
+public class PersistentTasksExecutorRegistry {
 
     private final Map<String, PersistentTasksExecutor<?>> taskExecutors;
 
-    public PersistentTasksExecutorRegistry(Settings settings, Collection<PersistentTasksExecutor<?>> taskExecutors) {
-        super(settings);
+    public PersistentTasksExecutorRegistry(Collection<PersistentTasksExecutor<?>> taskExecutors) {
         Map<String, PersistentTasksExecutor<?>> map = new HashMap<>();
         for (PersistentTasksExecutor<?> executor : taskExecutors) {
             map.put(executor.getTaskName(), executor);

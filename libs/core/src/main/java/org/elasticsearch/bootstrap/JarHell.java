@@ -255,6 +255,10 @@ public class JarHell {
     }
 
     private static void checkClass(Map<String, Path> clazzes, String clazz, Path jarpath) {
+        if (clazz.equals("module-info") || clazz.endsWith(".module-info")) {
+            // Ignore jigsaw module descriptions
+            return;
+        }
         Path previous = clazzes.put(clazz, jarpath);
         if (previous != null) {
             if (previous.equals(jarpath)) {

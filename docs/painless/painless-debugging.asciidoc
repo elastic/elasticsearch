@@ -5,7 +5,7 @@
 
 Painless doesn't have a
 https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop[REPL]
-and while it'd be nice for it to have one one day, it wouldn't tell you the
+and while it'd be nice for it to have one day, it wouldn't tell you the
 whole story around debugging painless scripts embedded in Elasticsearch because
 the data that the scripts have access to or "context" is so important. For now
 the best way to debug embedded scripts is by throwing exceptions at choice
@@ -18,10 +18,10 @@ context available to a {ref}/query-dsl-script-query.html[script query].
 
 [source,js]
 ---------------------------------------------------------
-PUT /hockey/player/1?refresh
+PUT /hockey/_doc/1?refresh
 {"first":"johnny","last":"gaudreau","goals":[9,27,1],"assists":[17,46,0],"gp":[26,82,1]}
 
-POST /hockey/player/1/_explain
+POST /hockey/_explain/1
 {
   "query": {
     "script": {
@@ -31,7 +31,7 @@ POST /hockey/player/1/_explain
 }
 ---------------------------------------------------------
 // CONSOLE
-// TEST[s/_explain/_explain?error_trace=false/ catch:/painless_explain_error/]
+// TEST[s/_explain\/1/_explain\/1?error_trace=false/ catch:/painless_explain_error/]
 // The test system sends error_trace=true by default for easier debugging so
 // we have to override it to get a normal shaped response
 
@@ -58,13 +58,13 @@ in the `_update` API:
 
 [source,js]
 ---------------------------------------------------------
-POST /hockey/player/1/_update
+POST /hockey/_update/1
 {
   "script": "Debug.explain(ctx._source)"
 }
 ---------------------------------------------------------
 // CONSOLE
-// TEST[continued s/_update/_update?error_trace=false/ catch:/painless_explain_error/]
+// TEST[continued s/_update\/1/_update\/1?error_trace=false/ catch:/painless_explain_error/]
 
 The response looks like:
 

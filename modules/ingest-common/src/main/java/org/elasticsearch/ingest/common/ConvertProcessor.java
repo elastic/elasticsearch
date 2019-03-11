@@ -173,12 +173,12 @@ public final class ConvertProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument document) {
+    public IngestDocument execute(IngestDocument document) {
         Object oldValue = document.getFieldValue(field, Object.class, ignoreMissing);
         Object newValue;
 
         if (oldValue == null && ignoreMissing) {
-            return;
+            return document;
         } else if (oldValue == null) {
             throw new IllegalArgumentException("Field [" + field + "] is null, cannot be converted to type [" + convertType + "]");
         }
@@ -194,6 +194,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             newValue = convertType.convert(oldValue);
         }
         document.setFieldValue(targetField, newValue);
+        return document;
     }
 
     @Override

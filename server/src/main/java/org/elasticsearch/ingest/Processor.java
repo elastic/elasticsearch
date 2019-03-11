@@ -23,9 +23,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.Map;
-import java.util.concurrent.ScheduledFuture;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
@@ -40,7 +40,7 @@ public interface Processor {
     /**
      * Introspect and potentially modify the incoming data.
      */
-    void execute(IngestDocument ingestDocument) throws Exception;
+    IngestDocument execute(IngestDocument ingestDocument) throws Exception;
 
     /**
      * Gets the type of a processor
@@ -97,22 +97,26 @@ public interface Processor {
          * instances that have run prior to in ingest.
          */
         public final ThreadContext threadContext;
-    
+
         public final LongSupplier relativeTimeSupplier;
-        
+
+        public final IngestService ingestService;
+
         /**
          * Provides scheduler support
          */
-        public final BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler;
+        public final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler;
 
         public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
-                          LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler) {
+                          LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
+            IngestService ingestService) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;
             this.analysisRegistry = analysisRegistry;
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.scheduler = scheduler;
+            this.ingestService = ingestService;
         }
 
     }

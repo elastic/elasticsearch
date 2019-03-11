@@ -3,16 +3,15 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.license;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
@@ -22,9 +21,14 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartBasicLicense extends XPackRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPostStartBasicLicense.class));
+
     RestPostStartBasicLicense(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(POST, URI_BASE + "/license/start_basic", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                POST, "/_license/start_basic", this,
+                POST, URI_BASE + "/license/start_basic", deprecationLogger);
     }
 
     @Override
@@ -33,18 +37,12 @@ public class RestPostStartBasicLicense extends XPackRestHandler {
         startBasicRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
         startBasicRequest.timeout(request.paramAsTime("timeout", startBasicRequest.timeout()));
         startBasicRequest.masterNodeTimeout(request.paramAsTime("master_timeout", startBasicRequest.masterNodeTimeout()));
-        return channel -> client.licensing().postStartBasic(startBasicRequest, new RestBuilderListener<PostStartBasicResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(PostStartBasicResponse response, XContentBuilder builder) throws Exception {
-                PostStartBasicResponse.Status status = response.getStatus();
-                response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                return new BytesRestResponse(status.getRestStatus(), builder);
-            }
-        });
+        return channel -> client.licensing().postStartBasic(startBasicRequest, new RestStatusToXContentListener<>(channel));
     }
 
     @Override
     public String getName() {
-        return "xpack_start_basic_action";
+        return "post_start_basic";
     }
+
 }

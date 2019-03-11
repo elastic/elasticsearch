@@ -5,14 +5,20 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 public interface DataExtractorFactory {
     DataExtractor newExtractor(long start, long end);
@@ -20,18 +26,50 @@ public interface DataExtractorFactory {
     /**
      * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
      */
-    static void create(Client client, DatafeedConfig datafeed, Job job, ActionListener<DataExtractorFactory> listener) {
+    static void create(Client client,
+                       DatafeedConfig datafeed,
+                       Job job,
+                       NamedXContentRegistry xContentRegistry,
+                       ActionListener<DataExtractorFactory> listener) {
         ActionListener<DataExtractorFactory> factoryHandler = ActionListener.wrap(
-                factory -> listener.onResponse(datafeed.getChunkingConfig().isEnabled()
-                        ? new ChunkedDataExtractorFactory(client, datafeed, job, factory) : factory)
-                , listener::onFailure
+            factory -> listener.onResponse(datafeed.getChunkingConfig().isEnabled()
+                ? new ChunkedDataExtractorFactory(client, datafeed, job, xContentRegistry, factory) : factory)
+            , listener::onFailure
         );
 
-        boolean isScrollSearch = datafeed.hasAggregations() == false;
-        if (isScrollSearch) {
-            ScrollDataExtractorFactory.create(client, datafeed, job, factoryHandler);
-        } else {
-            factoryHandler.onResponse(new AggregationDataExtractorFactory(client, datafeed, job));
-        }
+        ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
+            response -> {
+                if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
+                    if (datafeed.hasAggregations()) {
+                        factoryHandler.onResponse(new AggregationDataExtractorFactory(client, datafeed, job, xContentRegistry));
+                    } else {
+                        ScrollDataExtractorFactory.create(client, datafeed, job, xContentRegistry, factoryHandler);
+                    }
+                } else {
+                    if (datafeed.hasAggregations()) { // Rollup indexes require aggregations
+                        RollupDataExtractorFactory.create(client, datafeed, job, response.getJobs(), xContentRegistry, factoryHandler);
+                    } else {
+                        listener.onFailure(new IllegalArgumentException("Aggregations are required when using Rollup indices"));
+                    }
+                }
+            },
+            e -> {
+                if (e instanceof IndexNotFoundException) {
+                    listener.onFailure(new ResourceNotFoundException("datafeed [" + datafeed.getId()
+                        + "] cannot retrieve data because index " + ((IndexNotFoundException)e).getIndex() + " does not exist"));
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        );
+
+        GetRollupIndexCapsAction.Request request = new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[0]));
+
+        ClientHelper.executeAsyncWithOrigin(
+                client,
+                ClientHelper.ML_ORIGIN,
+                GetRollupIndexCapsAction.INSTANCE,
+                request,
+                getRollupIndexCapsActionHandler);
     }
 }

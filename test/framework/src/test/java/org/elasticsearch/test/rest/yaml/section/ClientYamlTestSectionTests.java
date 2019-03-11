@@ -20,78 +20,19 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
-    public void testAddingDoWithoutSkips() {
-        int lineNumber = between(1, 10000);
-        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
-        section.setSkipSection(SkipSection.EMPTY);
-        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
-        doSection.setApiCallSection(new ApiCallSection("test"));
-        section.addExecutableSection(doSection);
-    }
-
-    public void testAddingDoWithWarningWithSkip() {
-        int lineNumber = between(1, 10000);
-        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
-        section.setSkipSection(new SkipSection(null, singletonList("warnings"), null));
-        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
-        doSection.setExpectedWarningHeaders(singletonList("foo"));
-        doSection.setApiCallSection(new ApiCallSection("test"));
-        section.addExecutableSection(doSection);
-    }
-
-    public void testAddingDoWithWarningWithSkipButNotWarnings() {
-        int lineNumber = between(1, 10000);
-        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
-        section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
-        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
-        doSection.setExpectedWarningHeaders(singletonList("foo"));
-        doSection.setApiCallSection(new ApiCallSection("test"));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> section.addExecutableSection(doSection));
-        assertEquals("Attempted to add a [do] with a [warnings] section without a corresponding [skip] so runners that do not support the"
-                + " [warnings] section can skip the test at line [" + lineNumber + "]", e.getMessage());
-    }
-
-    public void testAddingDoWithNodeSelectorWithSkip() {
-        int lineNumber = between(1, 10000);
-        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
-        section.setSkipSection(new SkipSection(null, singletonList("node_selector"), null));
-        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
-        ApiCallSection apiCall = new ApiCallSection("test");
-        apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
-        doSection.setApiCallSection(apiCall);
-        section.addExecutableSection(doSection);
-    }
-
-    public void testAddingDoWithNodeSelectorWithSkipButNotWarnings() {
-        int lineNumber = between(1, 10000);
-        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
-        section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
-        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
-        ApiCallSection apiCall = new ApiCallSection("test");
-        apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
-        doSection.setApiCallSection(apiCall);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> section.addExecutableSection(doSection));
-        assertEquals("Attempted to add a [do] with a [node_selector] section without a corresponding"
-                + " [skip] so runners that do not support the [node_selector] section can skip the test at"
-                + " line [" + lineNumber + "]", e.getMessage());
-    }
-
     public void testWrongIndentation() throws Exception {
         {
             XContentParser parser = createParser(YamlXContent.yamlXContent,
@@ -152,7 +93,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         parser = createParser(YamlXContent.yamlXContent,
                 "\"First test section\": \n" +
                         "  - skip:\n" +
-                        "      version:  \"5.0.0 - 5.2.0\"\n" +
+                        "      version:  \"6.0.0 - 6.2.0\"\n" +
                         "      reason:   \"Update doesn't return metadata fields, waiting for #3259\"\n" +
                         "  - do :\n" +
                         "      catch: missing\n" +
@@ -167,9 +108,9 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("First test section"));
         assertThat(testSection.getSkipSection(), notNullValue());
-        assertThat(testSection.getSkipSection().getLowerVersion(), equalTo(Version.V_5_0_0));
+        assertThat(testSection.getSkipSection().getLowerVersion(), equalTo(Version.V_6_0_0));
         assertThat(testSection.getSkipSection().getUpperVersion(),
-                equalTo(Version.V_5_2_0));
+                equalTo(Version.V_6_2_0));
         assertThat(testSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(testSection.getExecutableSections().size(), equalTo(2));
         DoSection doSection = (DoSection)testSection.getExecutableSections().get(0);
@@ -297,7 +238,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         LengthAssertion lengthAssertion = (LengthAssertion) testSection.getExecutableSections().get(6);
         assertThat(lengthAssertion.getField(), equalTo("_index"));
         assertThat(lengthAssertion.getExpectedValue(), instanceOf(Integer.class));
-        assertThat((Integer) lengthAssertion.getExpectedValue(), equalTo(6));
+        assertThat(lengthAssertion.getExpectedValue(), equalTo(6));
 
         IsFalseAssertion falseAssertion = (IsFalseAssertion)testSection.getExecutableSections().get(7);
         assertThat(falseAssertion.getField(), equalTo("whatever"));
@@ -305,12 +246,12 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         GreaterThanAssertion greaterThanAssertion = (GreaterThanAssertion) testSection.getExecutableSections().get(8);
         assertThat(greaterThanAssertion.getField(), equalTo("size"));
         assertThat(greaterThanAssertion.getExpectedValue(), instanceOf(Integer.class));
-        assertThat((Integer) greaterThanAssertion.getExpectedValue(), equalTo(5));
+        assertThat(greaterThanAssertion.getExpectedValue(), equalTo(5));
 
         LessThanAssertion lessThanAssertion = (LessThanAssertion) testSection.getExecutableSections().get(9);
         assertThat(lessThanAssertion.getField(), equalTo("size"));
         assertThat(lessThanAssertion.getExpectedValue(), instanceOf(Integer.class));
-        assertThat((Integer) lessThanAssertion.getExpectedValue(), equalTo(10));
+        assertThat(lessThanAssertion.getExpectedValue(), equalTo(10));
     }
 
     public void testSmallSection() throws Exception {
@@ -327,5 +268,4 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection.getName(), equalTo("node_info test"));
         assertThat(testSection.getExecutableSections().size(), equalTo(3));
     }
-
 }

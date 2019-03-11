@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -29,7 +28,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -58,9 +56,9 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -86,8 +84,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private final Map<String, String> mappings = new HashMap<>();
 
     private final Set<Alias> aliases = new HashSet<>();
-
-    private final Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
@@ -388,18 +384,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             } else if (ALIASES.match(name, deprecationHandler)) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                // maybe custom?
-                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
-                if (proto != null) {
-                    try {
-                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
-                    } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
-                    }
-                } else {
-                    // found a key which is neither custom defined nor one of the supported ones
-                    throw new ElasticsearchParseException("unknown key [{}] for create index", name);
-                }
+                throw new ElasticsearchParseException("unknown key [{}] for create index", name);
             }
         }
         return this;
@@ -411,18 +396,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     public Set<Alias> aliases() {
         return this.aliases;
-    }
-
-    /**
-     * Adds custom metadata to the index to be created.
-     */
-    public CreateIndexRequest custom(IndexMetaData.Custom custom) {
-        customs.put(custom.type(), custom);
-        return this;
-    }
-
-    public Map<String, IndexMetaData.Custom> customs() {
-        return this.customs;
     }
 
     public ActiveShardCount waitForActiveShards() {
@@ -468,24 +441,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (int i = 0; i < size; i++) {
             final String type = in.readString();
             String source = in.readString();
-            if (in.getVersion().before(Version.V_6_0_0_alpha1)) { // TODO change to 5.3.0 after backport
-                // we do not know the content type that comes from earlier versions so we autodetect and convert
-                source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
-            }
             mappings.put(type, source);
-        }
-        int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            customs.put(type, customIndexMetaData);
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
             aliases.add(Alias.read(in));
-        }
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
-            in.readBoolean(); // updateAllTypes
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
     }
@@ -501,17 +461,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        out.writeVInt(customs.size());
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
-        }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {
             alias.writeTo(out);
-        }
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
-            out.writeBoolean(true); // updateAllTypes
         }
         waitForActiveShards.writeTo(out);
     }
@@ -542,10 +494,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             alias.toXContent(builder, params);
         }
         builder.endObject();
-
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue(), params);
-        }
         return builder;
     }
 }

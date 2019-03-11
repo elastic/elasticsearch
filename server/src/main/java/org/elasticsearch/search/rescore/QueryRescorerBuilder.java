@@ -250,6 +250,9 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
         queryRescoreBuilder.setQueryWeight(queryWeight);
         queryRescoreBuilder.setRescoreQueryWeight(rescoreQueryWeight);
         queryRescoreBuilder.setScoreMode(scoreMode);
+        if (windowSize() != null) {
+            queryRescoreBuilder.windowSize(windowSize());
+        }
         return queryRescoreBuilder;
     }
 }

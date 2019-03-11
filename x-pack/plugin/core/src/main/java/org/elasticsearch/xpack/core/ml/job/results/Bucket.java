@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
@@ -74,15 +73,8 @@ public class Bucket implements ToXContentObject, Writeable {
                 a -> new Bucket((String) a[0], (Date) a[1], (long) a[2]));
 
         parser.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
-        parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
-                    + Result.TIMESTAMP.getPreferredName() + "]");
-        }, Result.TIMESTAMP, ValueType.VALUE);
+        parser.declareField(ConstructingObjectParser.constructorArg(),
+                p -> TimeUtils.parseTimeField(p, Result.TIMESTAMP.getPreferredName()), Result.TIMESTAMP, ValueType.VALUE);
         parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         parser.declareDouble(Bucket::setAnomalyScore, ANOMALY_SCORE);
         parser.declareDouble(Bucket::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
@@ -137,25 +129,17 @@ public class Bucket implements ToXContentObject, Writeable {
         anomalyScore = in.readDouble();
         bucketSpan = in.readLong();
         initialAnomalyScore = in.readDouble();
-        // bwc for recordCount
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            in.readInt();
-        }
         records = in.readList(AnomalyRecord::new);
         eventCount = in.readLong();
         isInterim = in.readBoolean();
         bucketInfluencers = in.readList(BucketInfluencer::new);
         processingTimeMs = in.readLong();
-        // bwc for perPartitionMaxProbability
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            in.readGenericValue();
-        }
         // bwc for perPartitionNormalization
         if (in.getVersion().before(Version.V_6_5_0)) {
             in.readList(Bucket::readOldPerPartitionNormalization);
         }
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            scheduledEvents = in.readList(StreamInput::readString);
+            scheduledEvents = in.readStringList();
             if (scheduledEvents.isEmpty()) {
                 scheduledEvents = Collections.emptyList();
             }
@@ -171,25 +155,17 @@ public class Bucket implements ToXContentObject, Writeable {
         out.writeDouble(anomalyScore);
         out.writeLong(bucketSpan);
         out.writeDouble(initialAnomalyScore);
-        // bwc for recordCount
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            out.writeInt(0);
-        }
         out.writeList(records);
         out.writeLong(eventCount);
         out.writeBoolean(isInterim);
         out.writeList(bucketInfluencers);
         out.writeLong(processingTimeMs);
-        // bwc for perPartitionMaxProbability
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            out.writeGenericValue(Collections.emptyMap());
-        }
         // bwc for perPartitionNormalization
         if (out.getVersion().before(Version.V_6_5_0)) {
             out.writeList(Collections.emptyList());
         }
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeStringList(scheduledEvents);
+            out.writeStringCollection(scheduledEvents);
         }
     }
 

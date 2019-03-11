@@ -70,14 +70,15 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
         final double lat2 = randomLat();
         final double lon1 = randomLon();
         final double lon2 = randomLon();
+
         final MultiGeoPointValues values = wrap(new GeoPoint(lat1, lon1), new GeoPoint(lat2, lon2));
         final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(values);
+
         script.setNextDocId(1);
         assertEquals(true, script.isEmpty());
         script.setNextDocId(0);
         assertEquals(false, script.isEmpty());
         assertEquals(new GeoPoint(lat1, lon1), script.getValue());
-        assertEquals(Arrays.asList(new GeoPoint(lat1, lon1), new GeoPoint(lat2, lon2)), script.getValues());
         assertEquals(lat1, script.getLat(), 0);
         assertEquals(lon1, script.getLon(), 0);
         assertTrue(Arrays.equals(new double[] {lat1, lat2}, script.getLats()));
@@ -109,5 +110,4 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
                 script.planeDistanceWithDefault(otherLat, otherLon, 42) / 1000d, 0.01);
         assertEquals(42, emptyScript.planeDistanceWithDefault(otherLat, otherLon, 42), 0);
     }
-
 }

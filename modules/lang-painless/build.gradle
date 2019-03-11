@@ -24,7 +24,6 @@ esplugin {
 
 integTestCluster {
   module project.project(':modules:mapper-extras')
-  systemProperty 'es.scripting.use_java_time', 'true'
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
 }
 
@@ -38,7 +37,7 @@ dependencyLicenses {
   mapping from: /asm-.*/, to: 'asm'
 }
 
-test {
+unitTest {
   jvmArg '-XX:-OmitStackTraceInFastThrow'
 }
 

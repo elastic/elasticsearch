@@ -19,14 +19,12 @@ value and its hash are stored in the index:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "my_field": {
-          "type": "keyword",
-          "fields": {
-            "hash": {
-              "type": "murmur3"
-            }
+    "properties": {
+      "my_field": {
+        "type": "keyword",
+        "fields": {
+          "hash": {
+            "type": "murmur3"
           }
         }
       }
@@ -43,12 +41,12 @@ of the values of the `my_field` field. This is only useful in order to run
 [source,js]
 --------------------------
 # Example documents
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "my_field": "This is a document"
 }
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 {
   "my_field": "This is another document"
 }

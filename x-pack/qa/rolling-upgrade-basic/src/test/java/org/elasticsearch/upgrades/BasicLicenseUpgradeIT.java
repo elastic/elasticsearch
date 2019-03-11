@@ -23,7 +23,7 @@ public class BasicLicenseUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void checkBasicLicense() throws Exception {
-        Response licenseResponse = client().performRequest(new Request("GET", "/_xpack/license"));
+        Response licenseResponse = client().performRequest(new Request("GET", "/_license"));
         Map<String, Object> licenseResponseMap = entityAsMap(licenseResponse);
         Map<String, Object> licenseMap = (Map<String, Object>) licenseResponseMap.get("license");
         assertEquals("basic", licenseMap.get("type"));
@@ -31,7 +31,7 @@ public class BasicLicenseUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void checkNonExpiringBasicLicense() throws Exception {
-        Response licenseResponse = client().performRequest(new Request("GET", "/_xpack/license"));
+        Response licenseResponse = client().performRequest(new Request("GET", "/_license"));
         Map<String, Object> licenseResponseMap = entityAsMap(licenseResponse);
         Map<String, Object> licenseMap = (Map<String, Object>) licenseResponseMap.get("license");
         assertEquals("basic", licenseMap.get("type"));

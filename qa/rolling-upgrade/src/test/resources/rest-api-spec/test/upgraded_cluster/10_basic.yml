@@ -2,6 +2,7 @@
 "Verify that we can still find things with the template":
   - do:
       search_template:
+        rest_total_hits_as_int: true
         index: test_search_template
         body:
           id: test_search_template
@@ -26,7 +27,6 @@
   - do:
       index:
         index: queries
-        type: doc
         id: q4
         refresh: true
         body:
@@ -41,6 +41,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: queries
         body:
           query:
@@ -53,6 +54,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: queries
         body:
           sort: _id
@@ -69,6 +71,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: queries
         body:
           query:
@@ -82,8 +85,12 @@
 
 ---
 "Find a task result record from the old cluster":
+  - skip:
+      features: headers
+
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .tasks
         body:
           query:
@@ -117,3 +124,5 @@
         wait_for_completion: true
         task_id: $task_id
   - match: { task.headers.X-Opaque-Id: "Reindexing Again" }
+
+

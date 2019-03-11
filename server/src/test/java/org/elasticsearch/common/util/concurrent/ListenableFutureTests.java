@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -30,9 +31,12 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.is;
+
 public class ListenableFutureTests extends ESTestCase {
 
     private ExecutorService executorService;
+    private ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     @After
     public void stopExecutorService() throws InterruptedException {
@@ -46,7 +50,7 @@ public class ListenableFutureTests extends ESTestCase {
         AtomicInteger notifications = new AtomicInteger(0);
         final int numberOfListeners = scaledRandomIntBetween(1, 12);
         for (int i = 0; i < numberOfListeners; i++) {
-            future.addListener(ActionListener.wrap(notifications::incrementAndGet), EsExecutors.newDirectExecutorService());
+            future.addListener(ActionListener.wrap(notifications::incrementAndGet), EsExecutors.newDirectExecutorService(), threadContext);
         }
 
         future.onResponse("");
@@ -63,7 +67,7 @@ public class ListenableFutureTests extends ESTestCase {
             future.addListener(ActionListener.wrap(s -> fail("this should never be called"), e -> {
                 assertEquals(exception, e);
                 notifications.incrementAndGet();
-            }), EsExecutors.newDirectExecutorService());
+            }), EsExecutors.newDirectExecutorService(), threadContext);
         }
 
         future.onFailure(exception);
@@ -76,7 +80,7 @@ public class ListenableFutureTests extends ESTestCase {
         final int completingThread = randomIntBetween(0, numberOfThreads - 1);
         final ListenableFuture<String> future = new ListenableFuture<>();
         executorService = EsExecutors.newFixed("testConcurrentListenerRegistrationAndCompletion", numberOfThreads, 1000,
-            EsExecutors.daemonThreadFactory("listener"), new ThreadContext(Settings.EMPTY));
+            EsExecutors.daemonThreadFactory("listener"), threadContext);
         final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         final CountDownLatch listenersLatch = new CountDownLatch(numberOfThreads - 1);
         final AtomicInteger numResponses = new AtomicInteger(0);
@@ -85,20 +89,31 @@ public class ListenableFutureTests extends ESTestCase {
         for (int i = 0; i < numberOfThreads; i++) {
             final int threadNum = i;
             Thread thread = new Thread(() -> {
+                threadContext.putTransient("key", threadNum);
                 try {
                     barrier.await();
                     if (threadNum == completingThread) {
+                        // we need to do more than just call onResponse as this often results in synchronous
+                        // execution of the listeners instead of actually going async
+                        final int waitTime = randomIntBetween(0, 50);
+                        Thread.sleep(waitTime);
+                        logger.info("completing the future after sleeping {}ms", waitTime);
                         future.onResponse("");
+                        logger.info("future received response");
                     } else {
+                        logger.info("adding listener {}", threadNum);
                         future.addListener(ActionListener.wrap(s -> {
+                            logger.info("listener {} received value {}", threadNum, s);
                             assertEquals("", s);
+                            assertThat(threadContext.getTransient("key"), is(threadNum));
                             numResponses.incrementAndGet();
                             listenersLatch.countDown();
                         }, e -> {
-                            logger.error("caught unexpected exception", e);
+                            logger.error(new ParameterizedMessage("listener {} caught unexpected exception", threadNum), e);
                             numExceptions.incrementAndGet();
                             listenersLatch.countDown();
-                        }), executorService);
+                        }), executorService, threadContext);
+                        logger.info("listener {} added", threadNum);
                     }
                     barrier.await();
                 } catch (InterruptedException | BrokenBarrierException e) {

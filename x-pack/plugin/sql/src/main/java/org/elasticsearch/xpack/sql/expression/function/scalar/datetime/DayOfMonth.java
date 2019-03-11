@@ -7,42 +7,31 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.time.temporal.ChronoField;
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 /**
  * Extract the day of the month from a datetime.
  */
 public class DayOfMonth extends DateTimeFunction {
-    public DayOfMonth(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+    public DayOfMonth(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.DAY_OF_MONTH);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, DateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return DayOfMonth::new;
     }
 
     @Override
     protected DayOfMonth replaceChild(Expression newChild) {
-        return new DayOfMonth(location(), newChild, timeZone());
+        return new DayOfMonth(source(), newChild, zoneId());
     }
 
     @Override
     public String dateTimeFormat() {
         return "d";
-    }
-
-    @Override
-    protected ChronoField chronoField() {
-        return ChronoField.DAY_OF_MONTH;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
-        return DateTimeExtractor.DAY_OF_MONTH;
     }
 }

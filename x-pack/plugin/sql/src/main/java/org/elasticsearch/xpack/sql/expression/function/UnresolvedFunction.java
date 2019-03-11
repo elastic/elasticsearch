@@ -10,8 +10,12 @@ import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.expression.Nullability;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -20,7 +24,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 
 import static java.util.Collections.singletonList;
 
@@ -39,8 +42,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
      */
     private final boolean analyzed;
 
-    public UnresolvedFunction(Location location, String name, ResolutionType resolutionType, List<Expression> children) {
-        this(location, name, resolutionType, children, false, null);
+    public UnresolvedFunction(Source source, String name, ResolutionType resolutionType, List<Expression> children) {
+        this(source, name, resolutionType, children, false, null);
     }
 
     /**
@@ -48,9 +51,9 @@ public class UnresolvedFunction extends Function implements Unresolvable {
      * 'did you mean') instead of the default one.
      * @see #withMessage(String)
      */
-    UnresolvedFunction(Location location, String name, ResolutionType resolutionType, List<Expression> children,
+    UnresolvedFunction(Source source, String name, ResolutionType resolutionType, List<Expression> children,
             boolean analyzed, String unresolvedMessage) {
-        super(location, children);
+        super(source, children);
         this.name = name;
         this.resolutionType = resolutionType;
         this.analyzed = analyzed;
@@ -65,11 +68,11 @@ public class UnresolvedFunction extends Function implements Unresolvable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new UnresolvedFunction(location(), name, resolutionType, newChildren, analyzed, unresolvedMsg);
+        return new UnresolvedFunction(source(), name, resolutionType, newChildren, analyzed, unresolvedMsg);
     }
 
     public UnresolvedFunction withMessage(String message) {
-        return new UnresolvedFunction(location(), name(), resolutionType, children(), true, message);
+        return new UnresolvedFunction(source(), name(), resolutionType, children(), true, message);
     }
 
     public UnresolvedFunction preprocessStar() {
@@ -79,8 +82,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     /**
      * Build a function to replace this one after resolving the function.
      */
-    public Function buildResolved(TimeZone timeZone, FunctionDefinition def) {
-        return resolutionType.buildResolved(this, timeZone, def);
+    public Function buildResolved(Configuration configuration, FunctionDefinition def) {
+        return resolutionType.buildResolved(this, configuration, def);
     }
 
     /**
@@ -127,6 +130,14 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     public boolean analyzed() {
         return analyzed;
     }
+    
+    public boolean sameAs(Count count) {
+        if (this.resolutionType == ResolutionType.DISTINCT && count.distinct()
+                || this.resolutionType == ResolutionType.STANDARD && count.distinct() == false) {
+            return true;
+        }
+        return false;
+    }
 
     @Override
     public DataType dataType() {
@@ -134,7 +145,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         throw new UnresolvedException("nullable", this);
     }
 
@@ -144,13 +155,18 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
+    public ScriptTemplate asScript() {
+        throw new UnresolvedException("script", this);
+    }
+
+    @Override
     public String unresolvedMessage() {
         return unresolvedMsg;
     }
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + functionName() + functionArgs();
+        return UNRESOLVED_PREFIX + name + children();
     }
 
     @Override
@@ -185,14 +201,14 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 // TODO: might be removed
                 // dedicated count optimization
                 if (uf.name.toUpperCase(Locale.ROOT).equals("COUNT")) {
-                    return new UnresolvedFunction(uf.location(), uf.name(), uf.resolutionType,
-                        singletonList(Literal.of(uf.arguments().get(0).location(), Integer.valueOf(1))));
+                    return new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionType,
+                        singletonList(Literal.of(uf.arguments().get(0).source(), Integer.valueOf(1))));
                 }
                 return uf;
             }
             @Override
-            public Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def) {
-                return def.builder().build(uf, false, tz);
+            public Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def) {
+                return def.builder().build(uf, false, cfg);
             }
             @Override
             protected boolean isValidAlternative(FunctionDefinition def) {
@@ -212,8 +228,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 return uf.withMessage("* is not valid with DISTINCT");
             }
             @Override
-            public Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def) {
-                return def.builder().build(uf, true, tz);
+            public Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def) {
+                return def.builder().build(uf, true, cfg);
             }
             @Override
             protected boolean isValidAlternative(FunctionDefinition def) {
@@ -233,15 +249,15 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 return uf.withMessage("Can't extract from *");
             }
             @Override
-            public Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def) {
-                if (def.datetime()) {
-                    return def.builder().build(uf, false, tz);
+            public Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def) {
+                if (def.extractViable()) {
+                    return def.builder().build(uf, false, cfg);
                 }
                 return uf.withMessage("Invalid datetime field [" + uf.name() + "]. Use any datetime function.");
             }
             @Override
             protected boolean isValidAlternative(FunctionDefinition def) {
-                return def.datetime();
+                return def.extractViable();
             }
             @Override
             protected String type() {
@@ -260,7 +276,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         /**
          * Build the real function from this one and resolution metadata.
          */
-        protected abstract Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def);
+        protected abstract Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def);
         /**
          * Is {@code def} a valid alternative for function invocations
          * of this kind. Used to filter the list of "did you mean"

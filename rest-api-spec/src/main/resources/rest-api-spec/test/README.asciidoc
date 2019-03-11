@@ -19,9 +19,10 @@ Test file structure
 --------------------
 
 A YAML test file consists of:
-* an optional `setup` section, followed by
-* an optional `teardown` section, followed by
-* one or more test sections
+
+- an optional `setup` section, followed by
+- an optional `teardown` section, followed by
+- one or more test sections
 
 For instance:
 
@@ -216,11 +217,13 @@ sent to nodes that match the `node_selector`. It looks like this:
 
 If you list multiple selectors then the request will only go to nodes that
 match all of those selectors. The following selectors are supported:
-* `version`: Only nodes who's version is within the range will receive the
+
+- `version`: Only nodes who's version is within the range will receive the
 request. The syntax for the pattern is the same as when `version` is within
 `skip`.
-* `attribute`: Only nodes that have an attribute matching the name and value
-of the provided attribute match. Looks like:
+- `attribute`: Only nodes that have an attribute matching the name and value
+of the provided attribute match.
+Looks like:
 ....
       node_selector:
           attribute:
@@ -277,6 +280,31 @@ example above), but the same goes for actual values:
 
 The stash should be reset at the beginning of each test file.
 
+=== `transform_and_set`
+
+For some tests, it is necessary to extract a value and transform it from the previous `response`, in
+order to reuse it in a subsequent `do` and other tests.
+Currently, it only has support for `base64EncodeCredentials`, for unknown transformations it will not
+do anything and stash the value as is.
+For instance, when testing you may want to base64 encode username and password for
+`Basic` authorization header:
+
+....
+    - do:
+        index:
+            index: test
+            type:  test
+    - transform_and_set:  { login_creds: "#base64EncodeCredentials(user,password)" }   # stash the base64 encoded credentials of `response.user` and `response.password` as `login_creds`
+    - do:
+        headers:
+            Authorization: Basic ${login_creds} # replace `$login_creds` with the stashed value
+        get:
+            index: test
+            type:  test
+....
+
+Stashed values can be used as described in the `set` section
+
 === `is_true`
 
 The specified key exists and has a true value (ie not `0`, `false`, `undefined`, `null`
@@ -312,6 +340,8 @@ Supports also regular expressions with flag X for more readability (accepts whit
                /^  epoch  \s+  timestamp          \s+  count  \s+  \n
                    \d+    \s+  \d{2}:\d{2}:\d{2}  \s+  \d+    \s+  \n  $/
 ....
+
+**Note:** `$body` is used to refer to the last obtained response body as a string, while `''` refers to the parsed representation (parsed into a Map by the Java runner for instance). Having the raw string response is for example useful when testing cat APIs.
 
 === `lt` and `gt`
 

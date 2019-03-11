@@ -19,12 +19,13 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -41,10 +42,10 @@ import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
@@ -57,7 +58,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
     static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
-    private static final Pattern HOST_PATTERN = Pattern.compile("(?<scheme>[^:]+)://(?<host>[^:]+):(?<port>\\d+)(?<pathPrefix>/.*)?");
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in reindex requests is deprecated.";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestReindexAction.class));
 
     static {
         ObjectParser.Parser<ReindexRequest, Void> sourceParser = (parser, request, context) -> {
@@ -69,6 +71,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             }
             String[] types = extractStringArray(source, "type");
             if (types != null) {
+                deprecationLogger.deprecatedAndMaybeLog("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
                 request.getSearchRequest().types(types);
             }
             request.setRemoteInfo(buildRemoteInfo(source));
@@ -83,7 +86,10 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
         ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
-        destParser.declareString(IndexRequest::type, new ParseField("type"));
+        destParser.declareString((request, type) -> {
+            deprecationLogger.deprecatedAndMaybeLog("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
+            request.type(type);
+        }, new ParseField("type"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
         destParser.declareString(IndexRequest::opType, new ParseField("op_type"));
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
@@ -118,7 +124,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             throw new IllegalArgumentException("_reindex doesn't support [pipeline] as a query parameter. "
                     + "Specify it in the [dest] object instead.");
         }
-        ReindexRequest internal = new ReindexRequest(new SearchRequest(), new IndexRequest());
+        ReindexRequest internal = new ReindexRequest();
         try (XContentParser parser = request.contentParser()) {
             PARSER.parse(parser, internal, null);
         }
@@ -137,15 +143,27 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         String username = extractString(remote, "username");
         String password = extractString(remote, "password");
         String hostInRequest = requireNonNull(extractString(remote, "host"), "[host] must be specified to reindex from a remote cluster");
-        Matcher hostMatcher = HOST_PATTERN.matcher(hostInRequest);
-        if (false == hostMatcher.matches()) {
+        URI uri;
+        try {
+            uri = new URI(hostInRequest);
+            // URI has less stringent URL parsing than our code. We want to fail if all values are not provided.
+            if (uri.getPort() == -1) {
+                throw new URISyntaxException(hostInRequest, "The port was not defined in the [host]");
+            }
+        } catch (URISyntaxException ex) {
             throw new IllegalArgumentException("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was ["
-                + hostInRequest + "]");
+                + hostInRequest + "]", ex);
         }
-        String scheme = hostMatcher.group("scheme");
-        String host = hostMatcher.group("host");
-        String pathPrefix = hostMatcher.group("pathPrefix");
-        int port = Integer.parseInt(hostMatcher.group("port"));
+
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+        int port = uri.getPort();
+
+        String pathPrefix = null;
+        if (uri.getPath().isEmpty() == false) {
+            pathPrefix = uri.getPath();
+        }
+
         Map<String, String> headers = extractStringStringMap(remote, "headers");
         TimeValue socketTimeout = extractTimeValue(remote, "socket_timeout", RemoteInfo.DEFAULT_SOCKET_TIMEOUT);
         TimeValue connectTimeout = extractTimeValue(remote, "connect_timeout", RemoteInfo.DEFAULT_CONNECT_TIMEOUT);

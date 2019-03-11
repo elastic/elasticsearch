@@ -19,14 +19,17 @@
 
 package org.elasticsearch.indices.analysis;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.LowerCaseFilter;
-import org.apache.lucene.analysis.standard.StandardFilter;
+import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.NamedRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -39,7 +42,6 @@ import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.SimpleAnalyzerProvider;
 import org.elasticsearch.index.analysis.StandardAnalyzerProvider;
-import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopAnalyzerProvider;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
@@ -68,6 +70,8 @@ public final class AnalysisModule {
     }
 
     private static final IndexSettings NA_INDEX_SETTINGS;
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(AnalysisModule.class));
 
     private final HunspellService hunspellService;
     private final AnalysisRegistry analysisRegistry;
@@ -116,7 +120,29 @@ public final class AnalysisModule {
         hunspellService) {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = new NamedRegistry<>("token_filter");
         tokenFilters.register("stop", StopTokenFilterFactory::new);
-        tokenFilters.register("standard", StandardTokenFilterFactory::new);
+        // Add "standard" for old indices (bwc)
+        tokenFilters.register("standard", new AnalysisProvider<TokenFilterFactory>() {
+            @Override
+            public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+                if (indexSettings.getIndexVersionCreated().before(Version.V_7_0_0)) {
+                    deprecationLogger.deprecatedAndMaybeLog("standard_deprecation",
+                        "The [standard] token filter name is deprecated and will be removed in a future version.");
+                } else {
+                    throw new IllegalArgumentException("The [standard] token filter has been removed.");
+                }
+                return new AbstractTokenFilterFactory(indexSettings, name, settings) {
+                    @Override
+                    public TokenStream create(TokenStream tokenStream) {
+                        return tokenStream;
+                    }
+                };
+            }
+
+            @Override
+            public boolean requiresAnalysisSettings() {
+                return false;
+            }
+        });
         tokenFilters.register("shingle", ShingleTokenFilterFactory::new);
         tokenFilters.register("hunspell", requiresAnalysisSettings((indexSettings, env, name, settings) -> new HunspellTokenFilterFactory
             (indexSettings, name, settings, hunspellService)));
@@ -153,7 +179,17 @@ public final class AnalysisModule {
 
         // Add filters available in lucene-core
         preConfiguredTokenFilters.register("lowercase", PreConfiguredTokenFilter.singleton("lowercase", true, LowerCaseFilter::new));
-        preConfiguredTokenFilters.register("standard", PreConfiguredTokenFilter.singleton("standard", false, StandardFilter::new));
+        // Add "standard" for old indices (bwc)
+        preConfiguredTokenFilters.register( "standard",
+            PreConfiguredTokenFilter.singletonWithVersion("standard", true, (reader, version) -> {
+                if (version.before(Version.V_7_0_0)) {
+                    deprecationLogger.deprecatedAndMaybeLog("standard_deprecation",
+                        "The [standard] token filter is deprecated and will be removed in a future version.");
+                } else {
+                    throw new IllegalArgumentException("The [standard] token filter has been removed.");
+                }
+                return reader;
+            }));
         /* Note that "stop" is available in lucene-core but it's pre-built
          * version uses a set of English stop words that are in
          * lucene-analyzers-common so "stop" is defined in the analysis-common
@@ -176,8 +212,7 @@ public final class AnalysisModule {
             PreConfiguredTokenizer preConfigured;
             switch (tokenizer.getCachingStrategy()) {
             case ONE:
-                preConfigured = PreConfiguredTokenizer.singleton(name,
-                        () -> tokenizer.create(Version.CURRENT), null);
+                preConfigured = PreConfiguredTokenizer.singleton(name, () -> tokenizer.create(Version.CURRENT));
                 break;
             default:
                 throw new UnsupportedOperationException(

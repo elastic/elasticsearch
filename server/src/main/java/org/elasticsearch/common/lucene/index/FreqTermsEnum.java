@@ -47,7 +47,8 @@ public class FreqTermsEnum extends FilterableTermsEnum implements Releasable {
     private final boolean needTotalTermFreqs;
 
 
-    public FreqTermsEnum(IndexReader reader, String field, boolean needDocFreq, boolean needTotalTermFreq, @Nullable Query filter, BigArrays bigArrays) throws IOException {
+    public FreqTermsEnum(IndexReader reader, String field, boolean needDocFreq, boolean needTotalTermFreq,
+            @Nullable Query filter, BigArrays bigArrays) throws IOException {
         super(reader, field, needTotalTermFreq ? PostingsEnum.FREQS : PostingsEnum.NONE, filter);
         this.bigArrays = bigArrays;
         this.needDocFreqs = needDocFreq;

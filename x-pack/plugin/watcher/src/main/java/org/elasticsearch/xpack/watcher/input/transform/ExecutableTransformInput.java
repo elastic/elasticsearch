@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.input.transform;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
@@ -16,8 +15,8 @@ public final class ExecutableTransformInput extends ExecutableInput<TransformInp
 
     private final ExecutableTransform executableTransform;
 
-    ExecutableTransformInput(TransformInput input, Logger logger, ExecutableTransform executableTransform) {
-        super(input, logger);
+    ExecutableTransformInput(TransformInput input, ExecutableTransform executableTransform) {
+        super(input);
         this.executableTransform = executableTransform;
     }
 

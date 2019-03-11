@@ -318,7 +318,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         if (originString == null) {
             origin = context.nowInMillis();
         } else {
-            origin = ((DateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null, context);
+            origin = ((DateFieldMapper.DateFieldType) dateFieldType).parseToLong(originString, false, null, null, context);
         }
 
         if (scaleString == null) {
@@ -554,7 +554,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                     }
                     double value = distance.doubleValue();
                     return Explanation.match(
-                            (float) score(docId, subQueryScore.getValue()),
+                            (float) score(docId, subQueryScore.getValue().floatValue()),
                             "Function for field " + getFieldName() + ":",
                             func.explainFunction(getDistanceString(ctx, docId), value, scale));
                 }

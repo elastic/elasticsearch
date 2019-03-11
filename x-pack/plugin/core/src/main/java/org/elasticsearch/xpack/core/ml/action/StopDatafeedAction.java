@@ -41,7 +41,12 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -73,17 +78,27 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
         }
 
         private String datafeedId;
-        private String[] resolvedStartedDatafeedIds;
+        private String[] resolvedStartedDatafeedIds = new String[] {};
         private TimeValue stopTimeout = DEFAULT_TIMEOUT;
         private boolean force = false;
         private boolean allowNoDatafeeds = true;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
-            this.resolvedStartedDatafeedIds = new String[] { datafeedId };
         }
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            datafeedId = in.readString();
+            resolvedStartedDatafeedIds = in.readStringArray();
+            stopTimeout = in.readTimeValue();
+            force = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoDatafeeds = in.readBoolean();
+            }
         }
 
         public String getDatafeedId() {
@@ -139,18 +154,6 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeedId = in.readString();
-            resolvedStartedDatafeedIds = in.readStringArray();
-            stopTimeout = in.readTimeValue();
-            force = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoDatafeeds = in.readBoolean();
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
@@ -196,7 +199,7 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
 
     public static class Response extends BaseTasksResponse implements Writeable {
 
-        private boolean stopped;
+        private final boolean stopped;
 
         public Response(boolean stopped) {
             super(null, null);
@@ -204,21 +207,7 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(null, null);
-            readFrom(in);
-        }
-
-        public Response() {
-            super(null, null);
-        }
-
-        public boolean isStopped() {
-            return stopped;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+            super(in);
             stopped = in.readBoolean();
         }
 
@@ -227,6 +216,11 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
             super.writeTo(out);
             out.writeBoolean(stopped);
         }
+
+        public boolean isStopped() {
+            return stopped;
+        }
+
     }
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response> {

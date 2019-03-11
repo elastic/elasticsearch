@@ -21,7 +21,6 @@ package org.elasticsearch.join.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -97,15 +96,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         out.writeString(type);
         out.writeBoolean(score);
         out.writeNamedWriteable(query);
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            final boolean hasInnerHit = innerHitBuilder != null;
-            out.writeBoolean(hasInnerHit);
-            if (hasInnerHit) {
-                innerHitBuilder.writeToParentChildBWC(out, query, type);
-            }
-        } else {
-            out.writeOptionalWriteable(innerHitBuilder);
-        }
+        out.writeOptionalWriteable(innerHitBuilder);
         out.writeBoolean(ignoreUnmapped);
     }
 
@@ -294,9 +285,13 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     @Override
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         if (innerHitBuilder != null) {
+            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : type;
+            if (innerHits.containsKey(name)) {
+                throw new IllegalArgumentException("[inner_hits] already contains an entry for key [" + name + "]");
+            }
+
             Map<String, InnerHitContextBuilder> children = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(query, children);
-            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : type;
             InnerHitContextBuilder innerHitContextBuilder =
                 new ParentChildInnerHitContextBuilder(type, false, query, innerHitBuilder, children);
             innerHits.put(name, innerHitContextBuilder);

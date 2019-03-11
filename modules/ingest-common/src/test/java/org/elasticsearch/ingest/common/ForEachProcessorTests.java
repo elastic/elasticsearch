@@ -154,9 +154,10 @@ public class ForEachProcessorTests extends ESTestCase {
     public void testRandom() throws Exception {
         Processor innerProcessor = new Processor() {
                 @Override
-                public void execute(IngestDocument ingestDocument) throws Exception {
+                public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
                     String existingValue = ingestDocument.getFieldValue("_ingest._value", String.class);
                     ingestDocument.setFieldValue("_ingest._value", existingValue + ".");
+                    return ingestDocument;
                 }
 
                 @Override

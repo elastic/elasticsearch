@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -38,6 +39,8 @@ import java.time.Clock;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
@@ -59,16 +62,16 @@ public class TransportAckWatchActionTests extends ESTestCase {
         WatchParser watchParser = mock(WatchParser.class);
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        action = new TransportAckWatchAction(Settings.EMPTY, transportService, new ActionFilters(Collections.emptySet()),
-            Clock.systemUTC(), new XPackLicenseState(Settings.EMPTY), watchParser, client);
+        action = new TransportAckWatchAction(transportService, new ActionFilters(Collections.emptySet()),
+            Clock.systemUTC(), new XPackLicenseState(Settings.EMPTY), watchParser, client, createClusterService(threadPool));
     }
 
     public void testWatchNotFound() {
         String watchId = "my_watch_id";
         doAnswer(invocation -> {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[1];
-            listener.onResponse(new GetResponse(new GetResult(Watch.INDEX, Watch.DOC_TYPE, watchId, -1, false,
-                    BytesArray.EMPTY, Collections.emptyMap())));
+            listener.onResponse(new GetResponse(new GetResult(Watch.INDEX, MapperService.SINGLE_MAPPING_NAME, watchId, UNASSIGNED_SEQ_NO,
+                0, -1, false, BytesArray.EMPTY, Collections.emptyMap())));
             return null;
         }).when(client).get(anyObject(), anyObject());
 

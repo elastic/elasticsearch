@@ -56,6 +56,9 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
         toAppendTo.append(threadInfo(event.getThreadName()));
+        if (event.getContextData().isEmpty() == false) {
+            toAppendTo.append(event.getContextData());
+        }
     }
 
     private static final Pattern ELASTICSEARCH_THREAD_NAME_PATTERN =
@@ -66,6 +69,7 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
             Pattern.compile("SUITE-.+-worker");
     private static final Pattern NOT_YET_NAMED_NODE_THREAD_NAME_PATTERN =
             Pattern.compile("test_SUITE-CHILD_VM.+cluster\\[T#(.+)\\]");
+
     static String threadInfo(String threadName) {
         Matcher m = ELASTICSEARCH_THREAD_NAME_PATTERN.matcher(threadName);
         if (m.matches()) {

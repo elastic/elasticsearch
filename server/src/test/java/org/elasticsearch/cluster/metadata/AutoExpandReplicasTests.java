@@ -52,7 +52,8 @@ import static org.hamcrest.Matchers.isIn;
 public class AutoExpandReplicasTests extends ESTestCase {
 
     public void testParseSettings() {
-        AutoExpandReplicas autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "0-5").build());
+        AutoExpandReplicas autoExpandReplicas = AutoExpandReplicas.SETTING
+            .get(Settings.builder().put("index.auto_expand_replicas", "0-5").build());
         assertEquals(0, autoExpandReplicas.getMinReplicas());
         assertEquals(5, autoExpandReplicas.getMaxReplicas(8));
         assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
@@ -133,7 +134,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 dataNodes.add(createNode(DiscoveryNode.Role.DATA));
             }
             allNodes.addAll(dataNodes);
-            ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[allNodes.size()]));
+            ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[0]));
 
             CreateIndexRequest request = new CreateIndexRequest("index",
                 Settings.builder()
@@ -173,7 +174,8 @@ public class AutoExpandReplicasTests extends ESTestCase {
                     .map(DiscoveryNode::getId).collect(Collectors.toSet());
 
                 List<DiscoveryNode> nodesToAdd = conflictingNodes.stream()
-                    .map(n -> new DiscoveryNode(n.getName(), n.getId(), buildNewFakeTransportAddress(), n.getAttributes(), n.getRoles(), n.getVersion()))
+                    .map(n -> new DiscoveryNode(n.getName(), n.getId(), buildNewFakeTransportAddress(),
+                        n.getAttributes(), n.getRoles(), n.getVersion()))
                     .collect(Collectors.toList());
 
                 if (randomBoolean()) {

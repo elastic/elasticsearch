@@ -13,13 +13,16 @@ import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
+import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
+import java.util.List;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -49,7 +52,9 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testAuthenticate() {
-        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME)) {
+        final List<String> usernames = Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        for (String username : usernames) {
             ClusterHealthResponse response = client()
                     .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
                     .admin()
@@ -67,7 +72,9 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
      */
     public void testAuthenticateAfterEnablingUser() {
         final SecurityClient c = securityClient();
-        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME)) {
+        final List<String> usernames = Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        for (String username : usernames) {
             c.prepareSetEnabled(username, true).get();
             ClusterHealthResponse response = client()
                     .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
@@ -81,7 +88,8 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testChangingPassword() {
-        String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
+        String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
         final char[] newPassword = "supersecretvalue".toCharArray();
 
         if (randomBoolean()) {

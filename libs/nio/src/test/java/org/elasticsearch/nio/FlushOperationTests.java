@@ -21,7 +21,6 @@ package org.elasticsearch.nio;
 
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -60,8 +59,6 @@ public class FlushOperationTests extends ESTestCase {
     public void testMultipleFlushesWithCompositeBuffer() throws IOException {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10), ByteBuffer.allocate(15), ByteBuffer.allocate(3)};
         FlushOperation writeOp = new FlushOperation(buffers, listener);
-
-        ArgumentCaptor<ByteBuffer[]> buffersCaptor = ArgumentCaptor.forClass(ByteBuffer[].class);
 
         writeOp.incrementIndex(5);
         assertFalse(writeOp.isFullyFlushed());

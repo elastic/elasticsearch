@@ -56,15 +56,6 @@ particularly the monitoring indices. To do so, you can take advantage of the
 
 //TO-DO: Add information about index lifecycle management https://github.com/elastic/x-pack-elasticsearch/issues/2814
 
-When using cluster alerts, {watcher} creates daily `.watcher_history*` indices. 
-These are not managed by {monitoring} and they are not curated automatically. It 
-is therefore critical that you curate these indices to avoid an undesirable and 
-unexpected increase in the number of shards and indices and eventually the 
-amount of disk usage. If you are using a `local` exporter, you can set the 
-`xpack.watcher.history.cleaner_service.enabled` setting to `true` and curate the 
-`.watcher_history*` indices by using the 
-<<local-exporter-cleaner,cleaner service>>. See <<general-notification-settings>>. 
-
 There is also a disk watermark (known as the flood stage 
 watermark), which protects clusters from running out of disk space. When this 
 feature is triggered, it makes all indices (including monitoring indices) 
@@ -105,12 +96,12 @@ route monitoring data:
 
 [options="header"]
 |=======================
-| Template               | Purpose
-| `.monitoring-alerts`   | All cluster alerts for monitoring data.
-| `.monitoring-beats`    | All Beats monitoring data.
-| `.monitoring-es`       | All {es} monitoring data.
-| `.monitoring-kibana`   | All {kib} monitoring data.
-| `.monitoring-logstash` | All Logstash monitoring data.
+| Template                    | Purpose
+| `.monitoring-alerts`        | All cluster alerts for monitoring data.
+| `.monitoring-beats`         | All Beats monitoring data.
+| `.monitoring-es`            | All {es} monitoring data.
+| `.monitoring-kibana`        | All {kib} monitoring data.
+| `.monitoring-logstash`      | All Logstash monitoring data.
 |=======================
 
 The templates are ordinary {es} templates that control the default settings and

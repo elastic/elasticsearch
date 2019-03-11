@@ -1,0 +1,41 @@
+--
+:api: ccr-put-follow
+:request: PutFollowRequest
+:response: PutFollowResponse
+--
+
+[id="{upid}-{api}"]
+=== Put Follow API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Put Follow API allows creates a follower index and make that index follow a leader index.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of the remote cluster alias.
+<2> The name of the leader in the remote cluster.
+<3> The name of the follower index that gets created as part of the put follow API call.
+<4> The number of active shard copies to wait for before the put follow API returns a
+response, as an `ActiveShardCount`
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the put follow request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether the follower index was created.
+<2> Whether the follower shards are started.
+<3> Whether the follower index started following the leader index.
+
+include::../execution.asciidoc[]
+
+

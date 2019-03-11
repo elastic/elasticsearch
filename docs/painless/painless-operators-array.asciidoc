@@ -254,7 +254,7 @@ and `]` tokens.
 *Errors*
 
 * If a value other than an `int` type value or a value that is castable to an
-  `int` type value is specified for for a dimension's size.
+  `int` type value is specified for a dimension's size.
 
 *Grammar*
 

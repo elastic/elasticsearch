@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.LicenseUtils;
@@ -60,11 +59,11 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     private final Client client;
 
     @Inject
-    public TransportPutRollupJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportPutRollupJobAction(TransportService transportService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                        ClusterService clusterService, XPackLicenseState licenseState,
                                        PersistentTasksService persistentTasksService, Client client) {
-        super(settings, PutRollupJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(PutRollupJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, PutRollupJobAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
@@ -158,7 +157,8 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             MappingMetaData mappings = getMappingResponse.getMappings().get(indexName).get(RollupField.TYPE_NAME);
             Object m = mappings.getSourceAsMap().get("_meta");
             if (m == null) {
-                String msg = "Expected to find _meta key in mapping of rollup index [" + indexName + "] but not found.";
+                String msg = "Rollup data cannot be added to existing indices that contain non-rollup data (expected " +
+                    "to find _meta key in mapping of rollup index [" + indexName + "] but not found).";
                 logger.error(msg);
                 listener.onFailure(new RuntimeException(msg));
                 return;
@@ -166,8 +166,9 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
 
             Map<String, Object> metadata = (Map<String, Object>) m;
             if (metadata.get(RollupField.ROLLUP_META) == null) {
-                String msg = "Expected to find rollup meta key [" + RollupField.ROLLUP_META + "] in mapping of rollup index [" + indexName
-                        + "] but not found.";
+                String msg = "Rollup data cannot be added to existing indices that contain non-rollup data (expected " +
+                    "to find rollup meta key [" + RollupField.ROLLUP_META + "] in mapping of rollup index ["
+                    + indexName + "] but not found).";
                 logger.error(msg);
                 listener.onFailure(new RuntimeException(msg));
                 return;

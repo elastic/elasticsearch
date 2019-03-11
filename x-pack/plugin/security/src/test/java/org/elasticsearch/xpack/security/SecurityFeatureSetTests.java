@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -55,7 +56,6 @@ public class SecurityFeatureSetTests extends ESTestCase {
     public void init() throws Exception {
         settings = Settings.builder().put("path.home", createTempDir()).build();
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         realms = mock(Realms.class);
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
@@ -77,7 +77,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(true));
 
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
+        when(licenseState.isSecurityDisabledByTrialLicense()).thenReturn(true);
         featureSet = new SecurityFeatureSet(settings, licenseState, realms,
                 rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(false));
@@ -90,20 +90,32 @@ public class SecurityFeatureSetTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(this.settings);
 
         boolean enabled = randomBoolean();
-        when(licenseState.isSecurityEnabled()).thenReturn(enabled);
+        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), enabled);
 
         final boolean httpSSLEnabled = randomBoolean();
         settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);
         final boolean transportSSLEnabled = randomBoolean();
         settings.put("xpack.security.transport.ssl.enabled", transportSSLEnabled);
+
+        boolean configureEnabledFlagForTokenService = randomBoolean();
+        final boolean tokenServiceEnabled;
+        if (configureEnabledFlagForTokenService) {
+            tokenServiceEnabled = randomBoolean();
+            settings.put("xpack.security.authc.token.enabled", tokenServiceEnabled);
+        } else {
+            tokenServiceEnabled = httpSSLEnabled;
+        }
+        boolean configureEnabledFlagForApiKeyService = randomBoolean();
+        final boolean apiKeyServiceEnabled;
+        if (configureEnabledFlagForApiKeyService) {
+            apiKeyServiceEnabled = randomBoolean();
+            settings.put("xpack.security.authc.api_key.enabled", apiKeyServiceEnabled);
+        } else {
+            apiKeyServiceEnabled = httpSSLEnabled;
+        }
+
         final boolean auditingEnabled = randomBoolean();
         settings.put(XPackSettings.AUDIT_ENABLED.getKey(), auditingEnabled);
-        final String[] auditOutputs = randomFrom(
-                new String[] { "logfile" },
-                new String[] { "index" },
-                new String[] { "logfile", "index" }
-        );
-        settings.putList(Security.AUDIT_OUTPUTS_SETTING.getKey(), auditOutputs);
         final boolean httpIpFilterEnabled = randomBoolean();
         final boolean transportIPFilterEnabled = randomBoolean();
         when(ipFilter.usageStats())
@@ -191,9 +203,19 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 assertThat(source.getValue("ssl.http.enabled"), is(httpSSLEnabled));
                 assertThat(source.getValue("ssl.transport.enabled"), is(transportSSLEnabled));
 
+                // check Token service
+                assertThat(source.getValue("token_service.enabled"), is(tokenServiceEnabled));
+
+                // check API Key service
+                assertThat(source.getValue("api_key_service.enabled"), is(apiKeyServiceEnabled));
+
                 // auditing
                 assertThat(source.getValue("audit.enabled"), is(auditingEnabled));
-                assertThat(source.getValue("audit.outputs"), contains(auditOutputs));
+                if (auditingEnabled) {
+                    assertThat(source.getValue("audit.outputs"), contains(LoggingAuditTrail.NAME));
+                } else {
+                    assertThat(source.getValue("audit.outputs"), is(nullValue()));
+                }
 
                 // ip filter
                 assertThat(source.getValue("ipfilter.http.enabled"), is(httpIpFilterEnabled));
@@ -220,6 +242,8 @@ public class SecurityFeatureSetTests extends ESTestCase {
             } else {
                 assertThat(source.getValue("realms"), is(nullValue()));
                 assertThat(source.getValue("ssl"), is(nullValue()));
+                assertThat(source.getValue("token_service"), is(nullValue()));
+                assertThat(source.getValue("api_key_service"), is(nullValue()));
                 assertThat(source.getValue("audit"), is(nullValue()));
                 assertThat(source.getValue("anonymous"), is(nullValue()));
                 assertThat(source.getValue("ipfilter"), is(nullValue()));

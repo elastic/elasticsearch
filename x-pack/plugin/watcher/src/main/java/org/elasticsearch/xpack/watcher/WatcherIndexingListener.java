@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -18,8 +20,6 @@ import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
@@ -29,10 +29,12 @@ import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -45,7 +47,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.joda.time.DateTimeZone.UTC;
 
 /**
  * This index listener ensures, that watches that are being indexed are put into the trigger service
@@ -56,7 +57,9 @@ import static org.joda.time.DateTimeZone.UTC;
  * the document should also be added to the local trigger service
  *
  */
-final class WatcherIndexingListener extends AbstractComponent implements IndexingOperationListener, ClusterStateListener {
+final class WatcherIndexingListener implements IndexingOperationListener, ClusterStateListener {
+
+    private static final Logger logger = LogManager.getLogger(WatcherIndexingListener.class);
 
     static final Configuration INACTIVE = new Configuration(null, Collections.emptyMap());
 
@@ -65,8 +68,7 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
     private final TriggerService triggerService;
     private volatile Configuration configuration = INACTIVE;
 
-    WatcherIndexingListener(Settings settings, WatchParser parser, Clock clock, TriggerService triggerService) {
-        super(settings);
+    WatcherIndexingListener(WatchParser parser, Clock clock, TriggerService triggerService) {
         this.parser = parser;
         this.clock = clock;
         this.triggerService = triggerService;
@@ -99,10 +101,11 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
      */
     @Override
     public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
-        if (isWatchDocument(shardId.getIndexName(), operation.type())) {
-            DateTime now = new DateTime(clock.millis(), UTC);
+        if (isWatchDocument(shardId.getIndexName())) {
+            ZonedDateTime now = Instant.ofEpochMilli(clock.millis()).atZone(ZoneOffset.UTC);
             try {
-                Watch watch = parser.parseWithSecrets(operation.id(), true, operation.source(), now, XContentType.JSON);
+                Watch watch = parser.parseWithSecrets(operation.id(), true, operation.source(), now, XContentType.JSON,
+                    operation.getIfSeqNo(), operation.getIfPrimaryTerm());
                 ShardAllocationConfiguration shardAllocationConfiguration = configuration.localShards.get(shardId);
                 if (shardAllocationConfiguration == null) {
                     logger.debug("no distributed watch execution info found for watch [{}] on shard [{}], got configuration for {}",
@@ -143,11 +146,11 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
      *
      * @param shardId   The shard id object of the document being processed
      * @param index     The index operation
-     * @param ex        The exception occured during indexing
+     * @param ex        The exception occurred during indexing
      */
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
-        if (isWatchDocument(shardId.getIndexName(), index.type())) {
+        if (isWatchDocument(shardId.getIndexName())) {
             logger.debug(() -> new ParameterizedMessage("removing watch [{}] from trigger", index.id()), ex);
             triggerService.remove(index.id());
         }
@@ -163,7 +166,7 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
      */
     @Override
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-        if (isWatchDocument(shardId.getIndexName(), delete.type())) {
+        if (isWatchDocument(shardId.getIndexName())) {
             triggerService.remove(delete.id());
         }
 
@@ -174,11 +177,10 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
      * Check if a supplied index and document matches the current configuration for watcher
      *
      * @param index   The index to check for
-     * @param docType The document type
      * @return true if this is a watch in the active watcher index, false otherwise
      */
-    private boolean isWatchDocument(String index, String docType) {
-        return configuration.isIndexAndActive(index) && docType.equals(Watch.DOC_TYPE);
+    private boolean isWatchDocument(String index) {
+        return configuration.isIndexAndActive(index);
     }
 
     /**
@@ -193,7 +195,7 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
         // if there is no master node configured in the current state, this node should not try to trigger anything, but consider itself
         // inactive. the same applies, if there is a cluster block that does not allow writes
         if (Strings.isNullOrEmpty(event.state().nodes().getMasterNodeId()) ||
-                event.state().getBlocks().hasGlobalBlock(ClusterBlockLevel.WRITE)) {
+                event.state().getBlocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE)) {
             configuration = INACTIVE;
             return;
         }

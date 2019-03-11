@@ -104,22 +104,10 @@ public class PathTrie<T> {
             namedWildcard = key.substring(key.indexOf('{') + 1, key.indexOf('}'));
         }
 
-        public boolean isWildcard() {
-            return isWildcard;
-        }
-
-        public synchronized void addChild(TrieNode child) {
-            addInnerChild(child.key, child);
-        }
-
         private void addInnerChild(String key, TrieNode child) {
             Map<String, TrieNode> newChildren = new HashMap<>(children);
             newChildren.put(key, child);
             children = unmodifiableMap(newChildren);
-        }
-
-        public TrieNode getChild(String key) {
-            return children.get(key);
         }
 
         public synchronized void insert(String[] path, int index, T value) {
@@ -302,7 +290,7 @@ public class PathTrie<T> {
         }
         int index = 0;
         // Supports initial delimiter.
-        if (strings.length > 0 && strings[0].isEmpty()) {
+        if (strings[0].isEmpty()) {
             index = 1;
         }
         root.insert(strings, index, value);
@@ -327,7 +315,7 @@ public class PathTrie<T> {
         }
         int index = 0;
         // Supports initial delimiter.
-        if (strings.length > 0 && strings[0].isEmpty()) {
+        if (strings[0].isEmpty()) {
             index = 1;
         }
         root.insertOrUpdate(strings, index, value, updater);
@@ -352,7 +340,7 @@ public class PathTrie<T> {
         int index = 0;
 
         // Supports initial delimiter.
-        if (strings.length > 0 && strings[0].isEmpty()) {
+        if (strings[0].isEmpty()) {
             index = 1;
         }
 

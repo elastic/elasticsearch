@@ -19,6 +19,33 @@
 
 package org.elasticsearch.update;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
+import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.transport.NoNodeAvailableException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,30 +58,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-
-import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateRequestBuilder;
-import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.transport.NoNodeAvailableException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -366,7 +369,8 @@ public class UpdateIT extends ESIntegTestCase {
         // check updates without script
         // add new field
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
-        client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
@@ -374,7 +378,8 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         // change existing field
-        client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("3"));
@@ -392,7 +397,8 @@ public class UpdateIT extends ESIntegTestCase {
         testMap.put("map1", 8);
 
         client().prepareIndex("test", "type1", "1").setSource("map", testMap).execute().actionGet();
-        client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             Map map1 = (Map) getResponse.getSourceAsMap().get("map");
@@ -406,6 +412,45 @@ public class UpdateIT extends ESIntegTestCase {
             assertThat(map2.containsKey("map2"), equalTo(true));
             assertThat(map2.containsKey("commonkey"), equalTo(true));
         }
+    }
+
+    public void testUpdateWithIfSeqNo() throws Exception {
+        createTestIndex();
+        ensureGreen();
+
+        IndexResponse result = client().prepareIndex("test", "type1", "1").setSource("field", 1).get();
+        expectThrows(VersionConflictEngineException.class, () ->
+            client().prepareUpdate(indexOrAlias(), "type1", "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+                .setIfSeqNo(result.getSeqNo() + 1)
+                .setIfPrimaryTerm(result.getPrimaryTerm())
+                .get()
+        );
+
+        expectThrows(VersionConflictEngineException.class, () ->
+            client().prepareUpdate(indexOrAlias(), "type1", "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+                .setIfSeqNo(result.getSeqNo())
+                .setIfPrimaryTerm(result.getPrimaryTerm() + 1)
+                .get()
+        );
+
+        expectThrows(VersionConflictEngineException.class, () ->
+            client().prepareUpdate(indexOrAlias(), "type1", "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+                .setIfSeqNo(result.getSeqNo() + 1)
+                .setIfPrimaryTerm(result.getPrimaryTerm() + 1)
+                .get()
+        );
+
+        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+            .setIfSeqNo(result.getSeqNo())
+            .setIfPrimaryTerm(result.getPrimaryTerm())
+            .get();
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        assertThat(updateResponse.getSeqNo(), equalTo(result.getSeqNo() + 1));
     }
 
     public void testUpdateRequestWithBothScriptAndDoc() throws Exception {
@@ -519,10 +564,12 @@ public class UpdateIT extends ESIntegTestCase {
                         startLatch.await();
                         for (int i = 0; i < numberOfUpdatesPerThread; i++) {
                             if (i % 100 == 0) {
-                                logger.debug("Client [{}] issued [{}] of [{}] requests", Thread.currentThread().getName(), i, numberOfUpdatesPerThread);
+                                logger.debug("Client [{}] issued [{}] of [{}] requests",
+                                    Thread.currentThread().getName(), i, numberOfUpdatesPerThread);
                             }
                             if (useBulkApi) {
-                                UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "type1", Integer.toString(i))
+                                UpdateRequestBuilder updateRequestBuilder = client()
+                                        .prepareUpdate(indexOrAlias(), "type1", Integer.toString(i))
                                         .setScript(fieldIncScript)
                                         .setRetryOnConflict(Integer.MAX_VALUE)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject());
@@ -538,7 +585,8 @@ public class UpdateIT extends ESIntegTestCase {
                         logger.info("Client [{}] issued all [{}] requests.", Thread.currentThread().getName(), numberOfUpdatesPerThread);
                     } catch (InterruptedException e) {
                         // test infrastructure kills long-running tests by interrupting them, thus we handle this case separately
-                        logger.warn("Test was forcefully stopped. Client [{}] may still have outstanding requests.", Thread.currentThread().getName());
+                        logger.warn("Test was forcefully stopped. Client [{}] may still have outstanding requests.",
+                            Thread.currentThread().getName());
                         failures.add(e);
                         Thread.currentThread().interrupt();
                     } catch (Exception e) {
@@ -586,15 +634,13 @@ public class UpdateIT extends ESIntegTestCase {
         final class UpdateThread extends Thread {
             final Map<Integer,Integer> failedMap = new HashMap<>();
             final int numberOfIds;
-            final int updatesPerId;
             final int maxUpdateRequests = numberOfIdsPerThread*numberOfUpdatesPerId;
             final int maxDeleteRequests = numberOfIdsPerThread*numberOfUpdatesPerId;
             private final Semaphore updateRequestsOutstanding = new Semaphore(maxUpdateRequests);
             private final Semaphore deleteRequestsOutstanding = new Semaphore(maxDeleteRequests);
 
-            UpdateThread(int numberOfIds, int updatesPerId) {
+            UpdateThread(int numberOfIds) {
                 this.numberOfIds = numberOfIds;
-                this.updatesPerId = updatesPerId;
             }
 
             final class UpdateListener implements ActionListener<UpdateResponse> {
@@ -711,7 +757,8 @@ public class UpdateIT extends ESIntegTestCase {
                 long start = System.currentTimeMillis();
                 do {
                     long msRemaining = timeOut.getMillis() - (System.currentTimeMillis() - start);
-                    logger.info("[{}] going to try and acquire [{}] in [{}]ms [{}] available to acquire right now",name, maxRequests,msRemaining, requestsOutstanding.availablePermits());
+                    logger.info("[{}] going to try and acquire [{}] in [{}]ms [{}] available to acquire right now",
+                        name, maxRequests,msRemaining, requestsOutstanding.availablePermits());
                     try {
                         requestsOutstanding.tryAcquire(maxRequests, msRemaining, TimeUnit.MILLISECONDS );
                         return;
@@ -719,13 +766,14 @@ public class UpdateIT extends ESIntegTestCase {
                         //Just keep swimming
                     }
                 } while ((System.currentTimeMillis() - start) < timeOut.getMillis());
-                throw new ElasticsearchTimeoutException("Requests were still outstanding after the timeout [" + timeOut + "] for type [" + name + "]" );
+                throw new ElasticsearchTimeoutException("Requests were still outstanding after the timeout [" + timeOut + "] for type [" +
+                    name + "]" );
             }
         }
         final List<UpdateThread> threads = new ArrayList<>();
 
         for (int i = 0; i < numberOfThreads; i++) {
-            UpdateThread ut = new UpdateThread(numberOfIdsPerThread, numberOfUpdatesPerId);
+            UpdateThread ut = new UpdateThread(numberOfIdsPerThread);
             ut.start();
             threads.add(ut);
         }
@@ -749,7 +797,7 @@ public class UpdateIT extends ESIntegTestCase {
         //This means that we add 1 to the expected versions and attempts
         //All the previous operations should be complete or failed at this point
         for (int i = 0; i < numberOfIdsPerThread; ++i) {
-            UpdateResponse ur = client().prepareUpdate("test", "type1", Integer.toString(i))
+            client().prepareUpdate("test", "type1", Integer.toString(i))
                     .setScript(fieldIncScript)
                 .setRetryOnConflict(Integer.MAX_VALUE)
                 .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
@@ -770,7 +818,8 @@ public class UpdateIT extends ESIntegTestCase {
                     }
                 }
                 expectedVersion -= totalFailures;
-                logger.error("Actual version [{}] Expected version [{}] Total failures [{}]", response.getVersion(), expectedVersion, totalFailures);
+                logger.error("Actual version [{}] Expected version [{}] Total failures [{}]",
+                    response.getVersion(), expectedVersion, totalFailures);
                 assertThat(response.getVersion(), equalTo((long) expectedVersion));
                 assertThat(response.getVersion() + totalFailures,
                         equalTo(

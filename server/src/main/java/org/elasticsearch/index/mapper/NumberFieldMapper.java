@@ -53,9 +53,9 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -187,6 +187,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public Number parsePoint(byte[] value) {
+                return HalfFloatPoint.decodeDimension(value, 0);
+            }
+
+            @Override
             public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
@@ -279,6 +284,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public Number parsePoint(byte[] value) {
+                return FloatPoint.decodeDimension(value, 0);
+            }
+
+            @Override
             public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
@@ -357,6 +367,11 @@ public class NumberFieldMapper extends FieldMapper {
                 double parsed = objectToDouble(value);
                 validateParsed(parsed);
                 return parsed;
+            }
+
+            @Override
+            public Number parsePoint(byte[] value) {
+                return DoublePoint.decodeDimension(value, 0);
             }
 
             @Override
@@ -452,6 +467,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public Number parsePoint(byte[] value) {
+                return INTEGER.parsePoint(value).byteValue();
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 int value = parser.intValue(coerce);
                 if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
@@ -508,6 +528,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public Number parsePoint(byte[] value) {
+                return INTEGER.parsePoint(value).shortValue();
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.shortValue(coerce);
             }
@@ -557,6 +582,11 @@ public class NumberFieldMapper extends FieldMapper {
                 }
 
                 return (int) doubleValue;
+            }
+
+            @Override
+            public Number parsePoint(byte[] value) {
+                return IntPoint.decodeDimension(value, 0);
             }
 
             @Override
@@ -671,6 +701,11 @@ public class NumberFieldMapper extends FieldMapper {
                 // longs need special handling so we don't lose precision while parsing
                 String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
                 return Numbers.toLong(stringValue, coerce);
+            }
+
+            @Override
+            public Number parsePoint(byte[] value) {
+                return LongPoint.decodeDimension(value, 0);
             }
 
             @Override
@@ -789,6 +824,7 @@ public class NumberFieldMapper extends FieldMapper {
                                   boolean hasDocValues);
         public abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
         public abstract Number parse(Object value, boolean coerce);
+        public abstract Number parsePoint(byte[] value);
         public abstract List<Field> createFields(String name, Number value, boolean indexed,
                                                  boolean docValued, boolean stored);
         Number valueForSearch(Number value) {
@@ -925,7 +961,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, DateTimeZone timeZone) {
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             if (timeZone != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
                     + "] does not support custom time zones");
@@ -935,6 +971,10 @@ public class NumberFieldMapper extends FieldMapper {
             } else {
                 return new DocValueFormat.Decimal(format);
             }
+        }
+
+        public Number parsePoint(byte[] value) {
+            return type.parsePoint(value);
         }
 
         @Override

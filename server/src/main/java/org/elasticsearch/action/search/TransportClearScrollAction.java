@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -34,11 +33,9 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
     private final SearchTransportService searchTransportService;
 
     @Inject
-    public TransportClearScrollAction(Settings settings, TransportService transportService,
-                                      ClusterService clusterService, ActionFilters actionFilters,
+    public TransportClearScrollAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters,
                                       SearchTransportService searchTransportService) {
-        super(settings, ClearScrollAction.NAME, transportService, actionFilters,
-            ClearScrollRequest::new);
+        super(ClearScrollAction.NAME, transportService, actionFilters, ClearScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
     }

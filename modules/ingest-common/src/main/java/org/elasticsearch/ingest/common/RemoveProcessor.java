@@ -52,7 +52,7 @@ public final class RemoveProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument document) {
+    public IngestDocument execute(IngestDocument document) {
         if (ignoreMissing) {
             fields.forEach(field -> {
                 String path = document.renderTemplate(field);
@@ -63,6 +63,7 @@ public final class RemoveProcessor extends AbstractProcessor {
         } else {
             fields.forEach(document::removeField);
         }
+        return document;
     }
 
     @Override

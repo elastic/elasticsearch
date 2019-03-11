@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 
 public class IndexFieldMapper extends MetadataFieldMapper {
@@ -77,7 +79,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                                      ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
 
@@ -129,7 +132,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             if (isSameIndex(value, context.getFullyQualifiedIndex().getName())) {
                 return Queries.newMatchAllQuery();
             } else {
-                return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + value);
+                return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName()
+                    + " vs. " + value);
             }
         }
 
@@ -150,8 +154,48 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 + " vs. " + values);
         }
 
+        @Override
+        public Query prefixQuery(String value,
+                                 @Nullable MultiTermQuery.RewriteMethod method,
+                                 QueryShardContext context) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            if (indexName.startsWith(value)) {
+                return Queries.newMatchAllQuery();
+            } else {
+                return Queries.newMatchNoDocsQuery("The index [" + indexName +
+                    "] doesn't match the provided prefix [" + value + "].");
+            }
+        }
+
+        @Override
+        public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
+                                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            Pattern pattern = Regex.compile(value, Regex.flagsToString(flags));
+
+            if (pattern.matcher(indexName).matches()) {
+                return Queries.newMatchAllQuery();
+            } else {
+                return Queries.newMatchNoDocsQuery("The index [" + indexName +
+                    "] doesn't match the provided pattern [" + value + "].");
+            }
+        }
+
+        @Override
+        public Query wildcardQuery(String value,
+                                   @Nullable MultiTermQuery.RewriteMethod method,
+                                   QueryShardContext context) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            if (isSameIndex(value, indexName)) {
+                return Queries.newMatchAllQuery();
+            } else {
+                return Queries.newMatchNoDocsQuery("The index [" + indexName +
+                    "] doesn't match the provided pattern [" + value + "].");
+            }
+        }
+
         private boolean isSameIndex(Object value, String indexName) {
-            String pattern = value instanceof BytesRef ? pattern = ((BytesRef) value).utf8ToString() : value.toString();
+            String pattern = value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
             return Regex.simpleMatch(pattern, indexName);
         }
 

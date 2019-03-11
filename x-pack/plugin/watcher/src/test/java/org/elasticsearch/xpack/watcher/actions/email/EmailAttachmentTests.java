@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.actions.email;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -82,13 +83,15 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.notification.email.account.test.smtp.secure_password", EmailServer.PASSWORD);
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("xpack.notification.email.account.test.smtp.auth", true)
                 .put("xpack.notification.email.account.test.smtp.user", EmailServer.USERNAME)
-                .put("xpack.notification.email.account.test.smtp.password", EmailServer.PASSWORD)
                 .put("xpack.notification.email.account.test.smtp.port", server.port())
                 .put("xpack.notification.email.account.test.smtp.host", "localhost")
+                .setSecureSettings(secureSettings)
                 .build();
     }
 
@@ -170,7 +173,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         emailAttachments.toXContent(tmpBuilder, ToXContent.EMPTY_PARAMS);
         tmpBuilder.endObject();
 
-        EmailTemplate.Builder emailBuilder = EmailTemplate.builder().from("_from").to("_to").subject("Subject");
+        EmailTemplate.Builder emailBuilder = EmailTemplate.builder().from("from@example.org").to("to@example.org").subject("Subject");
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                 .input(noneInput())

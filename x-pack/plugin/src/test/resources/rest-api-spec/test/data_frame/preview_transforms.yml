@@ -1,0 +1,104 @@
+setup:
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+  - do:
+      index:
+        index: airline-data
+        id: 1
+        body: >
+          {
+            "time": "2017-02-18T00:00:00Z",
+            "airline": "foo",
+            "responsetime": 1.0,
+            "event_rate": 5
+          }
+
+  - do:
+      index:
+        index: airline-data
+        id: 2
+        body: >
+          {
+            "time": "2017-02-18T00:30:00Z",
+            "airline": "foo",
+            "responsetime": 1.0,
+            "event_rate": 6
+          }
+
+  - do:
+      index:
+        index: airline-data
+        id: 3
+        body: >
+          {
+            "time": "2017-02-18T01:00:00Z",
+            "airline": "bar",
+            "responsetime": 42.0,
+            "event_rate": 8
+          }
+
+  - do:
+      index:
+        index: airline-data
+        id: 4
+        body: >
+          {
+            "time": "2017-02-18T01:01:00Z",
+            "airline": "foo",
+            "responsetime": 42.0,
+            "event_rate": 7
+          }
+
+  - do:
+      indices.refresh:
+        index: airline-data
+
+---
+"Test preview transform":
+  - do:
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": "airline-data",
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "by-hour": {"date_histogram": {"interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { preview.0.airline: foo }
+  - match: { preview.0.by-hour: "2017-02-49 00" }
+  - match: { preview.0.avg_response: 1.0 }
+  - match: { preview.1.airline: bar }
+  - match: { preview.1.by-hour: "2017-02-49 01" }
+  - match: { preview.1.avg_response: 42.0 }
+  - match: { preview.2.airline: foo }
+  - match: { preview.2.by-hour: "2017-02-49 01" }
+  - match: { preview.2.avg_response: 42.0 }
+
+---
+"Test preview transform with invalid config":
+  - do:
+      catch: /\[data_frame_terms_group\] unknown field \[not_a_terms_param\]/
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": "airline-data",
+            "pivot": {
+              "group_by": {"airline": {"terms": {"not_a_terms_param": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }

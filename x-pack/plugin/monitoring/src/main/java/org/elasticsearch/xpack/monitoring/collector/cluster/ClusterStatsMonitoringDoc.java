@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.collector.cluster;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
@@ -45,6 +46,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                                 ClusterState.Metric.NODES));
 
     public static final String TYPE = "cluster_stats";
+    protected static final String SETTING_DISPLAY_NAME = "cluster.metadata.display_name";
 
     private final String clusterName;
     private final String version;
@@ -118,6 +120,14 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         return clusterNeedsTLSEnabled;
     }
 
+    String getClusterDisplayName() {
+        MetaData metaData = this.clusterState.getMetaData();
+        if (metaData == null) {
+            return null;
+        }
+        return metaData.settings().get(SETTING_DISPLAY_NAME);
+    }
+
     @Override
     protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("cluster_name", clusterName);
@@ -152,6 +162,23 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                 builder.field("nodes_hash", nodesHash(clusterState.nodes()));
                 builder.field("status", status.name().toLowerCase(Locale.ROOT));
                 clusterState.toXContent(builder, CLUSTER_STATS_PARAMS);
+            }
+            builder.endObject();
+        }
+
+        String displayName = getClusterDisplayName();
+        if (displayName != null) {
+            builder.startObject("cluster_settings");
+            {
+                builder.startObject("cluster");
+                {
+                    builder.startObject("metadata");
+                    {
+                        builder.field("display_name", displayName);
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
             }
             builder.endObject();
         }

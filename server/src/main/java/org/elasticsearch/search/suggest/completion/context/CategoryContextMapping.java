@@ -111,9 +111,9 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
      *  </ul>
      */
     @Override
-    public Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser)
+    public Set<String> parseContext(ParseContext parseContext, XContentParser parser)
             throws IOException, ElasticsearchParseException {
-        final Set<CharSequence> contexts = new HashSet<>();
+        final Set<String> contexts = new HashSet<>();
         Token token = parser.currentToken();
         if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
             contexts.add(parser.text());
@@ -134,8 +134,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     }
 
     @Override
-    public Set<CharSequence> parseContext(Document document) {
-        Set<CharSequence> values = null;
+    public Set<String> parseContext(Document document) {
+        Set<String> values = null;
         if (fieldName != null) {
             IndexableField[] fields = document.getFields(fieldName);
             values = new HashSet<>(fields.length);
@@ -149,7 +149,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
                 } else if (field.fieldType() instanceof StringFieldType) {
                     values.add(field.stringValue());
                 } else {
-                    throw new IllegalArgumentException("Failed to parse context field [" + fieldName + "], only keyword and text fields are accepted");
+                    throw new IllegalArgumentException("Failed to parse context field [" + fieldName +
+                            "], only keyword and text fields are accepted");
                 }
             }
         }
@@ -173,7 +174,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
      *
      *  A CategoryQueryContext has one of the following forms:
      *  <ul>
-     *     <li>Object: <pre>{&quot;context&quot;: <i>&lt;string&gt;</i>, &quot;boost&quot;: <i>&lt;int&gt;</i>, &quot;prefix&quot;: <i>&lt;boolean&gt;</i>}</pre></li>
+     *     <li>Object: <pre>{&quot;context&quot;: <i>&lt;string&gt;</i>, &quot;boost&quot;: <i>&lt;int&gt;</i>, &quot;prefix&quot;:
+     *     <i>&lt;boolean&gt;</i>}</pre></li>
      *     <li>String: <pre>&quot;string&quot;</pre></li>
      *  </ul>
      */

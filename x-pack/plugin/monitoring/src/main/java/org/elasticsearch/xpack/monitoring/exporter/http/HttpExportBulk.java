@@ -5,20 +5,21 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NByteArrayEntity;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,9 +29,9 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Map;
 
@@ -39,7 +40,7 @@ import java.util.Map;
  */
 class HttpExportBulk extends ExportBulk {
 
-    private static final Logger logger = Loggers.getLogger(HttpExportBulk.class);
+    private static final Logger logger = LogManager.getLogger(HttpExportBulk.class);
 
     /**
      * The {@link RestClient} managed by the {@link HttpExporter}.
@@ -54,7 +55,7 @@ class HttpExportBulk extends ExportBulk {
     /**
      * {@link DateTimeFormatter} used to resolve timestamped index name.
      */
-    private final DateTimeFormatter formatter;
+    private final DateFormatter formatter;
 
     /**
      * The bytes payload that represents the bulk body is created via {@link #doAdd(Collection)}.
@@ -62,7 +63,7 @@ class HttpExportBulk extends ExportBulk {
     private byte[] payload = null;
 
     HttpExportBulk(final String name, final RestClient client, final Map<String, String> parameters,
-                   final DateTimeFormatter dateTimeFormatter, final ThreadContext threadContext) {
+                   final DateFormatter dateTimeFormatter, final ThreadContext threadContext) {
         super(name, threadContext);
 
         this.client = client;
@@ -94,9 +95,13 @@ class HttpExportBulk extends ExportBulk {
         if (payload == null) {
             listener.onFailure(new ExportException("unable to send documents because none were loaded for export bulk [{}]", name));
         } else if (payload.length != 0) {
-            final HttpEntity body = new ByteArrayEntity(payload, ContentType.APPLICATION_JSON);
+            final Request request = new Request("POST", "/_bulk");
+            for (Map.Entry<String, String> param : params.entrySet()) {
+                request.addParameter(param.getKey(), param.getValue());
+            }
+            request.setEntity(new NByteArrayEntity(payload, ContentType.APPLICATION_JSON));
 
-            client.performRequestAsync("POST", "/_bulk", params, body, new ResponseListener() {
+            client.performRequestAsync(request, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     try {
@@ -138,7 +143,6 @@ class HttpExportBulk extends ExportBulk {
                     builder.startObject("index");
                     {
                         builder.field("_index", index);
-                        builder.field("_type", "doc");
                         if (id != null) {
                             builder.field("_id", id);
                         }
@@ -158,7 +162,10 @@ class HttpExportBulk extends ExportBulk {
             // Adds final bulk separator
             out.write(xContent.streamSeparator());
 
-            logger.trace("added index request [index={}, type={}, id={}]", index, doc.getType(), id);
+            logger.trace(
+                "http exporter [{}] - added index request [index={}, id={}, monitoring data type={}]",
+                name, index, id, doc.getType()
+            );
 
             return BytesReference.toBytes(out.bytes());
         } catch (Exception e) {

@@ -21,7 +21,6 @@ import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
 
 import static org.elasticsearch.license.CryptUtils.writeEncryptedPrivateKey;
-import static org.elasticsearch.license.CryptUtils.writeEncryptedPublicKey;
 
 public class KeyPairGeneratorTool extends LoggingAwareCommand {
 
@@ -65,7 +64,7 @@ public class KeyPairGeneratorTool extends LoggingAwareCommand {
         KeyPair keyPair = keyGen.generateKeyPair();
 
         Files.write(privateKeyPath, writeEncryptedPrivateKey(keyPair.getPrivate()));
-        Files.write(publicKeyPath, writeEncryptedPublicKey(keyPair.getPublic()));
+        Files.write(publicKeyPath, keyPair.getPublic().getEncoded());
 
         terminal.println(
                 Terminal.Verbosity.VERBOSE,

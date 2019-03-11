@@ -20,6 +20,7 @@
 package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -28,6 +29,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
@@ -35,6 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A {@link ContextMapping} defines criteria that can be used to
@@ -91,12 +95,13 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     /**
      * Parses a set of index-time contexts.
      */
-    public abstract Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException;
+    public abstract Set<String> parseContext(ParseContext parseContext, XContentParser parser)
+            throws IOException, ElasticsearchParseException;
 
     /**
      * Retrieves a set of context from a <code>document</code> at index-time.
      */
-    protected abstract Set<CharSequence> parseContext(ParseContext.Document document);
+    protected abstract Set<String> parseContext(ParseContext.Document document);
 
     /**
      * Prototype for the query context
@@ -130,6 +135,31 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
      * that need to be persisted
      */
     protected abstract XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException;
+
+    /**
+     * Checks if the current context is consistent with the rest of the fields. For example, the GeoContext
+     * should check that the field that it points to has the correct type.
+     */
+    protected void validateReferences(Version indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
+        // No validation is required by default
+    }
+
+    /**
+     * Verifies that all field paths specified in contexts point to the fields with correct mappings
+     */
+    public static void validateContextPaths(Version indexVersionCreated, List<FieldMapper> fieldMappers,
+                                            Function<String, MappedFieldType> fieldResolver) {
+        for (FieldMapper fieldMapper : fieldMappers) {
+            if (CompletionFieldMapper.CONTENT_TYPE.equals(fieldMapper.typeName())) {
+                CompletionFieldMapper.CompletionFieldType fieldType = ((CompletionFieldMapper) fieldMapper).fieldType();
+                if (fieldType.hasContextMappings()) {
+                    for (ContextMapping context : fieldType.getContextMappings()) {
+                        context.validateReferences(indexVersionCreated, fieldResolver);
+                    }
+                }
+            }
+        }
+    }
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

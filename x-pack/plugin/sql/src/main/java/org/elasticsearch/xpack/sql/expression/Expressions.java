@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -14,18 +16,21 @@ import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static java.util.stream.Collectors.toList;
 
-public abstract class Expressions {
+public final class Expressions {
 
-    public static List<NamedExpression> asNamed(List<? extends Expression> exp) {
-        return exp.stream()
-                .map(NamedExpression.class::cast)
-                .collect(toList());
+    public enum ParamOrdinal {
+        DEFAULT,
+        FIRST,
+        SECOND,
+        THIRD,
+        FOURTH
     }
 
+    private Expressions() {}
+
     public static NamedExpression wrapAsNamed(Expression exp) {
-        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.location(), exp.nodeName(), exp);
+        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.source(), exp.sourceText(), exp);
     }
 
     public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {
@@ -60,9 +65,22 @@ public abstract class Expressions {
         return false;
     }
 
-    public static boolean nullable(List<? extends Expression> exps) {
+    public static boolean match(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
         for (Expression exp : exps) {
-            if (!exp.nullable()) {
+            if (predicate.test(exp)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static Nullability nullable(List<? extends Expression> exps) {
+        return Nullability.and(exps.stream().map(Expression::nullable).toArray(Nullability[]::new));
+    }
+
+    public static boolean foldable(List<? extends Expression> exps) {
+        for (Expression exp : exps) {
+            if (!exp.foldable()) {
                 return false;
             }
         }
@@ -85,6 +103,10 @@ public abstract class Expressions {
         return e instanceof NamedExpression ? ((NamedExpression) e).name() : e.nodeName();
     }
 
+    public static boolean isNull(Expression e) {
+        return e.dataType() == DataType.NULL || (e.foldable() && e.fold() == null);
+    }
+
     public static List<String> names(Collection<? extends Expression> e) {
         List<String> names = new ArrayList<>(e.size());
         for (Expression ex : e) {
@@ -99,7 +121,7 @@ public abstract class Expressions {
             return ((NamedExpression) e).toAttribute();
         }
         if (e != null && e.foldable()) {
-            return new LiteralAttribute(Literal.of(e));
+            return Literal.of(e).toAttribute();
         }
         return null;
     }
@@ -112,12 +134,18 @@ public abstract class Expressions {
         return true;
     }
 
-    public static TypeResolution typeMustBe(Expression e, Predicate<Expression> predicate, String message) {
-        return predicate.test(e) ? TypeResolution.TYPE_RESOLVED : new TypeResolution(message);
+    public static Pipe pipe(Expression e) {
+        if (e instanceof NamedExpression) {
+            return ((NamedExpression) e).asPipe();
+        }
+        throw new SqlIllegalArgumentException("Cannot create pipe for {}", e);
     }
 
-    public static TypeResolution typeMustBeNumeric(Expression e) {
-        return e.dataType().isNumeric()? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-                "Argument required to be numeric ('" + Expressions.name(e) + "' of type '" + e.dataType().esType + "')");
+    public static List<Pipe> pipe(List<Expression> expressions) {
+        List<Pipe> pipes = new ArrayList<>(expressions.size());
+        for (Expression e : expressions) {
+            pipes.add(pipe(e));
+        }
+        return pipes;
     }
 }

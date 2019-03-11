@@ -24,10 +24,10 @@ import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.After;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -88,14 +88,14 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                         .condition(InternalAlwaysCondition.INSTANCE)
                         .addAction("_email", ActionBuilders.emailAction(
                                 EmailTemplate.builder()
-                                        .from("_from")
-                                        .to("_to")
+                                        .from("from@example.org")
+                                        .to("to@example.org")
                                         .subject("_subject"))
                                 .setAuthentication(EmailServer.USERNAME, EmailServer.PASSWORD.toCharArray())))
                 .get();
 
         // verifying the email password is stored encrypted in the index
-        GetResponse response = client().prepareGet(Watch.INDEX, Watch.DOC_TYPE, "_id").get();
+        GetResponse response = client().prepareGet().setIndex(Watch.INDEX).setId("_id").get();
         assertThat(response, notNullValue());
         assertThat(response.getId(), is("_id"));
         Map<String, Object> source = response.getSource();
@@ -135,7 +135,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
             latch.countDown();
         });
 
-        TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC));
+        TriggerEvent triggerEvent = new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC));
         ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
                 .setRecordExecution(false)
                 .setTriggerEvent(triggerEvent)

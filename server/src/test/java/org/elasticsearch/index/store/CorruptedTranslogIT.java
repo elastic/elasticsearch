@@ -91,7 +91,8 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
         // Restart the single node
         internalCluster().fullRestart();
-        client().admin().cluster().prepareHealth().setWaitForYellowStatus().setTimeout(new TimeValue(1000, TimeUnit.MILLISECONDS)).setWaitForEvents(Priority.LANGUID).get();
+        client().admin().cluster().prepareHealth().setWaitForYellowStatus().
+            setTimeout(new TimeValue(1000, TimeUnit.MILLISECONDS)).setWaitForEvents(Priority.LANGUID).get();
 
         try {
             client().prepareSearch("test").setQuery(matchAllQuery()).get();
@@ -125,18 +126,20 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
             }
         }
         Path translogDir = RandomPicks.randomFrom(random(), translogDirs);
-        TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir, TestTranslog.minTranslogGenUsedInRecovery(translogDir));
+        TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogDir));
     }
 
     /** Disables translog flushing for the specified index */
     private static void disableTranslogFlush(String index) {
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)).build();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)).build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
     /** Enables translog flushing for the specified index */
     private static void enableTranslogFlush(String index) {
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB)).build();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB)).build();
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 }

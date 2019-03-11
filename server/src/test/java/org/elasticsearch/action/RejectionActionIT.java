@@ -87,7 +87,8 @@ public class RejectionActionIT extends ESIntegTestCase {
             if (response instanceof SearchResponse) {
                 SearchResponse searchResponse = (SearchResponse) response;
                 for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
-                    assertTrue("got unexpected reason..." + failure.reason(), failure.reason().toLowerCase(Locale.ENGLISH).contains("rejected"));
+                    assertTrue("got unexpected reason..." + failure.reason(),
+                        failure.reason().toLowerCase(Locale.ENGLISH).contains("rejected"));
                 }
             } else {
                 Exception t = (Exception) response;
@@ -95,7 +96,8 @@ public class RejectionActionIT extends ESIntegTestCase {
                 if (unwrap instanceof SearchPhaseExecutionException) {
                     SearchPhaseExecutionException e = (SearchPhaseExecutionException) unwrap;
                     for (ShardSearchFailure failure : e.shardFailures()) {
-                        assertTrue("got unexpected reason..." + failure.reason(), failure.reason().toLowerCase(Locale.ENGLISH).contains("rejected"));
+                        assertTrue("got unexpected reason..." + failure.reason(),
+                            failure.reason().toLowerCase(Locale.ENGLISH).contains("rejected"));
                     }
                 } else if ((unwrap instanceof EsRejectedExecutionException) == false) {
                     throw new AssertionError("unexpected failure", (Throwable) response);

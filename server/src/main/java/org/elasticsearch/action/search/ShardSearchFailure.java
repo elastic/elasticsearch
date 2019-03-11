@@ -54,8 +54,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     private SearchShardTarget shardTarget;
 
-    private ShardSearchFailure() {
-
+    ShardSearchFailure() {
     }
 
     public ShardSearchFailure(Exception e) {
@@ -99,8 +98,10 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            shardTarget = new SearchShardTarget(in);
+        shardTarget = in.readOptionalWriteable(SearchShardTarget::new);
+        if (shardTarget != null) {
+            index = shardTarget.getFullyQualifiedIndexName();
+            shardId = shardTarget.getShardId().getId();
         }
         reason = in.readString();
         status = RestStatus.readFrom(in);
@@ -109,12 +110,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (shardTarget == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            shardTarget.writeTo(out);
-        }
+        out.writeOptionalWriteable(shardTarget);
         out.writeString(reason);
         RestStatus.writeTo(out, status);
         out.writeException(cause);
@@ -174,7 +170,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         SearchShardTarget searchShardTarget = null;
         if (nodeId != null) {
             searchShardTarget = new SearchShardTarget(nodeId,
-                    new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
+                new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
         }
         return new ShardSearchFailure(exception, searchShardTarget);
     }

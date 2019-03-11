@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
@@ -29,7 +30,8 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
@@ -110,8 +112,8 @@ public class PrecisionAtKTests extends ESTestCase {
         rated.add(createRatedDoc("test", "1", RELEVANT_RATING_1));
         // add an unlabeled search hit
         SearchHit[] searchHits = Arrays.copyOf(toSearchHits(rated, "test"), 3);
-        searchHits[2] = new SearchHit(2, "2", new Text("testtype"), Collections.emptyMap());
-        searchHits[2].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0, null));
+        searchHits[2] = new SearchHit(2, "2", new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
+        searchHits[2].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
 
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", searchHits, rated);
         assertEquals((double) 2 / 3, evaluated.metricScore(), 0.00001);
@@ -129,8 +131,8 @@ public class PrecisionAtKTests extends ESTestCase {
     public void testNoRatedDocs() throws Exception {
         SearchHit[] hits = new SearchHit[5];
         for (int i = 0; i < 5; i++) {
-            hits[i] = new SearchHit(i, i + "", new Text("type"), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0, null));
+            hits[i] = new SearchHit(i, i + "", new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", hits, Collections.emptyList());
         assertEquals(0.0d, evaluated.metricScore(), 0.00001);
@@ -223,7 +225,8 @@ public class PrecisionAtKTests extends ESTestCase {
     }
 
     private static PrecisionAtK copy(PrecisionAtK original) {
-        return new PrecisionAtK(original.getRelevantRatingThreshold(), original.getIgnoreUnlabeled(), original.forcedSearchSize().get());
+        return new PrecisionAtK(original.getRelevantRatingThreshold(), original.getIgnoreUnlabeled(),
+                original.forcedSearchSize().getAsInt());
     }
 
     private static PrecisionAtK mutate(PrecisionAtK original) {
@@ -231,15 +234,15 @@ public class PrecisionAtKTests extends ESTestCase {
         switch (randomIntBetween(0, 2)) {
         case 0:
             pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(), !original.getIgnoreUnlabeled(),
-                    original.forcedSearchSize().get());
+                    original.forcedSearchSize().getAsInt());
             break;
         case 1:
             pAtK = new PrecisionAtK(randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
-                    original.getIgnoreUnlabeled(), original.forcedSearchSize().get());
+                    original.getIgnoreUnlabeled(), original.forcedSearchSize().getAsInt());
             break;
         case 2:
             pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(),
-                    original.getIgnoreUnlabeled(), original.forcedSearchSize().get() + 1);
+                    original.getIgnoreUnlabeled(), original.forcedSearchSize().getAsInt() + 1);
             break;
         default:
             throw new IllegalStateException("The test should only allow three parameters mutated");
@@ -251,7 +254,7 @@ public class PrecisionAtKTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
             hits[i] = new SearchHit(i, i + "", new Text(""), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0, null));
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         }
         return hits;
     }

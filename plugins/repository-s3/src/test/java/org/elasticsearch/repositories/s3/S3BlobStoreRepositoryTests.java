@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
-
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -59,7 +59,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
 
     private static final ConcurrentMap<String, byte[]> blobs = new ConcurrentHashMap<>();
     private static String bucket;
-    private static String client;
     private static ByteSizeValue bufferSize;
     private static boolean serverSideEncryption;
     private static String cannedACL;
@@ -68,7 +67,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     @BeforeClass
     public static void setUpRepositorySettings() {
         bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        client = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         bufferSize = new ByteSizeValue(randomIntBetween(5, 50), ByteSizeUnit.MB);
         serverSideEncryption = randomBoolean();
         if (randomBoolean()) {
@@ -91,7 +89,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
             .setVerify(verify)
             .setSettings(Settings.builder()
                 .put(S3Repository.BUCKET_SETTING.getKey(), bucket)
-                .put(S3Repository.CLIENT_NAME.getKey(), client)
                 .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), bufferSize)
                 .put(S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getKey(), serverSideEncryption)
                 .put(S3Repository.CANNED_ACL_SETTING.getKey(), cannedACL)
@@ -119,16 +116,12 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         @Override
         public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry) {
             return Collections.singletonMap(S3Repository.TYPE,
-                    (metadata) -> new S3Repository(metadata, env.settings(), registry, new S3Service(env.settings()) {
+                    (metadata) -> new S3Repository(metadata, env.settings(), registry, new S3Service() {
                         @Override
-                        public synchronized AmazonS3Reference client(String clientName) {
-                            return new AmazonS3Reference(new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass));
+                        AmazonS3 buildClient(S3ClientSettings clientSettings) {
+                            return new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass);
                         }
-                    }) {
-                        @Override
-                        void overrideCredentialsFromClusterState(S3Service awsService) {
-                        }
-                    });
+                    }));
         }
     }
 

@@ -40,7 +40,7 @@ install_archive() {
     echo "Unpacking tarball to $ESHOME"
     rm -rf /tmp/untar
     mkdir -p /tmp/untar
-    tar -xzpf "${PACKAGE_NAME}-${version}.tar.gz" -C /tmp/untar
+    tar -xzpf "${PACKAGE_NAME}-${version}-linux-x86_64.tar.gz" -C /tmp/untar
 
     find /tmp/untar -depth -type d -name 'elasticsearch*' -exec mv {} "$ESHOME" \; > /dev/null
 
@@ -94,7 +94,8 @@ verify_archive_installation() {
     assert_file "$ESHOME/bin/elasticsearch-env" f elasticsearch elasticsearch 755
     assert_file "$ESHOME/bin/elasticsearch-keystore" f elasticsearch elasticsearch 755
     assert_file "$ESHOME/bin/elasticsearch-plugin" f elasticsearch elasticsearch 755
-    assert_file "$ESHOME/bin/elasticsearch-translog" f elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin/elasticsearch-shard" f elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin/elasticsearch-node" f elasticsearch elasticsearch 755
     assert_file "$ESCONFIG" d elasticsearch elasticsearch 755
     assert_file "$ESCONFIG/elasticsearch.yml" f elasticsearch elasticsearch 660
     assert_file "$ESCONFIG/jvm.options" f elasticsearch elasticsearch 660

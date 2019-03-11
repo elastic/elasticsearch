@@ -7,7 +7,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'shadow')
+  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
   testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
 }
 
@@ -47,6 +47,7 @@ task cleanJira(type: DefaultTask) {
 // require network access for this one, exit early instead of starting up the cluster if we dont have network
 if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
     integTest.enabled = false
+    testingConventions.enabled = false
 } else {
     integTestRunner.finalizedBy cleanJira
 }
@@ -59,7 +60,7 @@ def jiraIssues(projectKey) {
   return response.issues.findAll {it.key.startsWith(projectKey)}.collect {it.key}
 }
 
-/** Execute a HTTP request against the Jira server instance **/
+/** Execute an HTTP request against the Jira server instance **/
 def jiraHttpRequest(String endpoint, String method, int successCode) {
   HttpsURLConnection connection = null;
   try {

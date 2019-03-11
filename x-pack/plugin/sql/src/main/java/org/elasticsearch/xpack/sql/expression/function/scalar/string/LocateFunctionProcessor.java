@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -16,7 +16,7 @@ import java.util.Objects;
 public class LocateFunctionProcessor implements Processor {
 
     private final Processor pattern, source, start;
-    public static final String NAME = "lc";
+    public static final String NAME = "sloc";
 
     public LocateFunctionProcessor(Processor pattern, Processor source, Processor start) {
         this.pattern = pattern;
@@ -42,7 +42,7 @@ public class LocateFunctionProcessor implements Processor {
         return doProcess(pattern().process(input), source().process(input), start() == null ? null : start().process(input));
     }
 
-    public static Object doProcess(Object pattern, Object source, Object start) {
+    public static Integer doProcess(Object pattern, Object source, Object start) {
         if (source == null) {
             return null;
         }
@@ -63,7 +63,7 @@ public class LocateFunctionProcessor implements Processor {
         String stringSource = source instanceof Character ? source.toString() : (String) source;
         String stringPattern = pattern instanceof Character ? pattern.toString() : (String) pattern;
 
-        return (Integer) (1 + (start != null ? 
+        return Integer.valueOf(1 + (start != null ? 
                 stringSource.indexOf(stringPattern, ((Number) start).intValue() - 1)
                 : stringSource.indexOf(stringPattern)));
     }

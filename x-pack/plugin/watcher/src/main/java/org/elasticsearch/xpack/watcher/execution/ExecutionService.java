@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.watcher.execution;
 
 import com.google.common.collect.Iterables;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
@@ -22,7 +24,6 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -52,10 +53,11 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -71,13 +73,14 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
-import static org.joda.time.DateTimeZone.UTC;
 
-public class ExecutionService extends AbstractComponent {
+public class ExecutionService {
 
     public static final Setting<TimeValue> DEFAULT_THROTTLE_PERIOD_SETTING =
         Setting.positiveTimeSetting("xpack.watcher.execution.default_throttle_period",
             TimeValue.timeValueSeconds(5), Setting.Property.NodeScope);
+
+    private static final Logger logger = LogManager.getLogger(ExecutionService.class);
 
     private final MeanMetric totalExecutionsTime = new MeanMetric();
     private final Map<String, MeanMetric> actionByTypeExecutionTime = new HashMap<>();
@@ -101,7 +104,6 @@ public class ExecutionService extends AbstractComponent {
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
                             Clock clock, WatchParser parser, ClusterService clusterService, Client client,
                             ExecutorService genericExecutor) {
-        super(settings);
         this.historyStore = historyStore;
         this.triggeredWatchStore = triggeredWatchStore;
         this.executor = executor;
@@ -122,7 +124,7 @@ public class ExecutionService extends AbstractComponent {
 
     /**
      * Pause the execution of the watcher executor, and empty the state.
-     * Pausing means, that no new watch executions will be done unless this pausing is explicitely unset.
+     * Pausing means, that no new watch executions will be done unless this pausing is explicitly unset.
      * This is important when watcher is stopped, so that scheduled watches do not accidentally get executed.
      * This should not be used when we need to reload watcher based on some cluster state changes, then just calling
      * {@link #clearExecutionsAndQueue()} is the way to go
@@ -231,7 +233,7 @@ public class ExecutionService extends AbstractComponent {
         final LinkedList<TriggeredWatch> triggeredWatches = new LinkedList<>();
         final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
 
-        DateTime now = new DateTime(clock.millis(), UTC);
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         for (TriggerEvent event : events) {
             GetResponse response = getWatch(event.jobName());
             if (response.isExists() == false) {
@@ -280,7 +282,8 @@ public class ExecutionService extends AbstractComponent {
                         if (resp.isExists() == false) {
                             throw new ResourceNotFoundException("watch [{}] does not exist", watchId);
                         }
-                        return parser.parseWithSecrets(watchId, true, resp.getSourceAsBytesRef(), ctx.executionTime(), XContentType.JSON);
+                        return parser.parseWithSecrets(watchId, true, resp.getSourceAsBytesRef(), ctx.executionTime(), XContentType.JSON,
+                            resp.getSeqNo(), resp.getPrimaryTerm());
                     });
                 } catch (ResourceNotFoundException e) {
                     String message = "unable to find watch for record [" + ctx.id() + "]";
@@ -320,11 +323,8 @@ public class ExecutionService extends AbstractComponent {
                         // TODO log watch record in logger, when saving in history store failed, otherwise the info is gone!
                     }
                 }
-                try {
-                    triggeredWatchStore.delete(ctx.id());
-                } catch (Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to delete triggered watch [{}]", ctx.id()), e);
-                }
+
+                triggeredWatchStore.delete(ctx.id());
             }
             currentExecutions.get().remove(watchId);
             logger.debug("finished [{}]/[{}]", watchId, ctx.id());
@@ -341,7 +341,7 @@ public class ExecutionService extends AbstractComponent {
     public void updateWatchStatus(Watch watch) throws IOException {
         // at the moment we store the status together with the watch,
         // so we just need to update the watch itself
-        // we do not want to update the status.state field, as it might have been deactivated inbetween
+        // we do not want to update the status.state field, as it might have been deactivated in-between
         Map<String, String> parameters = MapBuilder.<String, String>newMapBuilder()
             .put(Watch.INCLUDE_STATUS_KEY, "true")
             .put(WatchStatus.INCLUDE_STATE, "false")
@@ -352,9 +352,10 @@ public class ExecutionService extends AbstractComponent {
             .field(WatchField.STATUS.getPreferredName(), watch.status(), params)
             .endObject();
 
-        UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, watch.id());
+        UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, watch.id());
         updateRequest.doc(source);
-        updateRequest.version(watch.version());
+        updateRequest.setIfSeqNo(watch.getSourceSeqNo());
+        updateRequest.setIfPrimaryTerm(watch.getSourcePrimaryTerm());
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
             client.update(updateRequest).actionGet(indexDefaultTimeout);
         } catch (DocumentMissingException e) {
@@ -412,14 +413,8 @@ public class ExecutionService extends AbstractComponent {
                         triggeredWatch.id()), exc);
             }
 
-            try {
-                triggeredWatchStore.delete(triggeredWatch.id());
-            } catch (Exception exc) {
-                logger.error((Supplier<?>) () ->
-                    new ParameterizedMessage("Error deleting triggered watch store record for watch [{}] after thread pool " +
-                        "rejection", triggeredWatch.id()), exc);
-            }
-        };
+            triggeredWatchStore.delete(triggeredWatch.id());
+        }
     }
 
     WatchRecord executeInner(WatchExecutionContext ctx) {
@@ -489,7 +484,7 @@ public class ExecutionService extends AbstractComponent {
                 historyStore.forcePut(record);
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {
-                DateTime now = new DateTime(clock.millis(), UTC);
+                ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
                 TriggeredExecutionContext ctx = new TriggeredExecutionContext(triggeredWatch.id().watchId(), now,
                     triggeredWatch.triggerEvent(), defaultThrottlePeriod, true);
                 executeAsync(ctx, triggeredWatch);
@@ -506,7 +501,7 @@ public class ExecutionService extends AbstractComponent {
      */
     private GetResponse getWatch(String id) {
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
-            GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, id).preference(Preference.LOCAL.type()).realtime(true);
+            GetRequest getRequest = new GetRequest(Watch.INDEX, id).preference(Preference.LOCAL.type()).realtime(true);
             PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
             client.get(getRequest, future);
             return future.actionGet();
@@ -539,12 +534,12 @@ public class ExecutionService extends AbstractComponent {
     // the watch execution task takes another runnable as parameter
     // the best solution would be to move the whole execute() method, which is handed over as ctor parameter
     // over into this class, this is the quicker way though
-    static final class WatchExecutionTask implements Runnable {
+    public static final class WatchExecutionTask implements Runnable {
 
         private final WatchExecutionContext ctx;
         private final Runnable runnable;
 
-        WatchExecutionTask(WatchExecutionContext ctx, Runnable runnable) {
+        public WatchExecutionTask(WatchExecutionContext ctx, Runnable runnable) {
             this.ctx = ctx;
             this.runnable = runnable;
         }

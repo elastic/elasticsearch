@@ -20,13 +20,12 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
 
 public class ValueCountTests extends BaseAggregationTestCase<ValueCountAggregationBuilder> {
 
     @Override
     protected final ValueCountAggregationBuilder createTestAggregatorBuilder() {
-        ValueCountAggregationBuilder factory = new ValueCountAggregationBuilder("foo", null);
+        ValueCountAggregationBuilder factory = new ValueCountAggregationBuilder(randomAlphaOfLengthBetween(3, 10), null);
         String field = randomNumericField();
         randomFieldOrScript(factory, field);
         if (randomBoolean()) {

@@ -33,7 +33,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
@@ -102,10 +101,6 @@ public final class TaskOperationFailure implements Writeable, ToXContentFragment
         return this.taskId;
     }
 
-    public String getReason() {
-        return detailedMessage(reason);
-    }
-
     public RestStatus getStatus() {
         return status;
     }
@@ -116,7 +111,7 @@ public final class TaskOperationFailure implements Writeable, ToXContentFragment
 
     @Override
     public String toString() {
-        return "[" + nodeId + "][" + taskId + "] failed, reason [" + getReason() + "]";
+        return "[" + nodeId + "][" + taskId + "] failed, reason [" + reason + "]";
     }
 
     public static TaskOperationFailure fromXContent(XContentParser parser) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
@@ -53,6 +54,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertThat(query, either(instanceOf(SpanNearQuery.class))
             .or(instanceOf(SpanTermQuery.class))
             .or(instanceOf(SpanBoostQuery.class))
+            .or(instanceOf(SpanMatchNoDocsQuery.class))
             .or(instanceOf(MatchAllQueryBuilder.class)));
         if (query instanceof SpanNearQuery) {
             SpanNearQuery spanNearQuery = (SpanNearQuery) query;
@@ -112,7 +114,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
                 "    } ],\n" +
                 "    \"slop\" : 12,\n" +
                 "    \"in_order\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
+                "    \"boost\" : 2.0\n" +
                 "  }\n" +
                 "}";
 
@@ -122,6 +124,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertEquals(json, 3, parsed.clauses().size());
         assertEquals(json, 12, parsed.slop());
         assertEquals(json, false, parsed.inOrder());
+        assertEquals(json, 2.0, parsed.boost(), 0.0);
     }
 
     public void testParsingSlopDefault() throws IOException {
@@ -185,4 +188,40 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertThat(e.getMessage(), containsString("[span_near] query does not support [collect_payloads]"));
     }
 
+    public void testFromJsonWithNonDefaultBoostInInnerQuery() {
+        String json =
+                "{\n" +
+                "  \"span_near\" : {\n" +
+                "    \"clauses\" : [ {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field\" : {\n" +
+                "          \"value\" : \"value1\",\n" +
+                "          \"boost\" : 2.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }, {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field\" : {\n" +
+                "          \"value\" : \"value2\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }, {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field\" : {\n" +
+                "          \"value\" : \"value3\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    } ],\n" +
+                "    \"slop\" : 12,\n" +
+                "    \"in_order\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(exception.getMessage(),
+            equalTo("span_near [clauses] as a nested span clause can't have non-default boost value [2.0]"));
+    }
 }

@@ -19,40 +19,21 @@
 
 package org.elasticsearch.indices.settings;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -67,7 +48,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateSettingsIT extends ESIntegTestCase {
@@ -101,12 +82,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(DummySettingPlugin.class, FinalSettingPlugin.class, InternalIndexSettingsPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singletonList(InternalIndexSettingsPlugin.class);
+        return Arrays.asList(
+                DummySettingPlugin.class, FinalSettingPlugin.class);
     }
 
     public static class DummySettingPlugin extends Plugin {
@@ -151,167 +128,32 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
     }
 
-    public static class InternalIndexSettingsPlugin extends Plugin implements ActionPlugin {
-
-        public static final Setting<String> INDEX_INTERNAL_SETTING =
-                Setting.simpleString("index.internal", Setting.Property.IndexScope, Setting.Property.InternalIndex);
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Collections.singletonList(INDEX_INTERNAL_SETTING);
-        }
-
-        public static class UpdateInternalIndexAction
-                extends Action<UpdateInternalIndexAction.Response> {
-
-            private static final UpdateInternalIndexAction INSTANCE = new UpdateInternalIndexAction();
-            private static final String NAME = "indices:admin/settings/update-internal-index";
-
-            public UpdateInternalIndexAction() {
-                super(NAME);
-            }
-
-            static class Request extends MasterNodeRequest<Request> {
-
-                private String index;
-                private String value;
-
-                Request() {
-
-                }
-
-                Request(final String index, final String value) {
-                    this.index = index;
-                    this.value = value;
-                }
-
-                @Override
-                public ActionRequestValidationException validate() {
-                    return null;
-                }
-
-                @Override
-                public void readFrom(final StreamInput in) throws IOException {
-                    super.readFrom(in);
-                    index = in.readString();
-                    value = in.readString();
-                }
-
-                @Override
-                public void writeTo(final StreamOutput out) throws IOException {
-                    super.writeTo(out);
-                    out.writeString(index);
-                    out.writeString(value);
-                }
-
-            }
-
-            static class Response extends ActionResponse {
-
-            }
-
-            @Override
-            public Response newResponse() {
-                return new Response();
-            }
-
-        }
-
-        public static class TransportUpdateInternalIndexAction
-                extends TransportMasterNodeAction<UpdateInternalIndexAction.Request, UpdateInternalIndexAction.Response> {
-
-            @Inject
-            public TransportUpdateInternalIndexAction(
-                    final Settings settings,
-                    final TransportService transportService,
-                    final ClusterService clusterService,
-                    final ThreadPool threadPool,
-                    final ActionFilters actionFilters,
-                    final IndexNameExpressionResolver indexNameExpressionResolver) {
-                super(
-                        settings,
-                        UpdateInternalIndexAction.NAME,
-                        transportService,
-                        clusterService,
-                        threadPool,
-                        actionFilters,
-                        indexNameExpressionResolver,
-                        UpdateInternalIndexAction.Request::new);
-            }
-
-            @Override
-            protected String executor() {
-                return ThreadPool.Names.SAME;
-            }
-
-            @Override
-            protected UpdateInternalIndexAction.Response newResponse() {
-                return new UpdateInternalIndexAction.Response();
-            }
-
-            @Override
-            protected void masterOperation(
-                    final UpdateInternalIndexAction.Request request,
-                    final ClusterState state,
-                    final ActionListener<UpdateInternalIndexAction.Response> listener) throws Exception {
-                clusterService.submitStateUpdateTask("update-index-internal", new ClusterStateUpdateTask() {
-                    @Override
-                    public ClusterState execute(final ClusterState currentState) throws Exception {
-                        final MetaData.Builder builder = MetaData.builder(currentState.metaData());
-                        final IndexMetaData.Builder imdBuilder = IndexMetaData.builder(currentState.metaData().index(request.index));
-                        final Settings.Builder settingsBuilder =
-                                Settings.builder()
-                                        .put(currentState.metaData().index(request.index).getSettings())
-                                        .put("index.internal", request.value);
-                        imdBuilder.settings(settingsBuilder);
-                        builder.put(imdBuilder.build(), true);
-                        return ClusterState.builder(currentState).metaData(builder).build();
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
-                        listener.onResponse(new UpdateInternalIndexAction.Response());
-                    }
-
-                    @Override
-                    public void onFailure(final String source, final Exception e) {
-                        listener.onFailure(e);
-                    }
-
-                });
-            }
-
-            @Override
-            protected ClusterBlockException checkBlock(UpdateInternalIndexAction.Request request, ClusterState state) {
-                return null;
-            }
-
-        }
-
-        @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return Collections.singletonList(
-                    new ActionHandler<>(UpdateInternalIndexAction.INSTANCE, TransportUpdateInternalIndexAction.class));
-        }
-
+    /**
+     * Needed by {@link UpdateSettingsIT#testEngineGCDeletesSetting()}
+     */
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put("thread_pool.estimated_time_interval", 0)
+            .build();
     }
 
     public void testUpdateDependentClusterSettings() {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
                 .put("cluster.acc.test.pw", "asdf")).get());
-        assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         iae = expectThrows(IllegalArgumentException.class, () ->
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .put("cluster.acc.test.pw", "asdf")).get());
-        assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         iae = expectThrows(IllegalArgumentException.class, () ->
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .put("cluster.acc.test.pw", "asdf")).setPersistentSettings(Settings.builder()
             .put("cluster.acc.test.user", "asdf")).get());
-        assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         if (randomBoolean()) {
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
@@ -320,7 +162,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             iae = expectThrows(IllegalArgumentException.class, () ->
                 client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                     .putNull("cluster.acc.test.user")).get());
-            assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .putNull("cluster.acc.test.pw")
                 .putNull("cluster.acc.test.user")).get();
@@ -332,7 +174,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             iae = expectThrows(IllegalArgumentException.class, () ->
                 client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
                     .putNull("cluster.acc.test.user")).get());
-            assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
                 .putNull("cluster.acc.test.pw")
@@ -344,7 +186,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     public void testUpdateDependentIndexSettings() {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
             prepareCreate("test",  Settings.builder().put("index.acc.test.pw", "asdf")).get());
-        assertEquals("Missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
         createIndex("test");
         for (int i = 0; i < 2; i++) {
@@ -363,7 +205,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                             .put("index.acc.test.pw", "asdf"))
                     .execute()
                     .actionGet());
-            assertEquals("Missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
             // user has no dependency
             client()
@@ -398,7 +240,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                             .putNull("index.acc.test.user"))
                     .execute()
                     .actionGet());
-            assertEquals("Missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
             // now we are consistent
             client()
@@ -605,19 +447,28 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting("test", "index.final"), nullValue());
     }
 
-    public void testEngineGCDeletesSetting() throws InterruptedException {
+    public void testEngineGCDeletesSetting() throws Exception {
         createIndex("test");
-        client().prepareIndex("test", "type", "1").setSource("f", 1).get(); // set version to 1
-        client().prepareDelete("test", "type", "1").get(); // sets version to 2
-        // delete is still in cache this should work & set version to 3
-        client().prepareIndex("test", "type", "1").setSource("f", 2).setVersion(2).get();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.gc_deletes", 0)).get();
+        client().prepareIndex("test", "type", "1").setSource("f", 1).get();
+        DeleteResponse response = client().prepareDelete("test", "type", "1").get();
+        long seqNo = response.getSeqNo();
+        long primaryTerm = response.getPrimaryTerm();
+        // delete is still in cache this should work
+        client().prepareIndex("test", "type", "1").setSource("f", 2).setIfSeqNo(seqNo).setIfPrimaryTerm(primaryTerm).get();
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.gc_deletes", 0)));
 
-        client().prepareDelete("test", "type", "1").get(); // sets version to 4
-        Thread.sleep(300); // wait for cache time to change TODO: this needs to be solved better. To be discussed.
+        response = client().prepareDelete("test", "type", "1").get();
+        seqNo = response.getSeqNo();
+
+        // Make sure the time has advanced for InternalEngine#resolveDocVersion()
+        for (ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
+            long startTime = threadPool.relativeTimeInMillis();
+            assertBusy(() -> assertThat(threadPool.relativeTimeInMillis(), greaterThan(startTime)));
+        }
+
         // delete is should not be in cache
-        assertThrows(client().prepareIndex("test", "type", "1").setSource("f", 3).setVersion(4), VersionConflictEngineException.class);
-
+        assertThrows(client().prepareIndex("test", "type", "1").setSource("f", 3).setIfSeqNo(seqNo).setIfPrimaryTerm(primaryTerm),
+            VersionConflictEngineException.class);
     }
 
     public void testUpdateSettingsWithBlocks() {
@@ -646,35 +497,154 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
     }
 
-    public void testUpdateInternalIndexSettingViaSettingsAPI() {
-        final Settings settings = Settings.builder().put("index.internal", "internal").build();
-        createIndex("test", settings);
-        final GetSettingsResponse response = client().admin().indices().prepareGetSettings("test").get();
-        assertThat(response.getSetting("test", "index.internal"), equalTo("internal"));
-        // we can not update the setting via the update settings API
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> client().admin()
+    public void testSettingsVersion() {
+        createIndex("test");
+        ensureGreen("test");
+
+        {
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.refresh_interval", "500ms"))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
+        }
+
+        {
+            final boolean block = randomBoolean();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block))
+                    .get());
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block == false))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
+
+            // if the read-only block is present, remove it
+            if (block == false) {
+                assertAcked(client()
+                        .admin()
                         .indices()
                         .prepareUpdateSettings("test")
-                        .setSettings(Settings.builder().put("index.internal", "internal-update"))
+                        .setSettings(Settings.builder().put("index.blocks.read_only", false))
                         .get());
-        final String message = "can not update internal setting [index.internal]; this setting is managed via a dedicated API";
-        assertThat(e, hasToString(containsString(message)));
-        final GetSettingsResponse responseAfterAttemptedUpdate = client().admin().indices().prepareGetSettings("test").get();
-        assertThat(responseAfterAttemptedUpdate.getSetting("test", "index.internal"), equalTo("internal"));
+            }
+        }
     }
 
-    public void testUpdateInternalIndexSettingViaDedicatedAPI() {
-        final Settings settings = Settings.builder().put("index.internal", "internal").build();
-        createIndex("test", settings);
-        final GetSettingsResponse response = client().admin().indices().prepareGetSettings("test").get();
-        assertThat(response.getSetting("test", "index.internal"), equalTo("internal"));
-        client().execute(
-                InternalIndexSettingsPlugin.UpdateInternalIndexAction.INSTANCE,
-                new InternalIndexSettingsPlugin.UpdateInternalIndexAction.Request("test", "internal-update"))
-                .actionGet();
-        final GetSettingsResponse responseAfterUpdate = client().admin().indices().prepareGetSettings("test").get();
-        assertThat(responseAfterUpdate.getSetting("test", "index.internal"), equalTo("internal-update"));
+    public void testSettingsVersionUnchanged() {
+        createIndex("test");
+        ensureGreen("test");
+
+        {
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            final String refreshInterval =
+                    client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.refresh_interval");
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.refresh_interval", refreshInterval))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(settingsVersion));
+        }
+
+        {
+            final boolean block = randomBoolean();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block))
+                    .get());
+            // now put the same block again
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(settingsVersion));
+
+            // if the read-only block is present, remove it
+            if (block) {
+                assertAcked(client()
+                        .admin()
+                        .indices()
+                        .prepareUpdateSettings("test")
+                        .setSettings(Settings.builder().put("index.blocks.read_only", false))
+                        .get());
+            }
+        }
+    }
+
+    /**
+     * The setting {@link IndexMetaData#SETTING_NUMBER_OF_REPLICAS} is special due to handling in
+     * {@link IndexMetaData.Builder#numberOfReplicas(int)}. Therefore we have a dedicated test that this setting is handled properly with
+     * respect to settings version when applying a settings change that does not change the number of replicas.
+     */
+    public void testNumberOfReplicasSettingsVersionUnchanged() {
+        createIndex("test");
+
+        final long settingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        final int numberOfReplicas = Integer.valueOf(
+                client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas"));
+        assertAcked(client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas))
+                .get());
+        final long newSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(newSettingsVersion, equalTo(settingsVersion));
+    }
+
+    /**
+     * The setting {@link IndexMetaData#SETTING_NUMBER_OF_REPLICAS} is special due to handling in
+     * {@link IndexMetaData.Builder#numberOfReplicas(int)}. Therefore we have a dedicated test that this setting is handled properly with
+     * respect to settings version when changing the number of replicas.
+     */
+    public void testNumberOfReplicasSettingsVersion() {
+        createIndex("test");
+
+        final long settingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        final int numberOfReplicas =
+                Integer.valueOf(
+                        client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas"));
+        assertAcked(client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.number_of_replicas", 1 + numberOfReplicas))
+                .get());
+        final long newSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
     }
 
 }

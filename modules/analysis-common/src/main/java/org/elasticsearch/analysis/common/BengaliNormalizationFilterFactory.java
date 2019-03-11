@@ -24,12 +24,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
+import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 
 /**
  * Factory for {@link BengaliNormalizationFilter}
  */
-public class BengaliNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+public class BengaliNormalizationFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     BengaliNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -40,8 +40,4 @@ public class BengaliNormalizationFilterFactory extends AbstractTokenFilterFactor
         return new BengaliNormalizationFilter(tokenStream);
     }
 
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
-    }
 }

@@ -13,7 +13,7 @@ PUT /my_index
             "analyzer" : {
                 "my_analyzer" : {
                     "tokenizer" : "standard",
-                    "filter" : ["standard", "lowercase", "my_stemmer"]
+                    "filter" : ["lowercase", "my_stemmer"]
                 }
             },
             "filter" : {

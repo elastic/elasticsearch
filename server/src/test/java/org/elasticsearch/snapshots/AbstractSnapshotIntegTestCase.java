@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -34,6 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -58,6 +60,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return Arrays.asList(MockRepository.Plugin.class);
     }
 
+    @After
+    public void assertConsistentHistoryInLuceneIndex() throws Exception {
+        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
+    }
+
     public static long getFailureCount(String repository) {
         long failureCount = 0;
         for (RepositoriesService repositoriesService :
@@ -66,6 +73,18 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             failureCount += mockRepository.getFailureCount();
         }
         return failureCount;
+    }
+
+    public static void assertFileCount(Path dir, int expectedCount) throws IOException {
+        final List<Path> found = new ArrayList<>();
+        Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                found.add(file);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
     }
 
     public static int numberOfFiles(Path dir) throws IOException {
@@ -100,7 +119,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     public SnapshotInfo waitForCompletion(String repository, String snapshotName, TimeValue timeout) throws InterruptedException {
         long start = System.currentTimeMillis();
         while (System.currentTimeMillis() - start < timeout.millis()) {
-            List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshotName).get().getSnapshots();
+            List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshotName)
+                .get().getSnapshots();
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
                 // Make sure that snapshot clean up operations are finished

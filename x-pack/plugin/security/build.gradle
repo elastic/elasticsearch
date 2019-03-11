@@ -1,6 +1,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'nebula.maven-scm'
 esplugin {
     name 'x-pack-security'
     description 'Elasticsearch Expanded Pack Plugin - Security'
@@ -12,7 +13,8 @@ esplugin {
 archivesBaseName = 'x-pack-security'
 
 dependencies {
-    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
     compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
 
@@ -21,7 +23,7 @@ dependencies {
 
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
-    compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
+    compile 'com.unboundid:unboundid-ldapsdk:4.0.8'
     compileOnly 'org.bouncycastle:bcprov-jdk15on:1.59'
     compileOnly 'org.bouncycastle:bcpkix-jdk15on:1.59'
 
@@ -138,6 +140,7 @@ artifacts {
 }
 sourceSets.test.resources {
     srcDir '../core/src/test/resources'
+    srcDir '../core/src/main/config'
 }
 dependencyLicenses {
     mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
@@ -157,12 +160,12 @@ forbiddenPatterns {
 }
 
 forbiddenApisMain {
-    signaturesURLs += file('forbidden/ldap-signatures.txt').toURI().toURL()
-    signaturesURLs += file('forbidden/xml-signatures.txt').toURI().toURL()
+    signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt')
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
-thirdPartyAudit.excludes = [
+thirdPartyAudit {
+    ignoreMissingClasses (
         // SAML dependencies
         // [missing classes] Some cli utilities that we don't use depend on these missing JCommander classes
         'com.beust.jcommander.JCommander',
@@ -241,7 +244,7 @@ thirdPartyAudit.excludes = [
         'javax.persistence.EntityManagerFactory',
         'javax.persistence.EntityTransaction',
         'javax.persistence.LockModeType',
-        'javax/persistence/Query',
+        'javax.persistence.Query',
         // [missing classes] OpenSAML storage and HttpClient cache have optional memcache support
         'net.spy.memcached.CASResponse',
         'net.spy.memcached.CASValue',
@@ -254,7 +257,10 @@ thirdPartyAudit.excludes = [
         'net.sf.ehcache.Ehcache',
         'net.sf.ehcache.Element',
         // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
-        'org.slf4j.ext.EventData',
+        'org.slf4j.ext.EventData'
+    )
+
+    ignoreViolations (
         // Guava uses internal java api: sun.misc.Unsafe
         'com.google.common.cache.Striped64',
         'com.google.common.cache.Striped64$1',
@@ -263,23 +269,24 @@ thirdPartyAudit.excludes = [
         'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
         'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
         'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-]
+    )
+}
 
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.excludes += [
+if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+    thirdPartyAudit.ignoreMissingClasses(
         'javax.xml.bind.JAXBContext',
         'javax.xml.bind.JAXBElement',
         'javax.xml.bind.JAXBException',
         'javax.xml.bind.Unmarshaller',
-        'javax.xml.bind.UnmarshallerHandler',
-    ];
+        'javax.xml.bind.UnmarshallerHandler'
+    )
 }
 
 run {
     plugin xpackModule('core')
 }
 
-test {
+unitTest {
     /*
      * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
      * other if we allow them to set the number of available processors as it's set-once in Netty.

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -37,9 +38,9 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -107,7 +108,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         assertConnectedExactlyToNodes(event.state());
     }
 
-
     public void testReconnect() {
         List<DiscoveryNode> nodes = generateNodes();
         NodeConnectionsService service = new NodeConnectionsService(Settings.EMPTY, threadPool, transportService);
@@ -135,7 +135,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
     private void assertConnectedExactlyToNodes(ClusterState state) {
         assertConnected(state.nodes());
-        assertThat(transportService.getConnectionManager().connectedNodeCount(), equalTo(state.nodes().getSize()));
+        assertThat(transportService.getConnectionManager().size(), equalTo(state.nodes().getSize()));
     }
 
     private void assertConnected(Iterable<DiscoveryNode> nodes) {
@@ -188,8 +188,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     private final class MockTransport implements Transport {
         private ResponseHandlers responseHandlers = new ResponseHandlers();
         private volatile boolean randomConnectionExceptions = false;
-        private TransportConnectionListener listener = new TransportConnectionListener() {
-        };
 
         @Override
         public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
@@ -201,12 +199,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void addConnectionListener(TransportConnectionListener listener) {
-            this.listener = listener;
+        public void addMessageListener(TransportMessageListener listener) {
         }
 
         @Override
-        public boolean removeConnectionListener(TransportConnectionListener listener) {
+        public boolean removeMessageListener(TransportMessageListener listener) {
             throw new UnsupportedOperationException();
         }
 
@@ -226,14 +223,14 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public Connection openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-            if (connectionProfile == null) {
+        public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+            if (profile == null) {
                 if (randomConnectionExceptions && randomBoolean()) {
-                    throw new ConnectTransportException(node, "simulated");
+                    listener.onFailure(new ConnectTransportException(node, "simulated"));
+                    return () -> {};
                 }
-                listener.onNodeConnected(node);
             }
-            Connection connection = new Connection() {
+            listener.onResponse(new Connection() {
                 @Override
                 public DiscoveryNode getNode() {
                     return node;
@@ -259,9 +256,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 public boolean isClosed() {
                     return false;
                 }
-            };
-            listener.onConnectionOpened(connection);
-            return connection;
+            });
+            return () -> {};
         }
 
         @Override

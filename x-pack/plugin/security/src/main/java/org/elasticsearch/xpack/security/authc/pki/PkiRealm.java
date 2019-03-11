@@ -15,10 +15,10 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -26,17 +26,17 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.support.CachingRealm;
+import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
 import javax.net.ssl.X509TrustManager;
-
 import java.security.MessageDigest;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
@@ -75,22 +75,32 @@ public class PkiRealm extends Realm implements CachingRealm {
     private final Pattern principalPattern;
     private final UserRoleMapper roleMapper;
     private final Cache<BytesKey, User> cache;
+    private DelegatedAuthorizationSupport delegatedRealms;
 
     public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, NativeRoleMappingStore nativeRoleMappingStore) {
-        this(config, new CompositeRoleMapper(PkiRealmSettings.TYPE, config, watcherService, nativeRoleMappingStore));
+        this(config, new CompositeRoleMapper(config, watcherService, nativeRoleMappingStore));
     }
 
     // pkg private for testing
     PkiRealm(RealmConfig config, UserRoleMapper roleMapper) {
-        super(PkiRealmSettings.TYPE, config);
+        super(config);
         this.trustManager = trustManagers(config);
-        this.principalPattern = PkiRealmSettings.USERNAME_PATTERN_SETTING.get(config.settings());
+        this.principalPattern = config.getSetting(PkiRealmSettings.USERNAME_PATTERN_SETTING);
         this.roleMapper = roleMapper;
         this.roleMapper.refreshRealmOnChange(this);
         this.cache = CacheBuilder.<BytesKey, User>builder()
-                .setExpireAfterWrite(PkiRealmSettings.CACHE_TTL_SETTING.get(config.settings()))
-                .setMaximumWeight(PkiRealmSettings.CACHE_MAX_USERS_SETTING.get(config.settings()))
+                .setExpireAfterWrite(config.getSetting(PkiRealmSettings.CACHE_TTL_SETTING))
+                .setMaximumWeight(config.getSetting(PkiRealmSettings.CACHE_MAX_USERS_SETTING))
                 .build();
+        this.delegatedRealms = null;
+    }
+
+    @Override
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
+        if (delegatedRealms != null) {
+            throw new IllegalStateException("Realm has already been initialized");
+        }
+        delegatedRealms = new DelegatedAuthorizationSupport(realms, config, licenseState);
     }
 
     @Override
@@ -105,30 +115,48 @@ public class PkiRealm extends Realm implements CachingRealm {
 
     @Override
     public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
-        X509AuthenticationToken token = (X509AuthenticationToken)authToken;
+        assert delegatedRealms != null : "Realm has not been initialized correctly";
+        X509AuthenticationToken token = (X509AuthenticationToken) authToken;
         try {
             final BytesKey fingerprint = computeFingerprint(token.credentials()[0]);
             User user = cache.get(fingerprint);
             if (user != null) {
-                listener.onResponse(AuthenticationResult.success(user));
+                if (delegatedRealms.hasDelegation()) {
+                    delegatedRealms.resolve(token.principal(), listener);
+                } else {
+                    listener.onResponse(AuthenticationResult.success(user));
+                }
             } else if (isCertificateChainTrusted(trustManager, token, logger) == false) {
                 listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " is not trusted", null));
             } else {
-                final Map<String, Object> metadata = Collections.singletonMap("pki_dn", token.dn());
-                final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(token.principal(),
-                        token.dn(), Collections.emptySet(), metadata, this.config);
-                roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
-                    final User computedUser =
-                            new User(token.principal(), roles.toArray(new String[roles.size()]), null, null, metadata, true);
-                    try (ReleasableLock ignored = readLock.acquire()) {
-                        cache.put(fingerprint, computedUser);
+                final ActionListener<AuthenticationResult> cachingListener = ActionListener.wrap(result -> {
+                    if (result.isAuthenticated()) {
+                        try (ReleasableLock ignored = readLock.acquire()) {
+                            cache.put(fingerprint, result.getUser());
+                        }
                     }
-                    listener.onResponse(AuthenticationResult.success(computedUser));
-                }, listener::onFailure));
+                    listener.onResponse(result);
+                }, listener::onFailure);
+                if (delegatedRealms.hasDelegation()) {
+                    delegatedRealms.resolve(token.principal(), cachingListener);
+                } else {
+                    this.buildUser(token, cachingListener);
+                }
             }
         } catch (CertificateEncodingException e) {
             listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " has encoding issues", e));
         }
+    }
+
+    private void buildUser(X509AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
+        final Map<String, Object> metadata = Collections.singletonMap("pki_dn", token.dn());
+        final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(token.principal(),
+                token.dn(), Collections.emptySet(), metadata, this.config);
+        roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
+            final User computedUser =
+                    new User(token.principal(), roles.toArray(new String[roles.size()]), null, null, metadata, true);
+            listener.onResponse(AuthenticationResult.success(computedUser));
+        }, listener::onFailure));
     }
 
     @Override
@@ -186,36 +214,43 @@ public class PkiRealm extends Realm implements CachingRealm {
         return true;
     }
 
-    static X509TrustManager trustManagers(RealmConfig realmConfig) {
-        final Settings settings = realmConfig.settings();
-        final Environment env = realmConfig.env();
-        List<String> certificateAuthorities = settings.getAsList(PkiRealmSettings.SSL_SETTINGS.caPaths.getKey(), null);
-        String truststorePath = PkiRealmSettings.SSL_SETTINGS.truststorePath.get(settings).orElse(null);
+    X509TrustManager trustManagers(RealmConfig realmConfig) {
+        final List<String> certificateAuthorities = realmConfig.hasSetting(PkiRealmSettings.CAPATH_SETTING) ?
+                realmConfig.getSetting(PkiRealmSettings.CAPATH_SETTING) : null;
+        String truststorePath = realmConfig.getSetting(PkiRealmSettings.TRUST_STORE_PATH).orElse(null);
         if (truststorePath == null && certificateAuthorities == null) {
             return null;
         } else if (truststorePath != null && certificateAuthorities != null) {
-            final String pathKey = RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.SSL_SETTINGS.truststorePath);
-            final String caKey = RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.SSL_SETTINGS.caPaths);
+            final String pathKey = RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.TRUST_STORE_PATH);
+            final String caKey = RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.CAPATH_SETTING);
             throw new IllegalArgumentException("[" + pathKey + "] and [" + caKey + "] cannot be used at the same time");
         } else if (truststorePath != null) {
-            return trustManagersFromTruststore(truststorePath, realmConfig);
+            final X509TrustManager trustManager = trustManagersFromTruststore(truststorePath, realmConfig);
+            if (trustManager.getAcceptedIssuers().length == 0) {
+                logger.warn("PKI Realm {} uses truststore {} which has no accepted certificate issuers", this, truststorePath);
+            }
+            return trustManager;
         }
-        return trustManagersFromCAs(settings, env);
+        final X509TrustManager trustManager = trustManagersFromCAs(certificateAuthorities, realmConfig.env());
+        if (trustManager.getAcceptedIssuers().length == 0) {
+            logger.warn("PKI Realm {} uses CAs {} with no accepted certificate issuers", this, certificateAuthorities);
+        }
+        return trustManager;
     }
 
     private static X509TrustManager trustManagersFromTruststore(String truststorePath, RealmConfig realmConfig) {
-        final Settings settings = realmConfig.settings();
-        if (PkiRealmSettings.SSL_SETTINGS.truststorePassword.exists(settings) == false
-                && PkiRealmSettings.SSL_SETTINGS.legacyTruststorePassword.exists(settings) == false) {
+        if (realmConfig.hasSetting(PkiRealmSettings.TRUST_STORE_PASSWORD) == false
+                && realmConfig.hasSetting(PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD) == false) {
             throw new IllegalArgumentException("Neither [" +
-                    RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.SSL_SETTINGS.truststorePassword) + "] or [" +
-                    RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.SSL_SETTINGS.legacyTruststorePassword) + "] is configured"
-            );
+                    RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.TRUST_STORE_PASSWORD) + "] or [" +
+                    RealmSettings.getFullSettingKey(realmConfig, PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD)
+                    + "] is configured");
         }
-        try (SecureString password = PkiRealmSettings.SSL_SETTINGS.truststorePassword.get(settings)) {
-            String trustStoreAlgorithm = PkiRealmSettings.SSL_SETTINGS.truststoreAlgorithm.get(settings);
-            String trustStoreType = SSLConfigurationSettings.getKeyStoreType(PkiRealmSettings.SSL_SETTINGS.truststoreType,
-                    settings, truststorePath);
+        try (SecureString password = realmConfig.getSetting(PkiRealmSettings.TRUST_STORE_PASSWORD)) {
+            String trustStoreAlgorithm = realmConfig.getSetting(PkiRealmSettings.TRUST_STORE_ALGORITHM);
+            String trustStoreType = SSLConfigurationSettings.getKeyStoreType(
+                    realmConfig.getConcreteSetting(PkiRealmSettings.TRUST_STORE_TYPE), realmConfig.settings(),
+                    truststorePath);
             try {
                 return CertParsingUtils.trustManager(truststorePath, trustStoreType, password.getChars(), trustStoreAlgorithm, realmConfig
                     .env());
@@ -225,8 +260,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         }
     }
 
-    private static X509TrustManager trustManagersFromCAs(Settings settings, Environment env) {
-        List<String> certificateAuthorities = settings.getAsList(PkiRealmSettings.SSL_SETTINGS.caPaths.getKey(), null);
+    private static X509TrustManager trustManagersFromCAs(List<String> certificateAuthorities, Environment env) {
         assert certificateAuthorities != null;
         try {
             Certificate[] certificates = CertParsingUtils.readCertificates(certificateAuthorities, env);

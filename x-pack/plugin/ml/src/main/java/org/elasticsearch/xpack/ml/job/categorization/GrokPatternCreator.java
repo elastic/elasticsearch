@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.categorization;
 
-import org.elasticsearch.common.logging.Loggers;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.grok.Grok;
 
 import java.util.ArrayList;
@@ -25,14 +25,15 @@ import java.util.regex.Pattern;
  */
 public final class GrokPatternCreator {
 
-    private static String PREFACE = "preface";
-    private static String EPILOGUE = "epilogue";
+    private static final String PREFACE = "preface";
+    private static final String EPILOGUE = "epilogue";
 
     /**
      * The first match in this list will be chosen, so it needs to be ordered
      * such that more generic patterns come after more specific patterns.
      */
     private static final List<GrokPatternCandidate> ORDERED_CANDIDATE_GROK_PATTERNS = Arrays.asList(
+            new GrokPatternCandidate("TOMCAT_DATESTAMP", "timestamp"),
             new GrokPatternCandidate("TIMESTAMP_ISO8601", "timestamp"),
             new GrokPatternCandidate("DATESTAMP_RFC822", "timestamp"),
             new GrokPatternCandidate("DATESTAMP_RFC2822", "timestamp"),
@@ -41,7 +42,6 @@ public final class GrokPatternCreator {
             new GrokPatternCandidate("SYSLOGTIMESTAMP", "timestamp"),
             new GrokPatternCandidate("HTTPDATE", "timestamp"),
             new GrokPatternCandidate("CATALINA_DATESTAMP", "timestamp"),
-            new GrokPatternCandidate("TOMCAT_DATESTAMP", "timestamp"),
             new GrokPatternCandidate("CISCOTIMESTAMP", "timestamp"),
             new GrokPatternCandidate("DATE", "date"),
             new GrokPatternCandidate("TIME", "time"),
@@ -56,12 +56,10 @@ public final class GrokPatternCreator {
             new GrokPatternCandidate("IP", "ipaddress"),
             // This already includes pre/post break conditions
             new GrokPatternCandidate("QUOTEDSTRING", "field", "", ""),
-            // Can't use \b as the break before, because it doesn't work for negative numbers (the
-            // minus sign is not a "word" character)
-            new GrokPatternCandidate("NUMBER", "field", "(?<!\\w)"),
-            // Disallow +, - and . before hex numbers, otherwise this pattern will pick up base 10
-            // numbers that NUMBER rejected due to preceeding characters
-            new GrokPatternCandidate("BASE16NUM", "field", "(?<![\\w.+-])")
+            // Disallow +, - and . before numbers, as well as "word" characters, otherwise we'll pick
+            // up numeric suffices too eagerly
+            new GrokPatternCandidate("NUMBER", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\d)"),
+            new GrokPatternCandidate("BASE16NUM", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\w)")
             // TODO: also unfortunately can't have USERNAME in the list as it matches too broadly
             // Fixing these problems with overly broad matches would require some extra intelligence
             // to be added to remove inappropriate matches.  One idea would be to use a dictionary,
@@ -114,7 +112,7 @@ public final class GrokPatternCreator {
                 // We should never get here.  If we do it implies a bug in the original categorization,
                 // as it's produced a regex that doesn't match the examples.
                 assert matcher.matches() : exampleProcessor.pattern() + " did not match " + example;
-                Loggers.getLogger(GrokPatternCreator.class).error("[{}] Pattern [{}] did not match example [{}]", jobId,
+                LogManager.getLogger(GrokPatternCreator.class).error("[{}] Pattern [{}] did not match example [{}]", jobId,
                         exampleProcessor.pattern(), example);
             }
         }

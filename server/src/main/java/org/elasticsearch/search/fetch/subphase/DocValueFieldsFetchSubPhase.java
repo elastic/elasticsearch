@@ -18,19 +18,19 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -47,6 +47,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import static org.elasticsearch.search.DocValueFormat.withNanosecondResolution;
+
 /**
  * Query sub phase which pulls data from doc values
  *
@@ -54,7 +57,9 @@ import java.util.Objects;
  */
 public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DocValueFieldsFetchSubPhase.class));
+    private static final String USE_DEFAULT_FORMAT = "use_field_mapping";
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
+            LogManager.getLogger(DocValueFieldsFetchSubPhase.class));
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
@@ -64,9 +69,9 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
             String name = context.collapse().getFieldName();
             if (context.docValueFieldsContext() == null) {
                 context.docValueFieldsContext(new DocValueFieldsContext(
-                        Collections.singletonList(new FieldAndFormat(name, DocValueFieldsContext.USE_DEFAULT_FORMAT))));
+                        Collections.singletonList(new FieldAndFormat(name, null))));
             } else if (context.docValueFieldsContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
-                context.docValueFieldsContext().fields().add(new FieldAndFormat(name, DocValueFieldsContext.USE_DEFAULT_FORMAT));
+                context.docValueFieldsContext().fields().add(new FieldAndFormat(name, null));
             }
         }
 
@@ -77,28 +82,39 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
         hits = hits.clone(); // don't modify the incoming hits
         Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
 
+        if (context.docValueFieldsContext().fields().stream()
+                .map(f -> f.format)
+                .filter(USE_DEFAULT_FORMAT::equals)
+                .findAny()
+                .isPresent()) {
+            DEPRECATION_LOGGER.deprecated("[" + USE_DEFAULT_FORMAT + "] is a special format that was only used to " +
+                    "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore.");
+        }
+
         for (FieldAndFormat fieldAndFormat : context.docValueFieldsContext().fields()) {
             String field = fieldAndFormat.field;
             MappedFieldType fieldType = context.mapperService().fullName(field);
             if (fieldType != null) {
                 final IndexFieldData<?> indexFieldData = context.getForField(fieldType);
-                final DocValueFormat format;
-                if (fieldAndFormat.format == null) {
-                    DEPRECATION_LOGGER.deprecated("Doc-value field [" + fieldAndFormat.field + "] is not using a format. The output will " +
-                            "change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass " +
-                            "[format={}] with the doc value field in order to opt in for the future behaviour and ease the migration to " +
-                            "7.0.", DocValueFieldsContext.USE_DEFAULT_FORMAT);
-                    format = null;
+                final boolean isNanosecond;
+                if (indexFieldData instanceof IndexNumericFieldData) {
+                    isNanosecond = ((IndexNumericFieldData) indexFieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
                 } else {
-                    String formatDesc = fieldAndFormat.format;
-                    if (Objects.equals(formatDesc, DocValueFieldsContext.USE_DEFAULT_FORMAT)) {
-                        formatDesc = null;
-                    }
+                    isNanosecond = false;
+                }
+                final DocValueFormat format;
+                String formatDesc = fieldAndFormat.format;
+                if (Objects.equals(formatDesc, USE_DEFAULT_FORMAT)) {
+                    // TODO: Remove in 8.x
+                    formatDesc = null;
+                }
+                if (isNanosecond) {
+                    format = withNanosecondResolution(fieldType.docValueFormat(formatDesc, null));
+                } else {
                     format = fieldType.docValueFormat(formatDesc, null);
                 }
                 LeafReaderContext subReaderContext = null;
                 AtomicFieldData data = null;
-                ScriptDocValues<?> scriptValues = null; // legacy
                 SortedBinaryDocValues binaryValues = null; // binary / string / ip fields
                 SortedNumericDocValues longValues = null; // int / date fields
                 SortedNumericDoubleValues doubleValues = null; // floating-point fields
@@ -108,15 +124,21 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                         int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
                         subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                         data = indexFieldData.load(subReaderContext);
-                        if (format == null) {
-                            scriptValues = data.getScriptValues();
-                        } else if (indexFieldData instanceof IndexNumericFieldData) {
-                            if (((IndexNumericFieldData) indexFieldData).getNumericType().isFloatingPoint()) {
+                        if (indexFieldData instanceof IndexNumericFieldData) {
+                            NumericType numericType = ((IndexNumericFieldData) indexFieldData).getNumericType();
+                            if (numericType.isFloatingPoint()) {
                                 doubleValues = ((AtomicNumericFieldData) data).getDoubleValues();
                             } else {
-                                longValues = ((AtomicNumericFieldData) data).getLongValues();
+                                // by default nanoseconds are cut to milliseconds within aggregations
+                                // however for doc value fields we need the original nanosecond longs
+                                if (isNanosecond) {
+                                    longValues = ((SortedNumericDVIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
+                                } else {
+                                    longValues = ((AtomicNumericFieldData) data).getLongValues();
+                                }
                             }
                         } else {
+                            data = indexFieldData.load(subReaderContext);
                             binaryValues = data.getBytesValues();
                         }
                     }
@@ -131,10 +153,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                     final List<Object> values = hitField.getValues();
 
                     int subDocId = hit.docId() - subReaderContext.docBase;
-                    if (scriptValues != null) {
-                        scriptValues.setNextDocId(subDocId);
-                        values.addAll(scriptValues);
-                    } else if (binaryValues != null) {
+                    if (binaryValues != null) {
                         if (binaryValues.advanceExact(subDocId)) {
                             for (int i = 0, count = binaryValues.docValueCount(); i < count; ++i) {
                                 values.add(format.format(binaryValues.nextValue()));

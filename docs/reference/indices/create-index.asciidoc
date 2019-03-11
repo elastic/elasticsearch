@@ -78,7 +78,7 @@ that can be set when creating an index, please check the
 [[mappings]]
 === Mappings
 
-The create index API allows to provide a type mapping:
+The create index API allows for providing a mapping definition:
 
 [source,js]
 --------------------------------------------------
@@ -88,15 +88,17 @@ PUT test
         "number_of_shards" : 1
     },
     "mappings" : {
-        "type1" : {
-            "properties" : {
-                "field1" : { "type" : "text" }
-            }
+        "properties" : {
+            "field1" : { "type" : "text" }
         }
     }
 }
 --------------------------------------------------
 // CONSOLE
+
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
+types in requests is now deprecated, a type can still be provided if the request parameter
+include_type_name is set. For more details, please see <<removal-of-types>>.
 
 [float]
 [[create-index-aliases]]
@@ -177,28 +179,3 @@ PUT test?wait_for_active_shards=2
 
 A detailed explanation of `wait_for_active_shards` and its possible values can be found
 <<index-wait-for-active-shards,here>>.
-
-[float]
-=== Skipping types
-
-Types are scheduled to be fully removed in Elasticsearch 8.0 and will not appear
-in requests or responses anymore. You can opt in for this future behaviour by
-setting `include_type_name=false` and putting mappings directly under `mappings`
-in the index creation call.
-
-Here is an example:
-
-[source,js]
---------------------------------------------------
-PUT test?include_type_name=false
-{
-  "mappings": {
-    "properties": {
-      "foo": {
-        "type": "keyword"
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE

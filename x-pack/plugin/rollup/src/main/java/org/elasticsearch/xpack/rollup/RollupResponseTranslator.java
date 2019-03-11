@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.rollup;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;
@@ -27,12 +27,12 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistog
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.metrics.InternalAvg;
+import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
-import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
-import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
-import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
  */
 public class RollupResponseTranslator {
 
-    private static final Logger logger = Loggers.getLogger(RollupResponseTranslator.class);
+    private static final Logger logger = LogManager.getLogger(RollupResponseTranslator.class);
 
     /**
      * Verifies a live-only search response.  Essentially just checks for failure then returns
@@ -238,11 +238,23 @@ public class RollupResponseTranslator {
                 ? (InternalAggregations)liveResponse.getAggregations()
                 : InternalAggregations.EMPTY;
 
-        rolledResponses.forEach(r -> {
-            if (r == null || r.getAggregations() == null || r.getAggregations().asList().size() == 0) {
-                throw new RuntimeException("Expected to find aggregations in rollup response, but none found.");
+        int missingRollupAggs = rolledResponses.stream().mapToInt(searchResponse -> {
+            if (searchResponse == null
+                || searchResponse.getAggregations() == null
+                || searchResponse.getAggregations().asList().size() == 0) {
+                return 1;
             }
-        });
+            return 0;
+        }).sum();
+
+        // We had no rollup aggs, so there is nothing to process
+        if (missingRollupAggs == rolledResponses.size()) {
+            // Return an empty response, but make sure we include all the shard, failure, etc stats
+            return mergeFinalResponse(liveResponse, rolledResponses, InternalAggregations.EMPTY);
+        } else if (missingRollupAggs > 0 && missingRollupAggs != rolledResponses.size()) {
+            // We were missing some but not all the aggs, unclear how to handle this.  Bail.
+            throw new RuntimeException("Expected to find aggregations in rollup response, but none found.");
+        }
 
         // The combination process returns a tree that is identical to the non-rolled
         // which means we can use aggregation's reduce method to combine, just as if
@@ -275,27 +287,39 @@ public class RollupResponseTranslator {
                     new InternalAggregation.ReduceContext(reduceContext.bigArrays(), reduceContext.scriptService(), true));
         }
 
-        // TODO allow profiling in the future
-        InternalSearchResponse combinedInternal = new InternalSearchResponse(SearchHits.empty(), currentTree, null, null,
-                rolledResponses.stream().anyMatch(SearchResponse::isTimedOut),
-                rolledResponses.stream().anyMatch(SearchResponse::isTimedOut),
-                rolledResponses.stream().mapToInt(SearchResponse::getNumReducePhases).sum());
+        return mergeFinalResponse(liveResponse, rolledResponses, currentTree);
+    }
+
+    private static SearchResponse mergeFinalResponse(SearchResponse liveResponse, List<SearchResponse> rolledResponses,
+                                              InternalAggregations aggs) {
 
         int totalShards = rolledResponses.stream().mapToInt(SearchResponse::getTotalShards).sum();
         int sucessfulShards = rolledResponses.stream().mapToInt(SearchResponse::getSuccessfulShards).sum();
         int skippedShards = rolledResponses.stream().mapToInt(SearchResponse::getSkippedShards).sum();
         long took = rolledResponses.stream().mapToLong(r -> r.getTook().getMillis()).sum() ;
 
+        boolean isTimedOut = rolledResponses.stream().anyMatch(SearchResponse::isTimedOut);
+        boolean isTerminatedEarly = rolledResponses.stream()
+            .filter(r -> r.isTerminatedEarly() != null)
+            .anyMatch(SearchResponse::isTerminatedEarly);
+        int numReducePhases = rolledResponses.stream().mapToInt(SearchResponse::getNumReducePhases).sum();
+
         if (liveResponse != null) {
             totalShards += liveResponse.getTotalShards();
             sucessfulShards += liveResponse.getSuccessfulShards();
             skippedShards += liveResponse.getSkippedShards();
             took = Math.max(took, liveResponse.getTook().getMillis());
+            isTimedOut = isTimedOut && liveResponse.isTimedOut();
+            isTerminatedEarly = isTerminatedEarly && liveResponse.isTerminatedEarly();
+            numReducePhases += liveResponse.getNumReducePhases();
         }
+
+        InternalSearchResponse combinedInternal = new InternalSearchResponse(SearchHits.empty(), aggs, null, null,
+            isTimedOut, isTerminatedEarly, numReducePhases);
 
         // Shard failures are ignored atm, so returning an empty array is fine
         return new SearchResponse(combinedInternal, null, totalShards, sucessfulShards, skippedShards,
-                took, ShardSearchFailure.EMPTY_ARRAY, rolledResponses.get(0).getClusters());
+            took, ShardSearchFailure.EMPTY_ARRAY, rolledResponses.get(0).getClusters());
     }
 
     /**

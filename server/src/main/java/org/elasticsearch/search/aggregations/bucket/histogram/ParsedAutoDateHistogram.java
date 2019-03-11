@@ -19,14 +19,15 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 
 public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<ParsedAutoDateHistogram.ParsedBucket> implements Histogram {
@@ -34,6 +35,16 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
     @Override
     public String getType() {
         return AutoDateHistogramAggregationBuilder.NAME;
+    }
+
+    private String interval;
+
+    public String getInterval() {
+        return interval;
+    }
+
+    public void setInterval(String interval) {
+        this.interval = interval;
     }
 
     @Override
@@ -47,6 +58,8 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         declareMultiBucketAggregationFields(PARSER,
                 parser -> ParsedBucket.fromXContent(parser, false),
                 parser -> ParsedBucket.fromXContent(parser, true));
+        PARSER.declareString((parsed, value) -> parsed.interval = value,
+            new ParseField("interval"));
     }
 
     public static ParsedAutoDateHistogram fromXContent(XContentParser parser, String name) throws IOException {
@@ -55,6 +68,14 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         return aggregation;
     }
 
+    @Override
+    protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder = super.doXContentBody(builder, params);
+        builder.field("interval", getInterval());
+        return builder;
+    }
+
+
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
 
         private Long key;
@@ -62,7 +83,7 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         @Override
         public Object getKey() {
             if (key != null) {
-                return new DateTime(key, DateTimeZone.UTC);
+                return Instant.ofEpochMilli(key).atZone(ZoneOffset.UTC);
             }
             return null;
         }

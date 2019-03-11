@@ -19,9 +19,14 @@
 
 package org.elasticsearch.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
@@ -131,9 +136,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
-import org.elasticsearch.action.admin.indices.shrink.TransportShrinkAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
@@ -202,11 +205,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
@@ -218,7 +221,9 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.RestMainAction;
+import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
+import org.elasticsearch.rest.action.admin.cluster.RestClearVotingConfigExclusionsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterHealthAction;
@@ -312,6 +317,7 @@ import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
+import org.elasticsearch.rest.action.search.RestCountAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -338,7 +344,7 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class ActionModule extends AbstractModule {
 
-    private static final Logger logger = ESLoggerFactory.getLogger(ActionModule.class);
+    private static final Logger logger = LogManager.getLogger(ActionModule.class);
 
     private final boolean transportClient;
     private final Settings settings;
@@ -352,6 +358,7 @@ public class ActionModule extends AbstractModule {
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
+    private final TransportPutMappingAction.RequestValidators mappingRequestValidators;
 
     public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
@@ -383,10 +390,14 @@ public class ActionModule extends AbstractModule {
                 restWrapper = newRestWrapper;
             }
         }
+        mappingRequestValidators = new TransportPutMappingAction.RequestValidators(
+            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList())
+        );
+
         if (transportClient) {
             restController = null;
         } else {
-            restController = new RestController(settings, headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+            restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
         }
     }
 
@@ -424,6 +435,8 @@ public class ActionModule extends AbstractModule {
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
 
+        actions.register(AddVotingConfigExclusionsAction.INSTANCE, TransportAddVotingConfigExclusionsAction.class);
+        actions.register(ClearVotingConfigExclusionsAction.INSTANCE, TransportClearVotingConfigExclusionsAction.class);
         actions.register(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class);
         actions.register(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         actions.register(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
@@ -446,7 +459,6 @@ public class ActionModule extends AbstractModule {
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         actions.register(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);
         actions.register(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
-        actions.register(ShrinkAction.INSTANCE, TransportShrinkAction.class);
         actions.register(ResizeAction.INSTANCE, TransportResizeAction.class);
         actions.register(RolloverAction.INSTANCE, TransportRolloverAction.class);
         actions.register(DeleteIndexAction.INSTANCE, TransportDeleteIndexAction.class);
@@ -518,6 +530,11 @@ public class ActionModule extends AbstractModule {
         actions.register(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class);
         actions.register(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class);
 
+        // retention leases
+        actions.register(RetentionLeaseActions.Add.INSTANCE, RetentionLeaseActions.Add.TransportAction.class);
+        actions.register(RetentionLeaseActions.Renew.INSTANCE, RetentionLeaseActions.Renew.TransportAction.class);
+        actions.register(RetentionLeaseActions.Remove.INSTANCE, RetentionLeaseActions.Remove.TransportAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -533,6 +550,8 @@ public class ActionModule extends AbstractModule {
                 catActions.add((AbstractCatAction) a);
             }
         };
+        registerHandler.accept(new RestAddVotingConfigExclusionAction(settings, restController));
+        registerHandler.accept(new RestClearVotingConfigExclusionsAction(settings, restController));
         registerHandler.accept(new RestMainAction(settings, restController));
         registerHandler.accept(new RestNodesInfoAction(settings, restController, settingsFilter));
         registerHandler.accept(new RestRemoteClusterInfoAction(settings, restController));
@@ -598,7 +617,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetSourceAction(settings, restController));
         registerHandler.accept(new RestMultiGetAction(settings, restController));
         registerHandler.accept(new RestDeleteAction(settings, restController));
-        registerHandler.accept(new org.elasticsearch.rest.action.document.RestCountAction(settings, restController));
+        registerHandler.accept(new RestCountAction(settings, restController));
         registerHandler.accept(new RestTermVectorsAction(settings, restController));
         registerHandler.accept(new RestMultiTermVectorsAction(settings, restController));
         registerHandler.accept(new RestBulkAction(settings, restController));
@@ -670,6 +689,7 @@ public class ActionModule extends AbstractModule {
     protected void configure() {
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
+        bind(TransportPutMappingAction.RequestValidators.class).toInstance(mappingRequestValidators);
 
         if (false == transportClient) {
             // Supporting classes only used when not a transport client

@@ -107,10 +107,7 @@ public final class CustomAnalyzer extends Analyzer {
     @Override
     protected Reader initReaderForNormalization(String fieldName, Reader reader) {
       for (CharFilterFactory charFilter : charFilters) {
-        if (charFilter instanceof MultiTermAwareComponent) {
-          charFilter = (CharFilterFactory) ((MultiTermAwareComponent) charFilter).getMultiTermComponent();
-          reader = charFilter.create(reader);
-        }
+          reader = charFilter.normalize(reader);
       }
       return reader;
     }
@@ -119,10 +116,7 @@ public final class CustomAnalyzer extends Analyzer {
     protected TokenStream normalize(String fieldName, TokenStream in) {
       TokenStream result = in;
       for (TokenFilterFactory filter : tokenFilters) {
-        if (filter instanceof MultiTermAwareComponent) {
-          filter = (TokenFilterFactory) ((MultiTermAwareComponent) filter).getMultiTermComponent();
-          result = filter.create(result);
-        }
+          result = filter.normalize(result);
       }
       return result;
     }

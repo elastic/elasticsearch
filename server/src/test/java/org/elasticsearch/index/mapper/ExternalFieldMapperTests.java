@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -56,15 +57,19 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class);
     }
 
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
     public void testExternalValues() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
                 Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndexService indexService = createIndex("test", settings);
         MapperRegistry mapperRegistry = new MapperRegistry(
-                Collections.singletonMap(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo")),
-                Collections.singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser()),
-                MapperPlugin.NOOP_FIELD_FILTER);
+                singletonMap(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo")),
+                singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser()), MapperPlugin.NOOP_FIELD_FILTER);
 
         Supplier<QueryShardContext> queryShardContext = () -> {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
@@ -82,7 +87,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject())
         ));
 
-        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                             .field("field", "1234")
@@ -107,10 +112,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
-                Version.CURRENT);
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        IndexService indexService = createIndex("test", settings);
+        IndexService indexService = createIndex("test");
         Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
         mapperParsers.put(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
         mapperParsers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
@@ -144,7 +146,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().endObject())));
 
-        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                             .field("field", "1234")
@@ -173,10 +175,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValuesWithMultifieldTwoLevels() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
-                Version.CURRENT);
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        IndexService indexService = createIndex("test", settings);
+        IndexService indexService = createIndex("test");
         Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
         mapperParsers.put(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
         mapperParsers.put(ExternalMapperPlugin.EXTERNAL_BIS, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "bar"));
@@ -214,7 +213,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().endObject())));
 
-        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "1234")

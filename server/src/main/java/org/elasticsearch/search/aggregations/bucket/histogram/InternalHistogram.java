@@ -213,7 +213,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     private final DocValueFormat format;
     private final boolean keyed;
     private final long minDocCount;
-    private final EmptyBucketInfo emptyBucketInfo;
+    final EmptyBucketInfo emptyBucketInfo;
 
     InternalHistogram(String name, List<Bucket> buckets, BucketOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo,
             DocValueFormat formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,
@@ -302,7 +302,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         final PriorityQueue<IteratorAndCurrent> pq = new PriorityQueue<IteratorAndCurrent>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent a, IteratorAndCurrent b) {
-                return a.current.key < b.current.key;
+                return Double.compare(a.current.key, b.current.key) < 0;
             }
         };
         for (InternalAggregation aggregation : aggregations) {
@@ -405,7 +405,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                         iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
                         key = nextKey(key);
                     }
-                    assert key == nextBucket.key;
+                    assert key == nextBucket.key || Double.isNaN(nextBucket.key) : "key: " + key + ", nextBucket.key: " + nextBucket.key;
                 }
                 lastBucket = iter.next();
             } while (iter.hasNext());
@@ -421,26 +421,22 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
-
-        // adding empty buckets if needed
-        if (minDocCount == 0) {
-            addEmptyBuckets(reducedBuckets, reduceContext);
+        if (reduceContext.isFinalReduce()) {
+            if (minDocCount == 0) {
+                addEmptyBuckets(reducedBuckets, reduceContext);
+            }
+            if (InternalOrder.isKeyDesc(order)) {
+                // we just need to reverse here...
+                List<Bucket> reverse = new ArrayList<>(reducedBuckets);
+                Collections.reverse(reverse);
+                reducedBuckets = reverse;
+            } else if (InternalOrder.isKeyAsc(order) ==  false){
+                // nothing to do when sorting by key ascending, as data is already sorted since shards return
+                // sorted buckets and the merge-sort performed by reduceBuckets maintains order.
+                // otherwise, sorted by compound order or sub-aggregation, we need to fall back to a costly n*log(n) sort
+                CollectionUtil.introSort(reducedBuckets, order.comparator(null));
+            }
         }
-
-        if (InternalOrder.isKeyAsc(order) || reduceContext.isFinalReduce() == false) {
-            // nothing to do, data are already sorted since shards return
-            // sorted buckets and the merge-sort performed by reduceBuckets
-            // maintains order
-        } else if (InternalOrder.isKeyDesc(order)) {
-            // we just need to reverse here...
-            List<Bucket> reverse = new ArrayList<>(reducedBuckets);
-            Collections.reverse(reverse);
-            reducedBuckets = reverse;
-        } else {
-            // sorted by compound order or sub-aggregation, need to fall back to a costly n*log(n) sort
-            CollectionUtil.introSort(reducedBuckets, order.comparator(null));
-        }
-
         return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, pipelineAggregators(),
                 getMetaData());
     }

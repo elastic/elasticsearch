@@ -144,6 +144,14 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
 
     /**
+     * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns
+     * false, it should return itself if asked to lead a reduction
+     */
+    public boolean isMapped() {
+        return true;
+    }
+
+    /**
      * Get the value of specified path in the aggregation.
      *
      * @param path

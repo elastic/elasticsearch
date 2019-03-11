@@ -233,6 +233,11 @@ public interface Client extends ElasticsearchClient, Releasable {
     BulkRequestBuilder prepareBulk();
 
     /**
+     * Executes a bulk of index / delete operations with default index and/or type
+     */
+    BulkRequestBuilder prepareBulk(@Nullable String globalIndex, @Nullable String globalType);
+
+    /**
      * Gets the document that was indexed from an index with a type and id.
      *
      * @param request The get request
@@ -366,39 +371,6 @@ public interface Client extends ElasticsearchClient, Releasable {
     TermVectorsRequestBuilder prepareTermVectors(String index, String type, String id);
 
     /**
-     * An action that returns the term vectors for a specific document.
-     *
-     * @param request The term vector request
-     * @return The response future
-     */
-    @Deprecated
-    ActionFuture<TermVectorsResponse> termVector(TermVectorsRequest request);
-
-    /**
-     * An action that returns the term vectors for a specific document.
-     *
-     * @param request The term vector request
-     */
-    @Deprecated
-    void termVector(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener);
-
-    /**
-     * Builder for the term vector request.
-     */
-    @Deprecated
-    TermVectorsRequestBuilder prepareTermVector();
-
-    /**
-     * Builder for the term vector request.
-     *
-     * @param index The index to load the document from
-     * @param type  The type of the document
-     * @param id    The id of the document
-     */
-    @Deprecated
-    TermVectorsRequestBuilder prepareTermVector(String index, String type, String id);
-
-    /**
      * Multi get term vectors.
      */
     ActionFuture<MultiTermVectorsResponse> multiTermVectors(MultiTermVectorsRequest request);
@@ -455,7 +427,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Builder for the field capabilities request.
      */
-    FieldCapabilitiesRequestBuilder prepareFieldCaps();
+    FieldCapabilitiesRequestBuilder prepareFieldCaps(String... indices);
 
     /**
      * An action that returns the field capabilities from the provided request

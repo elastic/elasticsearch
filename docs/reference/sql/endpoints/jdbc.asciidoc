@@ -3,14 +3,20 @@
 [[sql-jdbc]]
 == SQL JDBC
 
-Elasticsearch's SQL jdbc driver is a rich, fully featured JDBC driver for Elasticsearch.
+{es}'s SQL jdbc driver is a rich, fully featured JDBC driver for {es}.
 It is Type 4 driver, meaning it is a platform independent, stand-alone, Direct to Database,
-pure Java driver that converts JDBC calls to Elasticsearch SQL.
+pure Java driver that converts JDBC calls to {es-sql}.
 
+[[sql-jdbc-installation]]
 [float]
 === Installation
 
-The JDBC driver can be obtained either by downloading it from the https://www.elastic.co/downloads/jdbc-client[elastic.co] site or by using a http://maven.apache.org/[Maven]-compatible tool with the following dependency:
+The JDBC driver can be obtained from:
+
+Dedicated page::
+https://www.elastic.co/downloads/jdbc-client[elastic.co] provides links, typically for manual downloads.
+Maven dependency::
+http://maven.apache.org/[Maven]-compatible tools can retrieve it automatically as a dependency:
 
 ["source","xml",subs="attributes"]
 ----
@@ -37,24 +43,24 @@ from `artifacts.elastic.co/maven` by adding it to the repositories list:
 [float]
 === Setup
 
-The driver main class is `org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver`. 
-Note the driver  implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registerd automatically
-as long as its available in the classpath.
+The driver main class is `org.elasticsearch.xpack.sql.jdbc.EsDriver`. 
+Note the driver  implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registered automatically
+as long as it is available in the classpath.
 
 Once registered, the driver understands the following syntax as an URL:
 
 ["source","text",subs="attributes"]
 ----
-jdbc:es://<1>[http|https]?<2>[host[:port]]*<3>/[prefix]*<4>[?[option=value]&<5>]*
+jdbc:es://<1>[[http|https]://]*<2>[host[:port]]*<3>/[prefix]*<4>[?[option=value]&<5>]*
 ----
 
 <1> `jdbc:es://` prefix. Mandatory.
 <2> type of HTTP connection to make - `http` (default) or `https`. Optional.
 <3> host (`localhost` by default) and port (`9200` by default). Optional.
 <4> prefix (empty by default). Typically used when hosting {es} under a certain path. Optional.
-<5> Parameters for the JDBC driver. Empty by default. Optional.
+<5> Properties for the JDBC driver. Empty by default. Optional.
 
-The driver recognized the following parameters:
+The driver recognized the following properties:
 
 [[jdbc-cfg]]
 [float]
@@ -107,8 +113,6 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 
 `ssl.truststore.pass`:: trust store password
 
-`ssl.cert.allow.self.signed` (default `false`):: Whether or not to allow self signed certificates
-
 `ssl.protocol`(default `TLS`):: SSL protocol to be used
 
 [float]
@@ -118,12 +122,18 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 
 `proxy.socks`:: SOCKS proxy host name
 
+[float]
+==== Additional
+
+`validate.properties` (default true):: If disabled, it will ignore any misspellings or unrecognizable properties. When enabled, an exception
+will be thrown if the provided property cannot be recognized.
+
 
 To put all of it together, the following URL:
 
 ["source","text"]
 ----
-jdbc:es://http://server:3456/timezone=UTC&page.size=250
+jdbc:es://http://server:3456/?timezone=UTC&page.size=250
 ----
 
 Opens up a {es-sql} connection to `server` on port `3456`, setting the JDBC connection timezone to `UTC` and its pagesize to `250` entries.
@@ -157,10 +167,10 @@ HTTP traffic. By default 9200.
 instance is fine for unsecured Elasticsearch.
 
 Which one to use? Typically client applications that provide most
-configuration parameters in the URL rely on the `DriverManager`-style
+configuration properties in the URL rely on the `DriverManager`-style
 while `DataSource` is preferred when being _passed_ around since it can be
 configured in one place and the consumer only has to call `getConnection`
-without having to worry about any other parameters.
+without having to worry about any other properties.
 
 To connect to a secured Elasticsearch server the `Properties`
 should look like:

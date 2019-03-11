@@ -5,40 +5,37 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
-import org.joda.time.MutableDateTime;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
+
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoField;
 
 public class DateUtils {
 
-    private static final FormatDateTimeFormatter formatDateOnlyFormatter = Joda.forPattern("yyyy-MM-dd");
-
-    private static final DateTimeFormatter dateOnlyFormatter = formatDateOnlyFormatter.parser().withZoneUTC();
-
-    private static final DateTimeFormatter dateTimeFormatter = ISODateTimeFormat.dateTime().withZoneUTC();
+    private static final DateFormatter dateOnlyFormatter = DateFormatter.forPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
+    private static final DateFormatter dateTimeFormatter = DateFormatter.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
 
     public static long endOfTheDay(String date) {
         try {
             // Try parsing using complete date/time format
-            return dateTimeFormatter.parseDateTime(date).getMillis();
-        } catch (IllegalArgumentException ex) {
-            // Fall back to the date only format
-            MutableDateTime dateTime = dateOnlyFormatter.parseMutableDateTime(date);
-            dateTime.millisOfDay().set(dateTime.millisOfDay().getMaximumValue());
-            return dateTime.getMillis();
+            return dateTimeFormatter.parseMillis(date);
+        } catch (ElasticsearchParseException | IllegalArgumentException ex) {
+            ZonedDateTime dateTime = DateFormatters.from(dateOnlyFormatter.parse(date));
+            dateTime.with(ChronoField.MILLI_OF_DAY, ChronoField.MILLI_OF_DAY.range().getMaximum());
+            return dateTime.toInstant().toEpochMilli();
         }
     }
 
     public static long beginningOfTheDay(String date) {
         try {
             // Try parsing using complete date/time format
-            return dateTimeFormatter.parseDateTime(date).getMillis();
-        } catch (IllegalArgumentException ex) {
+            return dateTimeFormatter.parseMillis(date);
+        } catch (ElasticsearchParseException | IllegalArgumentException ex) {
             // Fall back to the date only format
-            return dateOnlyFormatter.parseDateTime(date).getMillis();
+            return DateFormatters.from(dateOnlyFormatter.parse(date)).toInstant().toEpochMilli();
         }
-
     }
 }

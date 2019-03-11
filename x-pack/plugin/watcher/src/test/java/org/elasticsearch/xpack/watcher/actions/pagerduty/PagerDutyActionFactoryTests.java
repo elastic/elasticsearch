@@ -31,7 +31,7 @@ public class PagerDutyActionFactoryTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         service = mock(PagerDutyService.class);
-        factory = new PagerDutyActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), service);
+        factory = new PagerDutyActionFactory(mock(TextTemplateEngine.class), service);
     }
 
     public void testParseAction() throws Exception {
@@ -49,7 +49,7 @@ public class PagerDutyActionFactoryTests extends ESTestCase {
     }
 
     public void testParseActionUnknownAccount() throws Exception {
-        factory = new PagerDutyActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), new PagerDutyService(Settings.EMPTY, null,
+        factory = new PagerDutyActionFactory(mock(TextTemplateEngine.class), new PagerDutyService(Settings.EMPTY, null,
                 new ClusterSettings(Settings.EMPTY, new HashSet<>(PagerDutyService.getSettings()))));
         PagerDutyAction action = triggerPagerDutyAction("_unknown", "_body").build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);

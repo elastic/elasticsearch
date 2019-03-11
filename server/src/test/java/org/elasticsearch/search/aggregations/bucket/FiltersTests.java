@@ -171,11 +171,25 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertNotEquals(original, rewritten);
         assertThat(rewritten, instanceOf(TermsAggregationBuilder.class));
         assertThat(rewritten.getSubAggregations().size(), equalTo(1));
-        AggregationBuilder subAgg = rewritten.getSubAggregations().get(0);
+        AggregationBuilder subAgg = rewritten.getSubAggregations().iterator().next();
         assertThat(subAgg, instanceOf(FiltersAggregationBuilder.class));
-        assertNotSame(original.getSubAggregations().get(0), subAgg);
+        assertNotSame(original.getSubAggregations().iterator().next(), subAgg);
         assertEquals("my-agg", subAgg.getName());
         assertSame(rewritten,
             rewritten.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L)));
+    }
+
+    public void testRewritePreservesOtherBucket() throws IOException {
+        FiltersAggregationBuilder originalFilters = new FiltersAggregationBuilder("my-agg", new BoolQueryBuilder());
+        originalFilters.otherBucket(randomBoolean());
+        originalFilters.otherBucketKey(randomAlphaOfLength(10));
+
+        AggregationBuilder rewritten = originalFilters.rewrite(new QueryRewriteContext(xContentRegistry(),
+            null, null, () -> 0L));
+        assertThat(rewritten, instanceOf(FiltersAggregationBuilder.class));
+
+        FiltersAggregationBuilder rewrittenFilters = (FiltersAggregationBuilder) rewritten;
+        assertEquals(originalFilters.otherBucket(), rewrittenFilters.otherBucket());
+        assertEquals(originalFilters.otherBucketKey(), rewrittenFilters.otherBucketKey());
     }
 }

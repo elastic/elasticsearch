@@ -9,7 +9,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -17,7 +17,7 @@ import java.util.Objects;
 public class ReplaceFunctionProcessor implements Processor {
 
     private final Processor source, pattern, replacement;
-    public static final String NAME = "r";
+    public static final String NAME = "srep";
 
     public ReplaceFunctionProcessor(Processor source, Processor pattern, Processor replacement) {
         this.source = source;
@@ -60,8 +60,8 @@ public class ReplaceFunctionProcessor implements Processor {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", replacement);
         }
         
-        return Strings.replace(source instanceof Character ? source.toString() : (String)source, 
-                pattern instanceof Character ? pattern.toString() : (String) pattern, 
+        return Strings.replace(source instanceof Character ? source.toString() : (String)source,
+                pattern instanceof Character ? pattern.toString() : (String) pattern,
                 replacement instanceof Character ? replacement.toString() : (String) replacement);
     }
     

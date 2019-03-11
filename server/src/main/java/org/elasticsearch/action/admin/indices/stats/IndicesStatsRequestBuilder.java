@@ -31,7 +31,8 @@ import org.elasticsearch.client.ElasticsearchClient;
  * All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
  */
-public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
+public class IndicesStatsRequestBuilder
+        extends BroadcastOperationRequestBuilder<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
 
     public IndicesStatsRequestBuilder(ElasticsearchClient client, IndicesStatsAction action) {
         super(client, action, new IndicesStatsRequest());

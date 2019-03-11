@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
@@ -30,7 +32,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.ShardCoreKeyMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -48,7 +50,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
-public class IndicesQueryCache extends AbstractComponent implements QueryCache, Closeable {
+public class IndicesQueryCache implements QueryCache, Closeable {
+
+    private static final Logger logger = LogManager.getLogger(IndicesQueryCache.class);
 
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING = 
             Setting.memorySizeSetting("indices.queries.cache.size", "10%", Property.NodeScope);
@@ -68,10 +72,9 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
     // This is a hack for the fact that the close listener for the
     // ShardCoreKeyMap will be called before onDocIdSetEviction
     // See onDocIdSetEviction for more info
-    private final Map<Object, StatsAndCount> stats2 = new IdentityHashMap<>();
+    private final Map<Object, StatsAndCount> stats2 = Collections.synchronizedMap(new IdentityHashMap<>());
 
     public IndicesQueryCache(Settings settings) {
-        super(settings);
         final ByteSizeValue size = INDICES_CACHE_QUERY_SIZE_SETTING.get(settings);
         final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
         logger.debug("using [node] query cache with size [{}] max filter count [{}]",
@@ -187,29 +190,49 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
         assert shardKeyMap.size() == 0 : shardKeyMap.size();
         assert shardStats.isEmpty() : shardStats.keySet();
         assert stats2.isEmpty() : stats2;
+
+        // This cache stores two things: filters, and doc id sets. At this time
+        // we only know that there are no more doc id sets, but we still track
+        // recently used queries, which we want to reclaim.
         cache.clear();
     }
 
     private static class Stats implements Cloneable {
 
+        final ShardId shardId;
         volatile long ramBytesUsed;
         volatile long hitCount;
         volatile long missCount;
         volatile long cacheCount;
         volatile long cacheSize;
 
+        Stats(ShardId shardId) {
+            this.shardId = shardId;
+        }
+
         QueryCacheStats toQueryCacheStats() {
             return new QueryCacheStats(ramBytesUsed, hitCount, missCount, cacheCount, cacheSize);
+        }
+
+        @Override
+        public String toString() {
+            return "{shardId=" + shardId + ", ramBytedUsed=" + ramBytesUsed + ", hitCount=" + hitCount + ", missCount=" + missCount +
+                    ", cacheCount=" + cacheCount + ", cacheSize=" + cacheSize + "}";
         }
     }
 
     private static class StatsAndCount {
-        int count;
+        volatile int count;
         final Stats stats;
 
         StatsAndCount(Stats stats) {
             this.stats = stats;
             this.count = 0;
+        }
+
+        @Override
+        public String toString() {
+            return "{stats=" + stats + " ,count=" + count + "}";
         }
     }
 
@@ -247,7 +270,7 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
             final ShardId shardId = shardKeyMap.getShardId(coreKey);
             Stats stats = shardStats.get(shardId);
             if (stats == null) {
-                stats = new Stats();
+                stats = new Stats(shardId);
                 shardStats.put(shardId, stats);
             }
             return stats;
@@ -263,6 +286,7 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
                 stats.cacheSize = 0;
                 stats.ramBytesUsed = 0;
             }
+            stats2.clear();
             sharedRamBytesUsed = 0;
         }
 

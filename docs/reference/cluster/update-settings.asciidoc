@@ -11,6 +11,8 @@ GET /_cluster/settings
 --------------------------------------------------
 // CONSOLE
 
+By default, this API call only returns settings that have been explicitly defined, but can also <<cluster-get-settings,include the default settings>>.
+
 Updates to settings can be persistent, meaning they apply across restarts, or transient, where they don't 
 survive a full cluster restart. Here is an example of a persistent update:
 
@@ -108,9 +110,11 @@ The order of precedence for cluster settings is:
 2. persistent cluster settings
 3. settings in the `elasticsearch.yml` configuration file.
 
-It's best to use the `elasticsearch.yml` file only
-for local configurations, and set all cluster-wide settings with the
-`settings` API.
+It's best to set all cluster-wide settings with the `settings` API and use the
+`elasticsearch.yml` file only for local configurations. This way you can be sure that
+the setting is the same on all nodes. If, on the other hand, you define different
+settings on different nodes by accident using the configuration file, it is very
+difficult to notice these discrepancies.
 
 You can find the list of settings that you can dynamically update in <<modules,Modules>>.
 

@@ -10,7 +10,7 @@ To illustrate how Painless works, let's load some hockey stats into an Elasticse
 
 [source,js]
 ----------------------------------------------------------------
-PUT hockey/player/_bulk?refresh
+PUT hockey/_bulk?refresh
 {"index":{"_id":1}}
 {"first":"johnny","last":"gaudreau","goals":[9,27,1],"assists":[17,46,0],"gp":[26,82,1],"born":"1993/08/13"}
 {"index":{"_id":2}}
@@ -158,7 +158,7 @@ To change player 1's last name to `hockey`, simply set `ctx._source.last` to the
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/1/_update
+POST hockey/_update/1
 {
   "script": {
     "lang": "painless",
@@ -176,7 +176,7 @@ the player's nickname,  _hockey_.
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/1/_update
+POST hockey/_update/1
 {
   "script": {
     "lang": "painless",
@@ -198,13 +198,11 @@ POST hockey/player/1/_update
 ==== Dates
 
 Date fields are exposed as
-`ReadableDateTime` or
-so they support methods like
-`getYear`,
-and `getDayOfWeek`.
-To get milliseconds since epoch call
-`getMillis`.
-For example, the following returns every hockey player's birth year:
+`ReadableDateTime`, so they support methods like `getYear`, `getDayOfWeek` 
+or e.g. getting milliseconds since epoch with `getMillis`. To use these
+in a script, leave out the `get` prefix and continue with lowercasing the
+rest of the method name. For example, the following returns every hockey 
+player's birth year:
 
 [source,js]
 ----------------------------------------------------------------
@@ -220,11 +218,6 @@ GET hockey/_search
 }
 ----------------------------------------------------------------
 // CONSOLE
-// TEST[warning:The joda time api for doc values is deprecated. Use -Des.scripting.use_java_time=true to use the java time api for date field doc values]
-
-NOTE: Date fields are changing in 7.0 to be exposed as `ZonedDateTime`
-from Java 8's time API. To switch to this functionality early, 
-add `-Des.scripting.use_java_time=true` to `jvm.options`.
 
 [float]
 [[modules-scripting-painless-regex]]

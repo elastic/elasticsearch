@@ -24,13 +24,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportStats;
@@ -41,7 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class StubbableTransport implements Transport {
+public final class StubbableTransport implements Transport {
 
     private final ConcurrentHashMap<TransportAddress, SendRequestBehavior> sendBehaviors = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<TransportAddress, OpenConnectionBehavior> connectBehaviors = new ConcurrentHashMap<>();
@@ -60,6 +61,12 @@ public class StubbableTransport implements Transport {
         return prior == null;
     }
 
+    public boolean setDefaultConnectBehavior(OpenConnectionBehavior openConnectionBehavior) {
+        OpenConnectionBehavior prior = this.defaultConnectBehavior;
+        this.defaultConnectBehavior = openConnectionBehavior;
+        return prior == null;
+    }
+
     boolean addSendBehavior(TransportAddress transportAddress, SendRequestBehavior sendBehavior) {
         return sendBehaviors.put(transportAddress, sendBehavior) == null;
     }
@@ -69,7 +76,9 @@ public class StubbableTransport implements Transport {
     }
 
     void clearBehaviors() {
+        this.defaultSendRequest = null;
         sendBehaviors.clear();
+        this.defaultConnectBehavior = null;
         connectBehaviors.clear();
     }
 
@@ -86,13 +95,13 @@ public class StubbableTransport implements Transport {
     }
 
     @Override
-    public void addConnectionListener(TransportConnectionListener listener) {
-        delegate.addConnectionListener(listener);
+    public void addMessageListener(TransportMessageListener listener) {
+        delegate.addMessageListener(listener);
     }
 
     @Override
-    public boolean removeConnectionListener(TransportConnectionListener listener) {
-        return delegate.removeConnectionListener(listener);
+    public boolean removeMessageListener(TransportMessageListener listener) {
+        return delegate.removeMessageListener(listener);
     }
 
     @Override
@@ -121,17 +130,28 @@ public class StubbableTransport implements Transport {
     }
 
     @Override
-    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
+    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
         TransportAddress address = node.getAddress();
         OpenConnectionBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
-        Connection connection;
-        if (behavior == null) {
-            connection = delegate.openConnection(node, profile);
-        } else {
-            connection = behavior.openConnection(delegate, node, profile);
-        }
 
-        return new WrappedConnection(connection);
+        ActionListener<Connection> wrappedListener = new ActionListener<Connection>() {
+
+            @Override
+            public void onResponse(Connection connection) {
+                listener.onResponse(new WrappedConnection(connection));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        };
+
+        if (behavior == null) {
+            return delegate.openConnection(node, profile, wrappedListener);
+        } else {
+            return behavior.openConnection(delegate, node, profile, wrappedListener);
+        }
     }
 
     @Override
@@ -179,7 +199,7 @@ public class StubbableTransport implements Transport {
         return delegate.profileBoundAddresses();
     }
 
-    private class WrappedConnection implements Transport.Connection {
+    public class WrappedConnection implements Transport.Connection {
 
         private final Transport.Connection connection;
 
@@ -202,11 +222,6 @@ public class StubbableTransport implements Transport {
             } else {
                 behavior.sendRequest(connection, requestId, action, request, options);
             }
-        }
-
-        @Override
-        public boolean sendPing() {
-            return connection.sendPing();
         }
 
         @Override
@@ -234,11 +249,17 @@ public class StubbableTransport implements Transport {
         public void close() {
             connection.close();
         }
+
+        public Transport.Connection getConnection() {
+            return connection;
+        }
     }
 
     @FunctionalInterface
     public interface OpenConnectionBehavior {
-        Connection openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile);
+
+        Releasable openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile,
+                                  ActionListener<Connection> listener);
     }
 
     @FunctionalInterface

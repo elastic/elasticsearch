@@ -76,6 +76,7 @@ Inner hits also supports the following per document features:
 * <<search-request-script-fields,Script fields>>
 * <<search-request-docvalue-fields,Doc value fields>>
 * <<search-request-version,Include versions>>
+* <<search-request-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
 
 [[nested-inner-hits]]
 ==== Nested inner hits
@@ -87,11 +88,9 @@ The nested `inner_hits` can be used to include nested inner objects as inner hit
 PUT test
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "comments": {
-          "type": "nested"
-        }
+    "properties": {
+      "comments": {
+        "type": "nested"
       }
     }
   }
@@ -136,7 +135,10 @@ An example of a response snippet that could be generated from the above search r
 {
   ...,
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 1.0,
     "hits": [
       {
@@ -148,7 +150,10 @@ An example of a response snippet that could be generated from the above search r
         "inner_hits": {
           "comments": { <1>
             "hits": {
-              "total": 1,
+              "total" : {
+                  "value": 1,
+                  "relation": "eq"
+              },
               "max_score": 1.0,
               "hits": [
                 {
@@ -207,11 +212,9 @@ including the source and solely rely on doc values fields. Like this:
 PUT test
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "comments": {
-          "type": "nested"
-        }
+    "properties": {
+      "comments": {
+        "type": "nested"
       }
     }
   }
@@ -243,10 +246,7 @@ POST test/_search
       "inner_hits": {
         "_source" : false,
         "docvalue_fields" : [
-          {
-            "field": "comments.text.keyword",
-            "format": "use_field_mapping"
-          }
+          "comments.text.keyword"
         ]
       }
     }
@@ -264,20 +264,26 @@ Response not included in text but tested for completeness sake.
 {
   ...,
   "hits": {
-    "total": 1,
-    "max_score": 1.0444683,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 1.0444684,
     "hits": [
       {
         "_index": "test",
         "_type": "_doc",
         "_id": "1",
-        "_score": 1.0444683,
+        "_score": 1.0444684,
         "_source": ...,
         "inner_hits": {
           "comments": { <1>
             "hits": {
-              "total": 1,
-              "max_score": 1.0444683,
+              "total" : {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": 1.0444684,
               "hits": [
                 {
                   "_index": "test",
@@ -287,7 +293,7 @@ Response not included in text but tested for completeness sake.
                     "field": "comments",
                     "offset": 1
                   },
-                  "_score": 1.0444683,
+                  "_score": 1.0444684,
                   "fields": {
                     "comments.text.keyword": [
                       "words words words"
@@ -320,14 +326,12 @@ with the root hits then the following path can be defined:
 PUT test
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "comments": {
-          "type": "nested",
-          "properties": {
-            "votes": {
-              "type": "nested"
-            }
+    "properties": {
+      "comments": {
+        "type": "nested",
+        "properties": {
+          "votes": {
+            "type": "nested"
           }
         }
       }
@@ -379,7 +383,10 @@ Which would look like:
 {
   ...,
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": 0.6931472,
     "hits": [
       {
@@ -391,7 +398,10 @@ Which would look like:
         "inner_hits": {
           "comments.votes": { <1>
             "hits": {
-              "total": 1,
+              "total" : {
+                  "value": 1,
+                  "relation": "eq"
+              },
               "max_score": 0.6931472,
               "hits": [
                 {
@@ -436,13 +446,11 @@ The parent/child `inner_hits` can be used to include parent or child:
 PUT test
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-            "my_parent": "my_child"
-          }
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+          "my_parent": "my_child"
         }
       }
     }
@@ -490,7 +498,10 @@ An example of a response snippet that could be generated from the above search r
 {
     ...,
     "hits": {
-        "total": 1,
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
         "max_score": 1.0,
         "hits": [
             {
@@ -505,7 +516,10 @@ An example of a response snippet that could be generated from the above search r
                 "inner_hits": {
                     "my_child": {
                         "hits": {
-                            "total": 1,
+                            "total" : {
+                                "value": 1,
+                                "relation": "eq"
+                            },
                             "max_score": 1.0,
                             "hits": [
                                 {

@@ -58,14 +58,12 @@ enabled for aggregations, as follows:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_field": { <1>
-          "type": "text",
-          "fields": {
-            "keyword": { <2>
-              "type": "keyword"
-            }
+    "properties": {
+      "my_field": { <1>
+        "type": "text",
+        "fields": {
+          "keyword": { <2>
+            "type": "keyword"
           }
         }
       }
@@ -84,7 +82,7 @@ You can enable fielddata on an existing `text` field using the
 
 [source,js]
 -----------------------------------
-PUT my_index/_mapping/_doc
+PUT my_index/_mapping
 {
   "properties": {
     "my_field": { <1>
@@ -121,16 +119,14 @@ number of docs that the segment should contain with `min_segment_size`:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "tag": {
-          "type": "text",
-          "fielddata": true,
-          "fielddata_frequency_filter": {
-            "min": 0.001,
-            "max": 0.1,
-            "min_segment_size": 500
-          }
+    "properties": {
+      "tag": {
+        "type": "text",
+        "fielddata": true,
+        "fielddata_frequency_filter": {
+          "min": 0.001,
+          "max": 0.1,
+          "min_segment_size": 500
         }
       }
     }

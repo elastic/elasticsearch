@@ -5,19 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.plan;
 
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Objects;
 
 public class TableIdentifier {
 
-    private final Location location;
+    private final Source source;
 
     private final String cluster;
     private final String index;
 
-    public TableIdentifier(Location location, String catalog, String index) {
-        this.location = location;
+    public TableIdentifier(Source source, String catalog, String index) {
+        this.source = source;
         this.cluster = catalog;
         this.index = index;
     }
@@ -49,20 +49,22 @@ public class TableIdentifier {
         return Objects.equals(index, other.index) && Objects.equals(cluster, other.cluster);
     }
 
-    public Location location() {
-        return location;
+    public Source source() {
+        return source;
+    }
+
+    public String qualifiedIndex() {
+        return cluster != null ? cluster + ":" + index : index;
     }
 
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("[");
         if (cluster != null) {
             builder.append(cluster);
+            builder.append(":");
         }
-        builder.append("][index=");
         builder.append(index);
-        builder.append("]");
         return builder.toString();
     }
 }

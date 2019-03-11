@@ -1,0 +1,147 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: delete-forecast-job
+        body:  >
+          {
+            "description":"A forecast job",
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}],
+                "bucket_span" : "1s"
+            },
+            "data_description" : {
+                "format":"xcontent"
+            }
+          }
+
+---
+"Test delete forecast on missing forecast":
+  - do:
+      catch: /resource_not_found_exception/
+      ml.delete_forecast:
+        job_id: delete-forecast-job
+        forecast_id: this-is-a-bad-forecast
+
+---
+"Test delete forecast":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-shared
+        id:     "delete-forecast-job_model_forecast_someforecastid_1486591200000_1800_0_961_0"
+        body:
+          {
+            "job_id": "delete-forecast-job",
+            "forecast_id": "someforecastid",
+            "result_type": "model_forecast",
+            "bucket_span": 1800,
+            "detector_index": 0,
+            "timestamp": 1486591200000,
+            "model_feature": "'arithmetic mean value by person'",
+            "forecast_lower": 5440.502250736747,
+            "forecast_upper": 6294.296972680027,
+            "forecast_prediction": 5867.399611708387
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-shared
+        id:     "delete-forecast-job_model_forecast_someforecastid_1486591300000_1800_0_961_0"
+        body:
+          {
+            "job_id": "delete-forecast-job",
+            "forecast_id": "someforecastid",
+            "result_type": "model_forecast",
+            "bucket_span": 1800,
+            "detector_index": 0,
+            "timestamp": 1486591300000,
+            "model_feature": "'arithmetic mean value by person'",
+            "forecast_lower": 5440.502250736747,
+            "forecast_upper": 6294.296972680027,
+            "forecast_prediction": 5867.399611708387
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-shared
+        id:     "delete-forecast-job_model_forecast_request_stats_someforecastid"
+        body:
+          {
+            "job_id": "delete-forecast-job",
+            "result_type": "model_forecast_request_stats",
+            "forecast_id": "someforecastid",
+            "processed_record_count": 48,
+            "forecast_messages": [],
+            "timestamp": 1486575000000,
+            "forecast_start_timestamp": 1486575000000,
+            "forecast_end_timestamp": 1486661400000,
+            "forecast_create_timestamp": 1535721789000,
+            "forecast_expiry_timestamp": 1536931389000,
+            "forecast_progress": 1,
+            "processing_time_ms": 3,
+            "forecast_memory_bytes": 7034,
+            "forecast_status": "finished"
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh:
+        index: .ml-anomalies-delete-forecast-job
+  - do:
+      ml.delete_forecast:
+        job_id: delete-forecast-job
+        forecast_id: someforecastid
+  - match: { acknowledged: true }
+  - do:
+      catch: missing
+      get:
+        id: delete-forecast-job_model_forecast_request_stats_someforecastid
+        index: .ml-anomalies-shared
+  - do:
+      catch: missing
+      get:
+        id: delete-forecast-job_model_forecast_someforecastid_1486591300000_1800_0_961_0
+        index: .ml-anomalies-shared
+  - do:
+      catch: missing
+      get:
+        id: delete-forecast-job_model_forecast_someforecastid_1486591200000_1800_0_961_0
+        index: .ml-anomalies-shared
+
+---
+"Test delete on _all forecasts not allow no forecasts":
+  - do:
+      catch: /resource_not_found_exception/
+      ml.delete_forecast:
+        job_id: delete-forecast-job
+        forecast_id: _all
+        allow_no_forecasts: false
+
+---
+"Test delete on _all forecasts":
+  - do:
+      ml.delete_forecast:
+        job_id: delete-forecast-job
+        forecast_id: _all
+        allow_no_forecasts: true
+  - match: { acknowledged: true }
+
+---
+"Test delete all where no forecast_id is set":
+  - do:
+      ml.delete_forecast:
+        job_id: delete-forecast-job
+        allow_no_forecasts: true
+  - match: { acknowledged: true }

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -16,8 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -25,18 +21,15 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
-import java.io.IOException;
 import java.util.List;
 
 public class TransportIsolateDatafeedAction extends TransportTasksAction<TransportStartDatafeedAction.DatafeedTask,
         IsolateDatafeedAction.Request, IsolateDatafeedAction.Response, IsolateDatafeedAction.Response> {
 
     @Inject
-    public TransportIsolateDatafeedAction(Settings settings, TransportService transportService,
-                                          ActionFilters actionFilters, ClusterService clusterService) {
-        super(settings, IsolateDatafeedAction.NAME, clusterService, transportService, actionFilters,
-            IsolateDatafeedAction.Request::new, IsolateDatafeedAction.Response::new,
-                MachineLearning.UTILITY_THREAD_POOL_NAME);
+    public TransportIsolateDatafeedAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+        super(IsolateDatafeedAction.NAME, clusterService, transportService, actionFilters, IsolateDatafeedAction.Request::new,
+            IsolateDatafeedAction.Response::new, IsolateDatafeedAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
     }
 
     @Override
@@ -47,17 +40,12 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
 
         if (datafeedTask == null || datafeedTask.getExecutorNode() == null) {
             // No running datafeed task to isolate
-            listener.onResponse(new IsolateDatafeedAction.Response());
+            listener.onResponse(new IsolateDatafeedAction.Response(false));
             return;
         }
 
         String executorNode = datafeedTask.getExecutorNode();
         DiscoveryNodes nodes = state.nodes();
-        if (nodes.resolveNode(executorNode).getVersion().before(Version.V_5_5_0)) {
-            listener.onFailure(new ElasticsearchException("Force delete datafeed is not supported because the datafeed task " +
-                    "is running on a node [" + executorNode + "] with a version prior to " + Version.V_5_5_0));
-            return;
-        }
 
         request.setNodes(datafeedTask.getExecutorNode());
         super.doExecute(task, request, listener);
@@ -74,7 +62,7 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
             throw org.elasticsearch.ExceptionsHelper
                     .convertToElastic(failedNodeExceptions.get(0));
         } else {
-            return new IsolateDatafeedAction.Response();
+            return new IsolateDatafeedAction.Response(false);
         }
     }
 
@@ -82,11 +70,7 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
     protected void taskOperation(IsolateDatafeedAction.Request request, TransportStartDatafeedAction.DatafeedTask datafeedTask,
                                  ActionListener<IsolateDatafeedAction.Response> listener) {
         datafeedTask.isolate();
-        listener.onResponse(new IsolateDatafeedAction.Response());
+        listener.onResponse(new IsolateDatafeedAction.Response(false));
     }
 
-    @Override
-    protected IsolateDatafeedAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new IsolateDatafeedAction.Response(in);
-    }
 }

@@ -11,7 +11,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.Aggregat
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createHistogramBucket;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createMax;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createPercentiles;
+import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createSingleBucketAgg;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createSingleValue;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createTerms;
 import static org.hamcrest.Matchers.containsString;
@@ -437,6 +438,38 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
         assertThat(json, equalTo("{\"time\":3000,\"my_field\":3.0,\"doc_count\":10} " +
                 "{\"time\":4000,\"my_field\":4.0,\"doc_count\":14}"));
+    }
+
+    public void testSingleBucketAgg() throws IOException {
+        List<Histogram.Bucket> histogramBuckets = Arrays.asList(
+            createHistogramBucket(1000L, 4, Arrays.asList(
+                createMax("time", 1000),
+                createSingleBucketAgg("agg1", 3, Collections.singletonList(createMax("field1", 5.0))),
+                createSingleBucketAgg("agg2", 1, Collections.singletonList(createMax("field2", 3.0))))),
+            createHistogramBucket(2000L, 7, Arrays.asList(
+                createMax("time", 2000),
+                createSingleBucketAgg("agg2", 3, Collections.singletonList(createMax("field2", 1.0))),
+                createSingleBucketAgg("agg1", 4, Collections.singletonList(createMax("field1", 7.0))))));
+
+        String json = aggToString(Sets.newHashSet("field1", "field2"), histogramBuckets);
+
+        assertThat(json, equalTo("{\"time\":1000,\"field1\":5.0,\"field2\":3.0,\"doc_count\":4}" +
+            " {\"time\":2000,\"field2\":1.0,\"field1\":7.0,\"doc_count\":7}"));
+    }
+
+    public void testSingleBucketAgg_failureWithSubMultiBucket() throws IOException {
+
+        List<Histogram.Bucket> histogramBuckets = Collections.singletonList(
+            createHistogramBucket(1000L, 4, Arrays.asList(
+                createMax("time", 1000),
+                createSingleBucketAgg("agg1", 3,
+                    Arrays.asList(createHistogramAggregation("histo", Collections.emptyList()),createMax("field1", 5.0))),
+                createSingleBucketAgg("agg2", 1,
+                    Arrays.asList(createHistogramAggregation("histo", Collections.emptyList()),createMax("field1", 3.0))))));
+
+
+        expectThrows(IllegalArgumentException.class,
+            () -> aggToString(Sets.newHashSet("my_field"), histogramBuckets));
     }
 
     private String aggToString(Set<String> fields, Histogram.Bucket bucket) throws IOException {

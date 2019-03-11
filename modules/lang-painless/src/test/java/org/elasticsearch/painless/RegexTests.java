@@ -278,6 +278,6 @@ public class RegexTests extends ScriptTestCase {
         IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("/asdf/b", false); // Not picky so we get a non-assertion error
         });
-        assertEquals("invalid sequence of tokens near ['b'].", e.getMessage());
+        assertEquals("unexpected token ['b'] was expecting one of [{<EOF>, ';'}].", e.getMessage());
     }
 }

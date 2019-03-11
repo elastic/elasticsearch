@@ -112,13 +112,17 @@ final class TermVectorsWriter {
                     // get the doc frequency
                     if (dfs != null) {
                         final TermStatistics statistics = dfs.termStatistics().get(term);
-                        writeTermStatistics(statistics == null ? new TermStatistics(termBytesRef, 0, 0) : statistics);
+                        if (statistics == null) {
+                            writeMissingTermStatistics();
+                        } else {
+                            writeTermStatistics(statistics);
+                        }
                     } else {
                         boolean foundTerm = topLevelIterator.seekExact(termBytesRef);
                         if (foundTerm) {
                             writeTermStatistics(topLevelIterator);
                         } else {
-                            writeTermStatistics(new TermStatistics(termBytesRef, 0, 0));
+                            writeMissingTermStatistics();
                         }
                     }
                 }
@@ -137,10 +141,12 @@ final class TermVectorsWriter {
             numFieldsWritten++;
         }
         response.setTermVectorsField(output);
-        response.setHeader(writeHeader(numFieldsWritten, flags.contains(Flag.TermStatistics), flags.contains(Flag.FieldStatistics), hasScores));
+        response.setHeader(writeHeader(numFieldsWritten, flags.contains(Flag.TermStatistics),
+            flags.contains(Flag.FieldStatistics), hasScores));
     }
 
-    private BytesReference writeHeader(int numFieldsWritten, boolean getTermStatistics, boolean getFieldStatistics, boolean scores) throws IOException {
+    private BytesReference writeHeader(int numFieldsWritten, boolean getTermStatistics,
+                                       boolean getFieldStatistics, boolean scores) throws IOException {
         // now, write the information about offset of the terms in the
         // termVectors field
         BytesStreamOutput header = new BytesStreamOutput();
@@ -237,6 +243,11 @@ final class TermVectorsWriter {
     private void startTerm(BytesRef term) throws IOException {
         output.writeVInt(term.length);
         output.writeBytes(term.bytes, term.offset, term.length);
+    }
+
+    private void writeMissingTermStatistics() throws IOException {
+        writePotentiallyNegativeVInt(0);
+        writePotentiallyNegativeVInt(0);
     }
 
     private void writeTermStatistics(TermsEnum topLevelIterator) throws IOException {

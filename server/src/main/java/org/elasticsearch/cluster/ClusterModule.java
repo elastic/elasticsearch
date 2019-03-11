@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -51,10 +50,10 @@ import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ResizeAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -109,11 +108,11 @@ public class ClusterModule extends AbstractModule {
     public ClusterModule(Settings settings, ClusterService clusterService, List<ClusterPlugin> clusterPlugins,
                          ClusterInfoService clusterInfoService) {
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
-        this.allocationDeciders = new AllocationDeciders(settings, deciderList);
+        this.allocationDeciders = new AllocationDeciders(deciderList);
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
-        this.allocationService = new AllocationService(settings, allocationDeciders, shardsAllocator, clusterInfoService);
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver();
+        this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService);
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -206,16 +205,16 @@ public class ClusterModule extends AbstractModule {
                                                                          List<ClusterPlugin> clusterPlugins) {
         // collect deciders by class so that we can detect duplicates
         Map<Class, AllocationDecider> deciders = new LinkedHashMap<>();
-        addAllocationDecider(deciders, new MaxRetryAllocationDecider(settings));
-        addAllocationDecider(deciders, new ResizeAllocationDecider(settings));
-        addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider(settings));
-        addAllocationDecider(deciders, new RebalanceOnlyWhenActiveAllocationDecider(settings));
+        addAllocationDecider(deciders, new MaxRetryAllocationDecider());
+        addAllocationDecider(deciders, new ResizeAllocationDecider());
+        addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider());
+        addAllocationDecider(deciders, new RebalanceOnlyWhenActiveAllocationDecider());
         addAllocationDecider(deciders, new ClusterRebalanceAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ConcurrentRebalanceAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new EnableAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new NodeVersionAllocationDecider(settings));
-        addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider(settings));
-        addAllocationDecider(deciders, new RestoreInProgressAllocationDecider(settings));
+        addAllocationDecider(deciders, new NodeVersionAllocationDecider());
+        addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
+        addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));
@@ -268,7 +267,6 @@ public class ClusterModule extends AbstractModule {
         bind(AllocationService.class).toInstance(allocationService);
         bind(ClusterService.class).toInstance(clusterService);
         bind(NodeConnectionsService.class).asEagerSingleton();
-        bind(MetaDataCreateIndexService.class).asEagerSingleton();
         bind(MetaDataDeleteIndexService.class).asEagerSingleton();
         bind(MetaDataIndexStateService.class).asEagerSingleton();
         bind(MetaDataMappingService.class).asEagerSingleton();

@@ -26,6 +26,7 @@ esplugin {
 dependencies {
     compileOnly project(':modules:lang-painless')
     compile project(':libs:grok')
+    compile project(':libs:dissect')
 }
 
 compileJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"

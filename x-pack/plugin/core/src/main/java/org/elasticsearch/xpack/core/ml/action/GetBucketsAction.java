@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -162,7 +161,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Response> {
 
         public void setPageParams(PageParams pageParams) {
             if (timestamp != null) {
-                throw new IllegalArgumentException("Param [" + PageParams.FROM.getPreferredName() 
+                throw new IllegalArgumentException("Param [" + PageParams.FROM.getPreferredName()
                         + ", " + PageParams.SIZE.getPreferredName() + "] is incompatible with [" + TIMESTAMP.getPreferredName() + "].");
             }
             this.pageParams = ExceptionsHelper.requireNonNull(pageParams, PageParams.PAGE.getPreferredName());
@@ -212,10 +211,8 @@ public class GetBucketsAction extends Action<GetBucketsAction.Response> {
             end = in.readOptionalString();
             anomalyScore = in.readOptionalDouble();
             pageParams = in.readOptionalWriteable(PageParams::new);
-            if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-                sort = in.readString();
-                descending = in.readBoolean();
-            }
+            sort = in.readString();
+            descending = in.readBoolean();
         }
 
         @Override
@@ -229,10 +226,8 @@ public class GetBucketsAction extends Action<GetBucketsAction.Response> {
             out.writeOptionalString(end);
             out.writeOptionalDouble(anomalyScore);
             out.writeOptionalWriteable(pageParams);
-            if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-                out.writeString(sort);
-                out.writeBoolean(descending);
-            }
+            out.writeString(sort);
+            out.writeBoolean(descending);
         }
 
         @Override

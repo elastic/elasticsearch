@@ -62,7 +62,10 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
 
         /**
          * The type of the action.
+         *
+         * @deprecated Types are in the process of being removed.
          */
+        @Deprecated
         public String getType() {
             return type;
         }

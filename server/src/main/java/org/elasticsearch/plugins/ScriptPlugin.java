@@ -44,7 +44,7 @@ public interface ScriptPlugin {
     /**
      * Return script contexts this plugin wants to allow using.
      */
-    default List<ScriptContext> getContexts() {
+    default List<ScriptContext<?>> getContexts() {
         return Collections.emptyList();
     }
 }

@@ -11,9 +11,9 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ConstantProcessor;
+import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
 
 public class ReplaceProcessorTests extends AbstractWireSerializingTestCase<ReplaceFunctionProcessor> {
@@ -38,29 +38,29 @@ public class ReplaceProcessorTests extends AbstractWireSerializingTestCase<Repla
         
     public void testReplaceFunctionWithValidInput() {
         assertEquals("foobazbaz",
-                new Replace(EMPTY, l("foobarbar"), l("bar"), l("baz")).makeProcessorDefinition().asProcessor().process(null));
-        assertEquals("foobXrbXr", new Replace(EMPTY, l("foobarbar"), l('a'), l('X')).makeProcessorDefinition().asProcessor().process(null));
-        assertEquals("z", new Replace(EMPTY, l('f'), l('f'), l('z')).makeProcessorDefinition().asProcessor().process(null));
+                new Replace(EMPTY, l("foobarbar"), l("bar"), l("baz")).makePipe().asProcessor().process(null));
+        assertEquals("foobXrbXr", new Replace(EMPTY, l("foobarbar"), l('a'), l('X')).makePipe().asProcessor().process(null));
+        assertEquals("z", new Replace(EMPTY, l('f'), l('f'), l('z')).makePipe().asProcessor().process(null));
     }
     
     public void testReplaceFunctionWithEdgeCases() {
         assertEquals("foobarbar",
-                new Replace(EMPTY, l("foobarbar"), l("bar"), l(null)).makeProcessorDefinition().asProcessor().process(null));
+                new Replace(EMPTY, l("foobarbar"), l("bar"), l(null)).makePipe().asProcessor().process(null));
         assertEquals("foobarbar",
-                new Replace(EMPTY, l("foobarbar"), l(null), l("baz")).makeProcessorDefinition().asProcessor().process(null));
-        assertNull(new Replace(EMPTY, l(null), l("bar"), l("baz")).makeProcessorDefinition().asProcessor().process(null));
-        assertNull(new Replace(EMPTY, l(null), l(null), l(null)).makeProcessorDefinition().asProcessor().process(null));
+                new Replace(EMPTY, l("foobarbar"), l(null), l("baz")).makePipe().asProcessor().process(null));
+        assertNull(new Replace(EMPTY, l(null), l("bar"), l("baz")).makePipe().asProcessor().process(null));
+        assertNull(new Replace(EMPTY, l(null), l(null), l(null)).makePipe().asProcessor().process(null));
     }
     
     public void testReplaceFunctionInputsValidation() {
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Replace(EMPTY, l(5), l("bar"), l("baz")).makeProcessorDefinition().asProcessor().process(null));
+                () -> new Replace(EMPTY, l(5), l("bar"), l("baz")).makePipe().asProcessor().process(null));
         assertEquals("A string/char is required; received [5]", siae.getMessage());
         siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Replace(EMPTY, l("foobarbar"), l(4), l("baz")).makeProcessorDefinition().asProcessor().process(null));
+                () -> new Replace(EMPTY, l("foobarbar"), l(4), l("baz")).makePipe().asProcessor().process(null));
         assertEquals("A string/char is required; received [4]", siae.getMessage());
         siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Replace(EMPTY, l("foobarbar"), l("bar"), l(3)).makeProcessorDefinition().asProcessor().process(null));
+                () -> new Replace(EMPTY, l("foobarbar"), l("bar"), l(3)).makePipe().asProcessor().process(null));
         assertEquals("A string/char is required; received [3]", siae.getMessage());
     }
 }

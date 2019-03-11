@@ -6,7 +6,8 @@
 ++++
 
 include::{asciidoc-dir}/../../shared/settings.asciidoc[]
+include::ccr-settings.asciidoc[]
 include::license-settings.asciidoc[]
 include::ml-settings.asciidoc[]
-include::notification-settings.asciidoc[]
 include::sql-settings.asciidoc[]
+include::notification-settings.asciidoc[]

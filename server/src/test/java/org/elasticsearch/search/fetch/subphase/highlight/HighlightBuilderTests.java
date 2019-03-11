@@ -601,10 +601,10 @@ public class HighlightBuilderTests extends ESTestCase {
                     value = randomAlphaOfLengthBetween(1, 10);
                     break;
                 case 1:
-                    value = new Integer(randomInt(1000));
+                    value = Integer.valueOf(randomInt(1000));
                     break;
                 case 2:
-                    value = new Boolean(randomBoolean());
+                    value = Boolean.valueOf(randomBoolean());
                     break;
                 }
                 options.put(randomAlphaOfLengthBetween(1, 10), value);
@@ -710,9 +710,11 @@ public class HighlightBuilderTests extends ESTestCase {
             switch (randomIntBetween(0, 2)) {
                 // change settings that only exists on top level
                 case 0:
-                    mutation.useExplicitFieldOrder(!original.useExplicitFieldOrder()); break;
+                    mutation.useExplicitFieldOrder(!original.useExplicitFieldOrder());
+                    break;
                 case 1:
-                    mutation.encoder(original.encoder() + randomAlphaOfLength(2)); break;
+                    mutation.encoder(original.encoder() + randomAlphaOfLength(2));
+                    break;
                 case 2:
                     if (randomBoolean()) {
                         // add another field

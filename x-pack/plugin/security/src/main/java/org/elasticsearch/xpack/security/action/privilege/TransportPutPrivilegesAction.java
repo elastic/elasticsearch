@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
@@ -27,9 +26,9 @@ public class TransportPutPrivilegesAction extends HandledTransportAction<PutPriv
     private final NativePrivilegeStore privilegeStore;
 
     @Inject
-    public TransportPutPrivilegesAction(Settings settings, ActionFilters actionFilters,
-                                        NativePrivilegeStore privilegeStore, TransportService transportService) {
-        super(settings, PutPrivilegesAction.NAME, transportService, actionFilters, PutPrivilegesRequest::new);
+    public TransportPutPrivilegesAction(ActionFilters actionFilters, NativePrivilegeStore privilegeStore,
+                                        TransportService transportService) {
+        super(PutPrivilegesAction.NAME, transportService, actionFilters, PutPrivilegesRequest::new);
         this.privilegeStore = privilegeStore;
     }
 

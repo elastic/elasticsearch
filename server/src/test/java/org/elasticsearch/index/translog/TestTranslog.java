@@ -34,6 +34,9 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -52,13 +55,19 @@ import static org.hamcrest.core.IsNot.not;
 public class TestTranslog {
     static final Pattern TRANSLOG_FILE_PATTERN = Pattern.compile("translog-(\\d+)\\.tlog");
 
+    public static void corruptRandomTranslogFile(Logger logger, Random random, Collection<Path> translogDirs) throws IOException {
+        for (Path translogDir : translogDirs) {
+            final long minTranslogGen = minTranslogGenUsedInRecovery(translogDir);
+            corruptRandomTranslogFile(logger, random, translogDir, minTranslogGen);
+        }
+    }
+
     /**
      * Corrupts random translog file (translog-N.tlog) from the given translog directory.
      *
      * @return a translog file which has been corrupted.
      */
-    public static Path corruptRandomTranslogFile(Logger logger, Random random, Path translogDir, long minGeneration) throws
-            IOException {
+    public static Path corruptRandomTranslogFile(Logger logger, Random random, Path translogDir, long minGeneration) throws IOException {
         Set<Path> candidates = new TreeSet<>(); // TreeSet makes sure iteration order is deterministic
         logger.info("--> Translog dir [{}], minUsedTranslogGen [{}]", translogDir, minGeneration);
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(translogDir)) {
@@ -120,5 +129,17 @@ public class TestTranslog {
      */
     public static long getCurrentTerm(Translog translog) {
         return translog.getCurrent().getPrimaryTerm();
+    }
+
+    public static List<Translog.Operation> drainSnapshot(Translog.Snapshot snapshot, boolean sortBySeqNo) throws IOException {
+        final List<Translog.Operation> ops = new ArrayList<>(snapshot.totalOperations());
+        Translog.Operation op;
+        while ((op = snapshot.next()) != null) {
+            ops.add(op);
+        }
+        if (sortBySeqNo) {
+            ops.sort(Comparator.comparing(Translog.Operation::seqNo));
+        }
+        return ops;
     }
 }

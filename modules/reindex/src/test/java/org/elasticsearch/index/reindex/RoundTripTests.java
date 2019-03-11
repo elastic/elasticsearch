@@ -20,8 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -47,7 +45,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
  */
 public class RoundTripTests extends ESTestCase {
     public void testReindexRequest() throws IOException {
-        ReindexRequest reindex = new ReindexRequest(new SearchRequest(), new IndexRequest());
+        ReindexRequest reindex = new ReindexRequest();
         randomRequest(reindex);
         reindex.getDestination().version(randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, 12L, 1L, 123124L, 12L));
         reindex.getDestination().index("test");
@@ -82,7 +80,7 @@ public class RoundTripTests extends ESTestCase {
     }
 
     public void testUpdateByQueryRequest() throws IOException {
-        UpdateByQueryRequest update = new UpdateByQueryRequest(new SearchRequest());
+        UpdateByQueryRequest update = new UpdateByQueryRequest();
         randomRequest(update);
         if (randomBoolean()) {
             update.setPipeline(randomAlphaOfLength(5));
@@ -104,7 +102,7 @@ public class RoundTripTests extends ESTestCase {
     }
 
     public void testDeleteByQueryRequest() throws IOException {
-        DeleteByQueryRequest delete = new DeleteByQueryRequest(new SearchRequest());
+        DeleteByQueryRequest delete = new DeleteByQueryRequest();
         randomRequest(delete);
         DeleteByQueryRequest tripped = new DeleteByQueryRequest(toInputByteStream(delete));
         assertRequestEquals(delete, tripped);
@@ -155,13 +153,8 @@ public class RoundTripTests extends ESTestCase {
             assertEquals(request.getRemoteInfo().getUsername(), tripped.getRemoteInfo().getUsername());
             assertEquals(request.getRemoteInfo().getPassword(), tripped.getRemoteInfo().getPassword());
             assertEquals(request.getRemoteInfo().getHeaders(), tripped.getRemoteInfo().getHeaders());
-            if (version.onOrAfter(Version.V_5_2_0)) {
-                assertEquals(request.getRemoteInfo().getSocketTimeout(), tripped.getRemoteInfo().getSocketTimeout());
-                assertEquals(request.getRemoteInfo().getConnectTimeout(), tripped.getRemoteInfo().getConnectTimeout());
-            } else {
-                assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, tripped.getRemoteInfo().getSocketTimeout());
-                assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, tripped.getRemoteInfo().getConnectTimeout());
-            }
+            assertEquals(request.getRemoteInfo().getSocketTimeout(), tripped.getRemoteInfo().getSocketTimeout());
+            assertEquals(request.getRemoteInfo().getConnectTimeout(), tripped.getRemoteInfo().getConnectTimeout());
         }
     }
 
@@ -191,9 +184,7 @@ public class RoundTripTests extends ESTestCase {
         } else {
             request.setTaskId(new TaskId(randomAlphaOfLength(5), randomLong()));
         }
-        RethrottleRequest tripped = new RethrottleRequest();
-        // We use readFrom here because Rethrottle does not support the Writeable.Reader interface
-        tripped.readFrom(toInputByteStream(request));
+        RethrottleRequest tripped = new RethrottleRequest(toInputByteStream(request));
         assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0.00001);
         assertArrayEquals(request.getActions(), tripped.getActions());
         assertEquals(request.getTaskId(), tripped.getTaskId());

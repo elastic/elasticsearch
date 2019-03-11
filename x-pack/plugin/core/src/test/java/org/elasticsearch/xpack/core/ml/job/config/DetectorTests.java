@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.writer.RecordWriter;
+import org.elasticsearch.xpack.core.ml.process.writer.RecordWriter;
 
 import java.util.ArrayList;
 import java.util.Arrays;

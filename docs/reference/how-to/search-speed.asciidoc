@@ -53,19 +53,17 @@ field.
 PUT movies
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "name_and_plot": {
-          "type": "text"
-        },
-        "name": {
-          "type": "text",
-          "copy_to": "name_and_plot"
-        },
-        "plot": {
-          "type": "text",
-          "copy_to": "name_and_plot"
-        }
+    "properties": {
+      "name_and_plot": {
+        "type": "text"
+      },
+      "name": {
+        "type": "text",
+        "copy_to": "name_and_plot"
+      },
+      "plot": {
+        "type": "text",
+        "copy_to": "name_and_plot"
       }
     }
   }
@@ -126,11 +124,9 @@ should be mapped as a <<keyword,`keyword`>>:
 PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "price_range": {
-          "type": "keyword"
-        }
+    "properties": {
+      "price_range": {
+        "type": "keyword"
       }
     }
   }
@@ -165,12 +161,15 @@ GET index/_search
 // TEST[continued]
 
 [float]
-=== Mappings
+=== Consider mapping identifiers as `keyword`
 
 The fact that some data is numeric does not mean it should always be mapped as a
-<<number,numeric field>>. Typically, fields storing identifiers such as an `ISBN`
-or any number identifying a record from another database, might benefit from
-being mapped as <<keyword,`keyword`>> rather than `integer` or `long`.
+<<number,numeric field>>. The way that Elasticsearch indexes numbers optimizes
+for `range` queries while `keyword` fields are better at `term` queries. Typically, 
+fields storing identifiers such as an `ISBN` or any number identifying a record 
+from another database are rarely used in `range` queries or aggregations. This is
+why they might benefit from being mapped as <<keyword,`keyword`>> rather than as 
+`integer` or `long`.
 
 [float]
 === Avoid scripts
@@ -322,12 +321,10 @@ eagerly at refresh-time by configuring mappings as described below:
 PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "keyword",
-          "eager_global_ordinals": true
-        }
+    "properties": {
+      "foo": {
+        "type": "keyword",
+        "eager_global_ordinals": true
       }
     }
   }
@@ -348,15 +345,6 @@ setting.
 WARNING: Loading data into the filesystem cache eagerly on too many indices or
 too many files will make search _slower_ if the filesystem cache is not large
 enough to hold all the data. Use with caution.
-
-[float]
-=== Map identifiers as `keyword`
-
-When you have numeric identifiers in your documents, it is tempting to map them
-as numbers, which is consistent with their json type. However, the way that
-Elasticsearch indexes numbers optimizes for `range` queries while `keyword`
-fields are better at `term` queries. Since identifiers are never used in `range`
-queries, they should be mapped as a `keyword`.
 
 [float]
 === Use index sorting to speed up conjunctions
@@ -406,3 +394,28 @@ So what is the right number of replicas? If you have a cluster that has
 be able to cope with `max_failures` node failures at once at most, then the
 right number of replicas for you is
 `max(max_failures, ceil(num_nodes / num_primaries) - 1)`.
+
+[float]
+=== Turn on adaptive replica selection
+
+When multiple copies of data are present, elasticsearch can use a set of
+criteria called <<search-adaptive-replica,adaptive replica selection>> to select
+the best copy of the data based on response time, service time, and queue size
+of the node containing each copy of the shard. This can improve query throughput
+and reduce latency for search-heavy applications.
+
+=== Tune your queries with the Profile API
+
+You can also analyse how expensive each component of your queries and 
+aggregations are using the {ref}/search-profile.html[Profile API]. This might 
+allow you to tune your queries to be less expensive, resulting in a positive 
+performance result and reduced load. Also note that Profile API payloads can be 
+easily visualised for better readability in the 
+{kibana-ref}/xpack-profiler.html[Search Profiler], which is a Kibana dev tools 
+UI available in all X-Pack licenses, including the free X-Pack Basic license.
+
+Some caveats to the Profile API are that:
+
+ - the Profile API as a debugging tool adds significant overhead to search execution and can also have a very verbose output
+ - given the added overhead, the resulting took times are not reliable indicators of actual took time, but can be used comparatively between clauses for relative timing differences
+ - the Profile API is best for exploring possible reasons behind the most costly clauses of a query but isn't intended for accurately measuring absolute timings of each clause 

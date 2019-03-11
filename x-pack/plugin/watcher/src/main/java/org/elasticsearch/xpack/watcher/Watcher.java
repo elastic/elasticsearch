@@ -5,9 +5,14 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -20,13 +25,14 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -42,15 +48,14 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -77,8 +82,6 @@ import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
 import org.elasticsearch.xpack.watcher.actions.email.EmailActionFactory;
-import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
-import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatActionFactory;
 import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.index.IndexActionFactory;
 import org.elasticsearch.xpack.watcher.actions.jira.JiraAction;
@@ -99,6 +102,7 @@ import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
+import org.elasticsearch.xpack.watcher.condition.WatcherConditionScript;
 import org.elasticsearch.xpack.watcher.execution.AsyncTriggerEventConsumer;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
@@ -129,7 +133,6 @@ import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttach
 import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAttachementParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser;
 import org.elasticsearch.xpack.watcher.notification.email.support.BodyPartSource;
-import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
@@ -145,6 +148,7 @@ import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.transform.script.ScriptTransform;
 import org.elasticsearch.xpack.watcher.transform.script.ScriptTransformFactory;
+import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransformFactory;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.TransportAckWatchAction;
@@ -169,12 +173,12 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.WeeklySchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.YearlySchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -184,12 +188,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
+import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
 public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, ReloadablePlugin {
 
@@ -201,30 +209,33 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
             Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
+    private static final Setting<Integer> SETTING_BULK_ACTIONS =
+        Setting.intSetting("xpack.watcher.bulk.actions", 1, 1, 10000, NodeScope);
+    private static final Setting<Integer> SETTING_BULK_CONCURRENT_REQUESTS =
+        Setting.intSetting("xpack.watcher.bulk.concurrent_requests", 0, 0, 20, NodeScope);
+    private static final Setting<TimeValue> SETTING_BULK_FLUSH_INTERVAL =
+        Setting.timeSetting("xpack.watcher.bulk.flush_interval", TimeValue.timeValueSeconds(1), NodeScope);
+    private static final Setting<ByteSizeValue> SETTING_BULK_SIZE =
+        Setting.byteSizeSetting("xpack.watcher.bulk.size", new ByteSizeValue(1, ByteSizeUnit.MB),
+            new ByteSizeValue(1, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.MB), NodeScope);
 
-    public static final ScriptContext<SearchScript.Factory> SCRIPT_SEARCH_CONTEXT =
-        new ScriptContext<>("xpack", SearchScript.Factory.class);
-    // TODO: remove this context when each xpack script use case has their own contexts
-    public static final ScriptContext<ExecutableScript.Factory> SCRIPT_EXECUTABLE_CONTEXT
-        = new ScriptContext<>("xpack_executable", ExecutableScript.Factory.class);
     public static final ScriptContext<TemplateScript.Factory> SCRIPT_TEMPLATE_CONTEXT
         = new ScriptContext<>("xpack_template", TemplateScript.Factory.class);
 
-    private static final Logger logger = Loggers.getLogger(Watcher.class);
+    private static final Logger logger = LogManager.getLogger(Watcher.class);
     private WatcherIndexingListener listener;
     private HttpClient httpClient;
+    private BulkProcessor bulkProcessor;
 
     protected final Settings settings;
     protected final boolean transportClient;
     protected final boolean enabled;
-    protected final Environment env;
     protected List<NotificationService> reloadableServices = new ArrayList<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;
         this.transportClient = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
-        env = transportClient ? null : new Environment(settings, null);
 
         if (enabled && transportClient == false) {
             validAutoCreateIndex(settings, logger);
@@ -256,25 +267,23 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             throw new UncheckedIOException(e);
         }
 
-        new WatcherIndexTemplateRegistry(settings, clusterService, threadPool, client);
+        new WatcherIndexTemplateRegistry(clusterService, threadPool, client, xContentRegistry);
 
         // http client
-        httpClient = new HttpClient(settings, getSslService(), cryptoService);
+        httpClient = new HttpClient(settings, getSslService(), cryptoService, clusterService);
 
         // notification
         EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());
-        HipChatService hipChatService = new HipChatService(settings, httpClient, clusterService.getClusterSettings());
         JiraService jiraService = new JiraService(settings, httpClient, clusterService.getClusterSettings());
         SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
         PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());
 
         reloadableServices.add(emailService);
-        reloadableServices.add(hipChatService);
         reloadableServices.add(jiraService);
         reloadableServices.add(slackService);
         reloadableServices.add(pagerDutyService);
 
-        TextTemplateEngine templateEngine = new TextTemplateEngine(settings, scriptService);
+        TextTemplateEngine templateEngine = new TextTemplateEngine(scriptService);
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, templateEngine));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
@@ -291,34 +300,75 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
         final ConditionRegistry conditionRegistry = new ConditionRegistry(Collections.unmodifiableMap(parsers), getClock());
         final Map<String, TransformFactory> transformFactories = new HashMap<>();
-        transformFactories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
+        transformFactories.put(ScriptTransform.TYPE, new ScriptTransformFactory(scriptService));
         transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry, scriptService));
-        final TransformRegistry transformRegistry = new TransformRegistry(settings, Collections.unmodifiableMap(transformFactories));
+        final TransformRegistry transformRegistry = new TransformRegistry(Collections.unmodifiableMap(transformFactories));
 
         // actions
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
         actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, emailAttachmentsParser));
-        actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient, templateEngine));
+        actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(httpClient, templateEngine));
         actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
-        actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(settings, templateEngine));
-        actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(settings, templateEngine, hipChatService));
-        actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(settings, templateEngine, jiraService));
-        actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(settings, templateEngine, slackService));
-        actionFactoryMap.put(PagerDutyAction.TYPE, new PagerDutyActionFactory(settings, templateEngine, pagerDutyService));
+        actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(templateEngine));
+        actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(templateEngine, jiraService));
+        actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(templateEngine, slackService));
+        actionFactoryMap.put(PagerDutyAction.TYPE, new PagerDutyActionFactory(templateEngine, pagerDutyService));
         final ActionRegistry registry = new ActionRegistry(actionFactoryMap, conditionRegistry, transformRegistry, getClock(),
             getLicenseState());
 
         // inputs
         final Map<String, InputFactory> inputFactories = new HashMap<>();
         inputFactories.put(SearchInput.TYPE, new SearchInputFactory(settings, client, xContentRegistry, scriptService));
-        inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
+        inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory());
         inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine));
-        inputFactories.put(NoneInput.TYPE, new NoneInputFactory(settings));
-        inputFactories.put(TransformInput.TYPE, new TransformInputFactory(settings, transformRegistry));
-        final InputRegistry inputRegistry = new InputRegistry(settings, inputFactories);
-        inputFactories.put(ChainInput.TYPE, new ChainInputFactory(settings, inputRegistry));
+        inputFactories.put(NoneInput.TYPE, new NoneInputFactory());
+        inputFactories.put(TransformInput.TYPE, new TransformInputFactory(transformRegistry));
+        final InputRegistry inputRegistry = new InputRegistry(inputFactories);
+        inputFactories.put(ChainInput.TYPE, new ChainInputFactory(inputRegistry));
 
-        final HistoryStore historyStore = new HistoryStore(settings, client);
+        bulkProcessor = BulkProcessor.builder(ClientHelper.clientWithOrigin(client, WATCHER_ORIGIN), new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                if (response.hasFailures()) {
+                    Map<String, String> triggeredWatches = Arrays.stream(response.getItems())
+                        .filter(BulkItemResponse::isFailed)
+                        .filter(r -> r.getIndex().startsWith(TriggeredWatchStoreField.INDEX_NAME))
+                        .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                    if (triggeredWatches.isEmpty() == false) {
+                        String failure = triggeredWatches.values().stream().collect(Collectors.joining(", "));
+                        logger.error("triggered watches could not be deleted {}, failure [{}]",
+                            triggeredWatches.keySet(), Strings.substring(failure, 0, 2000));
+                    }
+
+                    Map<String, String> overwrittenIds = Arrays.stream(response.getItems())
+                        .filter(BulkItemResponse::isFailed)
+                        .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
+                        .filter(r -> r.getVersion() > 1)
+                        .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                    if (overwrittenIds.isEmpty() == false) {
+                        String failure = overwrittenIds.values().stream().collect(Collectors.joining(", "));
+                        logger.info("overwrote watch history entries {}, possible second execution of a triggered watch, failure [{}]",
+                            overwrittenIds.keySet(), Strings.substring(failure, 0, 2000));
+                    }
+                }
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                logger.error("error executing bulk", failure);
+            }
+        })
+            .setFlushInterval(SETTING_BULK_FLUSH_INTERVAL.get(settings))
+            .setBulkActions(SETTING_BULK_ACTIONS.get(settings))
+            .setBulkSize(SETTING_BULK_SIZE.get(settings))
+            .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
+            .build();
+
+        HistoryStore historyStore = new HistoryStore(bulkProcessor);
 
         // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
@@ -337,15 +387,15 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         final Set<TriggerEngine> triggerEngines = new HashSet<>();
         triggerEngines.add(manualTriggerEngine);
         triggerEngines.add(configuredTriggerEngine);
-        final TriggerService triggerService = new TriggerService(settings, triggerEngines);
+        final TriggerService triggerService = new TriggerService(triggerEngines);
 
-        final TriggeredWatch.Parser triggeredWatchParser = new TriggeredWatch.Parser(settings, triggerService);
-        final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser);
+        final TriggeredWatch.Parser triggeredWatchParser = new TriggeredWatch.Parser(triggerService);
+        final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser, bulkProcessor);
 
         final WatcherSearchTemplateService watcherSearchTemplateService =
-                new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
+                new WatcherSearchTemplateService(scriptService, xContentRegistry);
         final WatchExecutor watchExecutor = getWatchExecutor(threadPool);
-        final WatchParser watchParser = new WatchParser(settings, triggerService, registry, inputRegistry, cryptoService, getClock());
+        final WatchParser watchParser = new WatchParser(triggerService, registry, inputRegistry, cryptoService, getClock());
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
                 getClock(), watchParser, clusterService, client, threadPool.generic());
@@ -357,14 +407,14 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
                 watchParser, client);
 
         final WatcherLifeCycleService watcherLifeCycleService =
-                new WatcherLifeCycleService(settings, clusterService, watcherService);
+                new WatcherLifeCycleService(clusterService, watcherService);
 
-        listener = new WatcherIndexingListener(settings, watchParser, getClock(), triggerService);
+        listener = new WatcherIndexingListener(watchParser, getClock(), triggerService);
         clusterService.addListener(listener);
 
         return Arrays.asList(registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
                 watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
-                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService, hipChatService);
+                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService);
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
@@ -376,7 +426,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     }
 
     protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService) {
-        return new AsyncTriggerEventConsumer(settings, executionService);
+        return new AsyncTriggerEventConsumer(executionService);
     }
 
     @Override
@@ -414,13 +464,17 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         settings.add(Setting.simpleString("xpack.watcher.input.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.transform.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
-        settings.add(WatcherLifeCycleService.SETTING_REQUIRE_MANUAL_START);
+
+        // bulk processor configuration
+        settings.add(SETTING_BULK_ACTIONS);
+        settings.add(SETTING_BULK_CONCURRENT_REQUESTS);
+        settings.add(SETTING_BULK_FLUSH_INTERVAL);
+        settings.add(SETTING_BULK_SIZE);
 
         // notification services
         settings.addAll(SlackService.getSettings());
         settings.addAll(EmailService.getSettings());
         settings.addAll(HtmlSanitizer.getSettings());
-        settings.addAll(HipChatService.getSettings());
         settings.addAll(JiraService.getSettings());
         settings.addAll(PagerDutyService.getSettings());
         settings.add(ReportingAttachmentParser.RETRIES_SETTING);
@@ -520,11 +574,9 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         }
 
         assert listener != null;
-        // for now, we only add this index operation listener to indices starting with .watches
-        // this also means, that aliases pointing to this index have to follow this notation
-        if (module.getIndex().getName().startsWith(Watch.INDEX)) {
-            module.addIndexOperationListener(listener);
-        }
+        // Attach a listener to every index so that we can react to alias changes.
+        // This listener will be a no-op except on the index pointed to by .watches
+        module.addIndexOperationListener(listener);
     }
 
     static void validAutoCreateIndex(Settings settings, Logger logger) {
@@ -535,7 +587,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +
-                "[{}, {}, {}*]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME, HistoryStoreField.INDEX_PREFIX);
+                "[{},{},{}*]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME, HistoryStoreField.INDEX_PREFIX);
         if (Booleans.isFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }
@@ -548,7 +600,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         List<String> indices = new ArrayList<>();
         indices.add(".watches");
         indices.add(".triggered_watches");
-        DateTime now = new DateTime(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         indices.add(HistoryStoreField.getHistoryIndexNameForTime(now));
         indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1)));
         indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1)));
@@ -584,7 +636,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. " +
                 " for the next 6 months daily history indices are allowed to be created, but please make sure" +
                 " that any future history indices after 6 months with the pattern " +
-                "[.watcher-history-YYYY.MM.dd] are allowed to be created", value);
+                "[.watcher-history-yyyy.MM.dd] are allowed to be created", value);
     }
 
     // These are all old templates from pre 6.0 era, that need to be deleted
@@ -598,17 +650,27 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
-        return Collections.singletonList(new EncryptSensitiveDataBootstrapCheck(env));
+        return Collections.singletonList(new EncryptSensitiveDataBootstrapCheck());
     }
 
     @Override
-    public List<ScriptContext> getContexts() {
-        return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, Watcher.SCRIPT_EXECUTABLE_CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
+    public List<ScriptContext<?>> getContexts() {
+        return Arrays.asList(WatcherTransformScript.CONTEXT, WatcherConditionScript.CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
     }
 
     @Override
     public void close() throws IOException {
+        if (enabled) {
+            bulkProcessor.flush();
+        }
         IOUtils.closeWhileHandlingException(httpClient);
+        try {
+            if (enabled && bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
+                logger.warn("failed to properly close watcher bulk processor");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**

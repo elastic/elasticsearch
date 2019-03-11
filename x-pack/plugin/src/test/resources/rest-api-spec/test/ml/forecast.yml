@@ -1,6 +1,6 @@
 setup:
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: forecast-job
         body:  >
           {
@@ -15,23 +15,27 @@ setup:
 
 ---
 "Test forecast unknown job":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/34747"
+      version: "6.5.0 - "
+
   - do:
       catch: missing
-      xpack.ml.forecast:
+      ml.forecast:
         job_id: "non-existing-job"
 
 ---
 "Test forecast on closed job":
   - do:
       catch: /status_exception/
-      xpack.ml.forecast:
+      ml.forecast:
         job_id: "forecast-job"
 
 ---
 "Test forecast given duration is zero":
   - do:
       catch: /\[duration\] must be positive[:] \[0s\]/
-      xpack.ml.forecast:
+      ml.forecast:
         job_id: "forecast-job"
         duration: "0s"
 
@@ -39,7 +43,7 @@ setup:
 "Test forecast given duration is negative":
   - do:
       catch: /\[duration\] must be positive[:] \[-1\]/
-      xpack.ml.forecast:
+      ml.forecast:
         job_id: "forecast-job"
         duration: "-1s"
 
@@ -47,6 +51,6 @@ setup:
 "Test forecast given expires_in is negative":
   - do:
       catch: /\[expires_in\] must be non-negative[:] \[-1\]/
-      xpack.ml.forecast:
+      ml.forecast:
         job_id: "forecast-job"
         expires_in: "-1s"

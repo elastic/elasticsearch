@@ -19,6 +19,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -70,7 +72,11 @@ public final class FieldSubsetReader extends FilterLeafReader {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
-                    return new FieldSubsetReader(reader, filter);
+                    try {
+                        return new FieldSubsetReader(reader, filter);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
                 }
             });
             this.filter = filter;
@@ -109,11 +115,13 @@ public final class FieldSubsetReader extends FilterLeafReader {
     private final FieldInfos fieldInfos;
     /** An automaton that only accepts authorized fields. */
     private final CharacterRunAutomaton filter;
+    /** {@link Terms} cache with filtered stats for the {@link FieldNamesFieldMapper} field. */
+    private final Terms fieldNamesFilterTerms;
 
     /**
      * Wrap a single segment, exposing a subset of its fields.
      */
-    FieldSubsetReader(LeafReader in, CharacterRunAutomaton filter) {
+    FieldSubsetReader(LeafReader in, CharacterRunAutomaton filter) throws IOException {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
@@ -123,6 +131,8 @@ public final class FieldSubsetReader extends FilterLeafReader {
         }
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
         this.filter = filter;
+        final Terms fieldNameTerms = super.terms(FieldNamesFieldMapper.NAME);
+        this.fieldNamesFilterTerms = fieldNameTerms == null ? null : new FieldNamesTerms(fieldNameTerms);
     }
 
     /** returns true if this field is allowed. */
@@ -346,21 +356,14 @@ public final class FieldSubsetReader extends FilterLeafReader {
         }
     }
 
-    private Terms wrapTerms(Terms terms, String field) {
+    private Terms wrapTerms(Terms terms, String field) throws IOException {
         if (!hasField(field)) {
             return null;
         } else if (FieldNamesFieldMapper.NAME.equals(field)) {
             // for the _field_names field, fields for the document
             // are encoded as postings, where term is the field.
             // so we hide terms for fields we filter out.
-            if (terms != null) {
-                // check for null, in case term dictionary is not a ghostbuster
-                // So just because its in fieldinfos and "indexed=true" doesn't mean you can go grab a Terms for it.
-                // It just means at one point there was a document with that field indexed...
-                // The fields infos isn't updates/removed even if no docs refer to it
-                terms = new FieldNamesTerms(terms);
-            }
-            return terms;
+            return fieldNamesFilterTerms;
         } else {
             return terms;
         }
@@ -371,9 +374,25 @@ public final class FieldSubsetReader extends FilterLeafReader {
      * representing fields that should not be visible in this reader.
      */
     class FieldNamesTerms extends FilterTerms {
+        final long size;
+        final long sumDocFreq;
+        final long sumTotalFreq;
 
-        FieldNamesTerms(Terms in) {
+        FieldNamesTerms(Terms in) throws IOException {
             super(in);
+            assert in.hasFreqs() == false;
+            // re-compute the stats for the field to take
+            // into account the filtered terms.
+            final TermsEnum e = iterator();
+            long size = 0, sumDocFreq = 0, sumTotalFreq = 0;
+            while (e.next() != null) {
+                size ++;
+                sumDocFreq += e.docFreq();
+                sumTotalFreq += e.totalTermFreq();
+            }
+            this.size = size;
+            this.sumDocFreq = sumDocFreq;
+            this.sumTotalFreq = sumTotalFreq;
         }
 
         @Override
@@ -381,27 +400,25 @@ public final class FieldSubsetReader extends FilterLeafReader {
             return new FieldNamesTermsEnum(in.iterator());
         }
 
-        // we don't support field statistics (since we filter out terms)
-        // but this isn't really a big deal: _field_names is not used for ranking.
-
         @Override
-        public int getDocCount() throws IOException {
-            return -1;
+        public long size() throws IOException {
+            return size;
         }
 
         @Override
         public long getSumDocFreq() throws IOException {
-            return -1;
+            return sumDocFreq;
         }
 
         @Override
         public long getSumTotalTermFreq() throws IOException {
-            return -1;
+            return sumTotalFreq;
         }
 
         @Override
-        public long size() throws IOException {
-            return -1;
+        public int getDocCount() throws IOException {
+            // it is costly to recompute this value so we assume that docCount == maxDoc.
+            return maxDoc();
         }
     }
 
@@ -423,6 +440,14 @@ public final class FieldSubsetReader extends FilterLeafReader {
         @Override
         public boolean seekExact(BytesRef term) throws IOException {
             return accept(term) && in.seekExact(term);
+        }
+
+        @Override
+        public void seekExact(BytesRef term, TermState state) throws IOException {
+            if (accept(term) == false) {
+                throw new IllegalStateException("Tried to seek using a TermState from a different reader!");
+            }
+            in.seekExact(term, state);
         }
 
         @Override

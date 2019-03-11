@@ -261,10 +261,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        if (ctx.dstatement() != null) {
-            statements.add((AStatement)visit(ctx.dstatement()));
-        }
-
         return new SSource(scriptClassInfo, settings, sourceName, debugStream, (MainMethodReserved)reserved.pop(),
                            location(ctx), functions, globals, statements);
     }
@@ -415,7 +411,11 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitReturn(ReturnContext ctx) {
-        AExpression expression = (AExpression)visit(ctx.expression());
+        AExpression expression = null;
+
+        if (ctx.expression() != null) {
+            expression = (AExpression) visit(ctx.expression());
+        }
 
         return new SReturn(location(ctx), expression);
     }

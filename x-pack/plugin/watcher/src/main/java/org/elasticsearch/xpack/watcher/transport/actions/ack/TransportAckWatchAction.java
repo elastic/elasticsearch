@@ -16,8 +16,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -34,31 +34,33 @@ import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
 
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequest, AckWatchResponse> {
 
     private final Clock clock;
     private final WatchParser parser;
     private final Client client;
+    private final ClusterService clusterService;
 
     @Inject
-    public TransportAckWatchAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+    public TransportAckWatchAction(TransportService transportService, ActionFilters actionFilters,
                                    Clock clock, XPackLicenseState licenseState, WatchParser parser,
-                                   Client client) {
-        super(settings, AckWatchAction.NAME, transportService, actionFilters, licenseState, AckWatchRequest::new);
+                                   Client client, ClusterService clusterService) {
+        super(AckWatchAction.NAME, transportService, actionFilters, licenseState, AckWatchRequest::new);
         this.clock = clock;
         this.parser = parser;
         this.client = client;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -73,7 +75,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                 listener.onFailure(new ElasticsearchStatusException("watch[{}] is running currently, cannot ack until finished",
                     RestStatus.CONFLICT, request.getWatchId()));
             } else {
-                GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId())
+                GetRequest getRequest = new GetRequest(Watch.INDEX, request.getWatchId())
                     .preference(Preference.LOCAL.type()).realtime(true);
 
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
@@ -81,10 +83,9 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                         if (getResponse.isExists() == false) {
                             listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId()));
                         } else {
-                            DateTime now = new DateTime(clock.millis(), UTC);
+                            ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
                             Watch watch = parser.parseWithSecrets(request.getWatchId(), true, getResponse.getSourceAsBytesRef(),
-                                now, XContentType.JSON);
-                            watch.version(getResponse.getVersion());
+                                now, XContentType.JSON, getResponse.getSeqNo(), getResponse.getPrimaryTerm());
                             watch.status().version(getResponse.getVersion());
                             String[] actionIds = request.getActionIds();
                             if (actionIds == null || actionIds.length == 0) {
@@ -98,9 +99,10 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                                 return;
                             }
 
-                            UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId());
+                            UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, request.getWatchId());
                             // this may reject this action, but prevents concurrent updates from a watch execution
-                            updateRequest.version(getResponse.getVersion());
+                            updateRequest.setIfSeqNo(getResponse.getSeqNo());
+                            updateRequest.setIfPrimaryTerm(getResponse.getPrimaryTerm());
                             updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                             XContentBuilder builder = jsonBuilder();
                             builder.startObject()

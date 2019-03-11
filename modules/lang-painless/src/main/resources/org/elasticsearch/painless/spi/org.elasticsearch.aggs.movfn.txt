@@ -19,7 +19,7 @@
 
 # This file contains a whitelist for the Moving Function pipeline aggregator in core
 
-class org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctions {
+class org.elasticsearch.search.aggregations.pipeline.MovingFunctions {
   double max(double[])
   double min(double[])
   double sum(double[])

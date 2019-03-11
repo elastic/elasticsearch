@@ -96,7 +96,7 @@ and stack traces in response output. Note: When set to `false` and the `error_tr
 parameter is specified, an error will be returned; when `error_trace` is not specified, a
 simple message will be returned. Defaults to `true`
 
-|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before a HTTP connection is closed, defaults to `10000`.
+|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before an HTTP connection is closed, defaults to `10000`.
 
 |`http.max_warning_header_count` |The maximum number of warning headers in
  client HTTP responses, defaults to unbounded.

@@ -32,12 +32,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.collapse.CollapseBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,6 +68,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         PARSER.declareInt(InnerHitBuilder::setSize, SearchSourceBuilder.SIZE_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setExplain, SearchSourceBuilder.EXPLAIN_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setVersion, SearchSourceBuilder.VERSION_FIELD);
+        PARSER.declareBoolean(InnerHitBuilder::setSeqNoAndPrimaryTerm, SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setTrackScores, SearchSourceBuilder.TRACK_SCORES_FIELD);
         PARSER.declareStringArray(InnerHitBuilder::setStoredFieldNames, SearchSourceBuilder.STORED_FIELDS_FIELD);
         PARSER.declareObjectArray(InnerHitBuilder::setDocValueFields,
@@ -117,7 +118,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
         }, COLLAPSE_FIELD, ObjectParser.ValueType.OBJECT);
     }
-
     private String name;
     private boolean ignoreUnmapped;
 
@@ -125,6 +125,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     private int size = 3;
     private boolean explain;
     private boolean version;
+    private boolean seqNoAndPrimaryTerm;
     private boolean trackScores;
 
     private StoredFieldsContext storedFieldsContext;
@@ -150,20 +151,20 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
      */
     public InnerHitBuilder(StreamInput in) throws IOException {
         name = in.readOptionalString();
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            in.readOptionalString();
-            in.readOptionalString();
-        }
-        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
-            ignoreUnmapped = in.readBoolean();
-        }
+        ignoreUnmapped = in.readBoolean();
         from = in.readVInt();
         size = in.readVInt();
         explain = in.readBoolean();
         version = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)){
+            seqNoAndPrimaryTerm = in.readBoolean();
+        } else {
+            seqNoAndPrimaryTerm = false;
+        }
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
         if (in.getVersion().before(Version.V_6_4_0)) {
+            @SuppressWarnings("unchecked")
             List<String> fieldList = (List<String>) in.readGenericValue();
             if (fieldList == null) {
                 docValueFields = null;
@@ -191,14 +192,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
             }
         }
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            /**
-             * this is needed for BWC with nodes pre 5.5
-             */
-            in.readNamedWriteable(QueryBuilder.class);
-            boolean hasChildren = in.readBoolean();
-            assert hasChildren == false;
-        }
         if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
         }
@@ -206,15 +199,15 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            throw new IOException("Invalid output version, must >= " + Version.V_5_5_0.toString());
-        }
         out.writeOptionalString(name);
         out.writeBoolean(ignoreUnmapped);
         out.writeVInt(from);
         out.writeVInt(size);
         out.writeBoolean(explain);
         out.writeBoolean(version);
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+            out.writeBoolean(seqNoAndPrimaryTerm);
+        }
         out.writeBoolean(trackScores);
         out.writeOptionalWriteable(storedFieldsContext);
         if (out.getVersion().before(Version.V_6_4_0)) {
@@ -250,84 +243,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeOptionalWriteable(innerCollapseBuilder);
         }
-    }
-
-    /**
-     * BWC serialization for nested {@link InnerHitBuilder}.
-     * Should only be used to send nested inner hits to nodes pre 5.5.
-     */
-    protected void writeToNestedBWC(StreamOutput out, QueryBuilder query, String nestedPath) throws IOException {
-        assert out.getVersion().before(Version.V_5_5_0) :
-            "invalid output version, must be < " + Version.V_5_5_0.toString();
-        writeToBWC(out, query, nestedPath, null);
-    }
-
-    /**
-     * BWC serialization for collapsing {@link InnerHitBuilder}.
-     * Should only be used to send collapsing inner hits to nodes pre 5.5.
-     */
-    public void writeToCollapseBWC(StreamOutput out) throws IOException {
-        assert out.getVersion().before(Version.V_5_5_0) :
-            "invalid output version, must be < " + Version.V_5_5_0.toString();
-        writeToBWC(out, new MatchAllQueryBuilder(), null, null);
-    }
-
-    /**
-     * BWC serialization for parent/child {@link InnerHitBuilder}.
-     * Should only be used to send hasParent or hasChild inner hits to nodes pre 5.5.
-     */
-    public void writeToParentChildBWC(StreamOutput out, QueryBuilder query, String parentChildPath) throws IOException {
-        assert(out.getVersion().before(Version.V_5_5_0)) :
-            "invalid output version, must be < " + Version.V_5_5_0.toString();
-        writeToBWC(out, query, null, parentChildPath);
-    }
-
-    private void writeToBWC(StreamOutput out,
-                            QueryBuilder query,
-                            String nestedPath,
-                            String parentChildPath) throws IOException {
-        out.writeOptionalString(name);
-        if (nestedPath != null) {
-            out.writeOptionalString(nestedPath);
-            out.writeOptionalString(null);
-        } else {
-            out.writeOptionalString(null);
-            out.writeOptionalString(parentChildPath);
-        }
-        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
-            out.writeBoolean(ignoreUnmapped);
-        }
-        out.writeVInt(from);
-        out.writeVInt(size);
-        out.writeBoolean(explain);
-        out.writeBoolean(version);
-        out.writeBoolean(trackScores);
-        out.writeOptionalWriteable(storedFieldsContext);
-        out.writeGenericValue(docValueFields == null
-                ? null
-                : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));
-        boolean hasScriptFields = scriptFields != null;
-        out.writeBoolean(hasScriptFields);
-        if (hasScriptFields) {
-            out.writeVInt(scriptFields.size());
-            Iterator<ScriptField> iterator = scriptFields.stream()
-                .sorted(Comparator.comparing(ScriptField::fieldName)).iterator();
-            while (iterator.hasNext()) {
-                iterator.next().writeTo(out);
-            }
-        }
-        out.writeOptionalWriteable(fetchSourceContext);
-        boolean hasSorts = sorts != null;
-        out.writeBoolean(hasSorts);
-        if (hasSorts) {
-            out.writeVInt(sorts.size());
-            for (SortBuilder<?> sort : sorts) {
-                out.writeNamedWriteable(sort);
-            }
-        }
-        out.writeOptionalWriteable(highlightBuilder);
-        out.writeNamedWriteable(query);
-        out.writeBoolean(false);
     }
 
     public String getName() {
@@ -393,6 +308,15 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         return this;
     }
 
+    public boolean isSeqNoAndPrimaryTerm() {
+        return seqNoAndPrimaryTerm;
+    }
+
+    public InnerHitBuilder setSeqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+        this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
+        return this;
+    }
+
     public boolean isTrackScores() {
         return trackScores;
     }
@@ -401,28 +325,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         this.trackScores = trackScores;
         return this;
     }
-
-    /**
-     * Gets the stored fields to load and return.
-     *
-     * @deprecated Use {@link InnerHitBuilder#getStoredFieldsContext()} instead.
-     */
-    @Deprecated
-    public List<String> getFieldNames() {
-        return storedFieldsContext == null ? null : storedFieldsContext.fieldNames();
-    }
-
-    /**
-     * Sets the stored fields to load and return.
-     * If none are specified, the source of the document will be returned.
-     *
-     * @deprecated Use {@link InnerHitBuilder#setStoredFieldNames(List)} instead.
-     */
-    @Deprecated
-    public InnerHitBuilder setFieldNames(List<String> fieldNames) {
-        return setStoredFieldNames(fieldNames);
-    }
-
 
     /**
      * Gets the stored fields context.
@@ -466,7 +368,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         if (docValueFields == null) {
             docValueFields = new ArrayList<>();
         }
-        docValueFields.add(new FieldAndFormat(field, null));
+        docValueFields.add(new FieldAndFormat(field, format));
         return this;
     }
 
@@ -552,6 +454,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         builder.field(SearchSourceBuilder.FROM_FIELD.getPreferredName(), from);
         builder.field(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), size);
         builder.field(SearchSourceBuilder.VERSION_FIELD.getPreferredName(), version);
+        builder.field(SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD.getPreferredName(), seqNoAndPrimaryTerm);
         builder.field(SearchSourceBuilder.EXPLAIN_FIELD.getPreferredName(), explain);
         builder.field(SearchSourceBuilder.TRACK_SCORES_FIELD.getPreferredName(), trackScores);
         if (fetchSourceContext != null) {
@@ -610,6 +513,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
                 Objects.equals(size, that.size) &&
                 Objects.equals(explain, that.explain) &&
                 Objects.equals(version, that.version) &&
+                Objects.equals(seqNoAndPrimaryTerm, that.seqNoAndPrimaryTerm) &&
                 Objects.equals(trackScores, that.trackScores) &&
                 Objects.equals(storedFieldsContext, that.storedFieldsContext) &&
                 Objects.equals(docValueFields, that.docValueFields) &&
@@ -622,7 +526,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, ignoreUnmapped, from, size, explain, version, trackScores,
+        return Objects.hash(name, ignoreUnmapped, from, size, explain, version, seqNoAndPrimaryTerm, trackScores,
                 storedFieldsContext, docValueFields, scriptFields, fetchSourceContext, sorts, highlightBuilder, innerCollapseBuilder);
     }
 

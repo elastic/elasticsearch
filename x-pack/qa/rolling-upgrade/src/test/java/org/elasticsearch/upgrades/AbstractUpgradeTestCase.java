@@ -38,6 +38,16 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         return true;
     }
 
+    @Override
+    protected boolean preserveRollupJobsUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return true;
+    }
+
     enum ClusterType {
         OLD,
         MIXED,
@@ -76,8 +86,10 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             boolean success = true;
             for (String template : templatesToWaitFor()) {
                 try {
+                    final Request headRequest = new Request("HEAD", "_template/" + template);
+                    headRequest.setOptions(allowTypesRemovalWarnings());
                     final boolean exists = adminClient()
-                            .performRequest(new Request("HEAD", "_template/" + template))
+                        .performRequest(headRequest)
                             .getStatusLine().getStatusCode() == 200;
                     success &= exists;
                     logger.debug("template [{}] exists [{}]", template, exists);

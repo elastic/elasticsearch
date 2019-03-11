@@ -1,5 +1,5 @@
 [[ingest]]
-= Ingest Node
+= Ingest node
 
 [partintro]
 --
@@ -34,6 +34,9 @@ PUT my-index/_doc/my-id?pipeline=my_pipeline_id
 --------------------------------------------------
 // CONSOLE
 // TEST[catch:bad_request]
+
+An index may also declare a <<dynamic-index-settings,default pipeline>> that will be used in the
+absence of the `pipeline` parameter.
 
 See <<ingest-apis,Ingest APIs>> for more information about creating, adding, and deleting pipelines.
 

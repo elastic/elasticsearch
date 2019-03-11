@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,12 +48,6 @@ import java.util.Map;
  */
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
     public static final String TYPE = "snapshots";
-
-    // denotes an undefined repository state id, which will happen when receiving a cluster state with
-    // a snapshot in progress from a pre 5.2.x node
-    public static final long UNDEFINED_REPOSITORY_STATE_ID = -2L;
-    // the version where repository state ids were introduced
-    private static final Version REPOSITORY_ID_INTRODUCED_VERSION = Version.V_5_2_0;
 
     @Override
     public boolean equals(Object o) {
@@ -93,9 +88,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final ImmutableOpenMap<String, List<ShardId>> waitingIndices;
         private final long startTime;
         private final long repositoryStateId;
+        @Nullable private final String failure;
 
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
-                     long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+                     long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
+                     String failure) {
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
@@ -110,15 +107,26 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 this.waitingIndices = findWaitingIndices(shards);
             }
             this.repositoryStateId = repositoryStateId;
+            this.failure = failure;
+        }
+
+        public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
+            long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+            this(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards, null);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime,
-                 entry.repositoryStateId, shards);
+                entry.repositoryStateId, shards, entry.failure);
+        }
+
+        public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure) {
+            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime,
+                 entry.repositoryStateId, shards, failure);
         }
 
         public Entry(Entry entry, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
-            this(entry, entry.state, shards);
+            this(entry, entry.state, shards, entry.failure);
         }
 
         public Snapshot snapshot() {
@@ -155,6 +163,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public long getRepositoryStateId() {
             return repositoryStateId;
+        }
+
+        public String failure() {
+            return failure;
         }
 
         @Override
@@ -421,21 +433,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             int shards = in.readVInt();
             for (int j = 0; j < shards; j++) {
                 ShardId shardId = ShardId.readShardId(in);
-                if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-                    builder.put(shardId, new ShardSnapshotStatus(in));
-                } else {
-                    String nodeId = in.readOptionalString();
-                    State shardState = State.fromValue(in.readByte());
-                    // Workaround for https://github.com/elastic/elasticsearch/issues/25878
-                    // Some old snapshot might still have null in shard failure reasons
-                    String reason = shardState.failed() ? "" : null;
-                    builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState, reason));
-                }
+                builder.put(shardId, new ShardSnapshotStatus(in));
             }
-            long repositoryStateId = UNDEFINED_REPOSITORY_STATE_ID;
-            if (in.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
-                repositoryStateId = in.readLong();
-            }
+            long repositoryStateId = in.readLong();
+            final String failure = in.readOptionalString();
             entries[i] = new Entry(snapshot,
                                    includeGlobalState,
                                    partial,
@@ -443,7 +444,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                                    Collections.unmodifiableList(indexBuilder),
                                    startTime,
                                    repositoryStateId,
-                                   builder.build());
+                                   builder.build(),
+                                   failure);
         }
         this.entries = Arrays.asList(entries);
     }
@@ -464,16 +466,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeVInt(entry.shards().size());
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : entry.shards()) {
                 shardEntry.key.writeTo(out);
-                if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-                    shardEntry.value.writeTo(out);
-                } else {
-                    out.writeOptionalString(shardEntry.value.nodeId());
-                    out.writeByte(shardEntry.value.state().value());
-                }
+                shardEntry.value.writeTo(out);
             }
-            if (out.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
-                out.writeLong(entry.repositoryStateId);
-            }
+            out.writeLong(entry.repositoryStateId);
+            out.writeOptionalString(entry.failure);
         }
     }
 

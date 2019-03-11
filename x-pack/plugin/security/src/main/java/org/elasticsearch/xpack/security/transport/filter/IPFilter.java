@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.security.transport.filter;
 
 import io.netty.handler.ipfilter.IpFilterRuleType;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import java.net.InetSocketAddress;
@@ -96,11 +96,12 @@ public class IPFilter {
         }
     };
 
+    private static final Logger logger = LogManager.getLogger(IPFilter.class);
+
     private final AuditTrailService auditTrail;
     private final XPackLicenseState licenseState;
     private final boolean alwaysAllowBoundAddresses;
 
-    private final Logger logger;
     private volatile Map<String, SecurityIpFilterRule[]> rules = Collections.emptyMap();
     private volatile boolean isIpFilterEnabled;
     private volatile boolean isHttpFilterEnabled;
@@ -117,7 +118,6 @@ public class IPFilter {
 
     public IPFilter(final Settings settings, AuditTrailService auditTrail, ClusterSettings clusterSettings,
                     XPackLicenseState licenseState) {
-        this.logger = Loggers.getLogger(getClass(), settings);
         this.auditTrail = auditTrail;
         this.licenseState = licenseState;
         this.alwaysAllowBoundAddresses = ALLOW_BOUND_ADDRESSES_SETTING.get(settings);
@@ -128,7 +128,7 @@ public class IPFilter {
         isHttpFilterEnabled = IP_FILTER_ENABLED_HTTP_SETTING.get(settings);
         isIpFilterEnabled = IP_FILTER_ENABLED_SETTING.get(settings);
 
-        this.profiles = settings.getGroups("transport.profiles.",true).keySet().stream().filter(k -> TcpTransport
+        this.profiles = settings.getGroups("transport.profiles.",true).keySet().stream().filter(k -> TransportSettings
                 .DEFAULT_PROFILE.equals(k) == false).collect(Collectors.toSet()); // exclude default profile -- it's handled differently
         for (String profile : profiles) {
             Setting<List<String>> allowSetting = PROFILE_FILTER_ALLOW_SETTING.getConcreteSettingForNamespace(profile);
@@ -198,7 +198,7 @@ public class IPFilter {
     }
 
     public boolean accept(String profile, InetSocketAddress peerAddress) {
-        if (licenseState.isSecurityEnabled() == false || licenseState.isIpFilteringAllowed() == false) {
+        if (licenseState.isIpFilteringAllowed() == false) {
             return true;
         }
 
@@ -237,7 +237,7 @@ public class IPFilter {
 
             if (isIpFilterEnabled && boundTransportAddress.get() != null) {
                 TransportAddress[] localAddresses = boundTransportAddress.get().boundAddresses();
-                profileRules.put(TcpTransport.DEFAULT_PROFILE, createRules(transportAllowFilter, transportDenyFilter, localAddresses));
+                profileRules.put(TransportSettings.DEFAULT_PROFILE, createRules(transportAllowFilter, transportDenyFilter, localAddresses));
                 for (String profile : profiles) {
                     BoundTransportAddress profileBoundTransportAddress = profileBoundAddress.get().get(profile);
                     if (profileBoundTransportAddress == null) {

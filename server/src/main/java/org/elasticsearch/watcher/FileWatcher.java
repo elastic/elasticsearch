@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.watcher;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -38,7 +38,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
     private FileObserver rootFileObserver;
     private Path file;
 
-    private static final Logger logger = Loggers.getLogger(FileWatcher.class);
+    private static final Logger logger = LogManager.getLogger(FileWatcher.class);
 
     /**
      * Creates new file watcher on the given directory

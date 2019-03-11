@@ -1,9 +1,8 @@
 ---
 "Test watcher usage stats output":
-
   - do:
       catch: missing
-      xpack.watcher.delete_watch:
+      watcher.delete_watch:
         id: "usage_stats_watch"
 
   - do: {xpack.usage: {}}
@@ -11,7 +10,7 @@
   - set: { "watcher.count.total": watch_count_total }
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "usage_stats_watch"
         body:  >
           {

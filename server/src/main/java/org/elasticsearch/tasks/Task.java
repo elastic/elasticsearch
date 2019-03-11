@@ -157,8 +157,19 @@ public class Task {
         return null;
     }
 
+    /**
+     * Report of the internal status of a task. These can vary wildly from task
+     * to task because each task is implemented differently but we should try
+     * to keep each task consistent from version to version where possible.
+     * That means each implementation of {@linkplain Task.Status#toXContent}
+     * should avoid making backwards incompatible changes to the rendered
+     * result. But if we change the way a request is implemented it might not
+     * be possible to preserve backwards compatibility. In that case, we
+     * <b>can</b> change this on version upgrade but we should be careful
+     * because some statuses (reindex) have become defacto standardized because
+     * they are used by systems like Kibana.
+     */
     public interface Status extends ToXContentObject, NamedWriteable {}
-
 
     /**
      * Returns stored task header associated with the task

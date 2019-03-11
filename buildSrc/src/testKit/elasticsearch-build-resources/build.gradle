@@ -22,7 +22,7 @@ task sample {
     // dependsOn buildResources.outputDir
     // for now it's just
     dependsOn buildResources
-    // we have to refference it at configuration time in order to be picked up
+    // we have to reference it at configuration time in order to be picked up
     ext.checkstyle_suppressions = buildResources.copy('checkstyle_suppressions.xml')
     doLast {
         println "This task is using ${file(checkstyle_suppressions)}"

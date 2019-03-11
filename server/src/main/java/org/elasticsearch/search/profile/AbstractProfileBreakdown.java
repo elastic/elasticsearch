@@ -49,6 +49,10 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
         return timings[timing.ordinal()];
     }
 
+    public void setTimer(T timing, Timer timer) {
+        timings[timing.ordinal()] = timer;
+    }
+
     /** Convert this record to a map from timingType to times. */
     public Map<String, Long> toTimingMap() {
         Map<String, Long> map = new HashMap<>();

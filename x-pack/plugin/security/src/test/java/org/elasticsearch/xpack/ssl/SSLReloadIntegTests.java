@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -17,7 +15,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
@@ -74,16 +72,16 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
 
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
-                .put(settings.filter((s) -> s.startsWith("xpack.ssl.") == false));
-
+                .put(settings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false));
         builder.put("path.home", createTempDir())
-            .put("xpack.ssl.key", nodeKeyPath)
-            .put("xpack.ssl.key_passphrase", "testnode")
-            .put("xpack.ssl.certificate", nodeCertPath)
-            .putList("xpack.ssl.certificate_authorities", Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(),
-                updateableCertPath.toString()))
+            .put("xpack.security.transport.ssl.key", nodeKeyPath)
+            .put("xpack.security.transport.ssl.key_passphrase", "testnode")
+            .put("xpack.security.transport.ssl.certificate", nodeCertPath)
+            .putList("xpack.security.transport.ssl.certificate_authorities",
+                Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(), updateableCertPath.toString()))
             .put("resource.reload.interval.high", "1s");
 
+        builder.put("xpack.security.transport.ssl.enabled", true);
         return builder.build();
     }
 
@@ -93,24 +91,23 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     }
 
     public void testThatSSLConfigurationReloadsOnModification() throws Exception {
-        assumeTrue("test fails on JDK 11 currently", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         Path keyPath = createTempDir().resolve("testnode_updated.pem");
         Path certPath = createTempDir().resolve("testnode_updated.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.pem"), keyPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt"), certPath);
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
-            .put("xpack.ssl.key", keyPath)
-            .put("xpack.ssl.certificate", certPath)
-            .putList("xpack.ssl.certificate_authorities", Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(),
-                updateableCertPath.toString()))
+            .put("xpack.security.transport.ssl.key", keyPath)
+            .put("xpack.security.transport.ssl.certificate", certPath)
+            .putList("xpack.security.transport.ssl.certificate_authorities",
+                Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(), updateableCertPath.toString()))
             .setSecureSettings(secureSettings)
             .build();
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
-        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
+        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster()
             .getInstance(Transport.class, node).boundAddress().publishAddress();
@@ -119,7 +116,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             assertThat(socket.isConnected(), is(true));
             socket.startHandshake();
             fail("handshake should not have been successful!");
-        } catch (SSLHandshakeException | SocketException expected) {
+        } catch (SSLException | SocketException expected) {
             logger.trace("expected exception", expected);
         }
         // Copy testnode_updated.crt to the placeholder updateable.crt so that the nodes will start trusting it now

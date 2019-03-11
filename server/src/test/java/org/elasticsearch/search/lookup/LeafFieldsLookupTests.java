@@ -31,7 +31,6 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.List;
 
-import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyObject;
@@ -48,14 +47,16 @@ public class LeafFieldsLookupTests extends ESTestCase {
 
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.name()).thenReturn("field");
-        when(fieldType.valueForDisplay(anyObject())).then(returnsFirstArg());
+        // Add 10 when valueForDisplay is called so it is easy to be sure it *was* called
+        when(fieldType.valueForDisplay(anyObject())).then(invocation ->
+                (Double) invocation.getArguments()[0] + 10);
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fullName("field")).thenReturn(fieldType);
         when(mapperService.fullName("alias")).thenReturn(fieldType);
 
         FieldInfo mockFieldInfo = new FieldInfo("field", 1, false, false, true,
-            IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, false);
+            IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
 
         LeafReader leafReader = mock(LeafReader.class);
         doAnswer(invocation -> {
@@ -77,7 +78,7 @@ public class LeafFieldsLookupTests extends ESTestCase {
         List<Object> values = fieldLookup.getValues();
         assertNotNull(values);
         assertEquals(1, values.size());
-        assertEquals(2.718, values.get(0));
+        assertEquals(12.718, values.get(0));
     }
 
     public void testLookupWithFieldAlias() {
@@ -87,6 +88,6 @@ public class LeafFieldsLookupTests extends ESTestCase {
         List<Object> values = fieldLookup.getValues();
         assertNotNull(values);
         assertEquals(1, values.size());
-        assertEquals(2.718, values.get(0));
+        assertEquals(12.718, values.get(0));
     }
 }

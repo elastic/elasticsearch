@@ -553,4 +553,28 @@ public class IndexSettingsTests extends ESTestCase {
         );
         assertThat(index.getDefaultFields(), equalTo(Arrays.asList("body", "title")));
     }
+
+    public void testUpdateSoftDeletesFails() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () ->
+            settings.updateSettings(Settings.builder().put("index.soft_deletes.enabled", randomBoolean()).build(),
+                Settings.builder(), Settings.builder(), "index"));
+        assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
+    }
+
+    public void testSoftDeletesDefaultSetting() {
+        // enabled by default on 7.0+ or later
+        {
+            Version createdVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
+            Settings settings = Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion).build();
+            assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
+        }
+        // disabled by default on the previous versions
+        {
+            Version prevVersion = VersionUtils.randomVersionBetween(
+                random(), Version.V_6_5_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
+            Settings settings = Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), prevVersion).build();
+            assertFalse(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
+        }
+    }
 }

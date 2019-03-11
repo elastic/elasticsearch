@@ -43,12 +43,14 @@ import java.util.Set;
 
 public class RestClusterGetSettingsAction extends BaseRestHandler {
 
+    private final Settings settings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
 
     public RestClusterGetSettingsAction(Settings settings, RestController controller, ClusterSettings clusterSettings,
             SettingsFilter settingsFilter) {
         super(settings);
+        this.settings = settings;
         this.clusterSettings = clusterSettings;
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
         this.settingsFilter = settingsFilter;
@@ -87,13 +89,19 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     private XContentBuilder renderResponse(ClusterState state, boolean renderDefaults, XContentBuilder builder, ToXContent.Params params)
             throws IOException {
-        return
-            new ClusterGetSettingsResponse(
-                state.metaData().persistentSettings(),
-                state.metaData().transientSettings(),
-                renderDefaults ?
-                    settingsFilter.filter(clusterSettings.diff(state.metaData().settings(), this.settings)) :
-                    Settings.EMPTY
-            ).toXContent(builder, params);
+        return response(state, renderDefaults, settingsFilter, clusterSettings, settings).toXContent(builder, params);
     }
+
+    static ClusterGetSettingsResponse response(
+            final ClusterState state,
+            final boolean renderDefaults,
+            final SettingsFilter settingsFilter,
+            final ClusterSettings clusterSettings,
+            final Settings settings) {
+        return new ClusterGetSettingsResponse(
+                settingsFilter.filter(state.metaData().persistentSettings()),
+                settingsFilter.filter(state.metaData().transientSettings()),
+                renderDefaults ? settingsFilter.filter(clusterSettings.diff(state.metaData().settings(), settings)) : Settings.EMPTY);
+    }
+
 }

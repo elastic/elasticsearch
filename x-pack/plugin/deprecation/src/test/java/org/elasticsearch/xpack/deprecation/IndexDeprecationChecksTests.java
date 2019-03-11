@@ -398,7 +398,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_limiting_the_number_of_auto_expanded_fields",
             "This index has [" + fieldCount + "] fields, which exceeds the automatic field expansion limit of 1024 " +
-                "and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING_KEY + "], set, which may cause queries which use " +
+                "and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING_KEY + "] set, which may cause queries which use " +
                 "automatic field expansion, such as query_string, simple_query_string, and multi_match to fail if fields are not " +
                 "explicitly specified in the query.");
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(tooManyFieldsIndex));

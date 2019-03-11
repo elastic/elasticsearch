@@ -179,9 +179,9 @@ public class IndexNameExpressionResolver {
             if (aliasOrIndex == null ) {
                 if (failNoIndices) {
                     IndexNotFoundException infe;
-                    if(expression.equals(MetaData.ALL)) {
+                    if (expression.equals(MetaData.ALL)) {
                         infe = new IndexNotFoundException("no indices exist", expression);
-                    }else {
+                    } else {
                         infe = new IndexNotFoundException(expression);  
                     }
                     infe.setResources("index_expression", expression);

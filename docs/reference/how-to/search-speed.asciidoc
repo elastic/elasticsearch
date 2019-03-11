@@ -414,13 +414,13 @@ Some caveats to the Profile API are that:
 === Faster phrase queries with `index_phrases`
 
 The <<text,`text`>> field has an <<index-phrases,`index_phrases`>> option that
-pre-indexes 2-shingles at index-time and is automatically leveraged by query
-parsers to run phrase queries that don't have a slop. If your use-case involves
-running lots of phrase queries, this can speed up queries significantly.
+indexes 2-shingles and is automatically leveraged by query parsers to run phrase
+queries that don't have a slop. If your use-case involves running lots of phrase
+queries, this can speed up queries significantly.
 
 === Faster prefix queries with `index_prefixes`
 
 The <<text,`text`>> field has an <<index-phrases,`index_prefixes`>> option that
-pre-indexes prefixes of all terms at index-time and is automatically leveraged
-by query parsers to run prefix queries. If your use-case involves running lots
-of prefix queries, this can speed up queries significantly.
+indexes prefixes of all terms and is automatically leveraged by query parsers to
+run prefix queries. If your use-case involves running lots of prefix queries,
+this can speed up queries significantly.

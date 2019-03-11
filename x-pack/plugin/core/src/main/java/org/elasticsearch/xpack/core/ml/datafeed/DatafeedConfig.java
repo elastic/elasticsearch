@@ -311,7 +311,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
      */
     public List<String> getQueryDeprecations(NamedXContentRegistry namedXContentRegistry) {
         List<String> deprecations = new ArrayList<>();
-        parseAggregations(namedXContentRegistry, deprecations);
+        parseQuery(namedXContentRegistry, deprecations);
         return deprecations;
     }
 

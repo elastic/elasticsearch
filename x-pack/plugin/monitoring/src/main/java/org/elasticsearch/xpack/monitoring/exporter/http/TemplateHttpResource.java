@@ -104,8 +104,7 @@ public class TemplateHttpResource extends PublishableHttpResource {
      *
      * @return Never {@code null}.
      */
-    @SuppressWarnings("unchecked")
-    HttpEntity templateToHttpEntity() {
+     HttpEntity templateToHttpEntity() {
         // the internal representation of a template has type nested under mappings.
         // this uses xContent to help remove the type before sending to the remote cluster
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)

@@ -76,13 +76,14 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
 
     @Override
     public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
-        if (Strings.isEmpty(request.param("type")) == false) {
-            logger.error("Custom types for monitoring is not supported");
-        }
 
         final String id = request.param(MONITORING_ID);
         if (Strings.isEmpty(id)) {
             throw new IllegalArgumentException("no [" + MONITORING_ID + "] for monitoring bulk request");
+        }
+
+        if (Strings.isEmpty(request.param("type")) == false) {
+            throw new IllegalArgumentException("Custom types for monitoring is not supported. [" + MONITORING_ID + "]");
         }
 
         final String version = request.param(MONITORING_VERSION);

@@ -39,7 +39,7 @@ state, which helps in saving on network bandwidth as well as speeding up the
 publishing of cluster state updates. For example, when updating the mappings
 for only a subset of the indices in the cluster state, only the updates for
 those indices need to be published to the nodes in the cluster, as long as those
-the nodes have the previous cluster state. In case where a node is missing the
+nodes have the previous cluster state. If a node is missing the
 previous cluster state, for example when rejoining a cluster, the master will
 publish the full cluster state to that node so that it can receive future
 updates as diffs.

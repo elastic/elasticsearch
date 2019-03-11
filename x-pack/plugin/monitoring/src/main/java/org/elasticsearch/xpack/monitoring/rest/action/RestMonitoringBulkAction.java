@@ -52,10 +52,6 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
             POST, "/_xpack/monitoring/_bulk", deprecationLogger);
         controller.registerWithDeprecatedHandler(PUT, "/_monitoring/bulk", this,
             PUT, "/_xpack/monitoring/_bulk", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, "/_monitoring/{type}/bulk", this,
-            POST, "/_xpack/monitoring/{type}/_bulk", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, "/_monitoring/{type}/bulk", this,
-            PUT, "/_xpack/monitoring/{type}/_bulk", deprecationLogger);
 
         final List<String> allVersions = Arrays.asList(
                 MonitoringTemplateUtils.TEMPLATE_VERSION,
@@ -80,10 +76,6 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
         final String id = request.param(MONITORING_ID);
         if (Strings.isEmpty(id)) {
             throw new IllegalArgumentException("no [" + MONITORING_ID + "] for monitoring bulk request");
-        }
-
-        if (Strings.isEmpty(request.param("type")) == false) {
-            throw new IllegalArgumentException("Custom types for monitoring is not supported. [" + id + "]");
         }
 
         final String version = request.param(MONITORING_VERSION);

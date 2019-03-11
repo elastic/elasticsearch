@@ -136,8 +136,8 @@ public class GatewayAllocator {
 
         @Override
         protected void reroute(ShardId shardId, String reason) {
-            logger.trace("{} scheduling reroute for {}", shardId, reason);
-            routingService.reroute("async_shard_fetch shardId " + shardId + " reason [" + reason + "]");
+            logger.debug("{} scheduling reroute for {}", shardId, reason);
+            routingService.reroute("async_shard_fetch");
         }
     }
 

@@ -123,6 +123,12 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(XPackClientPlugin.class, Netty4Plugin.class, ReindexPlugin.class);
     }
+    
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
 
     @Override
     protected Settings externalClusterClientSettings() {

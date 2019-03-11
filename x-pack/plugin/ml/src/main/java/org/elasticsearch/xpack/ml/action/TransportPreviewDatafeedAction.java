@@ -40,6 +40,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     private final ClusterService clusterService;
     private final JobManager jobManager;
     private final DatafeedConfigReader datafeedConfigReader;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportPreviewDatafeedAction(Settings settings, ThreadPool threadPool, TransportService transportService,
@@ -52,6 +53,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         this.clusterService = clusterService;
         this.jobManager = jobManager;
         this.datafeedConfigReader = new DatafeedConfigReader(client, xContentRegistry);
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
@@ -69,7 +71,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                                 // NB: this is using the client from the transport layer, NOT the internal client.
                                 // This is important because it means the datafeed search will fail if the user
                                 // requesting the preview doesn't have permission to search the relevant indices.
-                                DataExtractorFactory.create(client, previewDatafeed.build(), job,
+                                DataExtractorFactory.create(client, previewDatafeed.build(), job, xContentRegistry,
                                         new ActionListener<DataExtractorFactory>() {
                                     @Override
                                     public void onResponse(DataExtractorFactory dataExtractorFactory) {

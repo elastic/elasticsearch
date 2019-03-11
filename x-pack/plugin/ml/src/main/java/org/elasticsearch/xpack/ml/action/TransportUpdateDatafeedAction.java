@@ -44,6 +44,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobConfigProvider jobConfigProvider;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportUpdateDatafeedAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -54,8 +55,9 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
                 indexNameExpressionResolver, UpdateDatafeedAction.Request::new);
 
         datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
-        jobConfigProvider = new JobConfigProvider(client);
+        jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
@@ -166,7 +168,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
                         PersistentTasksCustomMetaData persistentTasks =
                                 currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                         MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
-                                .updateDatafeed(update, persistentTasks, headers).build();
+                                .updateDatafeed(update, persistentTasks, headers, xContentRegistry).build();
                         updatedDatafeed = newMetadata.getDatafeed(update.getId());
                         return ClusterState.builder(currentState).metaData(
                                 MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, newMetadata).build()).build();

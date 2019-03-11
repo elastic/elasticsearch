@@ -33,7 +33,8 @@ public class DeprecationChecks {
 
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            ClusterDeprecationChecks::checkUserAgentPipelines
+            ClusterDeprecationChecks::checkUserAgentPipelines,
+            ClusterDeprecationChecks::checkTemplatesWithTooManyFields
         ));
 
 
@@ -44,7 +45,9 @@ public class DeprecationChecks {
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            IndexDeprecationChecks::oldIndicesCheck));
+            IndexDeprecationChecks::oldIndicesCheck,
+            IndexDeprecationChecks::tooManyFieldsCheck
+        ));
 
     static List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> ML_SETTINGS_CHECKS =
             Collections.unmodifiableList(Arrays.asList(

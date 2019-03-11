@@ -65,7 +65,7 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
                     .createParser(parser.getXContentRegistry(),
                         LoggingDeprecationHandler.INSTANCE,
                         BytesReference.bytes(xContentBuilder).streamInput())) {
-                return new Request(DataFrameTransformConfig.fromXContent(newParser, "transform-preview", true));
+                return new Request(DataFrameTransformConfig.fromXContent(newParser, "transform-preview", false));
             }
         }
 

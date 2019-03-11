@@ -96,8 +96,8 @@ public class ClusterFormationFailureHelper {
                 @Override
                 protected void doRun() {
                     if (isActive()) {
-                        logger.warn(clusterFormationStateSupplier.get().getDescription());
                         logLastFailedJoinAttempt.run();
+                        logger.warn(clusterFormationStateSupplier.get().getDescription());
                     }
                 }
 

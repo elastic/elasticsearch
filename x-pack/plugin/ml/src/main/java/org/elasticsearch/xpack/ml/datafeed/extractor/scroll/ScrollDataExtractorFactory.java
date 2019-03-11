@@ -11,6 +11,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -29,12 +30,15 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     private final DatafeedConfig datafeedConfig;
     private final Job job;
     private final TimeBasedExtractedFields extractedFields;
+    private final NamedXContentRegistry xContentRegistry;
 
-    private ScrollDataExtractorFactory(Client client, DatafeedConfig datafeedConfig, Job job, TimeBasedExtractedFields extractedFields) {
+    private ScrollDataExtractorFactory(Client client, DatafeedConfig datafeedConfig, Job job, TimeBasedExtractedFields extractedFields,
+                                       NamedXContentRegistry xContentRegistry) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
         this.job = Objects.requireNonNull(job);
         this.extractedFields = Objects.requireNonNull(extractedFields);
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
@@ -43,7 +47,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 job.getId(),
                 extractedFields,
                 datafeedConfig.getIndices(),
-                datafeedConfig.getParsedQuery(),
+                datafeedConfig.getParsedQuery(xContentRegistry),
                 datafeedConfig.getScriptFields(),
                 datafeedConfig.getScrollSize(),
                 start,
@@ -52,13 +56,17 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         return new ScrollDataExtractor(client, dataExtractorContext);
     }
 
-    public static void create(Client client, DatafeedConfig datafeed, Job job, ActionListener<DataExtractorFactory> listener) {
+    public static void create(Client client,
+                              DatafeedConfig datafeed,
+                              Job job,
+                              NamedXContentRegistry xContentRegistry,
+                              ActionListener<DataExtractorFactory> listener ) {
 
         // Step 2. Contruct the factory and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
                 fieldCapabilitiesResponse -> {
                     TimeBasedExtractedFields extractedFields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
-                    listener.onResponse(new ScrollDataExtractorFactory(client, datafeed, job, extractedFields));
+                    listener.onResponse(new ScrollDataExtractorFactory(client, datafeed, job, extractedFields, xContentRegistry));
                 }, e -> {
                     if (e instanceof IndexNotFoundException) {
                         listener.onFailure(new ResourceNotFoundException("datafeed [" + datafeed.getId()

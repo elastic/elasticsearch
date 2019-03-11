@@ -381,3 +381,11 @@ Bezalel
 Bojan  
 
 ;
+
+// datetime in aggregations
+doubleCastOfDateInAggs
+SELECT CAST (CAST (birth_date AS VARCHAR) AS TIMESTAMP) a FROM test_emp WHERE YEAR(birth_date) = 1965 GROUP BY a;
+    a:ts
+---------------
+1965-01-03T00:00:00Z
+;

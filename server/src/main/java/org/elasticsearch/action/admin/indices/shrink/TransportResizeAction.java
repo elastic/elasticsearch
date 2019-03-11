@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -192,16 +191,5 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                 .recoverFrom(metaData.getIndex())
                 .resizeType(resizeRequest.getResizeType())
                 .copySettings(resizeRequest.getCopySettings() == null ? false : resizeRequest.getCopySettings());
-    }
-
-    @Override
-    protected String getMasterActionName(DiscoveryNode node) {
-        if (node.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)){
-            return super.getMasterActionName(node);
-        } else {
-            // this is for BWC - when we send this to version that doesn't have ResizeAction.NAME registered
-            // we have to send to shrink instead.
-            return ShrinkAction.NAME;
-        }
     }
 }

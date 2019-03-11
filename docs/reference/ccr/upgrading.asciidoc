@@ -30,11 +30,10 @@ If clusters are upgraded in this order then index following can continue
 during the upgrade without downtime.
 
 Note that a chain index following setup can also be upgraded in this way.
-For example if there is a first cluster that contains all leader indices,
-a second cluster that follows indices in the first cluster and a third
-cluster that follows indices in the second clusters. In this case the
-third cluster should be upgraded first, then the second cluster and
-finally the first cluster.
+For example if there is a cluster A that contains all leader indices,
+cluster B that follows indices in cluster A and cluster C that follows
+indices in cluster B. In this case the cluster C should be upgraded first,
+then cluster B and finally cluster A.
 
 [float]
 === Bi-directional index following

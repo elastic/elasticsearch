@@ -1,5 +1,5 @@
 [[release-notes-6.6.2]]
-== {es} version 6.6.1
+== {es} version 6.6.2
 
 coming[6.6.2]
 

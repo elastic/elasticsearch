@@ -30,7 +30,7 @@ occurring in a  document is low. At the same time, as
 internally each shingle is hashed into to 128-bit hash, you should choose
 `k` small enough so that all possible
 different k-words shingles can be hashed to 128-bit hash with
-minimal collision. 5-word shingles typically work well.
+minimal collision.
 
 * choosing the right settings for `hash_count`, `bucket_count` and
 `hash_set_size` needs some experimentation.
@@ -39,7 +39,7 @@ minimal collision. 5-word shingles typically work well.
 will provide a higher guarantee that different tokens are
 indexed to different buckets.
 ** to improve the recall,
-you should increase `hash_token` parameter. For example,
+you should increase `hash_count` parameter. For example,
 setting `hash_count=2`, will make each token to be hashed in
 two different ways, thus increasing the number of potential
 candidates for search.

@@ -191,7 +191,7 @@ public class JoinHelper {
             this.timestamp = System.nanoTime();
         }
 
-        void maybeLogNow() {
+        void logNow() {
             logger.log(getLogLevel(exception),
                     () -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest),
                     exception);
@@ -252,7 +252,7 @@ public class JoinHelper {
                     public void handleException(TransportException exp) {
                         pendingOutgoingJoins.remove(dedupKey);
                         FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
-                        attempt.maybeLogNow();
+                        attempt.logNow();
                         lastFailedJoinAttempt = attempt;
                     }
 

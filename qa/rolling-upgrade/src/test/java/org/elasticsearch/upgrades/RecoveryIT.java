@@ -24,15 +24,20 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.function.Predicate;
@@ -43,14 +48,15 @@ import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocat
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * In depth testing of the recovery mechanism during a rolling restart.
  */
 public class RecoveryIT extends AbstractRollingTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31291")
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";
         if (CLUSTER_TYPE == ClusterType.OLD) {
@@ -300,10 +306,154 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 if (randomBoolean()) {
                     indexDocs(index, i, 1); // update
                 } else if (randomBoolean()) {
-                    client().performRequest(new Request("DELETE", index + "/test/" + i));
+                    if (getNodeId(v -> v.onOrAfter(Version.V_7_0_0)) == null) {
+                        client().performRequest(new Request("DELETE", index + "/test/" + i));
+                    } else {
+                        client().performRequest(new Request("DELETE", index + "/_doc/" + i));
+                    }
                 }
             }
         }
         ensureGreen(index);
+    }
+
+    /**
+     * This test creates an index in the non upgraded cluster and closes it. It then checks that the index
+     * is effectively closed and potentially replicated (if the version the index was created on supports
+     * the replication of closed indices) during the rolling upgrade.
+     */
+    public void testRecoveryClosedIndex() throws Exception {
+        final String indexName = "closed_index_created_on_old";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createIndex(indexName, Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                // if the node with the replica is the first to be restarted, while a replica is still recovering
+                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                // before timing out
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
+                .build());
+            ensureGreen(indexName);
+            closeIndex(indexName);
+        }
+
+        final Version indexVersionCreated = indexVersionCreated(indexName);
+        if (indexVersionCreated.onOrAfter(Version.V_7_1_0)) {
+            // index was created on a version that supports the replication of closed indices,
+            // so we expect the index to be closed and replicated
+            ensureGreen(indexName);
+            assertClosedIndex(indexName, true);
+        } else {
+            assertClosedIndex(indexName, false);
+        }
+    }
+
+    /**
+     * This test creates and closes a new index at every stage of the rolling upgrade. It then checks that the index
+     * is effectively closed and potentially replicated if the cluster supports replication of closed indices at the
+     * time the index was closed.
+     */
+    public void testCloseIndexDuringRollingUpgrade() throws Exception {
+        final Version minimumNodeVersion = minimumNodeVersion();
+        final String indexName =
+            String.join("_", "index", CLUSTER_TYPE.toString(), Integer.toString(minimumNodeVersion.id)).toLowerCase(Locale.ROOT);
+
+        if (indexExists(indexName) == false) {
+            createIndex(indexName, Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                .build());
+            ensureGreen(indexName);
+            closeIndex(indexName);
+        }
+
+        if (minimumNodeVersion.onOrAfter(Version.V_7_1_0)) {
+            // index is created on a version that supports the replication of closed indices,
+            // so we expect the index to be closed and replicated
+            ensureGreen(indexName);
+            assertClosedIndex(indexName, true);
+        } else {
+            assertClosedIndex(indexName, false);
+        }
+    }
+
+    /**
+     * Returns the version in which the given index has been created
+     */
+    private static Version indexVersionCreated(final String indexName) throws IOException {
+        final Request request = new Request("GET", "/" + indexName + "/_settings");
+        final String versionCreatedSetting = indexName + ".settings.index.version.created";
+        request.addParameter("filter_path", versionCreatedSetting);
+
+        final Response response = client().performRequest(request);
+        return Version.fromId(Integer.parseInt(ObjectPath.createFromResponse(response).evaluate(versionCreatedSetting)));
+    }
+
+    /**
+     * Returns the minimum node version among all nodes of the cluster
+     */
+    private static Version minimumNodeVersion() throws IOException {
+        final Request request = new Request("GET", "_nodes");
+        request.addParameter("filter_path", "nodes.*.version");
+
+        final Response response = client().performRequest(request);
+        final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
+
+        Version minVersion = null;
+        for (Map.Entry<String, Object> node : nodes.entrySet()) {
+            @SuppressWarnings("unchecked")
+            Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
+            if (minVersion == null || minVersion.after(nodeVersion)) {
+                minVersion = nodeVersion;
+            }
+        }
+        assertNotNull(minVersion);
+        return minVersion;
+    }
+
+    /**
+     * Asserts that an index is closed in the cluster state. If `checkRoutingTable` is true, it also asserts
+     * that the index has started shards.
+     */
+    @SuppressWarnings("unchecked")
+    private void assertClosedIndex(final String index, final boolean checkRoutingTable) throws IOException {
+        final Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+
+        final Map<String, ?> metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata.indices." + index, state);
+        assertThat(metadata, notNullValue());
+        assertThat(metadata.get("state"), equalTo("close"));
+
+        final Map<String, ?> blocks = (Map<String, Object>) XContentMapValues.extractValue("blocks.indices." + index, state);
+        assertThat(blocks, notNullValue());
+        assertThat(blocks.containsKey(String.valueOf(MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID)), is(true));
+
+        final Map<String, ?> settings = (Map<String, Object>) XContentMapValues.extractValue("settings", metadata);
+        assertThat(settings, notNullValue());
+
+        final int numberOfShards = Integer.parseInt((String) XContentMapValues.extractValue("index.number_of_shards", settings));
+        final int numberOfReplicas = Integer.parseInt((String) XContentMapValues.extractValue("index.number_of_replicas", settings));
+
+        final Map<String, ?> routingTable = (Map<String, Object>) XContentMapValues.extractValue("routing_table.indices." + index, state);
+        if (checkRoutingTable) {
+            assertThat(routingTable, notNullValue());
+            assertThat(Booleans.parseBoolean((String) XContentMapValues.extractValue("index.verified_before_close", settings)), is(true));
+
+            for (int i = 0; i < numberOfShards; i++) {
+                final Collection<Map<String, ?>> shards =
+                    (Collection<Map<String, ?>>) XContentMapValues.extractValue("shards." + i, routingTable);
+                assertThat(shards, notNullValue());
+                assertThat(shards.size(), equalTo(numberOfReplicas + 1));
+                for (Map<String, ?> shard : shards) {
+                    assertThat(XContentMapValues.extractValue("shard", shard), equalTo(i));
+                    assertThat(XContentMapValues.extractValue("state", shard), equalTo("STARTED"));
+                    assertThat(XContentMapValues.extractValue("index", shard), equalTo(index));
+                }
+            }
+        } else {
+            assertThat(routingTable, nullValue());
+            assertThat(XContentMapValues.extractValue("index.verified_before_close", settings), nullValue());
+        }
     }
 }

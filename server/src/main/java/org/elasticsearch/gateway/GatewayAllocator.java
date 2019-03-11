@@ -23,14 +23,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -55,28 +53,19 @@ public class GatewayAllocator {
         asyncFetchStore = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public GatewayAllocator(ClusterService clusterService, RoutingService routingService,
-                            TransportNodesListGatewayStartedShards startedAction, TransportNodesListShardStoreMetaData storeAction) {
+    public GatewayAllocator(RoutingService routingService,
+                            TransportNodesListGatewayStartedShards startedAction,
+                            TransportNodesListShardStoreMetaData storeAction) {
         this.routingService = routingService;
         this.primaryShardAllocator = new InternalPrimaryShardAllocator(startedAction);
         this.replicaShardAllocator = new InternalReplicaShardAllocator(storeAction);
-        clusterService.addStateApplier(event -> {
-            boolean cleanCache = false;
-            DiscoveryNode localNode = event.state().nodes().getLocalNode();
-            if (localNode != null) {
-                if (localNode.isMasterNode() && event.localNodeMaster() == false) {
-                    cleanCache = true;
-                }
-            } else {
-                cleanCache = true;
-            }
-            if (cleanCache) {
-                Releasables.close(asyncFetchStarted.values());
-                asyncFetchStarted.clear();
-                Releasables.close(asyncFetchStore.values());
-                asyncFetchStore.clear();
-            }
-        });
+    }
+
+    public void cleanCaches() {
+        Releasables.close(asyncFetchStarted.values());
+        asyncFetchStarted.clear();
+        Releasables.close(asyncFetchStore.values());
+        asyncFetchStore.clear();
     }
 
     // for tests

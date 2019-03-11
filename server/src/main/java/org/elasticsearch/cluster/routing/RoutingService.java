@@ -77,11 +77,6 @@ public class RoutingService extends AbstractLifecycleComponent {
      * Initiates a reroute.
      */
     public final void reroute(String reason) {
-        performReroute(reason);
-    }
-
-    // visible for testing
-    protected void performReroute(String reason) {
         try {
             if (lifecycle.stopped()) {
                 return;

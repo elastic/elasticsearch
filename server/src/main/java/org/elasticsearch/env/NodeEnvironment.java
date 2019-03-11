@@ -19,12 +19,8 @@
 
 package org.elasticsearch.env;
 
-import java.io.UncheckedIOException;
-import java.util.Iterator;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
@@ -34,22 +30,22 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -63,6 +59,7 @@ import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
@@ -74,6 +71,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -84,6 +82,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -312,6 +312,10 @@ public final class NodeEnvironment  implements Closeable {
             }
 
             if (DiscoveryNode.isDataNode(settings) == false) {
+                if (DiscoveryNode.isMasterNode(settings) == false) {
+                    ensureNoIndexMetaData(nodePaths);
+                }
+
                 ensureNoShardData(nodePaths);
             }
 
@@ -436,7 +440,7 @@ public final class NodeEnvironment  implements Closeable {
     public void deleteShardDirectorySafe(ShardId shardId, IndexSettings indexSettings) throws IOException, ShardLockObtainFailedException {
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("deleting shard {} directory, paths: [{}]", shardId, paths);
-        try (ShardLock lock = shardLock(shardId)) {
+        try (ShardLock lock = shardLock(shardId, "shard deletion under lock")) {
             deleteShardDirectoryUnderLock(lock, indexSettings);
         }
     }
@@ -528,7 +532,7 @@ public final class NodeEnvironment  implements Closeable {
 
     private boolean isShardLocked(ShardId id) {
         try {
-            shardLock(id, 0).close();
+            shardLock(id, "checking if shard is locked").close();
             return false;
         } catch (ShardLockObtainFailedException ex) {
             return true;
@@ -547,7 +551,7 @@ public final class NodeEnvironment  implements Closeable {
      */
     public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, IndexSettings indexSettings)
             throws IOException, ShardLockObtainFailedException {
-        final List<ShardLock> locks = lockAllForIndex(index, indexSettings, lockTimeoutMS);
+        final List<ShardLock> locks = lockAllForIndex(index, indexSettings, "deleting index directory", lockTimeoutMS);
         try {
             deleteIndexDirectoryUnderLock(index, indexSettings);
         } finally {
@@ -582,7 +586,8 @@ public final class NodeEnvironment  implements Closeable {
      * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
      * @return the {@link ShardLock} instances for this index.
      */
-    public List<ShardLock> lockAllForIndex(Index index, IndexSettings settings, long lockTimeoutMS) throws ShardLockObtainFailedException {
+    public List<ShardLock> lockAllForIndex(final Index index, final IndexSettings settings,
+                                           final String lockDetails, final long lockTimeoutMS) throws ShardLockObtainFailedException {
         final int numShards = settings.getNumberOfShards();
         if (numShards <= 0) {
             throw new IllegalArgumentException("settings must contain a non-null > 0 number of shards");
@@ -594,7 +599,7 @@ public final class NodeEnvironment  implements Closeable {
         try {
             for (int i = 0; i < numShards; i++) {
                 long timeoutLeftMS = Math.max(0, lockTimeoutMS - TimeValue.nsecToMSec((System.nanoTime() - startTimeNS)));
-                allLocks.add(shardLock(new ShardId(index, i), timeoutLeftMS));
+                allLocks.add(shardLock(new ShardId(index, i), lockDetails, timeoutLeftMS));
             }
             success = true;
         } finally {
@@ -615,10 +620,11 @@ public final class NodeEnvironment  implements Closeable {
      * Note: this method will return immediately if the lock can't be acquired.
      *
      * @param id the shard ID to lock
+     * @param details information about why the shard is being locked
      * @return the shard lock. Call {@link ShardLock#close()} to release the lock
      */
-    public ShardLock shardLock(ShardId id) throws ShardLockObtainFailedException {
-        return shardLock(id, 0);
+    public ShardLock shardLock(ShardId id, final String details) throws ShardLockObtainFailedException {
+        return shardLock(id, details, 0);
     }
 
     /**
@@ -627,11 +633,13 @@ public final class NodeEnvironment  implements Closeable {
      * or recover from a different shard instance into it. If the shard lock can not be acquired
      * a {@link ShardLockObtainFailedException} is thrown
      * @param shardId the shard ID to lock
+     * @param details information about why the shard is being locked
      * @param lockTimeoutMS the lock timeout in milliseconds
      * @return the shard lock. Call {@link ShardLock#close()} to release the lock
      */
-    public ShardLock shardLock(final ShardId shardId, long lockTimeoutMS) throws ShardLockObtainFailedException {
-        logger.trace("acquiring node shardlock on [{}], timeout [{}]", shardId, lockTimeoutMS);
+    public ShardLock shardLock(final ShardId shardId, final String details,
+                               final long lockTimeoutMS) throws ShardLockObtainFailedException {
+        logger.trace("acquiring node shardlock on [{}], timeout [{}], details [{}]", shardId, lockTimeoutMS, details);
         final InternalShardLock shardLock;
         final boolean acquired;
         synchronized (shardLocks) {
@@ -640,7 +648,7 @@ public final class NodeEnvironment  implements Closeable {
                 shardLock.incWaitCount();
                 acquired = false;
             } else {
-                shardLock = new InternalShardLock(shardId);
+                shardLock = new InternalShardLock(shardId, details);
                 shardLocks.put(shardId, shardLock);
                 acquired = true;
             }
@@ -648,7 +656,7 @@ public final class NodeEnvironment  implements Closeable {
         if (acquired == false) {
             boolean success = false;
             try {
-                shardLock.acquire(lockTimeoutMS);
+                shardLock.acquire(lockTimeoutMS, details);
                 success = true;
             } finally {
                 if (success == false) {
@@ -667,11 +675,11 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     /**
-     * A functional interface that people can use to reference {@link #shardLock(ShardId, long)}
+     * A functional interface that people can use to reference {@link #shardLock(ShardId, String, long)}
      */
     @FunctionalInterface
     public interface ShardLocker {
-        ShardLock lock(ShardId shardId, long lockTimeoutMS) throws ShardLockObtainFailedException;
+        ShardLock lock(ShardId shardId, String lockDetails, long lockTimeoutMS) throws ShardLockObtainFailedException;
     }
 
     /**
@@ -694,11 +702,13 @@ public final class NodeEnvironment  implements Closeable {
          */
         private final Semaphore mutex = new Semaphore(1);
         private int waitCount = 1; // guarded by shardLocks
+        private String lockDetails;
         private final ShardId shardId;
 
-        InternalShardLock(ShardId shardId) {
+        InternalShardLock(final ShardId shardId, final String details) {
             this.shardId = shardId;
             mutex.acquireUninterruptibly();
+            lockDetails = details;
         }
 
         protected void release() {
@@ -726,11 +736,14 @@ public final class NodeEnvironment  implements Closeable {
             }
         }
 
-        void acquire(long timeoutInMillis) throws ShardLockObtainFailedException {
+        void acquire(long timeoutInMillis, final String details) throws ShardLockObtainFailedException {
             try {
-                if (mutex.tryAcquire(timeoutInMillis, TimeUnit.MILLISECONDS) == false) {
+                if (mutex.tryAcquire(timeoutInMillis, TimeUnit.MILLISECONDS)) {
+                    lockDetails = details;
+                } else {
                     throw new ShardLockObtainFailedException(shardId,
-                            "obtaining shard lock timed out after " + timeoutInMillis + "ms");
+                        "obtaining shard lock timed out after " + timeoutInMillis + "ms, previous lock details: [" + lockDetails +
+                            "] trying to lock for [" + details + "]");
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -1037,24 +1050,7 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     private void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
-        List<Path> shardDataPaths = new ArrayList<>();
-        for (NodePath nodePath : nodePaths) {
-            Path indicesPath = nodePath.indicesPath;
-            if (Files.isDirectory(indicesPath)) {
-                try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(indicesPath)) {
-                    for (Path indexPath : indexStream) {
-                        if (Files.isDirectory(indexPath)) {
-                            try (Stream<Path> shardStream = Files.list(indexPath)) {
-                                shardStream.filter(this::isShardPath)
-                                    .map(Path::toAbsolutePath)
-                                    .forEach(shardDataPaths::add);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
+        List<Path> shardDataPaths = collectIndexSubPaths(nodePaths, this::isShardPath);
         if (shardDataPaths.isEmpty() == false) {
             throw new IllegalStateException("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
@@ -1063,9 +1059,48 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 
+    private void ensureNoIndexMetaData(final NodePath[] nodePaths) throws IOException {
+        List<Path> indexMetaDataPaths = collectIndexSubPaths(nodePaths, this::isIndexMetaDataPath);
+        if (indexMetaDataPaths.isEmpty() == false) {
+            throw new IllegalStateException("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false and "
+                + Node.NODE_MASTER_SETTING.getKey()
+                + "=false, but has index metadata: "
+                + indexMetaDataPaths);
+        }
+    }
+
+    private List<Path> collectIndexSubPaths(NodePath[] nodePaths, Predicate<Path> subPathPredicate) throws IOException {
+        List<Path> indexSubPaths = new ArrayList<>();
+        for (NodePath nodePath : nodePaths) {
+            Path indicesPath = nodePath.indicesPath;
+            if (Files.isDirectory(indicesPath)) {
+                try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(indicesPath)) {
+                    for (Path indexPath : indexStream) {
+                        if (Files.isDirectory(indexPath)) {
+                            try (Stream<Path> shardStream = Files.list(indexPath)) {
+                                shardStream.filter(subPathPredicate)
+                                    .map(Path::toAbsolutePath)
+                                    .forEach(indexSubPaths::add);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return indexSubPaths;
+    }
+
     private boolean isShardPath(Path path) {
         return Files.isDirectory(path)
             && path.getFileName().toString().chars().allMatch(Character::isDigit);
+    }
+
+    private boolean isIndexMetaDataPath(Path path) {
+        return Files.isDirectory(path)
+            && path.getFileName().toString().equals(MetaDataStateFormat.STATE_DIR_NAME);
     }
 
     /**

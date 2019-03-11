@@ -68,7 +68,7 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
     }
 
     private void getFilter(String filterId, ActionListener<GetFiltersAction.Response> listener) {
-        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, MlFilter.documentId(filterId));
+        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlFilter.documentId(filterId));
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getDocResponse) {

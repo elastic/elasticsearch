@@ -8,8 +8,14 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 
-final class CloseFollowerIndexStep extends AbstractUnfollowIndexStep {
+import java.util.Map;
+
+import static org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction.CCR_METADATA_KEY;
+
+final class CloseFollowerIndexStep extends AsyncRetryDuringSnapshotActionStep {
 
     static final String NAME = "close-follower-index";
 
@@ -18,7 +24,14 @@ final class CloseFollowerIndexStep extends AbstractUnfollowIndexStep {
     }
 
     @Override
-    void innerPerformAction(String followerIndex, Listener listener) {
+    void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
+        String followerIndex = indexMetaData.getIndex().getName();
+        Map<String, String> customIndexMetadata = indexMetaData.getCustomData(CCR_METADATA_KEY);
+        if (customIndexMetadata == null) {
+            listener.onResponse(true);
+            return;
+        }
+
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(followerIndex);
         getClient().admin().indices().close(closeIndexRequest, ActionListener.wrap(
             r -> {

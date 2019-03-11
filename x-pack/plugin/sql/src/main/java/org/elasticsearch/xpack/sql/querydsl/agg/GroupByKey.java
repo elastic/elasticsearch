@@ -39,8 +39,10 @@ public abstract class GroupByKey extends Agg {
                 builder.valueType(ValueType.DOUBLE);
             } else if (script.outputType().isString()) {
                 builder.valueType(ValueType.STRING);
+            } else if (script.outputType() == DataType.DATE) {
+                builder.valueType(ValueType.LONG);
             } else if (script.outputType() == DataType.DATETIME) {
-                builder.valueType(ValueType.DATE);
+                builder.valueType(ValueType.LONG);
             } else if (script.outputType() == DataType.BOOLEAN) {
                 builder.valueType(ValueType.BOOLEAN);
             } else if (script.outputType() == DataType.IP) {

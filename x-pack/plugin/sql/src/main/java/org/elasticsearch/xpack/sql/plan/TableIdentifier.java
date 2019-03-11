@@ -60,13 +60,11 @@ public class TableIdentifier {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("[");
         if (cluster != null) {
             builder.append(cluster);
+            builder.append(":");
         }
-        builder.append("][index=");
         builder.append(index);
-        builder.append("]");
         return builder.toString();
     }
 }

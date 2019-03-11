@@ -6,8 +6,6 @@
 <titleabbrev>Get follower stats</titleabbrev>
 ++++
 
-beta[]
-
 Get follower stats.
 
 ==== Description
@@ -21,7 +19,7 @@ following tasks associated with each shard for the specified indices.
 
 [source,js]
 --------------------------------------------------
-PUT /follower_index/_ccr/follow
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "remote_cluster",
   "leader_index" : "leader_index"

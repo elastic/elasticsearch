@@ -55,8 +55,7 @@ help you get up and running. The +elasticsearch-setup-passwords+ command is the
 simplest method to set the built-in users' passwords for the first time.
 
 For example, you can run the command in an "interactive" mode, which prompts you
-to enter new passwords for the `elastic`, `kibana`, `beats_system`,
-`logstash_system`, and `apm_system` users:
+to enter new passwords for the built-in users:
 
 [source,shell]
 --------------------------------------------------
@@ -131,9 +130,8 @@ and <<auditing-settings>>.
 
 .. Restart {es}.
 
-By default, events are logged to a dedicated `elasticsearch-access.log` file in
-`ES_HOME/logs`. You can also store the events in an {es} index for
-easier analysis and control what events are logged. 
+Events are logged to a dedicated `<clustername>_audit.json` file in
+`ES_HOME/logs`, on each cluster node.
 --
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/securing-elasticsearch.asciidoc

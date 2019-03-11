@@ -9,15 +9,13 @@
           index:  test
           body:
             mappings:
-              _doc:
-                properties:
-                  number:
-                    type: integer
+              properties:
+                number:
+                  type: integer
 
   - do:
       index:
           index:  test
-          type:   _doc
           id:     1
           body:   { field: foo bar}
 

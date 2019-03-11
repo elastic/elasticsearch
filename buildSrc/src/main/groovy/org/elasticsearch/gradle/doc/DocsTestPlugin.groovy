@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.doc
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.test.ClusterFormationTasks
 import org.elasticsearch.gradle.test.RestTestPlugin
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -45,8 +46,8 @@ public class DocsTestPlugin extends RestTestPlugin {
             '\\{version\\}': Version.fromString(VersionProperties.elasticsearch).toString(),
             '\\{version_qualified\\}': VersionProperties.elasticsearch,
             '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
-            '\\{build_flavor\\}' :
-                project.integTestCluster.distribution.startsWith('oss-') ? 'oss' : 'default',
+            '\\{build_flavor\\}' : project.integTestCluster.distribution,
+            '\\{build_type\\}' : ClusterFormationTasks.getOs().equals("windows") ? "zip" : "tar",
         ]
         Task listSnippets = project.tasks.create('listSnippets', SnippetsTask)
         listSnippets.group 'Docs'

@@ -36,6 +36,7 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
         tests.addAll(readScriptSpec("/fulltext.csv-spec", parser));
         tests.addAll(readScriptSpec("/agg.csv-spec", parser));
         tests.addAll(readScriptSpec("/columns.csv-spec", parser));
+        tests.addAll(readScriptSpec("/date.csv-spec", parser));
         tests.addAll(readScriptSpec("/datetime.csv-spec", parser));
         tests.addAll(readScriptSpec("/alias.csv-spec", parser));
         tests.addAll(readScriptSpec("/null.csv-spec", parser));
@@ -65,6 +66,6 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
     @Override
     protected void assertResults(ResultSet expected, ResultSet elastic) throws SQLException {
         Logger log = logEsResultSet() ? logger : null;
-        JdbcAssert.assertResultSets(expected, elastic, log, false, false);
+        JdbcAssert.assertResultSets(expected, elastic, log, false, true);
     }
 }

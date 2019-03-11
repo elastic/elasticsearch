@@ -19,7 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
@@ -29,6 +34,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<AnalyzeResponse> {
 
@@ -111,5 +118,32 @@ public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<Ana
             }
         }
         return new AnalyzeResponse.AnalyzeToken(token, position, startOffset, endOffset, posLength, type, extras);
+    }
+
+    public void testNullResponseToXContent() throws IOException {
+        DetailAnalyzeResponse.CharFilteredText[] charfilters = null;
+
+        String name = "test_tokens_null";
+        AnalyzeResponse.AnalyzeToken[] tokens = null;
+        DetailAnalyzeResponse.AnalyzeTokenList tokenizer = null;
+
+
+        DetailAnalyzeResponse.AnalyzeTokenList tokenfiltersItem = new DetailAnalyzeResponse.AnalyzeTokenList(name, tokens);
+        DetailAnalyzeResponse.AnalyzeTokenList[] tokenfilters = {tokenfiltersItem};
+
+        DetailAnalyzeResponse detail = new DetailAnalyzeResponse(charfilters, tokenizer, tokenfilters);
+
+        AnalyzeResponse response = new AnalyzeResponse(null, detail);
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            Map<String, Object> converted = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            List<Map<String, Object>> tokenfiltersValue = (List<Map<String, Object>>) ((Map<String, Object>)
+                converted.get("detail")).get("tokenfilters");
+            List<Map<String, Object>> nullTokens = (List<Map<String, Object>>) tokenfiltersValue.get(0).get("tokens");
+            String nameValue = (String) tokenfiltersValue.get(0).get("name");
+            assertThat(nullTokens.size(), equalTo(0));
+            assertThat(name, equalTo(nameValue));
+        }
+
     }
 }

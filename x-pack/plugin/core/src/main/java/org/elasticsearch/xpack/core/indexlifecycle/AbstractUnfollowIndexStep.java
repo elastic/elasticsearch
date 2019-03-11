@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
 import java.util.Map;
@@ -20,7 +21,8 @@ abstract class AbstractUnfollowIndexStep extends AsyncActionStep {
     }
 
     @Override
-    public final void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
+    public final void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
+                                    ClusterStateObserver observer, Listener listener) {
         String followerIndex = indexMetaData.getIndex().getName();
         Map<String, String> customIndexMetadata = indexMetaData.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {

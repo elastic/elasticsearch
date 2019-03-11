@@ -154,8 +154,8 @@ public final class AnalyzerCaster {
                 return PainlessCast.boxOriginalType(Character.class, Object.class, explicit, char.class);
             } else if (expected == Number.class && internal) {
                 return PainlessCast.boxOriginalType(Character.class, Number.class, explicit, char.class);
-            } else if (expected == String.class) {
-                return PainlessCast.originalTypetoTargetType(char.class, String.class, explicit);
+            } else if (expected == String.class && explicit) {
+                return PainlessCast.originalTypetoTargetType(char.class, String.class, true);
             } else if (expected == byte.class && explicit) {
                 return PainlessCast.originalTypetoTargetType(char.class, byte.class, true);
             } else if (expected == short.class && explicit) {

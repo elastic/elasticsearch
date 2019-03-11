@@ -4,7 +4,6 @@ setup:
   - do:
       indices.create:
         index: foo
-        include_type_name: false
         body:
           mappings:
             properties:
@@ -16,7 +15,6 @@ setup:
   - do:
       indices.create:
         index: foo2
-        include_type_name: false
         body:
           mappings:
             properties:
@@ -28,7 +26,6 @@ setup:
   - do:
       indices.create:
         index: foo3
-        include_type_name: false
         body:
           mappings:
             properties:
@@ -39,7 +36,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -65,7 +62,7 @@ setup:
 "Verify one job caps by rollup index":
 
   - do:
-      xpack.rollup.get_rollup_index_caps:
+      rollup.get_rollup_index_caps:
         index: "foo_rollup"
 
   - match:
@@ -90,7 +87,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -112,7 +109,7 @@ setup:
             ]
           }
   - do:
-      xpack.rollup.get_rollup_index_caps:
+      rollup.get_rollup_index_caps:
         index: "foo_rollup"
 
   - match:
@@ -150,7 +147,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -172,7 +169,7 @@ setup:
             ]
           }
   - do:
-      xpack.rollup.get_rollup_index_caps:
+      rollup.get_rollup_index_caps:
         index: "foo_rollup"
 
   - match:
@@ -197,7 +194,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -221,7 +218,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo3
         body:  >
           {
@@ -244,7 +241,7 @@ setup:
           }
 
   - do:
-      xpack.rollup.get_rollup_index_caps:
+      rollup.get_rollup_index_caps:
         index: "_all"
 
   - match:
@@ -300,7 +297,7 @@ setup:
 - do:
     headers:
       Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-    xpack.rollup.put_job:
+    rollup.put_job:
       id: foo2
       body:  >
         {
@@ -324,7 +321,7 @@ setup:
 - do:
     headers:
       Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-    xpack.rollup.put_job:
+    rollup.put_job:
       id: foo3
       body:  >
         {
@@ -347,7 +344,7 @@ setup:
         }
 
 - do:
-    xpack.rollup.get_rollup_index_caps:
+    rollup.get_rollup_index_caps:
       index: "foo_rollup2,foo_rollup"
 
 - match:
@@ -399,7 +396,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -423,7 +420,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo3
         body:  >
           {
@@ -446,7 +443,7 @@ setup:
           }
 
   - do:
-      xpack.rollup.get_rollup_index_caps:
+      rollup.get_rollup_index_caps:
         index: "*_rollup2"
 
   - match:

@@ -20,6 +20,8 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -28,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -39,6 +42,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -293,15 +297,27 @@ public class StreamTests extends ESTestCase {
 
         }
 
-        final int length = randomIntBetween(0, 16);
-        final Collection<FooBar> fooBars = new ArrayList<>(length);
+        runWriteReadCollectionTest(
+                () -> new FooBar(randomInt(), randomInt()), StreamOutput::writeCollection, in -> in.readList(FooBar::new));
+    }
+
+    public void testStringCollection() throws IOException {
+        runWriteReadCollectionTest(() -> randomUnicodeOfLength(16), StreamOutput::writeStringCollection, StreamInput::readStringList);
+    }
+
+    private <T> void runWriteReadCollectionTest(
+            final Supplier<T> supplier,
+            final CheckedBiConsumer<StreamOutput, Collection<T>, IOException> writer,
+            final CheckedFunction<StreamInput, Collection<T>, IOException> reader) throws IOException {
+        final int length = randomIntBetween(0, 10);
+        final Collection<T> collection = new ArrayList<>(length);
         for (int i = 0; i < length; i++) {
-            fooBars.add(new FooBar(randomInt(), randomInt()));
+            collection.add(supplier.get());
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeCollection(fooBars);
+            writer.accept(out, collection);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(fooBars, equalTo(in.readList(FooBar::new)));
+                assertThat(collection, equalTo(reader.apply(in)));
             }
         }
     }
@@ -319,6 +335,37 @@ public class StreamTests extends ESTestCase {
 
         final Set<Long> targetSet = out.bytes().streamInput().readSet(StreamInput::readLong);
         assertThat(targetSet, equalTo(sourceSet));
+    }
+
+    public void testInstantSerialization() throws IOException {
+        final Instant instant = Instant.now();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeInstant(instant);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final Instant serialized = in.readInstant();
+                assertEquals(instant, serialized);
+            }
+        }
+    }
+
+    public void testOptionalInstantSerialization() throws IOException {
+        final Instant instant = Instant.now();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeOptionalInstant(instant);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final Instant serialized = in.readOptionalInstant();
+                assertEquals(instant, serialized);
+            }
+        }
+
+        final Instant missing = null;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeOptionalInstant(missing);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final Instant serialized = in.readOptionalInstant();
+                assertEquals(missing, serialized);
+            }
+        }
     }
 
     static final class WriteableString implements Writeable {

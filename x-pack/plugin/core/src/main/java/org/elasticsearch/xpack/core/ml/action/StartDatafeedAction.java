@@ -162,7 +162,7 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
             DateMathParser dateMathParser = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
 
             try {
-                return dateMathParser.parse(date, now);
+                return dateMathParser.parse(date, now).toEpochMilli();
             } catch (Exception e) {
                 String msg = Messages.getMessage(Messages.REST_INVALID_DATETIME_PARAMS, paramName.getPreferredName(), date);
                 throw new ElasticsearchParseException(msg, e);
@@ -197,7 +197,7 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
             timeout = TimeValue.timeValueMillis(in.readVLong());
             if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
                 jobId = in.readOptionalString();
-                datafeedIndices = in.readList(StreamInput::readString);
+                datafeedIndices = in.readStringList();
             }
         }
 
@@ -274,7 +274,7 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
             out.writeVLong(timeout.millis());
             if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
                 out.writeOptionalString(jobId);
-                out.writeStringList(datafeedIndices);
+                out.writeStringCollection(datafeedIndices);
             }
         }
 

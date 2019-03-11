@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -23,12 +23,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class CloseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCase<CloseFollowerIndexStep> {
-
-    @Override
-    protected CloseFollowerIndexStep newInstance(Step.StepKey key, Step.StepKey nextKey, Client client) {
-        return new CloseFollowerIndexStep(key, nextKey, client);
-    }
+public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollowerIndexStep> {
 
     public void testCloseFollowingIndex() {
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
@@ -48,15 +43,15 @@ public class CloseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
             assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
             @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-            listener.onResponse(new AcknowledgedResponse(true));
+            ActionListener<CloseIndexResponse> listener = (ActionListener<CloseIndexResponse>) invocation.getArguments()[1];
+            listener.onResponse(new CloseIndexResponse(true, true));
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;
@@ -98,7 +93,7 @@ public class CloseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;
@@ -113,5 +108,31 @@ public class CloseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         assertThat(failure[0], sameInstance(error));
         Mockito.verify(indicesClient).close(Mockito.any(), Mockito.any());
         Mockito.verifyNoMoreInteractions(indicesClient);
+    }
+
+    @Override
+    protected CloseFollowerIndexStep createRandomInstance() {
+        Step.StepKey stepKey = randomStepKey();
+        Step.StepKey nextStepKey = randomStepKey();
+        return new CloseFollowerIndexStep(stepKey, nextStepKey, Mockito.mock(Client.class));
+    }
+
+    @Override
+    protected CloseFollowerIndexStep mutateInstance(CloseFollowerIndexStep instance) {
+        Step.StepKey key = instance.getKey();
+        Step.StepKey nextKey = instance.getNextStepKey();
+
+        if (randomBoolean()) {
+            key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+        } else {
+            nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+        }
+
+        return new CloseFollowerIndexStep(key, nextKey, instance.getClient());
+    }
+
+    @Override
+    protected CloseFollowerIndexStep copyInstance(CloseFollowerIndexStep instance) {
+        return new CloseFollowerIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 }

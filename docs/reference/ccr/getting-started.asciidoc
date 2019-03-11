@@ -3,8 +3,6 @@
 [[ccr-getting-started]]
 == Getting started with {ccr}
 
-beta[]
-
 This getting-started guide for {ccr} shows you how to:
 
 * <<ccr-getting-started-remote-cluster,Connect a local cluster to a remote
@@ -156,7 +154,7 @@ Alternatively, you can manage remote clusters on the
 *Management / Elasticsearch / Remote Clusters* page in {kib}:
 
 [role="screenshot"]
-image::ml/images/remote-clusters.jpg["The Remote Clusters page in {kib}"]
+image::images/remote-clusters.jpg["The Remote Clusters page in {kib}"]
 
 
 [float]
@@ -230,7 +228,7 @@ cluster.
 
 [source,js]
 --------------------------------------------------
-PUT /server-metrics-copy/_ccr/follow
+PUT /server-metrics-copy/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "leader",
   "leader_index" : "server-metrics"
@@ -252,6 +250,11 @@ PUT /server-metrics-copy/_ccr/follow
 // TESTRESPONSE
 
 //////////////////////////
+
+The follower index is initialized using the <<remote-recovery, remote recovery>>
+process. The remote recovery process transfers the existing Lucene segment files
+from the leader to the follower. When the remote recovery process is complete,
+the index following begins.
 
 Now when you index documents into your leader index, you will see these
 documents replicated in the follower index. You can
@@ -335,4 +338,4 @@ Alternatively, you can manage auto-follow patterns on the
 *Management / Elasticsearch / Cross Cluster Replication* page in {kib}:
 
 [role="screenshot"]
-image::ml/images/auto-follow-patterns.jpg["The Auto-follow patterns page in {kib}"]
+image::images/auto-follow-patterns.jpg["The Auto-follow patterns page in {kib}"]

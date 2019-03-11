@@ -1,0 +1,20 @@
+{
+  "data_frame.delete_data_frame_transform": {
+    "documentation": "TODO",
+    "methods": [ "DELETE" ],
+    "url": {
+      "path": "/_data_frame/transforms/{transform_id}",
+      "paths": [
+        "/_data_frame/transforms/{transform_id}"
+      ],
+      "parts": {
+        "transform_id": {
+          "type": "string",
+          "required": true,
+          "description": "The id of the transform to delete"
+        }
+      }
+    },
+    "body": null
+  }
+}

@@ -277,10 +277,18 @@ public class ClusterStateChanges {
     }
 
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
-        List<StartedShardEntry> entries = startedShards.stream().map(startedShard ->
-            new StartedShardEntry(startedShard.shardId(), startedShard.allocationId().getId(), "shard started"))
-            .collect(Collectors.toList());
-        return runTasks(shardStartedClusterStateTaskExecutor, clusterState, entries);
+        final Map<ShardRouting, Long> entries = startedShards.stream()
+            .collect(Collectors.toMap(Function.identity(), startedShard -> {
+                final IndexMetaData indexMetaData = clusterState.metaData().index(startedShard.shardId().getIndex());
+                return indexMetaData != null ? indexMetaData.primaryTerm(startedShard.shardId().id()) : 0L;
+            }));
+        return applyStartedShards(clusterState, entries);
+    }
+
+    public ClusterState applyStartedShards(ClusterState clusterState, Map<ShardRouting, Long> startedShards) {
+        return runTasks(shardStartedClusterStateTaskExecutor, clusterState, startedShards.entrySet().stream()
+            .map(e -> new StartedShardEntry(e.getKey().shardId(), e.getKey().allocationId().getId(), e.getValue(), "shard started"))
+            .collect(Collectors.toList()));
     }
 
     private <T> ClusterState runTasks(ClusterStateTaskExecutor<T> executor, ClusterState clusterState, List<T> entries) {

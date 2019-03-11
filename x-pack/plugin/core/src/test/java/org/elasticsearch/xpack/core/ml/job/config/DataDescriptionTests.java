@@ -282,6 +282,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         return DataDescription.STRICT_PARSER.apply(parser, null).build();
     }
 
+    @Override
     protected DataDescription mutateInstance(DataDescription instance) throws java.io.IOException {
         DataFormat format = instance.getFormat();
         String timeField = instance.getTimeField();
@@ -320,5 +321,5 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
             throw new AssertionError("Illegal randomisation branch");
         }
         return new DataDescription(format, timeField, timeFormat, delimiter, quoteChar);
-    };
+    }
 }

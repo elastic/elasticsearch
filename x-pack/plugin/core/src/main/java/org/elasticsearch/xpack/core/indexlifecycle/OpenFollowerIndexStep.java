@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
 final class OpenFollowerIndexStep extends AsyncActionStep {
@@ -20,7 +21,8 @@ final class OpenFollowerIndexStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
+    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
+                              ClusterStateObserver observer, Listener listener) {
         OpenIndexRequest request = new OpenIndexRequest(indexMetaData.getIndex().getName());
         getClient().admin().indices().open(request, ActionListener.wrap(
             r -> {

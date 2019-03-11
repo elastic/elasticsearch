@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
@@ -76,6 +77,8 @@ class JavaDateFormatter implements DateFormatter {
         if (distinctLocales > 1) {
             throw new IllegalArgumentException("formatters must have the same locale");
         }
+        this.printer = printer;
+        this.format = format;
         if (parsers.length == 0) {
             this.parser = printer;
         } else if (parsers.length == 1) {
@@ -87,11 +90,11 @@ class JavaDateFormatter implements DateFormatter {
             }
             this.parser = builder.toFormatter(Locale.ROOT);
         }
-        this.format = format;
-        this.printer = printer;
 
         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
-        builder.append(this.parser);
+        if (format.contains("||") == false) {
+            builder.append(this.parser);
+        }
         roundupParserConsumer.accept(builder);
         DateTimeFormatter roundupFormatter = builder.toFormatter(parser.getLocale());
         if (printer.getZone() != null) {
@@ -117,7 +120,12 @@ class JavaDateFormatter implements DateFormatter {
         if (Strings.isNullOrEmpty(input)) {
             throw new IllegalArgumentException("cannot parse empty date");
         }
-        return parser.parse(input);
+
+        try {
+            return parser.parse(input);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
+        }
     }
 
     @Override
@@ -162,7 +170,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public DateMathParser toDateMathParser() {
-        return new JavaDateMathParser(parser, roundupParser);
+        return new JavaDateMathParser(format, parser, roundupParser);
     }
 
     @Override

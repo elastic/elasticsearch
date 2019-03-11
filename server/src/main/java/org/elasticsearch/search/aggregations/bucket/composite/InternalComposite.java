@@ -69,7 +69,7 @@ public class InternalComposite
     public InternalComposite(StreamInput in) throws IOException {
         super(in);
         this.size = in.readVInt();
-        this.sourceNames = in.readList(StreamInput::readString);
+        this.sourceNames = in.readStringList();
         this.formats = new ArrayList<>(sourceNames.size());
         for (int i = 0; i < sourceNames.size(); i++) {
             if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
@@ -90,7 +90,7 @@ public class InternalComposite
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(size);
-        out.writeStringList(sourceNames);
+        out.writeStringCollection(sourceNames);
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             for (DocValueFormat format : formats) {
                 out.writeNamedWriteable(format);

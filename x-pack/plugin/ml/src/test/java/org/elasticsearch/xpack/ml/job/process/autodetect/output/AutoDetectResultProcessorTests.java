@@ -457,7 +457,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     }
 
     private void setupScheduleDelayTime(TimeValue delay) {
-        when(threadPool.schedule(any(TimeValue.class), anyString(), any(Runnable.class)))
-            .thenAnswer(i -> executor.schedule((Runnable) i.getArguments()[2], delay.nanos(), TimeUnit.NANOSECONDS));
+        when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), anyString()))
+            .thenAnswer(i -> executor.schedule((Runnable) i.getArguments()[0], delay.nanos(), TimeUnit.NANOSECONDS));
     }
 }

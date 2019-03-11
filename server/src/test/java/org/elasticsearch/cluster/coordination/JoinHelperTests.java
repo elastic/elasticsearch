@@ -43,13 +43,15 @@ public class JoinHelperTests extends ESTestCase {
         TransportService transportService = capturingTransport.createTransportService(Settings.EMPTY,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode, null, Collections.emptySet());
-        JoinHelper joinHelper = new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L,
+        JoinHelper joinHelper = new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> null,
             (joinRequest, joinCallback) -> { throw new AssertionError(); }, startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList());
         transportService.start();
 
         DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        assertFalse(joinHelper.isJoinPending());
 
         // check that sending a join to node1 works
         Optional<Join> optionalJoin1 = randomBoolean() ? Optional.empty() :
@@ -59,6 +61,8 @@ public class JoinHelperTests extends ESTestCase {
         assertThat(capturedRequests1.length, equalTo(1));
         CapturedRequest capturedRequest1 = capturedRequests1[0];
         assertEquals(node1, capturedRequest1.node);
+
+        assertTrue(joinHelper.isJoinPending());
 
         // check that sending a join to node2 works
         Optional<Join> optionalJoin2 = randomBoolean() ? Optional.empty() :
@@ -95,5 +99,12 @@ public class JoinHelperTests extends ESTestCase {
         assertThat(capturedRequests2a.length, equalTo(1));
         CapturedRequest capturedRequest2a = capturedRequests2a[0];
         assertEquals(node2, capturedRequest2a.node);
+
+        // complete all the joins and check that isJoinPending is updated
+        assertTrue(joinHelper.isJoinPending());
+        capturingTransport.handleRemoteError(capturedRequest2.requestId, new CoordinationStateRejectedException("dummy"));
+        capturingTransport.handleRemoteError(capturedRequest1a.requestId, new CoordinationStateRejectedException("dummy"));
+        capturingTransport.handleRemoteError(capturedRequest2a.requestId, new CoordinationStateRejectedException("dummy"));
+        assertFalse(joinHelper.isJoinPending());
     }
 }

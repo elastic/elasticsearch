@@ -41,9 +41,9 @@ import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.Consumer;
@@ -260,7 +260,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
         MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder()
             .setFieldName("weight_field")
-            .setTimeZone(DateTimeZone.UTC)
+            .setTimeZone(ZoneOffset.UTC)
             .build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
@@ -283,7 +283,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     public void testValueSetTimezone() throws IOException {
         MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
             .setFieldName("value_field")
-            .setTimeZone(DateTimeZone.UTC)
+            .setTimeZone(ZoneOffset.UTC)
             .build();
         MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")

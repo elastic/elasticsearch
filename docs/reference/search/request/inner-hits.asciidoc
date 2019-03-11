@@ -76,6 +76,7 @@ Inner hits also supports the following per document features:
 * <<search-request-script-fields,Script fields>>
 * <<search-request-docvalue-fields,Doc value fields>>
 * <<search-request-version,Include versions>>
+* <<search-request-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
 
 [[nested-inner-hits]]
 ==== Nested inner hits
@@ -245,10 +246,7 @@ POST test/_search
       "inner_hits": {
         "_source" : false,
         "docvalue_fields" : [
-          {
-            "field": "comments.text.keyword",
-            "format": "use_field_mapping"
-          }
+          "comments.text.keyword"
         ]
       }
     }

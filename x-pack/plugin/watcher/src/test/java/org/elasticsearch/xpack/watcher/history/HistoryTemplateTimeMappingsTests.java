@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
@@ -52,7 +53,7 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
                 if (!metadatas.key.startsWith(HistoryStoreField.INDEX_PREFIX)) {
                     continue;
                 }
-                MappingMetaData metadata = metadatas.value.get("doc");
+                MappingMetaData metadata = metadatas.value.get(SINGLE_MAPPING_NAME);
                 assertThat(metadata, notNullValue());
                 try {
                     Map<String, Object> source = metadata.getSourceAsMap();

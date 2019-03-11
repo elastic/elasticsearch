@@ -24,6 +24,7 @@ include::common-options.asciidoc[]
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 This processor can also be used to copy data from one field to another. For example:
 
@@ -41,12 +42,7 @@ PUT _ingest/pipeline/set_os
     }
   ]
 }
---------------------------------------------------
 
-Using the simulate API we can see that the value for `os` is set as the value for the field `host.os.name`.
-
-[source,js]
---------------------------------------------------
 POST _ingest/pipeline/set_os/_simulate
 {
   "docs": [
@@ -58,6 +54,7 @@ POST _ingest/pipeline/set_os/_simulate
   ]
 }
 --------------------------------------------------
+// CONSOLE
 
 Result:
 [source,js]
@@ -85,4 +82,4 @@ Result:
   ]
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE[s/2019-03-11T21:54:37.909224Z/$body.docs.0.doc._ingest.timestamp/]

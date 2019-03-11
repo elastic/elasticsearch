@@ -81,7 +81,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         private static final String FINISH_ELECTION_TASK_REASON = "_FINISH_ELECTION_";
     }
 
-    public JoinTaskExecutor(Settings settings, AllocationService allocationService, Logger logger) {
+    public JoinTaskExecutor(AllocationService allocationService, Logger logger) {
         this.allocationService = allocationService;
         this.logger = logger;
     }

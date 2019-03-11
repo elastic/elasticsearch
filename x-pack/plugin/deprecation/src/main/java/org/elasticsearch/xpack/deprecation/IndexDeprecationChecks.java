@@ -50,7 +50,7 @@ public class IndexDeprecationChecks {
      * @return a list of issues found in fields
      */
     @SuppressWarnings("unchecked")
-    private static List<String> findInPropertiesRecursively(String type, Map<String, Object> parentMap,
+    static List<String> findInPropertiesRecursively(String type, Map<String, Object> parentMap,
                                                     Function<Map<?,?>, Boolean> predicate) {
         List<String> issues = new ArrayList<>();
         Map<?, ?> properties = (Map<?, ?>) parentMap.get("properties");
@@ -233,11 +233,9 @@ public class IndexDeprecationChecks {
     static DeprecationIssue tooManyFieldsCheck(IndexMetaData indexMetaData) {
         if (indexMetaData.getSettings().get(IndexSettings.DEFAULT_FIELD_SETTING_KEY) == null) {
             AtomicInteger fieldCount = new AtomicInteger(0);
+
             fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> {
-                findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap, property -> {
-                    fieldCount.incrementAndGet();
-                    return false;
-                });
+                fieldCount.addAndGet(countFieldsRecursively(mappingMetaData.type(), sourceAsMap));
             }));
 
             // We can't get to the setting `indices.query.bool.max_clause_count` from here, so just check the default of that setting.
@@ -249,11 +247,48 @@ public class IndexDeprecationChecks {
                     "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                         "#_limiting_the_number_of_auto_expanded_fields",
                     "This index has [" + fieldCount.get() + "] fields, which exceeds the automatic field expansion limit of 1024 " +
-                        "and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING_KEY + "], set, which may cause queries which use " +
+                        "and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING_KEY + "] set, which may cause queries which use " +
                         "automatic field expansion, such as query_string, simple_query_string, and multi_match to fail if fields are not " +
                         "explicitly specified in the query.");
             }
         }
         return null;
+    }
+
+    /* Counts the number of fields in a mapping, designed to count the as closely as possible to
+     * org.elasticsearch.index.search.QueryParserHelper#checkForTooManyFields
+     */
+    @SuppressWarnings("unchecked")
+    static int countFieldsRecursively(String type, Map<String, Object> parentMap) {
+        int fields = 0;
+        Map<?, ?> properties = (Map<?, ?>) parentMap.get("properties");
+        if (properties == null) {
+            return fields;
+        }
+        for (Map.Entry<?, ?> entry : properties.entrySet()) {
+            Map<String, Object> valueMap = (Map<String, Object>) entry.getValue();
+            if (valueMap.containsKey("type")
+                && (valueMap.get("type").equals("object") && valueMap.containsKey("properties") == false) == false) {
+                fields++;
+            }
+
+            Map<?, ?> values = (Map<?, ?>) valueMap.get("fields");
+            if (values != null) {
+                for (Map.Entry<?, ?> multifieldEntry : values.entrySet()) {
+                    Map<String, Object> multifieldValueMap = (Map<String, Object>) multifieldEntry.getValue();
+                    if (multifieldValueMap.containsKey("type")) {
+                        fields++;
+                    }
+                    if (multifieldValueMap.containsKey("properties")) {
+                        fields += countFieldsRecursively(type, multifieldValueMap);
+                    }
+                }
+            }
+            if (valueMap.containsKey("properties")) {
+                fields += countFieldsRecursively(type, valueMap);
+            }
+        }
+
+        return fields;
     }
 }

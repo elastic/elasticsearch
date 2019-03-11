@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -371,17 +372,15 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertEquals(0, noIssues.size());
 
-        // Test that it catches too many
-        List<String> fieldNames = new ArrayList<>();
+        // Test that it catches having too many fields
+        int fieldCount = randomIntBetween(1025, 10_000); // 10_000 is arbitrary
 
         XContentBuilder mappingBuilder = jsonBuilder();
         mappingBuilder.startObject();
         {
             mappingBuilder.startObject("properties");
             {
-                while (fieldNames.size() <= 1024) {
-                    addRandomField(fieldNames, 1024, mappingBuilder);
-                }
+                addRandomFields(fieldCount, mappingBuilder);
             }
             mappingBuilder.endObject();
         }
@@ -398,7 +397,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "Number of fields exceeds automatic field expansion limit",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
                 "#_limiting_the_number_of_auto_expanded_fields",
-            "This index has [" + fieldNames.size() + "] fields, which exceeds the automatic field expansion limit of 1024 " +
+            "This index has [" + fieldCount + "] fields, which exceeds the automatic field expansion limit of 1024 " +
                 "and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING_KEY + "], set, which may cause queries which use " +
                 "automatic field expansion, such as query_string, simple_query_string, and multi_match to fail if fields are not " +
                 "explicitly specified in the query.");
@@ -409,7 +408,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         IndexMetaData tooManyFieldsOk = IndexMetaData.builder(randomAlphaOfLengthBetween(5,10))
             .settings(settings(
                 VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT)))
-                .put(IndexSettings.DEFAULT_FIELD_SETTING_KEY, randomSubsetOf(randomIntBetween(1, 1023), fieldNames).toString()))
+                .put(IndexSettings.DEFAULT_FIELD_SETTING_KEY, randomAlphaOfLength(5)))
             .numberOfShards(randomIntBetween(1,100))
             .numberOfReplicas(randomIntBetween(1, 100))
             .putMapping("_doc", Strings.toString(mappingBuilder))
@@ -419,26 +418,36 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertEquals(0, withDefaultFieldIssues.size());
     }
 
+    static void addRandomFields(final int fieldLimit,
+                                        XContentBuilder mappingBuilder) throws IOException {
+        AtomicInteger fieldCount = new AtomicInteger(0);
+        List<String> existingFieldNames = new ArrayList<>();
+        while (fieldCount.get() < fieldLimit) {
+            addRandomField(existingFieldNames, fieldLimit, mappingBuilder, fieldCount);
+        }
+    }
+
     private static void addRandomField(List<String> existingFieldNames, final int fieldLimit,
-                                       XContentBuilder mappingBuilder) throws IOException {
-        if (existingFieldNames.size() > fieldLimit) {
+                                       XContentBuilder mappingBuilder, AtomicInteger fieldCount) throws IOException {
+        if (fieldCount.get() > fieldLimit) {
             return;
         }
         String newField = randomValueOtherThanMany(existingFieldNames::contains, () -> randomAlphaOfLengthBetween(2,20));
         existingFieldNames.add(newField);
         mappingBuilder.startObject(newField);
         {
-            if (randomBoolean()) {
+            if (rarely()) {
                 mappingBuilder.startObject("properties");
                 {
                     int subfields = randomIntBetween(1,10);
                     while (existingFieldNames.size() < subfields) {
-                        addRandomField(existingFieldNames, fieldLimit, mappingBuilder);
+                        addRandomField(existingFieldNames, fieldLimit, mappingBuilder, fieldCount);
                     }
                 }
                 mappingBuilder.endObject();
             } else {
                 mappingBuilder.field("type", randomFrom("array", "binary", "range", "boolean", "date", "ip", "keyword", "text"));
+                fieldCount.incrementAndGet();
             }
         }
         mappingBuilder.endObject();

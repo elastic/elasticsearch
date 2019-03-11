@@ -36,7 +36,8 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkShardLimit,
             ClusterDeprecationChecks::checkNoMasterBlock,
-            ClusterDeprecationChecks::checkClusterName
+            ClusterDeprecationChecks::checkClusterName,
+            ClusterDeprecationChecks::checkTemplatesWithTooManyFields
         ));
 
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS =

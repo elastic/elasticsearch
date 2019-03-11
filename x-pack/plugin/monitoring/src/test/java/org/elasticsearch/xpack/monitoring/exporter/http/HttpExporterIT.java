@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -21,8 +22,14 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
@@ -60,7 +67,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.indexName;
@@ -288,9 +294,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                     recordedRequest = secondWebServer.takeRequest();
                     assertThat(recordedRequest.getMethod(), equalTo("PUT"));
                     assertThat(recordedRequest.getUri().getPath(), equalTo(resourcePrefix + template.v1()));
-                    final Map<String, String> parameters = Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true");
-                    assertMonitorVersionQueryString(recordedRequest.getUri().getQuery(), parameters);
-                    assertThat(recordedRequest.getBody(), equalTo(template.v2()));
+                    assertMonitorVersionQueryString(recordedRequest.getUri().getQuery(), Collections.emptyMap());
+                    assertThat(recordedRequest.getBody(), equalTo(getExternalTemplateRepresentation(template.v2())));
                 }
             }
             assertMonitorPipelines(secondWebServer, !pipelineExistsAlready, null, null);
@@ -474,11 +479,13 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
                 assertThat(putRequest.getMethod(), equalTo("PUT"));
                 assertThat(putRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-                Map<String, String> parameters = resourcePrefix.startsWith("/_template")
-                    ? Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true")
-                    : Collections.emptyMap();
+                Map<String, String> parameters = Collections.emptyMap();
                 assertMonitorVersionQueryString(putRequest.getUri().getQuery(), parameters);
-                assertThat(putRequest.getBody(), equalTo(resource.v2()));
+                if (resourcePrefix.startsWith("/_template")) {
+                    assertThat(putRequest.getBody(), equalTo(getExternalTemplateRepresentation(resource.v2())));
+                } else {
+                    assertThat(putRequest.getBody(), equalTo(resource.v2()));
+                }
                 assertHeaders(putRequest, customHeaders);
             }
         }
@@ -908,4 +915,12 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         return expectedTemplateNames;
     }
 
+    private String getExternalTemplateRepresentation(String internalRepresentation) throws IOException {
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, internalRepresentation)) {
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            IndexTemplateMetaData.Builder.removeType(IndexTemplateMetaData.Builder.fromXContent(parser, ""), builder);
+            return BytesReference.bytes(builder).utf8ToString();
+        }
+    }
 }

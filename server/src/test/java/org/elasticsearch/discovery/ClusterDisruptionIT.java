@@ -71,8 +71,10 @@ import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.not;
 
@@ -480,8 +482,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         for (ShardRouting shardRouting : clusterState.routingTable().allShards(index)) {
             String nodeName = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
-            IndexShard indexShard = indicesService.getShardOrNull(shardRouting.shardId());
-            assertThat(IndexShardTestCase.getShardDocUIDs(indexShard), equalTo(ackedDocs));
+            IndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
+            Set<String> docs = IndexShardTestCase.getShardDocUIDs(shard);
+            assertThat("shard [" + shard.routingEntry() + "] docIds [" + docs + "] vs " + " acked docIds [" + ackedDocs + "]",
+                ackedDocs, everyItem(isIn(docs)));
         }
     }
 }

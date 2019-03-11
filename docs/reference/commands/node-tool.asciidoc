@@ -66,6 +66,7 @@ This tool has two modes:
   move nodes into a brand-new cluster if unsafe cluster bootstrapping was not
   possible.
 
+[[node-tool-unsafe-bootstrap]]
 [float]
 ==== Unsafe cluster bootstrapping
 
@@ -74,11 +75,16 @@ to restart a majority of them, then the `elasticsearch-node unsafe-bootstrap`
 command will unsafely override the cluster's <<modules-discovery-voting,voting
 configuration>> as if performing another
 <<modules-discovery-bootstrap-cluster,cluster bootstrapping process>>, allowing
-the target node to form a cluster on its own without needing a response from
-any other nodes. The cluster forms using the cluster metadata held locally on
-the target node. This can lead to arbitrary data loss since the target node may
-not hold the latest cluster metadata, and this out-of-date metadata may make it
-impossible to use some or all of the indices in the cluster.
+the target node to form a new cluster on its own. This new cluster forms using
+the cluster metadata held locally on the target node. This can lead to
+arbitrary data loss since the target node may not hold the latest cluster
+metadata, and this out-of-date metadata may make it impossible to use some or
+all of the indices in the cluster.
+
+Since unsafe bootstrapping forms a new cluster containing a single node, once
+you have run it you must use the <<node-tool-detach-cluster,`elasticsearch-node
+detach-cluster` tool>> to migrate any other surviving nodes from the failed
+cluster into this new cluster.
 
 When you run the `elasticsearch-node unsafe-bootstrap` tool it will analyse the
 state of the node and ask for confirmation before taking any action. Before
@@ -118,8 +124,8 @@ master as described above.
 below. Verify that the tool reported `Master node was successfully
 bootstrapped`.
 5. Start this node and verify that it is elected as the master node.
-6. Run the `elasticsearch-node detach-cluster` tool, described below, on every other
-node in the cluster.
+6. Run the <<node-tool-detach-cluster,`elasticsearch-node detach-cluster`
+tool>>, described below, on every other node in the cluster.
 7. Start all other nodes and verify that each one joins the cluster.
 8. Investigate the data in the cluster to discover if any was lost during this
 process.
@@ -135,7 +141,7 @@ The message `Master node was successfully bootstrapped` does not mean that
 there has been no data loss, it just means that tool was able to complete its
 job.
 
-
+[[node-tool-detach-cluster]]
 [float]
 ==== Detaching nodes from their cluster
 

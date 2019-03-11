@@ -124,8 +124,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     -> new RecoveryTarget(indexShard, node, recoveryListener, version -> {
             }) {
                 @Override
-                public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
-                    super.cleanFiles(totalTranslogOps, sourceMetaData);
+                public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
+                    super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData);
                     latch.countDown();
                     try {
                         latch.await();

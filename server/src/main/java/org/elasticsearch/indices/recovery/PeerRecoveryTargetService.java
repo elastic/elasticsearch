@@ -597,7 +597,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel, Task task) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.target().cleanFiles(request.totalTranslogOps(), request.sourceMetaSnapshot());
+                recoveryRef.target().cleanFiles(request.totalTranslogOps(), request.globalCheckpoint(), request.sourceMetaSnapshot());
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }
         }

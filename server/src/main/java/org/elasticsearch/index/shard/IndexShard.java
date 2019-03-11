@@ -1485,9 +1485,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private boolean assertSafeCommitExists() {
+        if (indexSettings.getIndexVersionCreated().before(Version.V_8_0_0) && getLastSyncedGlobalCheckpoint() == UNASSIGNED_SEQ_NO) {
+            // we don't set the global checkpoint in peer recovery before 8.0
+            return true;
+        }
         try (Closeable ignored = acquireRetentionLock()) {
+            final long globalCheckpoint = getLastSyncedGlobalCheckpoint();
             List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-            long globalCheckpoint = getLastSyncedGlobalCheckpoint();
             IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
             SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
             assert commitInfo.maxSeqNo <= globalCheckpoint :

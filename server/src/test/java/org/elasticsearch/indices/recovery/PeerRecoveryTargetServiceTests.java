@@ -189,7 +189,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         for (Thread sender : senders) {
             sender.join();
         }
-        recoveryTarget.cleanFiles(0, sourceSnapshot);
+        recoveryTarget.cleanFiles(0, -1, sourceSnapshot);
         recoveryTarget.decRef();
         Store.MetadataSnapshot targetSnapshot = targetShard.snapshotStoreMetadata();
         Store.RecoveryDiff diff = sourceSnapshot.recoveryDiff(targetSnapshot);

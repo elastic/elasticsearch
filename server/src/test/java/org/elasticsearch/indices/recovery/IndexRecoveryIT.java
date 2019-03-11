@@ -118,7 +118,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     }
 
     @After
-    void assertSafeCommitExists() throws Exception {
+    public void assertSafeCommitExists() throws Exception {
         internalCluster().assertSafeCommitExists();
     }
 

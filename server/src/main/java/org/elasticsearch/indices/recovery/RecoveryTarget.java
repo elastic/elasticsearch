@@ -396,7 +396,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
+    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
         // first, we go and move files that were created with the recovery id suffix to
         // the actual names, its ok if we have a corrupted index here, since we have replicas
@@ -411,7 +411,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             }
             // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
             final String translogUUID = Translog.createEmptyTranslog(
-                indexShard.shardPath().resolveTranslog(), SequenceNumbers.UNASSIGNED_SEQ_NO, shardId,
+                indexShard.shardPath().resolveTranslog(), globalCheckpoint, shardId,
                 indexShard.getPendingPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {

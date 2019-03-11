@@ -19,8 +19,10 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.transport.TransportRequest;
@@ -34,15 +36,18 @@ public class RecoveryCleanFilesRequest extends TransportRequest {
 
     private Store.MetadataSnapshot snapshotFiles;
     private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
+    private long globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
 
     public RecoveryCleanFilesRequest() {
     }
 
-    RecoveryCleanFilesRequest(long recoveryId, ShardId shardId, Store.MetadataSnapshot snapshotFiles, int totalTranslogOps) {
+    RecoveryCleanFilesRequest(long recoveryId, ShardId shardId, Store.MetadataSnapshot snapshotFiles,
+                              int totalTranslogOps, long globalCheckpoint) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.snapshotFiles = snapshotFiles;
         this.totalTranslogOps = totalTranslogOps;
+        this.globalCheckpoint = globalCheckpoint;
     }
 
     public long recoveryId() {
@@ -60,6 +65,9 @@ public class RecoveryCleanFilesRequest extends TransportRequest {
         shardId = ShardId.readShardId(in);
         snapshotFiles = new Store.MetadataSnapshot(in);
         totalTranslogOps = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            globalCheckpoint = in.readZLong();
+        }
     }
 
     @Override
@@ -69,6 +77,9 @@ public class RecoveryCleanFilesRequest extends TransportRequest {
         shardId.writeTo(out);
         snapshotFiles.writeTo(out);
         out.writeVInt(totalTranslogOps);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeZLong(globalCheckpoint);
+        }
     }
 
     public Store.MetadataSnapshot sourceMetaSnapshot() {
@@ -77,5 +88,9 @@ public class RecoveryCleanFilesRequest extends TransportRequest {
 
     public int totalTranslogOps() {
         return totalTranslogOps;
+    }
+
+    public long globalCheckpoint() {
+        return globalCheckpoint;
     }
 }

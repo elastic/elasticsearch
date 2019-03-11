@@ -198,14 +198,11 @@ public class JoinHelper {
         }
 
         static Level getLogLevel(TransportException e) {
-            if (e instanceof RemoteTransportException) {
-                Throwable cause = e.getCause();
-                if (cause != null &&
-                        cause instanceof CoordinationStateRejectedException  ||
-                        cause instanceof FailedToCommitClusterStateException ||
-                        cause instanceof NotMasterException) {
-                    return Level.DEBUG;
-                }
+            Throwable cause = e.unwrapCause();
+            if (cause instanceof CoordinationStateRejectedException ||
+                cause instanceof FailedToCommitClusterStateException ||
+                cause instanceof NotMasterException) {
+                return Level.DEBUG;
             }
             return Level.INFO;
         }

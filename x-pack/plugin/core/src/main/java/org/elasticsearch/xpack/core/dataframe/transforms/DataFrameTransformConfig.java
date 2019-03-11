@@ -38,8 +38,6 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
 
     private static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
-    public static final ParseField SOURCE = new ParseField("source");
-    public static final ParseField DESTINATION = new ParseField("dest");
     public static final ParseField QUERY = new ParseField("query");
 
     // types of transforms
@@ -99,8 +97,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                 });
 
         parser.declareString(optionalConstructorArg(), DataFrameField.ID);
-        parser.declareString(constructorArg(), SOURCE);
-        parser.declareString(constructorArg(), DESTINATION);
+        parser.declareString(constructorArg(), DataFrameField.SOURCE);
+        parser.declareString(constructorArg(), DataFrameField.DESTINATION);
 
         parser.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), HEADERS);
@@ -121,8 +119,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                                     final QueryConfig queryConfig,
                                     final PivotConfig pivotConfig) {
         this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
-        this.source = ExceptionsHelper.requireNonNull(source, SOURCE.getPreferredName());
-        this.dest = ExceptionsHelper.requireNonNull(dest, DESTINATION.getPreferredName());
+        this.source = ExceptionsHelper.requireNonNull(source, DataFrameField.SOURCE.getPreferredName());
+        this.dest = ExceptionsHelper.requireNonNull(dest, DataFrameField.DESTINATION.getPreferredName());
         this.queryConfig = ExceptionsHelper.requireNonNull(queryConfig, QUERY.getPreferredName());
         this.setHeaders(headers == null ? Collections.emptyMap() : headers);
         this.pivotConfig = pivotConfig;
@@ -197,8 +195,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
         builder.field(DataFrameField.ID.getPreferredName(), id);
-        builder.field(SOURCE.getPreferredName(), source);
-        builder.field(DESTINATION.getPreferredName(), dest);
+        builder.field(DataFrameField.SOURCE.getPreferredName(), source);
+        builder.field(DataFrameField.DESTINATION.getPreferredName(), dest);
         if (queryConfig != null) {
             builder.field(QUERY.getPreferredName(), queryConfig);
         }

@@ -299,7 +299,7 @@ public class DateRangeIT extends ESIntegTestCase {
     }
 
     public void testSingleValueFieldWithDateMath() throws Exception {
-        ZoneId timezone = ZoneOffset.UTC;
+        ZoneId timezone = randomZone();
         int timeZoneOffset = timezone.getRules().getOffset(date(2, 15).toInstant()).getTotalSeconds();
         //there is a daylight saving time change on 11th March so suffix will be different
         String feb15Suffix = timeZoneOffset == 0 ? "Z" : date(2,15, timezone).format(DateTimeFormatter.ofPattern("xxx", Locale.ROOT));

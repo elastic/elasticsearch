@@ -445,7 +445,7 @@ public class WellKnownText {
         if (isNumberNext(stream) == true) {
             alt = nextNumber(stream);
         }
-        Circle circle = new Circle(lat, lon, radius, alt);
+        Circle circle = new Circle(lat, lon, alt, radius);
         nextCloser(stream);
         return circle;
     }

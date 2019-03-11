@@ -37,10 +37,10 @@ public class Circle implements Geometry {
     }
 
     public Circle(final double lat, final double lon, final double radiusMeters) {
-        this(lat, lon, radiusMeters, Double.NaN);
+        this(lat, lon, Double.NaN, radiusMeters);
     }
 
-    public Circle(final double lat, final double lon, final double radiusMeters, final double alt) {
+    public Circle(final double lat, final double lon, final double alt, final double radiusMeters) {
         this.lat = lat;
         this.lon = lon;
         this.radiusMeters = radiusMeters;

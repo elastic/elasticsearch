@@ -139,8 +139,8 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
 
     public static Circle randomCircle(boolean hasAlt) {
         if (hasAlt) {
-            return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDoubleBetween(0, 100, false),
-                randomDouble());
+            return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDouble(), randomDoubleBetween(0, 100, false)
+            );
         } else {
             return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDoubleBetween(0, 100, false));
         }

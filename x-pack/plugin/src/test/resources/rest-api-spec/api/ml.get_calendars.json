@@ -24,6 +24,8 @@
         }
       }
     },
-    "body": null
+    "body": {
+      "description": "The from and size parameters optionally sent in the body"
+    }
   }
 }

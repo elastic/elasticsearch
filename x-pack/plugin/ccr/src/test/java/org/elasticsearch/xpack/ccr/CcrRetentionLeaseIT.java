@@ -614,6 +614,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39509")
     @TestLogging(value = "org.elasticsearch.xpack.ccr:trace")
     public void testRetentionLeaseRenewalIsCancelledWhenFollowingIsPaused() throws Exception {
         final String leaderIndex = "leader";

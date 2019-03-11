@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchAction;
@@ -110,48 +111,63 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
         }
     }
 
-    private void executeWatch(ExecuteWatchRequest request, ActionListener<ExecuteWatchResponse> listener,
-                              Watch watch, boolean knownWatch) {
+    private void executeWatch(
+            final ExecuteWatchRequest request,
+            final ActionListener<ExecuteWatchResponse> listener,
+            final Watch watch,
+            final boolean knownWatch) {
+        try {
+            /*
+             * Ensure that the headers from the incoming request are used instead those of the stored watch otherwise the watch would run
+             * as the user who stored the watch, but it needs to run as the user who executes this request.
+             */
+            final Map<String, String> headers = new HashMap<>(threadPool.getThreadContext().getHeaders());
+            watch.status().setHeaders(headers);
 
-        threadPool.executor(XPackField.WATCHER).submit(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
+            final String triggerType = watch.trigger().type();
+            final TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());
+
+            final ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(
+                    watch,
+                    knownWatch,
+                    new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
+
+            final ZonedDateTime executionTime = clock.instant().atZone(ZoneOffset.UTC);
+            ctxBuilder.executionTime(executionTime);
+            for (final Map.Entry<String, ActionExecutionMode> entry : request.getActionModes().entrySet()) {
+                ctxBuilder.actionMode(entry.getKey(), entry.getValue());
             }
-
-            @Override
-            protected void doRun() throws Exception {
-                // ensure that the headers from the incoming request are used instead those of the stored watch
-                // otherwise the watch would run as the user who stored the watch, but it needs to be run as the user who
-                // executes this request
-                Map<String, String> headers = new HashMap<>(threadPool.getThreadContext().getHeaders());
-                watch.status().setHeaders(headers);
-
-                String triggerType = watch.trigger().type();
-                TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());
-
-                ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, knownWatch,
-                        new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
-
-                ZonedDateTime executionTime = clock.instant().atZone(ZoneOffset.UTC);
-                ctxBuilder.executionTime(executionTime);
-                for (Map.Entry<String, ActionExecutionMode> entry : request.getActionModes().entrySet()) {
-                    ctxBuilder.actionMode(entry.getKey(), entry.getValue());
-                }
-                if (request.getAlternativeInput() != null) {
-                    ctxBuilder.withInput(new SimpleInput.Result(new Payload.Simple(request.getAlternativeInput())));
-                }
-                if (request.isIgnoreCondition()) {
-                    ctxBuilder.withCondition(InternalAlwaysCondition.RESULT_INSTANCE);
-                }
-                ctxBuilder.recordExecution(request.isRecordExecution());
-
-                WatchRecord record = executionService.execute(ctxBuilder.build());
-                XContentBuilder builder = XContentFactory.jsonBuilder();
-
-                record.toXContent(builder, WatcherParams.builder().hideSecrets(true).debug(request.isDebug()).build());
-                listener.onResponse(new ExecuteWatchResponse(record.id().value(), BytesReference.bytes(builder), XContentType.JSON));
+            if (request.getAlternativeInput() != null) {
+                ctxBuilder.withInput(new SimpleInput.Result(new Payload.Simple(request.getAlternativeInput())));
             }
-        });
+            if (request.isIgnoreCondition()) {
+                ctxBuilder.withCondition(InternalAlwaysCondition.RESULT_INSTANCE);
+            }
+            ctxBuilder.recordExecution(request.isRecordExecution());
+            final WatchExecutionContext ctx = ctxBuilder.build();
+
+            // use execute so that the runnable is not wrapped in a RunnableFuture<?>
+            threadPool.executor(XPackField.WATCHER).execute(new ExecutionService.WatchExecutionTask(ctx, new AbstractRunnable() {
+
+                @Override
+                public void onFailure(final Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    final WatchRecord record = executionService.execute(ctx);
+                    final XContentBuilder builder = XContentFactory.jsonBuilder();
+
+                    record.toXContent(builder, WatcherParams.builder().hideSecrets(true).debug(request.isDebug()).build());
+                    listener.onResponse(new ExecuteWatchResponse(record.id().value(), BytesReference.bytes(builder), XContentType.JSON));
+                }
+
+            }));
+        } catch (final Exception e) {
+            listener.onFailure(e);
+        }
+
+
     }
 }

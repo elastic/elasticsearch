@@ -49,17 +49,17 @@ import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasProperty;
 import static org.hamcrest.Matchers.hasSize;
 
-public class BooleanPrefixQueryBuilderTests extends AbstractQueryTestCase<BooleanPrefixQueryBuilder> {
+public class BoolPrefixQueryBuilderTests extends AbstractQueryTestCase<BoolPrefixQueryBuilder> {
 
     @Override
-    protected BooleanPrefixQueryBuilder doCreateTestQueryBuilder() {
+    protected BoolPrefixQueryBuilder doCreateTestQueryBuilder() {
         final String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
         final Object value = IntStream.rangeClosed(0, randomIntBetween(0, 3))
                 .mapToObj(i -> randomAlphaOfLengthBetween(1, 10) + " ")
                 .collect(Collectors.joining())
                 .trim();
 
-        final BooleanPrefixQueryBuilder queryBuilder = new BooleanPrefixQueryBuilder(fieldName, value);
+        final BoolPrefixQueryBuilder queryBuilder = new BoolPrefixQueryBuilder(fieldName, value);
 
         if (randomBoolean() && isTextField(fieldName)) {
             queryBuilder.analyzer(randomFrom("simple", "keyword", "whitespace"));
@@ -72,7 +72,7 @@ public class BooleanPrefixQueryBuilderTests extends AbstractQueryTestCase<Boolea
     }
 
     @Override
-    protected void doAssertLuceneQuery(BooleanPrefixQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(BoolPrefixQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, notNullValue());
         assertThat(query, anyOf(instanceOf(BooleanQuery.class), instanceOf(PrefixQuery.class)));
 
@@ -104,17 +104,17 @@ public class BooleanPrefixQueryBuilderTests extends AbstractQueryTestCase<Boolea
 
     public void testIllegalValues() {
         {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new BooleanPrefixQueryBuilder(null, "value"));
-            assertEquals("[boolean_prefix] requires fieldName", e.getMessage());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new BoolPrefixQueryBuilder(null, "value"));
+            assertEquals("[bool_prefix] requires fieldName", e.getMessage());
         }
 
         {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new BooleanPrefixQueryBuilder("name", null));
-            assertEquals("[boolean_prefix] requires query value", e.getMessage());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new BoolPrefixQueryBuilder("name", null));
+            assertEquals("[bool_prefix] requires query value", e.getMessage());
         }
 
         {
-            final BooleanPrefixQueryBuilder builder = new BooleanPrefixQueryBuilder("name", "value");
+            final BoolPrefixQueryBuilder builder = new BoolPrefixQueryBuilder("name", "value");
             builder.analyzer("bogusAnalyzer");
             QueryShardException e = expectThrows(QueryShardException.class, () -> builder.toQuery(createShardContext()));
             assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
@@ -124,13 +124,13 @@ public class BooleanPrefixQueryBuilderTests extends AbstractQueryTestCase<Boolea
     public void testFromSimpleJson() throws IOException {
         final String simple =
             "{" +
-                "\"boolean_prefix\": {" +
+                "\"bool_prefix\": {" +
                     "\"fieldName\": \"fieldValue\"" +
                 "}" +
             "}";
         final String expected =
             "{" +
-                "\"boolean_prefix\": {" +
+                "\"bool_prefix\": {" +
                     "\"fieldName\": {" +
                         "\"query\": \"fieldValue\"," +
                         "\"boost\": 1.0" +
@@ -138,14 +138,14 @@ public class BooleanPrefixQueryBuilderTests extends AbstractQueryTestCase<Boolea
                 "}" +
             "}";
 
-        final BooleanPrefixQueryBuilder builder = (BooleanPrefixQueryBuilder) parseQuery(simple);
+        final BoolPrefixQueryBuilder builder = (BoolPrefixQueryBuilder) parseQuery(simple);
         checkGeneratedJson(expected, builder);
     }
 
     public void testFromJson() throws IOException {
         final String expected =
             "{" +
-                "\"boolean_prefix\": {" +
+                "\"bool_prefix\": {" +
                     "\"fieldName\": {" +
                         "\"query\": \"fieldValue\"," +
                         "\"analyzer\": \"simple\"," +
@@ -155,7 +155,7 @@ public class BooleanPrefixQueryBuilderTests extends AbstractQueryTestCase<Boolea
                 "}" +
             "}";
 
-        final BooleanPrefixQueryBuilder builder = (BooleanPrefixQueryBuilder) parseQuery(expected);
+        final BoolPrefixQueryBuilder builder = (BoolPrefixQueryBuilder) parseQuery(expected);
         checkGeneratedJson(expected, builder);
     }
 
@@ -163,7 +163,7 @@ public class BooleanPrefixQueryBuilderTests extends AbstractQueryTestCase<Boolea
         {
             final String json =
                 "{" +
-                    "\"boolean_prefix\" : {" +
+                    "\"bool_prefix\" : {" +
                         "\"field_name_1\" : {" +
                             "\"query\" : \"foo\"" +
                         "}," +
@@ -173,19 +173,19 @@ public class BooleanPrefixQueryBuilderTests extends AbstractQueryTestCase<Boolea
                     "}" +
                 "}";
             final ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
-            assertEquals("[boolean_prefix] query doesn't support multiple fields, found [field_name_1] and [field_name_2]", e.getMessage());
+            assertEquals("[bool_prefix] query doesn't support multiple fields, found [field_name_1] and [field_name_2]", e.getMessage());
         }
 
         {
             final String simpleJson =
                 "{" +
-                    "\"boolean_prefix\" : {" +
+                    "\"bool_prefix\" : {" +
                         "\"field_name_1\" : \"foo\"," +
                         "\"field_name_2\" : \"foo\"" +
                     "}" +
                 "}";
             final ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(simpleJson));
-            assertEquals("[boolean_prefix] query doesn't support multiple fields, found [field_name_1] and [field_name_2]", e.getMessage());
+            assertEquals("[bool_prefix] query doesn't support multiple fields, found [field_name_1] and [field_name_2]", e.getMessage());
         }
     }
 

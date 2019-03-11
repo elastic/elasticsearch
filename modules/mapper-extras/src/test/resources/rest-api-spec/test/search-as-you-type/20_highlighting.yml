@@ -53,7 +53,7 @@ setup:
   - match: { hits.hits.0.highlight.a_field.0: "quick <em>red</em> fox lazy brown dog" }
 
 ---
-"boolean prefix query unified with full term":
+"bool prefix query unified with full term":
 
   - do:
       search:
@@ -61,7 +61,7 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "red fo"
           highlight:
             fields:

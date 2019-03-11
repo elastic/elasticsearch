@@ -36,9 +36,9 @@ import java.util.Objects;
  * The boolean prefix query analyzes the input text and creates a boolean query containing a Term query for each term, except
  * for the last term, which is used to create a prefix query
  */
-public class BooleanPrefixQueryBuilder extends AbstractQueryBuilder<BooleanPrefixQueryBuilder> {
+public class BoolPrefixQueryBuilder extends AbstractQueryBuilder<BoolPrefixQueryBuilder> {
 
-    public static final String NAME = "boolean_prefix";
+    public static final String NAME = "bool_prefix";
 
     private final String fieldName;
 
@@ -48,7 +48,7 @@ public class BooleanPrefixQueryBuilder extends AbstractQueryBuilder<BooleanPrefi
 
     private String minimumShouldMatch;
 
-    public BooleanPrefixQueryBuilder(String fieldName, Object value) {
+    public BoolPrefixQueryBuilder(String fieldName, Object value) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("[" + NAME + "] requires fieldName");
         }
@@ -59,7 +59,7 @@ public class BooleanPrefixQueryBuilder extends AbstractQueryBuilder<BooleanPrefi
         this.value = value;
     }
 
-    public BooleanPrefixQueryBuilder(StreamInput in) throws IOException {
+    public BoolPrefixQueryBuilder(StreamInput in) throws IOException {
         super(in);
         fieldName = in.readString();
         value = in.readGenericValue();
@@ -94,13 +94,13 @@ public class BooleanPrefixQueryBuilder extends AbstractQueryBuilder<BooleanPrefi
      * Explicitly set the analyzer to use. Defaults to use explicit mapping
      * config for the field, or, if not set, the default search analyzer.
      */
-    public BooleanPrefixQueryBuilder analyzer(String analyzer) {
+    public BoolPrefixQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;
     }
 
     /** Sets optional minimumShouldMatch value to apply to the query */
-    public BooleanPrefixQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+    public BoolPrefixQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
         this.minimumShouldMatch = minimumShouldMatch;
         return this;
     }
@@ -126,7 +126,7 @@ public class BooleanPrefixQueryBuilder extends AbstractQueryBuilder<BooleanPrefi
         builder.endObject();
     }
 
-    public static BooleanPrefixQueryBuilder fromXContent(XContentParser parser) throws IOException {
+    public static BoolPrefixQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -171,7 +171,7 @@ public class BooleanPrefixQueryBuilder extends AbstractQueryBuilder<BooleanPrefi
             }
         }
 
-        BooleanPrefixQueryBuilder queryBuilder = new BooleanPrefixQueryBuilder(fieldName, value);
+        BoolPrefixQueryBuilder queryBuilder = new BoolPrefixQueryBuilder(fieldName, value);
         queryBuilder.analyzer(analyzer);
         queryBuilder.minimumShouldMatch(minimumShouldMatch);
         queryBuilder.boost(boost);
@@ -195,7 +195,7 @@ public class BooleanPrefixQueryBuilder extends AbstractQueryBuilder<BooleanPrefi
     }
 
     @Override
-    protected boolean doEquals(BooleanPrefixQueryBuilder other) {
+    protected boolean doEquals(BoolPrefixQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
             Objects.equals(value, other.value) &&
             Objects.equals(analyzer, other.analyzer) &&

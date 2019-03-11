@@ -52,7 +52,7 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               my_field: "red fox jump"
 
   - match: { hits.total: 3 }
@@ -69,7 +69,7 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               my_field:
                 query: "red fox jump"
                 minimum_should_match: 3
@@ -87,7 +87,7 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               my_field:
                 query: "RED dog"
                 analyzer: whitespace

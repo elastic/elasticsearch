@@ -850,7 +850,7 @@ setup:
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"boolean prefix query on root field with 1 prefix term":
+"bool prefix query on root field with 1 prefix term":
 
   - do:
       search:
@@ -858,14 +858,14 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "qui"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"boolean prefix query on root field with 2 prefix terms":
+"bool prefix query on root field with 2 prefix terms":
 
   - do:
       search:
@@ -873,14 +873,14 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "quick r"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"boolean prefix query on root field with 3 prefix terms":
+"bool prefix query on root field with 3 prefix terms":
 
   - do:
       search:
@@ -888,14 +888,14 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "quick red f"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"boolean prefix query on root field with 4 prefix terms":
+"bool prefix query on root field with 4 prefix terms":
 
   - do:
       search:
@@ -903,14 +903,14 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "quick red fox la"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"boolean prefix query on root field with 5 prefix terms":
+"bool prefix query on root field with 5 prefix terms":
 
   - do:
       search:
@@ -918,14 +918,14 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "quick red fox lazy br"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"boolean prefix query on root field with 1 infix term":
+"bool prefix query on root field with 1 infix term":
 
   - do:
       search:
@@ -933,14 +933,14 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "re"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"boolean prefix query on root field with 2 infix terms":
+"bool prefix query on root field with 2 infix terms":
 
   - do:
       search:
@@ -948,14 +948,14 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "red f"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"boolean prefix query on root field with 3 infix terms":
+"bool prefix query on root field with 3 infix terms":
 
   - do:
       search:
@@ -963,14 +963,14 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "red fox l"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"boolean prefix query on root field with 4 infix terms":
+"bool prefix query on root field with 4 infix terms":
 
   - do:
       search:
@@ -978,14 +978,14 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "red fox lazy br"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"boolean prefix query on root field with 5 infix terms":
+"bool prefix query on root field with 5 infix terms":
 
   - do:
       search:
@@ -993,14 +993,14 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "red fox lazy brown d"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"boolean prefix query on root field with trailing term":
+"bool prefix query on root field with trailing term":
 
   - do:
       search:
@@ -1008,14 +1008,14 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "do"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"boolean prefix query on root field out of order partial trailing term":
+"bool prefix query on root field out of order partial trailing term":
 
   - do:
       search:
@@ -1023,14 +1023,14 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "fox lazy red do"
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
 
 ---
-"boolean prefix query on root field out of order partial leading term":
+"bool prefix query on root field out of order partial leading term":
 
   - do:
       search:
@@ -1038,7 +1038,7 @@ setup:
         index: test
         body:
           query:
-            boolean_prefix:
+            bool_prefix:
               a_field: "fox lazy red qui"
 
   - match: { hits.total: 1 }

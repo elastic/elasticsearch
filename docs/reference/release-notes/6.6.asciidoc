@@ -12,17 +12,13 @@ Also see <<breaking-changes-6.6, Breaking changes in 6.6>>.
 Authentication::
 * Disable BWC mode in TokenService by default {pull}38881[#38881]
 
-
-
 [[enhancement-6.6.2]]
 [float]
 === Enhancements
 
 SQL::
-* SQL: Enhance checks for inexact fields {pull}39427[#39427] (issue: {issue}38501[#38501])
-* SQL: add "validate.properties" property to JDBC's allowed list of settings {pull}39050[#39050] (issue: {issue}38068[#38068])
-
-
+* Enhance checks for inexact fields {pull}39427[#39427] (issue: {issue}38501[#38501])
+* Add "validate.properties" property to JDBC's allowed list of settings {pull}39050[#39050] (issue: {issue}38068[#38068])
 
 [[bug-6.6.2]]
 [float]
@@ -35,23 +31,23 @@ Engine::
 * Bubble up exception when processing NoOp {pull}39338[#39338] (issue: {issue}38898[#38898])
 * Advance max_seq_no before add operation to Lucene {pull}38879[#38879] (issue: {issue}31629[#31629])
 
-Features/Watcher::
-* Only flush Watcher's bulk processor if Watcher is enabled {pull}38803[#38803] (issue: {issue}38798[#38798])
-
 Machine Learning::
 * [ML] Stop the ML memory tracker before closing node {pull}39111[#39111] (issue: {issue}37117[#37117])
 
 SQL::
-* SQL: Fix merging of incompatible multi-fields {pull}39560[#39560] (issue: {issue}39547[#39547])
-* SQL: ignore UNSUPPORTED fields for JDBC and ODBC modes in 'SYS COLUMNS' {pull}39518[#39518] (issue: {issue}39471[#39471])
-* SQL: Use underlying exact field for LIKE/RLIKE {pull}39443[#39443] (issue: {issue}39442[#39442])
-* SQL: enforce JDBC driver - ES server version parity {pull}38972[#38972] (issue: {issue}38775[#38775])
-* SQL: fall back to using the field name for column label {pull}38842[#38842] (issue: {issue}38831[#38831])
-* SQL: normalized keywords shouldn't be allowed for groupings and sorting [ISSUE] {pull}35203[#35203]
+* Fix merging of incompatible multi-fields {pull}39560[#39560] (issue: {issue}39547[#39547])
+* Ignore UNSUPPORTED fields for JDBC and ODBC modes in 'SYS COLUMNS' {pull}39518[#39518] (issue: {issue}39471[#39471])
+* Use underlying exact field for LIKE/RLIKE {pull}39443[#39443] (issue: {issue}39442[#39442])
+* Enforce JDBC driver - ES server version parity {pull}38972[#38972] (issue: {issue}38775[#38775])
+* Fall back to using the field name for column label {pull}38842[#38842] (issue: {issue}38831[#38831])
+* Normalized keywords shouldn't be allowed for groupings and sorting [ISSUE] {pull}35203[#35203]
 
 Search::
 * Fix Fuzziness#asDistance(String) {pull}39643[#39643] (issue: {issue}39614[#39614])
 * Fix simple query string serialization conditional {pull}38960[#38960] (issues: {issue}21504[#21504], {issue}38889[#38889])
+
+Watcher::
+* Only flush Watcher's bulk processor if Watcher is enabled {pull}38803[#38803] (issue: {issue}38798[#38798])
 
 [[release-notes-6.6.1]]
 == {es} version 6.6.1
@@ -90,19 +86,20 @@ CCR::
 
 Distributed::
 * Fix synchronization in LocalCheckpointTracker#contains {pull}38755[#38755]
-Features/ILM::
-* Preserve ILM operation mode when creating new lifecycles {pull}38134[#38134], {pull}38230[#38230])
-
-Features/Monitoring::
-* Allow built-in monitoring_user role to call GET _xpack API {pull}38060[#38060] (issue: {issue}37970[#37970])
 
 Geo::
 * Fix GeoHash PrefixTree BWC {pull}38584[#38584] (issue: {issue}38494[#38494])
 * Geo: Do not normalize the longitude with value -180 for Lucene shapes {pull}37299[#37299] (issue: {issue}37297[#37297])
 
+ILM::
+* Preserve ILM operation mode when creating new lifecycles {pull}38134[#38134], {pull}38230[#38230])
+
 Machine Learning::
 * Fix error race condition on stop _all datafeeds and close _all jobs {pull}38113[#38113] (issue: {issue}37959[#37959])
 * Update ML results mappings on process start {pull}37706[#37706] (issue: {issue}37607[#37607])
+
+Monitoring::
+* Allow built-in monitoring_user role to call GET _xpack API {pull}38060[#38060] (issue: {issue}37970[#37970])
 
 Network::
 * Reload SSL context on file change for LDAP {pull}36937[#36937] (issues: {issue}30509[#30509], {issue}36923[#36923])

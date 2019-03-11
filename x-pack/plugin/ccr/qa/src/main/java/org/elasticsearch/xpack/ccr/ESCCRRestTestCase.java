@@ -255,16 +255,25 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         return buildClient(System.getProperty("tests.leader_host"));
     }
 
+    protected RestClient buildLeaderClient(final Settings settings) throws IOException {
+        assert "leader".equals(targetCluster) == false;
+        return buildClient(System.getProperty("tests.leader_host"), settings);
+    }
+
     protected RestClient buildMiddleClient() throws IOException {
         assert "middle".equals(targetCluster) == false;
         return buildClient(System.getProperty("tests.middle_host"));
     }
 
     private RestClient buildClient(final String url) throws IOException {
+        return buildClient(url, restAdminSettings());
+    }
+
+    private RestClient buildClient(final String url, final Settings settings) throws IOException {
         int portSeparator = url.lastIndexOf(':');
         HttpHost httpHost = new HttpHost(url.substring(0, portSeparator),
-            Integer.parseInt(url.substring(portSeparator + 1)), getProtocol());
-        return buildClient(restAdminSettings(), new HttpHost[]{httpHost});
+                Integer.parseInt(url.substring(portSeparator + 1)), getProtocol());
+        return buildClient(settings, new HttpHost[]{httpHost});
     }
 
 }

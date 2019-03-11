@@ -7,7 +7,10 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -33,12 +36,18 @@ import static org.mockito.Mockito.verify;
 
 public class TransportStartDatafeedActionTests extends ESTestCase {
 
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
     public void testValidate_jobClosed() {
         Job job1 = DatafeedManagerTests.createDatafeedJob().build(new Date());
         PersistentTasksCustomMetaData tasks = PersistentTasksCustomMetaData.builder().build();
         DatafeedConfig datafeedConfig1 = DatafeedManagerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> TransportStartDatafeedAction.validate(job1, datafeedConfig1, tasks));
+                () -> TransportStartDatafeedAction.validate(job1, datafeedConfig1, tasks, xContentRegistry()));
         assertThat(e.getMessage(), equalTo("cannot start datafeed [foo-datafeed] because job [job_id] is closed"));
     }
 
@@ -49,7 +58,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
         DatafeedConfig datafeedConfig1 = DatafeedManagerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
 
-        TransportStartDatafeedAction.validate(job1, datafeedConfig1, tasks);
+        TransportStartDatafeedAction.validate(job1, datafeedConfig1, tasks, xContentRegistry());
     }
 
     public void testValidate_jobOpened() {
@@ -59,19 +68,19 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
         DatafeedConfig datafeedConfig1 = DatafeedManagerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
 
-        TransportStartDatafeedAction.validate(job1, datafeedConfig1, tasks);
+        TransportStartDatafeedAction.validate(job1, datafeedConfig1, tasks, xContentRegistry());
     }
 
     public void testDeprecationsLogged() {
         Job job1 = DatafeedManagerTests.createDatafeedJob().build(new Date());
         DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("start-data-feed-test", job1.getId());
         DatafeedConfig config = spy(datafeedConfig.build());
-        doReturn(Collections.singletonList("Deprecated Agg")).when(config).getAggDeprecations();
-        doReturn(Collections.singletonList("Deprecated Query")).when(config).getQueryDeprecations();
+        doReturn(Collections.singletonList("Deprecated Agg")).when(config).getAggDeprecations(any(NamedXContentRegistry.class));
+        doReturn(Collections.singletonList("Deprecated Query")).when(config).getQueryDeprecations(any(NamedXContentRegistry.class));
 
         Auditor auditor = mock(Auditor.class);
 
-        TransportStartDatafeedAction.auditDeprecations(config, job1, auditor);
+        TransportStartDatafeedAction.auditDeprecations(config, job1, auditor, xContentRegistry());
 
         verify(auditor).warning(job1.getId(),
             "datafeed [start-data-feed-test] configuration has deprecations. [Deprecated Agg, Deprecated Query]");
@@ -81,12 +90,12 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         Job job1 = DatafeedManagerTests.createDatafeedJob().build(new Date());
         DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("start-data-feed-test", job1.getId());
         DatafeedConfig config = spy(datafeedConfig.build());
-        doReturn(Collections.emptyList()).when(config).getAggDeprecations();
-        doReturn(Collections.emptyList()).when(config).getQueryDeprecations();
+        doReturn(Collections.emptyList()).when(config).getAggDeprecations(any(NamedXContentRegistry.class));
+        doReturn(Collections.emptyList()).when(config).getQueryDeprecations(any(NamedXContentRegistry.class));
 
         Auditor auditor = mock(Auditor.class);
 
-        TransportStartDatafeedAction.auditDeprecations(config, job1, auditor);
+        TransportStartDatafeedAction.auditDeprecations(config, job1, auditor, xContentRegistry());
 
         verify(auditor, never()).warning(any(), any());
     }

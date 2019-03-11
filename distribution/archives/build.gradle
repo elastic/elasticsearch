@@ -45,7 +45,7 @@ task createPluginsDir(type: EmptyDirTask) {
   dirMode 0755
 }
 
-CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, boolean oss) {
+CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, boolean oss) {
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
@@ -58,6 +58,11 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, boolean os
       }
       into('bin') {
         with binFiles(distributionType, oss)
+      }
+      if (platform != null) {
+        into('jdk') {
+          with jdkFiles(platform)
+        }
       }
       into('') {
         from {
@@ -92,7 +97,7 @@ tasks.withType(AbstractArchiveTask) {
   dependsOn createLogsDir, createPluginsDir
   String subdir = it.name.substring('build'.size()).replaceAll(/[A-Z]/) { '-' + it.toLowerCase() }.substring(1)
   destinationDir = file("${subdir}/build/distributions")
-  baseName = "elasticsearch${ subdir.contains('oss') ? '-oss' : ''}"
+  baseName = "elasticsearch${subdir.contains('oss') ? '-oss' : ''}"
 }
 
 Closure commonZipConfig = {
@@ -102,19 +107,19 @@ Closure commonZipConfig = {
 
 task buildIntegTestZip(type: Zip) {
   configure(commonZipConfig)
-  with archiveFiles(transportModulesFiles, 'zip', true)
+  with archiveFiles(transportModulesFiles, 'zip', null, true)
 }
 
 task buildWindowsZip(type: Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'windows-x86_64'
-  with archiveFiles(modulesFiles(false), 'zip', false)
+  with archiveFiles(modulesFiles(false), 'zip', 'windows', false)
 }
 
 task buildOssWindowsZip(type: Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'windows-x86_64'
-  with archiveFiles(modulesFiles(true), 'zip', true)
+  with archiveFiles(modulesFiles(true), 'zip', 'windows', true)
 }
 
 Closure commonTarConfig = {
@@ -127,25 +132,25 @@ Closure commonTarConfig = {
 task buildDarwinTar(type: Tar) {
   configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
-  with archiveFiles(modulesFiles(false), 'tar', false)
+  with archiveFiles(modulesFiles(false), 'tar', 'darwin', false)
 }
 
 task buildOssDarwinTar(type: Tar) {
   configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
-  with archiveFiles(modulesFiles(true), 'tar', true)
+  with archiveFiles(modulesFiles(true), 'tar', 'darwin', true)
 }
 
 task buildLinuxTar(type: Tar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
-  with archiveFiles(modulesFiles(false), 'tar', false)
+  with archiveFiles(modulesFiles(false), 'tar', 'linux', false)
 }
 
 task buildOssLinuxTar(type: Tar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
-  with archiveFiles(modulesFiles(true), 'tar', true)
+  with archiveFiles(modulesFiles(true), 'tar', 'linux', true)
 }
 
 Closure tarExists = { it -> new File('/bin/tar').exists() || new File('/usr/bin/tar').exists() || new File('/usr/local/bin/tar').exists() }

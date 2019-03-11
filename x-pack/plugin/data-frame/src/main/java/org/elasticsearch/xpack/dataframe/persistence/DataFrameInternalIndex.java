@@ -38,9 +38,6 @@ public final class DataFrameInternalIndex {
     public static final String DOUBLE = "double";
     public static final String KEYWORD = "keyword";
 
-    // internal document types, e.g. "transform_config"
-    public static final String DOC_TYPE = "doc_type";
-
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
         IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(INDEX_TEMPLATE_NAME)
                 .patterns(Collections.singletonList(INDEX_TEMPLATE_NAME))
@@ -49,7 +46,6 @@ public final class DataFrameInternalIndex {
                         // the configurations are expected to be small
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
-                // todo: remove type
                 .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(mappings()))
                 .build();
         return dataFrameTemplate;
@@ -69,7 +65,7 @@ public final class DataFrameInternalIndex {
         // the schema definitions
         builder.startObject(PROPERTIES);
         // overall doc type
-        builder.startObject(DOC_TYPE).field(TYPE, KEYWORD).endObject();
+        builder.startObject(DataFrameField.INDEX_DOC_TYPE.getPreferredName()).field(TYPE, KEYWORD).endObject();
         // add the schema for transform configurations
         addDataFrameTransformsConfigMappings(builder);
 

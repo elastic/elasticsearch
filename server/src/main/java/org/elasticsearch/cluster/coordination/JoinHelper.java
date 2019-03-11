@@ -36,7 +36,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,7 +52,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,7 +83,7 @@ public class JoinHelper {
     private final JoinTaskExecutor joinTaskExecutor;
     private final TimeValue joinTimeout;
 
-    final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = ConcurrentCollections.newConcurrentSet();
+    private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
 
     public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                       TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
@@ -190,8 +191,7 @@ public class JoinHelper {
     }
 
     boolean isJoinPending() {
-        // cannot use pendingOutgoingJoins.isEmpty() because it's not properly synchronized.
-        return pendingOutgoingJoins.iterator().hasNext();
+        return pendingOutgoingJoins.isEmpty() == false;
     }
 
     public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {

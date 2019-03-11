@@ -152,6 +152,24 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
                 () -> createDataFrameTransformConfigFromString(pivotTransform, "test_header_injection"));
     }
 
+    public void testXContentForInternalStorage() throws IOException {
+        DataFrameTransformConfig dataFrameTransformConfig = randomDataFrameTransformConfig();
+
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            XContentBuilder content = dataFrameTransformConfig.toXContent(xContentBuilder, getToXContentParams());
+            String doc = Strings.toString(content);
+
+            assertThat(doc, matchesPattern(".*\"doc_type\"\\s*:\\s*\"data_frame_transform_config\".*"));
+        }
+
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            XContentBuilder content = dataFrameTransformConfig.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            String doc = Strings.toString(content);
+
+            assertFalse(doc.contains("doc_type"));
+        }
+    }
+
     public void testSetIdInBody() throws IOException {
         String pivotTransform = "{"
                 + " \"id\" : \"body_id\","

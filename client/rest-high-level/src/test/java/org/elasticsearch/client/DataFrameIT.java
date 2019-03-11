@@ -23,7 +23,6 @@ import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.AggregationConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.GroupConfig;
@@ -33,7 +32,6 @@ import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 

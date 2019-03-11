@@ -12,6 +12,8 @@ if defined ES_ADDITIONAL_CLASSPATH_DIRECTORIES (
   )
 )
 
+cd /d "%ES_HOME%"
+
 %JAVA% ^
   %ES_JAVA_OPTS% ^
   -Des.path.home="%ES_HOME%" ^

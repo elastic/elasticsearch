@@ -317,7 +317,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test100ElasticsearchShardCliPackaging() {
+    public void test91ElasticsearchShardCliPackaging() {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
@@ -334,7 +334,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test110ElasticsearchNodeCliPackaging() {
+    public void test92ElasticsearchNodeCliPackaging() {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
@@ -350,6 +350,22 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             Platforms.onLinux(action);
             Platforms.onWindows(action);
         }
+    }
+
+    public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws IOException {
+        assumeThat(installation, is(notNullValue()));
+
+        Path relativeDataPath = installation.data.relativize(installation.home);
+        append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
+
+        Archives.runElasticsearch(installation);
+        Archives.stopElasticsearch(installation);
+
+        final Shell sh = new Shell(getTempDir());
+
+        Result result = sh.run("echo y | " + installation.executables().elasticsearchNode + " unsafe-bootstrap");
+            assertThat(result.stdout,
+                    containsString("Master node was successfully bootstrapped"));
     }
 
 }

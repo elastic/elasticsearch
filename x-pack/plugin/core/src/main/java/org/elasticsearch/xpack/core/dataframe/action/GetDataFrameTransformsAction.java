@@ -63,7 +63,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
             }
         }
 
-        public Request() {}
+        private Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -149,7 +149,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         }
 
         public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
+            super(in);
             readFrom(in);
         }
 
@@ -173,6 +173,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             List<String> invalidTransforms = new ArrayList<>();
             builder.startObject();
+            toXContentCommon(builder, params);
             builder.field(DataFrameField.COUNT.getPreferredName(), transformConfigurations.size());
             // XContentBuilder does not support passing the params object for Iterables
             builder.field(DataFrameField.TRANSFORMS.getPreferredName());

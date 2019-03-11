@@ -26,6 +26,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -80,7 +82,7 @@ import static java.util.Collections.unmodifiableList;
  * We are then able to map the unreleased version to branches in git and Gradle projects that are capable of checking
  * out and building them, so we can include these in the testing plan as well.
  */
-public class VersionCollection {
+public class BwcVersions {
 
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*"
@@ -102,12 +104,12 @@ public class VersionCollection {
         }
     }
 
-    public VersionCollection(List<String> versionLines) {
+    public BwcVersions(List<String> versionLines) {
         this(versionLines, Version.fromString(VersionProperties.getElasticsearch()));
     }
 
-    protected VersionCollection(List<String> versionLines, Version currentVersionProperty) {
-        groupByMajor = versionLines.stream()
+    protected BwcVersions(List<String> versionLines, Version currentVersionProperty) {
+        SortedSet<Version> allVersions = versionLines.stream()
             .map(LINE_PATTERN::matcher)
             .filter(Matcher::matches)
             .map(match -> new Version(
@@ -115,19 +117,19 @@ public class VersionCollection {
                 Integer.parseInt(match.group(2)),
                 Integer.parseInt(match.group(3))
             ))
-            .sorted()
-            .distinct()
-            .collect(Collectors.groupingBy(Version::getMajor, Collectors.toList()));
+            .collect(Collectors.toCollection(TreeSet::new));
 
-        if (groupByMajor.isEmpty()) {
+        if (allVersions.isEmpty()) {
             throw new IllegalArgumentException("Could not parse any versions");
         }
 
-        currentVersion = getLatestVersionByKey(
-            groupByMajor,
-            groupByMajor.keySet().stream().max(Integer::compareTo)
-                .orElseThrow(() -> new IllegalStateException("Unexpected number of versions in collection"))
-        );
+        currentVersion = allVersions.last();
+
+        groupByMajor = allVersions.stream()
+            // We only care about the last 2 majors when it comes to BWC.
+            // It might take us time to remove the older ones from versionLines, so we allow them to exist.
+            .filter(version -> version.getMajor() > currentVersion.getMajor() - 2)
+            .collect(Collectors.groupingBy(Version::getMajor, Collectors.toList()));
 
         assertCurrentVersionMatchesParsed(currentVersionProperty);
 
@@ -223,7 +225,14 @@ public class VersionCollection {
             case ":distribution":
                 return "master";
             case ":distribution:bwc:minor":
-                return version.getMajor() + ".x";
+                // The .x branch will always point to the latest minor (for that major), so a "minor" project will be on the .x branch
+                //  unless there is more recent (higher) minor.
+                final Version latestInMajor = getLatestVersionByKey(groupByMajor, version.getMajor());
+                if (latestInMajor.getMinor() == version.getMinor()) {
+                    return version.getMajor() + ".x";
+                } else {
+                    return version.getMajor() + "." + version.getMinor();
+                }
             case ":distribution:bwc:staged":
             case ":distribution:bwc:maintenance":
             case ":distribution:bwc:bugfix":
@@ -239,7 +248,15 @@ public class VersionCollection {
         unreleased.add(currentVersion);
 
         // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
-        unreleased.add(getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1));
+        final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
+        unreleased.add(latestOfPreviousMajor);
+        if (latestOfPreviousMajor.getRevision() == 0) {
+            // if the previous major is a x.y.0 release, then the tip of the minor before that (y-1) is also unreleased
+            final Version previousMinor = getLatestInMinor(latestOfPreviousMajor.getMajor(), latestOfPreviousMajor.getMinor() - 1);
+            if (previousMinor != null) {
+                unreleased.add(previousMinor);
+            }
+        }
 
         final Map<Integer, List<Version>> groupByMinor = getReleasedMajorGroupedByMinor();
         int greatestMinor = groupByMinor.keySet().stream().max(Integer::compareTo).orElse(0);
@@ -265,6 +282,13 @@ public class VersionCollection {
                 .distinct()
                 .collect(Collectors.toList())
         );
+    }
+
+    private Version getLatestInMinor(int major, int minor) {
+        return groupByMajor.get(major).stream()
+            .filter(v -> v.getMinor() == minor)
+            .max(Version::compareTo)
+            .orElse(null);
     }
 
     private Version getLatestVersionByKey(Map<Integer, List<Version>> groupByMajor, int key) {

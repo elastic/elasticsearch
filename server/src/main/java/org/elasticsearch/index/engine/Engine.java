@@ -821,7 +821,7 @@ public abstract class Engine implements Closeable {
     /**
      * Global stats on segments.
      */
-    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes) {
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         ensureOpen();
         Set<String> segmentName = new HashSet<>();
         SegmentsStats stats = new SegmentsStats();
@@ -845,7 +845,7 @@ public abstract class Engine implements Closeable {
         return stats;
     }
 
-    private void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
+    protected void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
         stats.add(1, segmentReader.ramBytesUsed());
         stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
         stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));

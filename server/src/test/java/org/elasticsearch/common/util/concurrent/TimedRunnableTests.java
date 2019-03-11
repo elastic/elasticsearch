@@ -135,7 +135,7 @@ public final class TimedRunnableTests extends ESTestCase {
 
         final Runnable runnable = () -> {
             hasRun.set(true);
-            throw exception;
+            throw new AssertionError("should not run");
         };
 
         final TimedRunnable timedRunnable = new TimedRunnable(runnable);

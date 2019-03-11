@@ -35,7 +35,7 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
 
     @Override
     protected PainlessContextInfo createTestInstance() {
-        int classesSize = randomIntBetween(300, 1000);
+        int classesSize = randomIntBetween(20, 100);
         List<PainlessContextClassInfo> classes = new ArrayList<>();
 
         for (int clazz = 0; clazz < classesSize; ++clazz) {
@@ -68,7 +68,7 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
                         parameters));
             }
 
-            int methodsSize = randomInt(30);
+            int methodsSize = randomInt(10);
             List<PainlessContextMethodInfo> methods = new ArrayList<>(methodsSize);
             for (int method = 0; method < methodsSize; ++method) {
                 int parameterSize = randomInt(12);
@@ -83,7 +83,7 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
                         parameters));
             }
 
-            int staticFieldsSize = randomInt(30);
+            int staticFieldsSize = randomInt(10);
             List<PainlessContextFieldInfo> staticFields = new ArrayList<>();
             for (int staticField = 0; staticField < staticFieldsSize; ++staticField) {
                 staticFields.add(new PainlessContextFieldInfo(
@@ -121,7 +121,7 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
                     parameters));
         }
         
-        int classBindingsSize = randomInt(5);
+        int classBindingsSize = randomInt(3);
         List<PainlessContextClassBindingInfo> classBindings = new ArrayList<>(classBindingsSize);
         for (int classBinding = 0; classBinding < classBindingsSize; ++classBinding) {
             int parameterSize = randomIntBetween(2, 5);
@@ -138,7 +138,7 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
                     parameters));
         }
 
-        int instanceBindingsSize = randomInt(5);
+        int instanceBindingsSize = randomInt(3);
         List<PainlessContextInstanceBindingInfo> instanceBindings = new ArrayList<>(classBindingsSize);
         for (int instanceBinding = 0; instanceBinding < instanceBindingsSize; ++instanceBinding) {
             int parameterSize = randomInt(12);

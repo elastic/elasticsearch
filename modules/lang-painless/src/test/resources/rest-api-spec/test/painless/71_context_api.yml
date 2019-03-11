@@ -1,0 +1,10 @@
+"Action to list contexts":
+    - do:
+        scripts_painless_context: {}
+
+---
+
+"Action to get all API values for score context":
+    - do:
+        scripts_painless_context:
+            context: score

@@ -83,7 +83,7 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
         }
 
         if (Strings.isEmpty(request.param("type")) == false) {
-            throw new IllegalArgumentException("Custom types for monitoring is not supported. [" + MONITORING_ID + "]");
+            throw new IllegalArgumentException("Custom types for monitoring is not supported. [" + id + "]");
         }
 
         final String version = request.param(MONITORING_VERSION);

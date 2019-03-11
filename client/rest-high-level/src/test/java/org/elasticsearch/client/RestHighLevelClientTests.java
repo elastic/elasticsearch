@@ -713,6 +713,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "nodes.hot_threads",
             "nodes.usage",
             "nodes.reload_secure_settings",
+            "scripts_painless_context",
             "search_shards",
         };
         List<String> booleanReturnMethods = Arrays.asList(

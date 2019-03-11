@@ -102,7 +102,4 @@ In the above response, you can see that our document was actually indexed into `
 `any_index`. This type of manipulation is often convenient in pipelines that have various branches of transformation,
 and depending on the progress made, indexed into different indices.
 
-[[set-processor]]
-=== Set Processor
-Sets one field and associates it with the specified value. If the field already exists,
-its value will be replaced with the provided one.
+

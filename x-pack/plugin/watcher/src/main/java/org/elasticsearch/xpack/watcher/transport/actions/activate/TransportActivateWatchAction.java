@@ -61,7 +61,7 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
     protected void doExecute(ActivateWatchRequest request, ActionListener<ActivateWatchResponse> listener) {
         try {
             ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
-            UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId());
+            UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, request.getWatchId());
             updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             XContentBuilder builder = activateWatchBuilder(request.isActivate(), now);
             updateRequest.doc(builder);
@@ -72,7 +72,7 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
 
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, updateRequest,
                     ActionListener.<UpdateResponse>wrap(updateResponse -> {
-                GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId())
+                GetRequest getRequest = new GetRequest(Watch.INDEX, request.getWatchId())
                         .preference(Preference.LOCAL.type()).realtime(true);
 
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,

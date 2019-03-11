@@ -84,6 +84,7 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         assertIndexIsOpened(indexName);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39757")
     public void testReopenDuringCloseOnMultipleIndices() throws Exception {
         final List<String> indices = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(2, 10); i++) {

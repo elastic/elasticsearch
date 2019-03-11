@@ -1384,11 +1384,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
                 builder.put(new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, 0),
                     new SnapshotsInProgress.ShardSnapshotStatus(null, State.MISSING, "missing index"));
-            } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
-                    ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
-                    builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(null, State.MISSING, "index is closed"));
-                }
             } else {
                 IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(indexName);
                 for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {

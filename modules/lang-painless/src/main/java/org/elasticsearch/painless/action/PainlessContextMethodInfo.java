@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.io.IOException;
@@ -112,6 +113,10 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
         builder.endObject();
 
         return builder;
+    }
+
+    public String getSortValue() {
+        return PainlessLookupUtility.buildPainlessMethodKey(name, parameters.size());
     }
 
     @Override

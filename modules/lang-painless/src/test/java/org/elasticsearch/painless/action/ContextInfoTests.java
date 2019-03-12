@@ -102,7 +102,7 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
             }
 
             classes.add(new PainlessContextClassInfo(
-                    randomAlphaOfLength(randomIntBetween(3, 200)),
+                    randomAlphaOfLength(randomIntBetween(3, 200)), randomBoolean(),
                     constructors, staticMethods, methods, fields, staticFields));
         }
 

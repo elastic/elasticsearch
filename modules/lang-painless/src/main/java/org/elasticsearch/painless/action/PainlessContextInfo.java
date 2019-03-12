@@ -34,7 +34,9 @@ import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.script.ScriptContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -44,7 +46,7 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
     public static final ParseField NAME = new ParseField("name");
     public static final ParseField CLASSES = new ParseField("classes");
     public static final ParseField IMPORTED_METHODS = new ParseField("imported_methods");
-    public static final ParseField ClASS_BINDINGS = new ParseField("class_bindings");
+    public static final ParseField CLASS_BINDINGS = new ParseField("class_bindings");
     public static final ParseField INSTANCE_BINDINGS = new ParseField("instance_bindings");
 
     @SuppressWarnings("unchecked")
@@ -67,7 +69,7 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
                 (p, c) -> PainlessContextMethodInfo.fromXContent(p), IMPORTED_METHODS);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                (p, c) -> PainlessContextClassBindingInfo.fromXContent(p), ClASS_BINDINGS);
+                (p, c) -> PainlessContextClassBindingInfo.fromXContent(p), CLASS_BINDINGS);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
                 (p, c) -> PainlessContextInstanceBindingInfo.fromXContent(p), INSTANCE_BINDINGS);
     }
@@ -82,7 +84,11 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
         this(
                 scriptContext.name,
                 painlessLookup.getClasses().stream().map(
-                        javaClass -> new PainlessContextClassInfo(javaClass, painlessLookup.lookupPainlessClass(javaClass))
+                        javaClass -> new PainlessContextClassInfo(
+                                javaClass,
+                                javaClass == painlessLookup.canonicalTypeNameToType(
+                                        javaClass.getName().substring(javaClass.getName().lastIndexOf('.') + 1).replace('$', '.')),
+                                painlessLookup.lookupPainlessClass(javaClass))
                 ).collect(Collectors.toList()),
                 painlessLookup.getImportedPainlessMethodsKeys().stream().map(importedPainlessMethodKey -> {
                     String[] split = importedPainlessMethodKey.split("/");
@@ -114,9 +120,17 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
     public PainlessContextInfo(String name, List<PainlessContextClassInfo> classes, List<PainlessContextMethodInfo> importedMethods,
             List<PainlessContextClassBindingInfo> classBindings, List<PainlessContextInstanceBindingInfo> instanceBindings) {
         this.name = name;
+        classes = new ArrayList<>(classes);
+        classes.sort(Comparator.comparing(PainlessContextClassInfo::getSortValue));
         this.classes = Collections.unmodifiableList(classes);
+        importedMethods = new ArrayList<>(importedMethods);
+        importedMethods.sort(Comparator.comparing(PainlessContextMethodInfo::getSortValue));
         this.importedMethods = Collections.unmodifiableList(importedMethods);
+        classBindings = new ArrayList<>(classBindings);
+        classBindings.sort(Comparator.comparing(PainlessContextClassBindingInfo::getSortValue));
         this.classBindings = Collections.unmodifiableList(classBindings);
+        instanceBindings = new ArrayList<>(instanceBindings);
+        instanceBindings.sort(Comparator.comparing(PainlessContextInstanceBindingInfo::getSortValue));
         this.instanceBindings = Collections.unmodifiableList(instanceBindings);
     }
 
@@ -147,7 +161,7 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
         builder.field(NAME.getPreferredName(), name);
         builder.field(CLASSES.getPreferredName(), classes);
         builder.field(IMPORTED_METHODS.getPreferredName(), importedMethods);
-        builder.field(ClASS_BINDINGS.getPreferredName(), classBindings);
+        builder.field(CLASS_BINDINGS.getPreferredName(), classBindings);
         builder.field(INSTANCE_BINDINGS.getPreferredName(), instanceBindings);
         builder.endObject();
 

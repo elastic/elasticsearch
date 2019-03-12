@@ -46,9 +46,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -124,19 +126,25 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
 
         public static final ParseField CONTEXTS = new ParseField("contexts");
 
-        private final Map<String, PainlessContextInfo> scriptContextNamesToPainlessContextInfos;
-        private final String scriptContextName;
+        private final List<String> scriptContextNames;
+        private final PainlessContextInfo painlessContextInfo;
 
-        public Response(Map<String, PainlessContextInfo> scriptContextNamesToPainlessContextInfos, String scriptContextName) {
-            this.scriptContextNamesToPainlessContextInfos = Collections.unmodifiableMap(scriptContextNamesToPainlessContextInfos);
-            this.scriptContextName = scriptContextName;
+        public Response(List<String> scriptContextNames, PainlessContextInfo painlessContextInfo) {
+            if (scriptContextNames == null) {
+                this.scriptContextNames = null;
+            } else {
+                scriptContextNames = new ArrayList<>(scriptContextNames);
+                scriptContextNames.sort(String::compareTo);
+                this.scriptContextNames = Collections.unmodifiableList(scriptContextNames);
+            }
+
+            this.painlessContextInfo = painlessContextInfo;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            scriptContextNamesToPainlessContextInfos =
-                    Collections.unmodifiableMap(in.readMap(StreamInput::readString, PainlessContextInfo::new));
-            scriptContextName = in.readString();
+            scriptContextNames = in.readBoolean() ? in.readStringList() : null;
+            painlessContextInfo = in.readBoolean() ? new PainlessContextInfo(in) : null;
         }
 
         @Override
@@ -147,18 +155,32 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(scriptContextNamesToPainlessContextInfos, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            out.writeString(scriptContextName);
+
+            if (scriptContextNames == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeStringCollection(scriptContextNames);
+            }
+
+            if (painlessContextInfo == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                painlessContextInfo.writeTo(out);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (scriptContextName == null) {
+            if (scriptContextNames != null) {
                 builder.startObject();
-                builder.field(CONTEXTS.getPreferredName(), scriptContextNamesToPainlessContextInfos.keySet());
+                builder.field(CONTEXTS.getPreferredName(), scriptContextNames);
                 builder.endObject();
+            } else if (painlessContextInfo != null) {
+                painlessContextInfo.toXContent(builder, params);
             } else {
-                scriptContextNamesToPainlessContextInfos.get(scriptContextName).toXContent(builder, params);
+                throw new IllegalStateException("malformed response");
             }
 
             return builder;
@@ -167,7 +189,7 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        PainlessScriptEngine painlessScriptEngine;
+        private final PainlessScriptEngine painlessScriptEngine;
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, PainlessScriptEngine painlessScriptEngine) {
@@ -177,20 +199,19 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            Map<String, PainlessContextInfo> scriptContextNamesToPainlessContextInfos = new HashMap<>();
-            String scriptContextName = request.getScriptContextName();
+            List<String> scriptContextNames = null;
+            PainlessContextInfo painlessContextInfo = null;
 
             if (request.scriptContextName == null) {
-                for (ScriptContext<?> scriptContext : painlessScriptEngine.getContextsToLookups().keySet()) {
-                    scriptContextNamesToPainlessContextInfos.put(scriptContext.name, null);
-                }
+                scriptContextNames =
+                        painlessScriptEngine.getContextsToLookups().keySet().stream().map(v -> v.name).collect(Collectors.toList());
             } else {
                 ScriptContext<?> scriptContext = null;
                 PainlessLookup painlessLookup = null;
 
                 for (Map.Entry<ScriptContext<?>, PainlessLookup> contextLookupEntry :
                         painlessScriptEngine.getContextsToLookups().entrySet()) {
-                    if (contextLookupEntry.getKey().name.equals(scriptContextName)) {
+                    if (contextLookupEntry.getKey().name.equals(request.getScriptContextName())) {
                         scriptContext = contextLookupEntry.getKey();
                         painlessLookup = contextLookupEntry.getValue();
                         break;
@@ -198,13 +219,13 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
                 }
 
                 if (scriptContext == null || painlessLookup == null) {
-                    throw new IllegalArgumentException("script context [" + scriptContextName + "] not found");
+                    throw new IllegalArgumentException("script context [" + request.getScriptContextName() + "] not found");
                 }
 
-                scriptContextNamesToPainlessContextInfos.put(scriptContext.name, new PainlessContextInfo(scriptContext, painlessLookup));
+                painlessContextInfo = new PainlessContextInfo(scriptContext, painlessLookup);
             }
 
-            listener.onResponse(new Response(scriptContextNamesToPainlessContextInfos, scriptContextName));
+            listener.onResponse(new Response(scriptContextNames, painlessContextInfo));
         }
     }
 

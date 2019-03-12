@@ -41,7 +41,7 @@ public class PluginPropertiesExtension {
     private String classname;
 
     /** Other plugins this plugin extends through SPI */
-    private final List<String> extendedPlugins = new ArrayList<>();
+    private List<String> extendedPlugins = new ArrayList<>();
 
     private boolean hasNativeController;
 
@@ -154,5 +154,11 @@ public class PluginPropertiesExtension {
 
     public Project getProject() {
         return project;
+    }
+
+    public void setExtendedPlugins(List<String> extendedPlugins) {
+        if(extendedPlugins != null) {
+            this.extendedPlugins = extendedPlugins;
+        }
     }
 }

@@ -18,13 +18,15 @@
  */
 package org.elasticsearch.gradle.plugin;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.gradle.api.DefaultTask;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
+import org.gradle.api.file.CopySpec;
 import org.gradle.api.plugins.JavaPluginConvention;
-import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
@@ -37,7 +39,7 @@ import java.util.stream.Collectors;
 /**
  * Creates a plugin descriptor.
  */
-public class PluginPropertiesTask extends Copy {
+public class PluginPropertiesTask extends DefaultTask {
 
     private PluginPropertiesExtension extension;
 
@@ -46,33 +48,21 @@ public class PluginPropertiesTask extends Copy {
 
     public PluginPropertiesTask() {
         Project project = this.getProject();
-
-        File templateFile = new File(project.getBuildDir(), "templates/" + this.descriptorOutput.getName());
-
-        extension = project.getExtensions().create("esplugin", PluginPropertiesExtension.class, project);
-        project.afterEvaluate((unused) -> {
-            from(templateFile.getParentFile()).include(this.descriptorOutput.getName());
-            into(this.descriptorOutput.getParentFile());
-            Map<String, String> properties = this.generateSubstitutions();
-            expand(properties);
-            this.getInputs().properties(properties);
-        });
+        this.extension = project.getExtensions().create("esplugin", PluginPropertiesExtension.class, project);
     }
 
     @TaskAction
     public void configurePluginPropertiesTask() {
         Project project = this.getProject();
 
-        File templateFile = new File(project.getBuildDir(), "templates/" + this.descriptorOutput.getName());
+        File templateFile = new File(project.getBuildDir(), "templates");
         templateFile.getParentFile().mkdirs();
 
-        Task copyPluginPropertiesTemplate = project.getTasks().create("copyPluginPropertiesTemplate")
-            .doLast((unused) -> {
-                from("/" + this.descriptorOutput.getName());
-                into(templateFile.toPath());
-            });
-
-        dependsOn(copyPluginPropertiesTemplate);
+        project.copy((cp) -> {
+            cp.from(getClass().getClassLoader().getResource(this.descriptorOutput.getName())).into(templateFile);
+            cp.expand(this.generateSubstitutions());
+            this.getInputs().properties(this.generateSubstitutions());
+        });
     }
 
     private Map<String, String> generateSubstitutions() {

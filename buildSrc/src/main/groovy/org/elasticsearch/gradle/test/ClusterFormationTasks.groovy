@@ -682,7 +682,7 @@ class ClusterFormationTasks {
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
-            ant.exec(executable: node.executable, spawn: node.config.daemonize, newenvironment: true,
+            ant.exec(executable: node.executable, spawn: node.config.daemonize,
                      dir: node.cwd, taskname: 'elasticsearch') {
                 node.env.each { key, value -> env(key: key, value: value) }
                 if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("8.0.0")) ||

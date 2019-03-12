@@ -121,7 +121,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
                         .transform(scriptTransform(script))
-                        .addAction("_id", indexAction("output1", "type")))
+                        .addAction("_id", indexAction("output1")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
         // put a watch that has a action level transform:
@@ -129,7 +129,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
-                        .addAction("_id", scriptTransform(script), indexAction("output2", "type")))
+                        .addAction("_id", scriptTransform(script), indexAction("output2")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -177,7 +177,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                                 .trigger(schedule(interval("5s")))
                                 .input(searchInput(inputRequest))
-                                .addAction("_id", searchTransform(transformRequest), indexAction("output2", "result"))
+                                .addAction("_id", searchTransform(transformRequest), indexAction("output2"))
                 ).get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -210,7 +210,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
                         .transform(chainTransform(scriptTransform(script1), scriptTransform(script2)))
-                        .addAction("_id", indexAction("output1", "type")))
+                        .addAction("_id", indexAction("output1")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
         // put a watch that has a action level transform:
@@ -219,7 +219,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
                         .addAction("_id", chainTransform(scriptTransform(script1), scriptTransform(script2)),
-                                indexAction("output2", "type")))
+                                indexAction("output2")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 

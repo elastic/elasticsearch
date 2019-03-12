@@ -19,41 +19,24 @@
 
 package org.elasticsearch.index.refresh;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.test.ESTestCase;
 
-public class RefreshStatsTests extends AbstractStreamableTestCase<RefreshStats> {
-    @Override
-    protected RefreshStats createTestInstance() {
-        return new RefreshStats(randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong(), randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
-    }
+import java.io.IOException;
 
-    @Override
-    protected RefreshStats createBlankInstance() {
-        return new RefreshStats();
-    }
+public class RefreshStatsTests extends ESTestCase {
 
-    @Override
-    protected RefreshStats mutateInstance(RefreshStats instance) {
-        long total = instance.getTotal();
-        long totalInMillis = instance.getTotalTimeInMillis();
-        long externalTotal = instance.getExternalTotal();
-        long externalTotalInMillis = instance.getExternalTotalTimeInMillis();
-        int listeners = instance.getListeners();
-        switch (randomInt(2)) {
-        case 0:
-            externalTotal += between(1, 2000);
-            total += externalTotal + between(1, 2000);
-            break;
-        case 1:
-            externalTotalInMillis += between(1,2000);
-            totalInMillis += externalTotalInMillis + between(1, 2000);
-            break;
-        case 2:
-        default:
-            listeners += between(1, 2000);
-            break;
-        }
-        return new RefreshStats(total, totalInMillis, externalTotal, externalTotalInMillis, listeners);
+    public void testSerialize() throws IOException {
+        RefreshStats stats = new RefreshStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+            randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
+        BytesStreamOutput out = new BytesStreamOutput();
+        stats.writeTo(out);
+        StreamInput input = out.bytes().streamInput();
+        RefreshStats read = new RefreshStats(input);
+        assertEquals(-1, input.read());
+        assertEquals(stats.getTotal(), read.getTotal());
+        assertEquals(stats.getListeners(), read.getListeners());
+        assertEquals(stats.getTotalTimeInMillis(), read.getTotalTimeInMillis());
     }
 }

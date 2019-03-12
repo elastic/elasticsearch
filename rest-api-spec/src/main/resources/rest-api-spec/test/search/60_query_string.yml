@@ -65,8 +65,8 @@
 ---
 "search on JSON field":
   - skip:
-      version: " - 6.99.99"
-      reason: "JSON fields are currently only implemented in 7.0."
+      version: " - 7.99.99"
+      reason: "JSON fields are currently only implemented in 8.0."
 
   - do:
       indices.create:

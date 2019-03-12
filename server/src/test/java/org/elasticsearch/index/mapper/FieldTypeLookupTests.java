@@ -186,6 +186,36 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(objectKey, keyedFieldType.key());
     }
 
+    public void testMaxJsonFieldDepth() {
+        FieldTypeLookup lookup = new FieldTypeLookup();
+        assertEquals(0, lookup.maxJsonFieldDepth());
+
+        // Add a JSON field.
+        String jsonFieldName = "object1.object2.field";
+        JsonFieldMapper jsonField = createJsonMapper(jsonFieldName);
+        lookup = lookup.copyAndAddAll("type", newList(jsonField), emptyList());
+        assertEquals(3, lookup.maxJsonFieldDepth());
+
+        // Add a short alias to that field.
+        String aliasName = "alias";
+        FieldAliasMapper alias = new FieldAliasMapper(aliasName, aliasName, jsonFieldName);
+        lookup = lookup.copyAndAddAll("type", emptyList(), newList(alias));
+        assertEquals(3, lookup.maxJsonFieldDepth());
+
+        // Add a longer alias to that field.
+        String longAliasName = "object1.object2.object3.alias";
+        FieldAliasMapper longAlias = new FieldAliasMapper(longAliasName, longAliasName, jsonFieldName);
+        lookup = lookup.copyAndAddAll("type", emptyList(), newList(longAlias));
+        assertEquals(4, lookup.maxJsonFieldDepth());
+
+        // Update the long alias to refer to a non-JSON field.
+        String fieldName = "field";
+        MockFieldMapper field = new MockFieldMapper(fieldName);
+        longAlias = new FieldAliasMapper(longAliasName, longAliasName, fieldName);
+        lookup = lookup.copyAndAddAll("type", newList(field), newList(longAlias));
+        assertEquals(3, lookup.maxJsonFieldDepth());
+    }
+
     private JsonFieldMapper createJsonMapper(String fieldName) {
         Settings settings = Settings.builder()
             .put("index.version.created", Version.CURRENT)

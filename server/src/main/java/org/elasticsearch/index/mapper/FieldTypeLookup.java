@@ -25,6 +25,7 @@ import org.elasticsearch.common.regex.Regex;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -35,20 +36,25 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     final CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType;
     private final CopyOnWriteHashMap<String, String> aliasToConcreteName;
+
     private final CopyOnWriteHashMap<String, JsonFieldMapper> fullNameToJsonMapper;
+    private final int maxJsonFieldDepth;
 
     FieldTypeLookup() {
         fullNameToFieldType = new CopyOnWriteHashMap<>();
         aliasToConcreteName = new CopyOnWriteHashMap<>();
         fullNameToJsonMapper = new CopyOnWriteHashMap<>();
+        maxJsonFieldDepth = 0;
     }
 
     private FieldTypeLookup(CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType,
                             CopyOnWriteHashMap<String, String> aliasToConcreteName,
-                            CopyOnWriteHashMap<String, JsonFieldMapper> fullNameToJsonMapper) {
+                            CopyOnWriteHashMap<String, JsonFieldMapper> fullNameToJsonMapper,
+                            int maxJsonFieldDepth) {
         this.fullNameToFieldType = fullNameToFieldType;
         this.aliasToConcreteName = aliasToConcreteName;
         this.fullNameToJsonMapper = fullNameToJsonMapper;
+        this.maxJsonFieldDepth = maxJsonFieldDepth;
     }
 
     /**
@@ -70,6 +76,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         CopyOnWriteHashMap<String, JsonFieldMapper> jsonMappers = this.fullNameToJsonMapper;
 
         for (FieldMapper fieldMapper : fieldMappers) {
+            String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
             MappedFieldType fullNameFieldType = fullName.get(fieldType.name());
 
@@ -78,7 +85,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
 
             if (fieldMapper instanceof JsonFieldMapper) {
-                jsonMappers = fullNameToJsonMapper.copyAndPut(fieldType.name(), (JsonFieldMapper) fieldMapper);
+                jsonMappers = fullNameToJsonMapper.copyAndPut(fieldName, (JsonFieldMapper) fieldMapper);
             }
         }
 
@@ -92,7 +99,43 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
         }
 
-        return new FieldTypeLookup(fullName, aliases, jsonMappers);
+        int maxFieldDepth = getMaxJsonFieldDepth(aliases, jsonMappers);
+
+        return new FieldTypeLookup(fullName, aliases, jsonMappers, maxFieldDepth);
+    }
+
+    private static int getMaxJsonFieldDepth(CopyOnWriteHashMap<String, String> aliases,
+                                            CopyOnWriteHashMap<String, JsonFieldMapper> jsonMappers) {
+        int maxFieldDepth = 0;
+        for (Map.Entry<String, String> entry : aliases.entrySet()) {
+            String aliasName = entry.getKey();
+            String path = entry.getValue();
+            if (jsonMappers.containsKey(path)) {
+                maxFieldDepth = Math.max(maxFieldDepth, fieldDepth(aliasName));
+            }
+        }
+
+        for (String fieldName : jsonMappers.keySet()) {
+            if (jsonMappers.containsKey(fieldName)) {
+                maxFieldDepth = Math.max(maxFieldDepth, fieldDepth(fieldName));
+            }
+        }
+
+        return maxFieldDepth;
+    }
+
+    /**
+     * Computes the total depth of this field by counting the number of parent fields
+     * in its path. As an example, the field 'parent1.parent2.field' has depth 3.
+     */
+    private static int fieldDepth(String field) {
+        int numDots = 0;
+        for (int i = 0; i < field.length(); ++i) {
+            if (field.charAt(i) == '.') {
+                numDots++;
+            }
+        }
+        return numDots + 1;
     }
 
 
@@ -111,9 +154,20 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         return !fullNameToJsonMapper.isEmpty() ? getKeyedJsonField(field) : null;
     }
 
+    /**
+     * Check if the given field corresponds to a keyed JSON field of the form
+     * 'path_to_json_field.path_to_key'. If so, returns a field type that can
+     * be used to perform searches on this field.
+     */
     private MappedFieldType getKeyedJsonField(String field) {
         int dotIndex = -1;
+        int fieldDepth = 0;
+
         while (true) {
+            if (++fieldDepth > maxJsonFieldDepth) {
+                return null;
+            }
+
             dotIndex = field.indexOf('.', dotIndex + 1);
             if (dotIndex < 0) {
                 return null;
@@ -151,5 +205,10 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     @Override
     public Iterator<MappedFieldType> iterator() {
         return fullNameToFieldType.values().iterator();
+    }
+
+    // Visible for testing.
+    int maxJsonFieldDepth() {
+        return maxJsonFieldDepth;
     }
 }

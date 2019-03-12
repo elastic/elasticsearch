@@ -380,8 +380,7 @@ public class TranslogTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             stats.writeTo(out);
             StreamInput in = out.bytes().streamInput();
-            stats = new TranslogStats();
-            stats.readFrom(in);
+            stats = new TranslogStats(in);
         }
         return stats;
     }
@@ -475,9 +474,7 @@ public class TranslogTests extends ESTestCase {
             final TranslogStats stats = stats();
             final BytesStreamOutput out = new BytesStreamOutput();
             stats.writeTo(out);
-            final TranslogStats copy = new TranslogStats();
-            copy.readFrom(out.bytes().streamInput());
-
+            final TranslogStats copy = new TranslogStats(out.bytes().streamInput());
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
             assertThat(copy.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));
 

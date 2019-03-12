@@ -28,7 +28,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.ByteAllocator;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
@@ -58,13 +61,22 @@ public class NioTransport extends TcpTransport {
 
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final NioGroupFactory groupFactory;
+    private final ByteAllocator byteAllocator;
     private volatile NioGroup nioGroup;
     private volatile Function<DiscoveryNode, TcpChannelFactory> clientChannelFactory;
 
     protected NioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
                            PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                            CircuitBreakerService circuitBreakerService, NioGroupFactory groupFactory) {
+        this(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
+            groupFactory, createAllocator(settings, pageCacheRecycler, PageCacheRecycler.BYTE_PAGE_SIZE));
+    }
+
+    protected NioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
+                           PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
+                           CircuitBreakerService circuitBreakerService, NioGroupFactory groupFactory, ByteAllocator byteAllocator) {
         super("nio", settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
+        this.byteAllocator = byteAllocator;
         this.groupFactory = groupFactory;
     }
 
@@ -158,13 +170,13 @@ public class NioTransport extends TcpTransport {
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
-                Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
+                ByteAllocator.Bytes bytes = byteAllocator.allocateBytePage();
+                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.bytes()), bytes::close);
             };
             TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, NioTransport.this);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, exceptionHandler, readWriteHandler,
-                new InboundChannelBuffer(pageSupplier));
+                new InboundChannelBuffer(pageSupplier, byteAllocator.pageSize()));
             nioChannel.setContext(context);
             return nioChannel;
         }
@@ -178,5 +190,12 @@ public class NioTransport extends TcpTransport {
             nioChannel.setContext(context);
             return nioChannel;
         }
+    }
+
+    protected static ByteAllocator createAllocator(Settings settings, PageCacheRecycler pageCacheRecycler, int pageSize) {
+        int numberOfProcessors = EsExecutors.numberOfProcessors(settings);
+        long maxBytes = ByteSizeUnit.MB.toBytes(16) * numberOfProcessors;
+        Recycler<byte[]> recycler = pageCacheRecycler.newManagedBytesRecycler(pageSize, maxBytes, numberOfProcessors);
+        return ByteAllocator.recyclingInstance(pageSize, recycler);
     }
 }

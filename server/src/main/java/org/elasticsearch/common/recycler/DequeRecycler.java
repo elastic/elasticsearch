@@ -94,8 +94,7 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
             if (recycle) {
                 c.recycle(value);
                 deque.addFirst(value);
-            }
-            else {
+            } else {
                 c.destroy(value);
             }
             value = null;

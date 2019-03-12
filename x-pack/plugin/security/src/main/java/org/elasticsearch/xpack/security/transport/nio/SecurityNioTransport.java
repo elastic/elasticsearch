@@ -67,6 +67,8 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 public class SecurityNioTransport extends NioTransport {
     private static final Logger logger = LogManager.getLogger(SecurityNioTransport.class);
 
+    private static final int SSL_PACKET_SIZE = 16709;
+
     private final SecurityTransportExceptionHandler exceptionHandler;
     private final IPFilter authenticator;
     private final SSLService sslService;
@@ -78,8 +80,8 @@ public class SecurityNioTransport extends NioTransport {
                                 CircuitBreakerService circuitBreakerService, @Nullable final IPFilter authenticator,
                                 SSLService sslService, NioGroupFactory groupFactory) {
         super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
-            groupFactory);
-        this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
+            groupFactory, createAllocator(settings, pageCacheRecycler, SSL_PACKET_SIZE));
+        this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, super::onException);
         this.authenticator = authenticator;
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
@@ -160,7 +162,7 @@ public class SecurityNioTransport extends NioTransport {
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
             TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, SecurityNioTransport.this);
-            InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
+            InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier, PageCacheRecycler.BYTE_PAGE_SIZE);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
 
             SocketChannelContext context;

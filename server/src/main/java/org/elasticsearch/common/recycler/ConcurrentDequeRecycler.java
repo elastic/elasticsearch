@@ -33,7 +33,7 @@ public class ConcurrentDequeRecycler<T> extends DequeRecycler<T> {
     final AtomicInteger size;
 
     public ConcurrentDequeRecycler(C<T> c, int maxSize) {
-        super(c, ConcurrentCollections.<T>newDeque(), maxSize);
+        super(c, ConcurrentCollections.newDeque(), maxSize);
         this.size = new AtomicInteger();
     }
 

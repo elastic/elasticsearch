@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -148,4 +149,24 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
         return wrap(super.objectPage());
     }
 
+    @Override
+    public Recycler<byte[]> newManagedBytesRecycler(int pageSize, long maxBytes, int concurrencyLevel) {
+        Recycler<byte[]> delegate = super.newManagedBytesRecycler(pageSize, maxBytes, concurrencyLevel);
+        return new Recycler<byte[]>() {
+            @Override
+            public void close() {
+                delegate.close();
+            }
+
+            @Override
+            public V<byte[]> obtain() {
+                return wrap(delegate.obtain());
+            }
+
+            @Override
+            public V<byte[]> obtain(int sizing) {
+                return wrap(delegate.obtain(sizing));
+            }
+        };
+    }
 }

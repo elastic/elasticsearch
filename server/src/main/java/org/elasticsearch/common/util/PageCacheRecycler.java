@@ -28,10 +28,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.common.recycler.Recyclers.concurrent;
 import static org.elasticsearch.common.recycler.Recyclers.concurrentDeque;
@@ -67,6 +71,9 @@ public class PageCacheRecycler implements Releasable {
     private final Recycler<long[]> longPage;
     private final Recycler<Object[]> objectPage;
 
+    private final Set<Recycler<byte[]>> managedRecyclers = ConcurrentCollections.newConcurrentSet();
+    private boolean isClosed = false;
+
     public static final PageCacheRecycler NON_RECYCLING_INSTANCE;
 
     static {
@@ -74,8 +81,14 @@ public class PageCacheRecycler implements Releasable {
     }
 
     @Override
-    public void close() {
-        Releasables.close(true, bytePage, intPage, longPage, objectPage);
+    public synchronized void close() {
+        isClosed = true;
+        List<Releasable> toClose = new ArrayList<>(managedRecyclers);
+        toClose.add(bytePage);
+        toClose.add(intPage);
+        toClose.add(longPage);
+        toClose.add(objectPage);
+        Releasables.close(true, toClose);
     }
 
     public PageCacheRecycler(Settings settings) {
@@ -105,16 +118,7 @@ public class PageCacheRecycler implements Releasable {
         final int maxPageCount = (int) Math.min(Integer.MAX_VALUE, limit / PAGE_SIZE_IN_BYTES);
 
         final int maxBytePageCount = (int) (bytesWeight * maxPageCount / totalWeight);
-        bytePage = build(type, maxBytePageCount, availableProcessors, new AbstractRecyclerC<byte[]>() {
-            @Override
-            public byte[] newInstance(int sizing) {
-                return new byte[BYTE_PAGE_SIZE];
-            }
-            @Override
-            public void recycle(byte[] value) {
-                // nothing to do
-            }
-        });
+        bytePage = build(type, maxBytePageCount, availableProcessors, byteRecycler(BYTE_PAGE_SIZE));
 
         final int maxIntPageCount = (int) (intsWeight * maxPageCount / totalWeight);
         intPage = build(type, maxIntPageCount, availableProcessors, new AbstractRecyclerC<int[]>() {
@@ -182,6 +186,29 @@ public class PageCacheRecycler implements Releasable {
     public Recycler.V<Object[]> objectPage() {
         // object pages are cleared on release anyway
         return objectPage.obtain();
+    }
+
+    public synchronized Recycler<byte[]> newManagedBytesRecycler(int pageSize, long maxBytes, int concurrencyLevel) {
+        if (isClosed) {
+            throw new IllegalStateException("PageCacheRecycler is closed");
+        }
+        int limitPerDeque = (int) maxBytes / pageSize / concurrencyLevel;
+        Recycler<byte[]> recycler = concurrent(dequeFactory(byteRecycler(pageSize), limitPerDeque), concurrencyLevel);
+        managedRecyclers.add(recycler);
+        return recycler;
+    }
+
+    private static  Recycler.C<byte[]> byteRecycler(int pageSize) {
+        return new AbstractRecyclerC<byte[]>() {
+            @Override
+            public byte[] newInstance(int sizing) {
+                return new byte[pageSize];
+            }
+            @Override
+            public void recycle(byte[] value) {
+                // nothing to do
+            }
+        };
     }
 
     private static <T> Recycler<T> build(Type type, int limit, int availableProcessors, Recycler.C<T> c) {

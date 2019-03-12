@@ -733,6 +733,7 @@ public class RecoverySourceHandler {
          * and local_checkpoint is greater than {@code maxConcurrentFileChunks}.
          */
         void sendFileChunks(ActionListener<Void> listener) {
+            assert ThreadPool.assertCurrentMethodIsNotCalledRecursively();
             while (true) {
                 cancellableThreads.checkForCancel();
                 synchronized (this) {

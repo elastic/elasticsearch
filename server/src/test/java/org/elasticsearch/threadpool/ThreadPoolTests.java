@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
+import static org.elasticsearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ThreadPoolTests extends ESTestCase {
@@ -66,5 +67,18 @@ public class ThreadPoolTests extends ESTestCase {
         Settings settings = Settings.builder().put("thread_pool.estimated_time_interval", -1).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> ESTIMATED_TIME_INTERVAL_SETTING.get(settings));
         assertEquals("failed to parse value [-1] for setting [thread_pool.estimated_time_interval], must be >= [0ms]", e.getMessage());
+    }
+
+    int recursiveFactorial(int n) {
+        assertCurrentMethodIsNotCalledRecursively();
+        if (n <= 1) {
+            return 1;
+        }
+        return n * recursiveFactorial(n - 1);
+    }
+
+    public void testAssertCurrentMethodIsNotCalledRecursively() {
+        recursiveFactorial(between(0, 1));
+        expectThrows(AssertionError.class, () -> recursiveFactorial(between(2, 10)));
     }
 }

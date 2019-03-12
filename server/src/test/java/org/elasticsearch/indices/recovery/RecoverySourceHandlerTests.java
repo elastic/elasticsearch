@@ -94,7 +94,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import java.util.zip.CRC32;
@@ -104,7 +103,6 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.core.IsNull.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyObject;
@@ -160,7 +158,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             @Override
             public void writeFileChunk(StoreFileMetaData md, long position, BytesReference content, boolean lastChunk,
                                        int totalTranslogOps, ActionListener<Void> listener) {
-                maybeExecuteAsync(() -> ActionListener.completeWith(listener, () -> {
+                threadPool.generic().execute(() -> ActionListener.completeWith(listener, () -> {
                     multiFileWriter.writeFileChunk(md, position, content, lastChunk);
                     return null;
                 }));
@@ -224,7 +222,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                                                 RetentionLeases retentionLeases, ActionListener<Long> listener) {
                 shippedOps.addAll(operations);
                 checkpointOnTarget.set(randomLongBetween(checkpointOnTarget.get(), Long.MAX_VALUE));
-                maybeExecuteAsync(() -> listener.onResponse(checkpointOnTarget.get()));
+                threadPool.generic().execute(() -> listener.onResponse(checkpointOnTarget.get()));
             }
         };
         RecoverySourceHandler handler = new RecoverySourceHandler(shard, recoveryTarget, request, fileChunkSizeInBytes, between(1, 10));
@@ -258,9 +256,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp,
                                                 long msu, RetentionLeases retentionLeases, ActionListener<Long> listener) {
                 if (randomBoolean()) {
-                    maybeExecuteAsync(() -> listener.onResponse(SequenceNumbers.NO_OPS_PERFORMED));
+                    threadPool.generic().execute(() -> listener.onResponse(SequenceNumbers.NO_OPS_PERFORMED));
                 } else {
-                    maybeExecuteAsync(() -> listener.onFailure(new RuntimeException("test - failed to index")));
+                    threadPool.generic().execute(() -> listener.onFailure(new RuntimeException("test - failed to index")));
                     wasFailed.set(true);
                 }
             }
@@ -347,9 +345,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     if (lastChunk) {
                         out.close();
                     }
-                    listener.onResponse(null);
+                    threadPool.generic().execute(() -> listener.onResponse(null));
                 } catch (Exception e) {
-                    IOUtils.closeWhileHandlingException(out, () -> listener.onFailure(e));
+                    IOUtils.closeWhileHandlingException(out);
+                    threadPool.generic().execute(() -> listener.onFailure(e));
                 }
             }
         };
@@ -572,7 +571,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
             int expectedSentChunks = sentChunks.get() + chunksToSend;
             int expectedUnrepliedChunks = unrepliedChunks.size() + chunksToSend;
-            chunksToAck.forEach(c -> maybeExecuteAsync(() -> c.listener.onResponse(null)));
+            chunksToAck.forEach(c -> c.listener.onResponse(null));
             assertBusy(() -> {
                 assertThat(sentChunks.get(), equalTo(expectedSentChunks));
                 assertThat(unrepliedChunks, hasSize(expectedUnrepliedChunks));
@@ -602,23 +601,20 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Store store = newStore(createTempDir(), false);
         List<StoreFileMetaData> files = generateFiles(store, between(1, 10), () -> between(1, chunkSize * 20));
         int totalChunks = files.stream().mapToInt(md -> ((int) md.length() + chunkSize - 1) / chunkSize).sum();
-        AtomicReference<Exception> error = new AtomicReference<>();
-        handler.sendFiles(store, files.toArray(new StoreFileMetaData[0]), () -> 0, ActionListener.wrap(r -> {}, error::set));
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        handler.sendFiles(store, files.toArray(new StoreFileMetaData[0]), () -> 0, future);
         assertBusy(() -> assertThat(sentChunks.get(), equalTo(Math.min(totalChunks, maxConcurrentChunks))));
         List<FileChunkResponse> failedChunks = randomSubsetOf(between(1, unrepliedChunks.size()), unrepliedChunks);
-        failedChunks.forEach(c -> c.listener.onFailure(new RuntimeException("test chunk exception")));
+        failedChunks.forEach(c -> threadPool.generic().execute(() -> c.listener.onFailure(new RuntimeException("test chunk exception"))));
         unrepliedChunks.removeAll(failedChunks);
-        unrepliedChunks.forEach(c -> {
+        unrepliedChunks.forEach(c -> threadPool.generic().execute(() -> {
             if (randomBoolean()) {
                 c.listener.onFailure(new RuntimeException("test chunk exception"));
             } else {
                 c.listener.onResponse(null);
             }
-        });
-        assertBusy(() -> {
-            assertThat(error.get(), notNullValue());
-            assertThat(error.get().getMessage(), containsString("test chunk exception"));
-        });
+        }));
+        assertThat( expectThrows(RuntimeException.class, () -> future.actionGet()).getMessage(),containsString("test chunk exception"));
         assertThat("no more chunks should be sent", sentChunks.get(), equalTo(Math.min(totalChunks, maxConcurrentChunks)));
         store.close();
     }
@@ -750,13 +746,5 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
             }
         };
-    }
-
-    private void maybeExecuteAsync(Runnable runnable) {
-        if (randomBoolean()) {
-            threadPool.generic().execute(runnable);
-        } else {
-            runnable.run();
-        }
     }
 }

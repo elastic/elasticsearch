@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.action.util;
+package org.elasticsearch.xpack.core.action.util;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.ParseField;
@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,7 +37,7 @@ public final class QueryPage<T extends ToXContent & Writeable> implements ToXCon
     public QueryPage(List<T> results, long count, ParseField resultsField) {
         this.results = results;
         this.count = count;
-        this.resultsField = ExceptionsHelper.requireNonNull(resultsField, DEFAULT_RESULTS_FIELD.getPreferredName());
+        this.resultsField = Objects.requireNonNull(resultsField);
     }
 
     public QueryPage(StreamInput in, Reader<T> hitReader) throws IOException {

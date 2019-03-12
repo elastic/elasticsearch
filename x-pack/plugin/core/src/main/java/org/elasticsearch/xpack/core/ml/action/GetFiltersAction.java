@@ -9,16 +9,14 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
+import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 
 import java.io.IOException;
@@ -113,31 +111,17 @@ public class GetFiltersAction extends Action<GetFiltersAction.Response> {
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
-
-        private QueryPage<MlFilter> filters;
+    public static class Response extends AbstractGetResourcesResponse<MlFilter> implements StatusToXContentObject {
 
         public Response(QueryPage<MlFilter> filters) {
-            this.filters = filters;
+            super(filters);
         }
 
         public Response() {
         }
 
         public QueryPage<MlFilter> getFilters() {
-            return filters;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            filters = new QueryPage<>(in, MlFilter::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            filters.writeTo(out);
+            return getResources();
         }
 
         @Override
@@ -146,33 +130,8 @@ public class GetFiltersAction extends Action<GetFiltersAction.Response> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            filters.doXContentBody(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(filters);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return Objects.equals(filters, other.filters);
-        }
-
-        @Override
-        public final String toString() {
-            return Strings.toString(this);
+        protected Reader<MlFilter> getReader() {
+            return MlFilter::new;
         }
     }
 

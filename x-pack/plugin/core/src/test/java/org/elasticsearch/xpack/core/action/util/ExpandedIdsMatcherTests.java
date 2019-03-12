@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.persistence;
+package org.elasticsearch.xpack.core.action.util;
 
 import org.elasticsearch.test.ESTestCase;
 
@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.isOneOf;
 
 public class ExpandedIdsMatcherTests extends ESTestCase {
 
-    public void testMatchingJobIds() {
+    public void testMatchingResourceIds() {
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(new String[] {"*"}, false);
         assertThat(requiredMatches.unmatchedIds(), hasSize(1));
         assertTrue(requiredMatches.hasUnmatchedIds());
@@ -76,8 +76,7 @@ public class ExpandedIdsMatcherTests extends ESTestCase {
         assertThat(requiredMatches.unmatchedIds().get(1), isOneOf("bar", "wild*"));
     }
 
-    public void testMatchingJobIds_allowNoJobs() {
-        // wildcard all with allow no jobs
+    public void testMatchingResourceIds_allowNoMatch() {
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(new String[] {"*"}, true);
         assertThat(requiredMatches.unmatchedIds(), empty());
         assertFalse(requiredMatches.hasUnmatchedIds());

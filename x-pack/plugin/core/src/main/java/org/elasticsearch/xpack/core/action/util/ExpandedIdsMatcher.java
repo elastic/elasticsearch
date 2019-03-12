@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.persistence;
+package org.elasticsearch.xpack.core.action.util;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -38,7 +38,7 @@ public final class ExpandedIdsMatcher {
      * @param expression Expression containing zero or more ','s
      * @return Array of tokens
      */
-    public static String [] tokenizeExpression(String expression) {
+    public static String[] tokenizeExpression(String expression) {
         return Strings.tokenizeToStringArray(expression, ",");
     }
 
@@ -50,10 +50,10 @@ public final class ExpandedIdsMatcher {
      *
      * @param tokens List of expressions that may be wildcards or full Ids
      * @param allowNoMatchForWildcards If true then it is not required for wildcard
-     *                               expressions to match an Id meaning they are
-     *                               not returned in the list of required matches
+     *                                 expressions to match an Id meaning they are
+     *                                 not returned in the list of required matches
      */
-    public ExpandedIdsMatcher(String [] tokens, boolean allowNoMatchForWildcards) {
+    public ExpandedIdsMatcher(String[] tokens, boolean allowNoMatchForWildcards) {
         requiredMatches = new LinkedList<>();
 
         if (Strings.isAllOrWildcard(tokens)) {

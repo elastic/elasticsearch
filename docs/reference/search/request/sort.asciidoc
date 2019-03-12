@@ -147,7 +147,7 @@ PUT /index_long
 
 Since `field` is mapped as a `double` in the first index and as a `long`
 in the second index, it is not possible to use this field to sort requests
-that query both indices bu default. However you can force the type to one
+that query both indices by default. However you can force the type to one
 or the other with the `numeric_type` option in order to force a specific
 type for all indices:
 

@@ -110,13 +110,27 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         final List<DiscoveryNode> allNodes = generateNodes();
         for (int iteration = 0; iteration < 3; iteration++) {
-            final DiscoveryNodes nodes = discoveryNodesFromList(randomSubsetOf(allNodes));
 
+            final boolean isDisrupting = randomBoolean();
+            final AtomicBoolean stopDisrupting = new AtomicBoolean();
+            final Thread disruptionThread = new Thread(() -> {
+                while (isDisrupting && stopDisrupting.get() == false) {
+                    transportService.disconnectFromNode(randomFrom(allNodes));
+                }
+            });
+            disruptionThread.start();
+
+            final DiscoveryNodes nodes = discoveryNodesFromList(randomSubsetOf(allNodes));
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             service.connectToNodes(nodes, () -> future.onResponse(null));
             future.actionGet();
-            assertConnected(nodes);
+            if (isDisrupting == false) {
+                assertConnected(nodes);
+            }
             service.disconnectFromNodesExcept(nodes);
+
+            assertTrue(stopDisrupting.compareAndSet(false, true));
+            disruptionThread.join();
 
             if (randomBoolean()) {
                 // sometimes do not wait for the disconnections to complete before starting the next connections

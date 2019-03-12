@@ -245,7 +245,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
             // once the connection is unblocked we successfully connect to it.
             nodeConnectionBlocks.clear();
-            connectionBarrier.await(10, TimeUnit.SECONDS);
+            connectionBarrier.await(0, TimeUnit.SECONDS);
             future3.actionGet();
             assertConnectedExactlyToNodes(nodes01);
 

@@ -36,8 +36,11 @@ import org.elasticsearch.client.ccr.AutoFollowStats;
 import org.elasticsearch.client.ccr.CcrStatsRequest;
 import org.elasticsearch.client.ccr.CcrStatsResponse;
 import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.FollowInfoRequest;
+import org.elasticsearch.client.ccr.FollowInfoResponse;
 import org.elasticsearch.client.ccr.FollowStatsRequest;
 import org.elasticsearch.client.ccr.FollowStatsResponse;
+import org.elasticsearch.client.ccr.ForgetFollowerRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse.Pattern;
@@ -49,15 +52,19 @@ import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.core.BroadcastResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -392,6 +399,101 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    public void testForgetFollower() throws InterruptedException, IOException {
+        final RestHighLevelClient client = highLevelClient();
+        final String leaderIndex = "leader";
+        {
+            // create leader index
+            final CreateIndexRequest createIndexRequest = new CreateIndexRequest(leaderIndex);
+            final Map<String, String> settings = new HashMap<>(2);
+            final int numberOfShards = randomIntBetween(1, 2);
+            settings.put("index.number_of_shards", Integer.toString(numberOfShards));
+            settings.put("index.soft_deletes.enabled", Boolean.TRUE.toString());
+            createIndexRequest.settings(settings);
+            final CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+            assertThat(response.isAcknowledged(), is(true));
+        }
+        final String followerIndex = "follower";
+
+        final PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followerIndex, ActiveShardCount.ONE);
+        final PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
+        assertTrue(putFollowResponse.isFollowIndexCreated());
+        assertTrue((putFollowResponse.isFollowIndexShardsAcked()));
+        assertTrue(putFollowResponse.isIndexFollowingStarted());
+
+        final PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
+        AcknowledgedResponse pauseFollowResponse = client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+        assertTrue(pauseFollowResponse.isAcknowledged());
+
+        final String followerCluster = highLevelClient().info(RequestOptions.DEFAULT).getClusterName().value();
+        final Request statsRequest = new Request("GET", "/follower/_stats");
+        final Response statsResponse = client().performRequest(statsRequest);
+        final ObjectPath statsObjectPath = ObjectPath.createFromResponse(statsResponse);
+        final String followerIndexUUID = statsObjectPath.evaluate("indices.follower.uuid");
+
+        final String leaderCluster = "local";
+
+        // tag::ccr-forget-follower-request
+        final ForgetFollowerRequest request = new ForgetFollowerRequest(
+                followerCluster, // <1>
+                followerIndex, // <2>
+                followerIndexUUID, // <3>
+                leaderCluster, // <4>
+                leaderIndex); // <5>
+        // end::ccr-forget-follower-request
+
+        // tag::ccr-forget-follower-execute
+        final BroadcastResponse response = client
+                .ccr()
+                .forgetFollower(request, RequestOptions.DEFAULT);
+        // end::ccr-forget-follower-execute
+
+        // tag::ccr-forget-follower-response
+        final BroadcastResponse.Shards shards = response.shards(); // <1>
+        final int total = shards.total(); // <2>
+        final int successful = shards.successful(); // <3>
+        final int skipped = shards.skipped(); // <4>
+        final int failed = shards.failed(); // <5>
+        shards.failures().forEach(failure -> {}); // <6>
+        // end::ccr-forget-follower-response
+
+        // tag::ccr-forget-follower-execute-listener
+        ActionListener<BroadcastResponse> listener =
+                new ActionListener<BroadcastResponse>() {
+
+                    @Override
+                    public void onResponse(final BroadcastResponse response) {
+                        final BroadcastResponse.Shards shards = // <1>
+                                response.shards();
+                        final int total = shards.total();
+                        final int successful = shards.successful();
+                        final int skipped = shards.skipped();
+                        final int failed = shards.failed();
+                        shards.failures().forEach(failure -> {});
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+                        // <2>
+                    }
+
+                };
+        // end::ccr-forget-follower-execute-listener
+
+        // replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ccr-forget-follower-execute-async
+        client.ccr().forgetFollowerAsync(
+                request,
+                RequestOptions.DEFAULT,
+                listener); // <1>
+        // end::ccr-forget-follower-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
     public void testPutAutoFollowPattern() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -687,6 +789,74 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         client.ccr().getFollowStatsAsync(request,
             RequestOptions.DEFAULT, listener); // <1>
         // end::ccr-get-follow-stats-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        {
+            PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
+            AcknowledgedResponse pauseFollowResponse =  client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+            assertThat(pauseFollowResponse.isAcknowledged(), is(true));
+        }
+    }
+
+    public void testGetFollowInfos() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // Create leader index:
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
+            createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
+            CreateIndexResponse response = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+            assertThat(response.isAcknowledged(), is(true));
+        }
+        {
+            // Follow index, so that we can query for follow stats:
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", "follower", ActiveShardCount.ONE);
+            PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
+            assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
+            assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
+            assertThat(putFollowResponse.isIndexFollowingStarted(), is(true));
+        }
+
+        // tag::ccr-get-follow-info-request
+        FollowInfoRequest request =
+            new FollowInfoRequest("follower"); // <1>
+        // end::ccr-get-follow-info-request
+
+        // tag::ccr-get-follow-info-execute
+        FollowInfoResponse response = client.ccr()
+            .getFollowInfo(request, RequestOptions.DEFAULT);
+        // end::ccr-get-follow-info-execute
+
+        // tag::ccr-get-follow-info-response
+        List<FollowInfoResponse.FollowerInfo> infos =
+            response.getInfos(); // <1>
+        // end::ccr-get-follow-info-response
+
+        // tag::ccr-get-follow-info-execute-listener
+        ActionListener<FollowInfoResponse> listener =
+            new ActionListener<FollowInfoResponse>() {
+                @Override
+                public void onResponse(FollowInfoResponse response) { // <1>
+                    List<FollowInfoResponse.FollowerInfo> infos =
+                        response.getInfos();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::ccr-get-follow-info-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::ccr-get-follow-info-execute-async
+        client.ccr().getFollowInfoAsync(request,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::ccr-get-follow-info-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
 

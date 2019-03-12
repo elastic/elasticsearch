@@ -26,11 +26,13 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -124,10 +126,11 @@ public class RetentionLeaseSyncAction extends
     protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(
             final Request request,
             final IndexShard primary) throws WriteStateException {
+        assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
         Objects.requireNonNull(request);
         Objects.requireNonNull(primary);
         primary.persistRetentionLeases();
-        return new WritePrimaryResult<>(request, new Response(), null, null, primary, logger);
+        return new WritePrimaryResult<>(request, new Response(), null, null, primary, getLogger());
     }
 
     @Override
@@ -138,7 +141,12 @@ public class RetentionLeaseSyncAction extends
         Objects.requireNonNull(replica);
         replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
         replica.persistRetentionLeases();
-        return new WriteReplicaResult<>(request, null, null, replica, logger);
+        return new WriteReplicaResult<>(request, null, null, replica, getLogger());
+    }
+
+    @Override
+    public ClusterBlockLevel indexBlockLevel() {
+        return null;
     }
 
     public static final class Request extends ReplicatedWriteRequest<Request> {
@@ -156,6 +164,7 @@ public class RetentionLeaseSyncAction extends
         public Request(final ShardId shardId, final RetentionLeases retentionLeases) {
             super(Objects.requireNonNull(shardId));
             this.retentionLeases = Objects.requireNonNull(retentionLeases);
+            waitForActiveShards(ActiveShardCount.NONE);
         }
 
         @Override

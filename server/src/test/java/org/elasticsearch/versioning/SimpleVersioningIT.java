@@ -741,7 +741,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                         .getVersion(),
                 equalTo(-1L));
 
-        // ThreadPool.estimatedTimeInMillis has default granularity of 200 msec, so we must sleep at least that long; sleep much longer in
+        // ThreadPool.relativeTimeInMillis has default granularity of 200 msec, so we must sleep at least that long; sleep much longer in
         // case system is busy:
         Thread.sleep(1000);
 

@@ -54,7 +54,6 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38633")
     public void testFailOverOnFollower() throws Exception {
         final String leaderIndex = "leader_test_failover";
         final String followerIndex = "follower_test_failover";
@@ -125,7 +124,6 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         pauseFollow(followerIndex);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33337")
     public void testFollowIndexAndCloseNode() throws Exception {
         getFollowerCluster().ensureAtLeastNumDataNodes(3);
         String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));

@@ -105,13 +105,13 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     }
 
     private String createBulkEntity() {
-        return "{\"index\":{}}\n" +
-               "{\"foo\":{\"bar\":0}}\n" +
-               "{\"index\":{}}\n" +
-               "{\"foo\":{\"bar\":1}}\n" +
-               "{\"index\":{}}\n" +
-               "{\"foo\":{\"bar\":2}}\n" +
-               "\n";
+        return  "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":0}}\n" +
+                "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":1}}\n" +
+                "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":2}}\n" +
+                "\n";
     }
 
     /**
@@ -128,7 +128,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             final MonitoringBulkResponse bulkResponse =
                     new MonitoringBulkRequestBuilder(client())
-                            .add(system, "monitoring_data_type", new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
+                            .add(system, new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
                                  System.currentTimeMillis(), interval.millis())
                     .get();
 
@@ -190,6 +190,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      * This test waits for the monitoring service to collect monitoring documents and then checks that all expected documents
      * have been indexed with the expected information.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29880")
     public void testMonitoringService() throws Exception {
         final boolean createAPMIndex = randomBoolean();
         final String indexName = createAPMIndex ? "apm-2017.11.06" : "books";

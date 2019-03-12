@@ -40,11 +40,13 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.BaseDirectoryWrapper;
+import org.apache.lucene.store.ByteBufferIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
@@ -96,6 +98,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class StoreTests extends ESTestCase {
 
@@ -925,17 +928,17 @@ public class StoreTests extends ESTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig();
         Path tempDir = createTempDir();
         final BaseDirectoryWrapper dir = newFSDirectory(tempDir);
-        assertFalse(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertFalse(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l, d) -> new DummyShardLock(id)));
         IndexWriter writer = new IndexWriter(dir, iwc);
         Document doc = new Document();
         doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         writer.commit();
         writer.close();
-        assertTrue(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertTrue(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l, d) -> new DummyShardLock(id)));
         Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
         store.markStoreCorrupted(new CorruptIndexException("foo", "bar"));
-        assertFalse(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertFalse(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l, d) -> new DummyShardLock(id)));
         store.close();
     }
 
@@ -977,7 +980,7 @@ public class StoreTests extends ESTestCase {
         String uuid = Store.CORRUPTED + UUIDs.randomBase64UUID();
         try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_STACK_TRACE);
-            output.writeString(ExceptionsHelper.detailedMessage(exception));
+            output.writeString(exception.getMessage());
             output.writeString(ExceptionsHelper.stackTrace(exception));
             CodecUtil.writeFooter(output);
         }
@@ -985,8 +988,7 @@ public class StoreTests extends ESTestCase {
             store.failIfCorrupted();
             fail("should be corrupted");
         } catch (CorruptIndexException e) {
-            assertTrue(e.getMessage().startsWith("[index][1] Preexisting corrupted index [" + uuid +
-                "] caused by: CorruptIndexException[foo (resource=bar)]"));
+            assertThat(e.getMessage(), startsWith("[index][1] Preexisting corrupted index [" + uuid + "] caused by: foo (resource=bar)"));
             assertTrue(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
         }
 
@@ -994,15 +996,14 @@ public class StoreTests extends ESTestCase {
 
         try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_START);
-            output.writeString(ExceptionsHelper.detailedMessage(exception));
+            output.writeString(exception.getMessage());
             CodecUtil.writeFooter(output);
         }
         try {
             store.failIfCorrupted();
             fail("should be corrupted");
         } catch (CorruptIndexException e) {
-            assertTrue(e.getMessage().startsWith("[index][1] Preexisting corrupted index [" + uuid +
-                "] caused by: CorruptIndexException[foo (resource=bar)]"));
+            assertThat(e.getMessage(), startsWith("[index][1] Preexisting corrupted index [" + uuid + "] caused by: foo (resource=bar)"));
             assertFalse(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
         }
 
@@ -1078,6 +1079,48 @@ public class StoreTests extends ESTestCase {
             segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
             assertThat(segmentInfos.getUserData().get(Engine.HISTORY_UUID_KEY), not(equalTo(oldHistoryUUID)));
+        }
+    }
+
+    public void testDeoptimizeMMap() throws IOException {
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index",
+            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+                .put(Store.FORCE_RAM_TERM_DICT.getKey(), true).build());
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        String file = "test." + (randomBoolean() ? "tip" : "cfs");
+        try (Store store = new Store(shardId, indexSettings, new MMapDirectory(createTempDir()), new DummyShardLock(shardId))) {
+            try (IndexOutput output = store.directory().createOutput(file, IOContext.DEFAULT)) {
+                output.writeInt(0);
+            }
+            try (IndexOutput output = store.directory().createOutput("someOtherFile.txt", IOContext.DEFAULT)) {
+                output.writeInt(0);
+            }
+            try (IndexInput input = store.directory().openInput(file, IOContext.DEFAULT)) {
+                assertFalse(input instanceof ByteBufferIndexInput);
+                assertFalse(input.clone() instanceof ByteBufferIndexInput);
+                assertFalse(input.slice("foo", 1, 1) instanceof ByteBufferIndexInput);
+            }
+
+            try (IndexInput input = store.directory().openInput("someOtherFile.txt", IOContext.DEFAULT)) {
+                assertTrue(input instanceof ByteBufferIndexInput);
+                assertTrue(input.clone() instanceof ByteBufferIndexInput);
+                assertTrue(input.slice("foo", 1, 1) instanceof ByteBufferIndexInput);
+            }
+        }
+
+        indexSettings = IndexSettingsModule.newIndexSettings("index",
+            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+                .put(Store.FORCE_RAM_TERM_DICT.getKey(), false).build());
+
+        try (Store store = new Store(shardId, indexSettings, new MMapDirectory(createTempDir()), new DummyShardLock(shardId))) {
+            try (IndexOutput output = store.directory().createOutput(file, IOContext.DEFAULT)) {
+                output.writeInt(0);
+            }
+            try (IndexInput input = store.directory().openInput(file, IOContext.DEFAULT)) {
+                assertTrue(input instanceof ByteBufferIndexInput);
+                assertTrue(input.clone() instanceof ByteBufferIndexInput);
+                assertTrue(input.slice("foo", 1, 1) instanceof ByteBufferIndexInput);
+            }
         }
     }
 }

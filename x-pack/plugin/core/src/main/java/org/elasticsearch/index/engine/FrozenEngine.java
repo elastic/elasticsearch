@@ -20,6 +20,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -68,6 +69,7 @@ import java.util.function.Function;
 public final class FrozenEngine extends ReadOnlyEngine {
     public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting("index.frozen", false, Setting.Property.IndexScope,
         Setting.Property.PrivateIndex);
+    private final SegmentsStats stats;
     private volatile DirectoryReader lastOpenedReader;
     private final DirectoryReader canMatchReader;
 
@@ -79,6 +81,13 @@ public final class FrozenEngine extends ReadOnlyEngine {
         try (DirectoryReader reader = DirectoryReader.open(directory)) {
             canMatchReader = ElasticsearchDirectoryReader.wrap(new RewriteCachingDirectoryReader(directory, reader.leaves()),
                 config.getShardId());
+            // we record the segment stats here - that's what the reader needs when it's open and it give the user
+            // an idea of what it can save when it's closed
+            this.stats = new SegmentsStats();
+            for (LeafReaderContext ctx : reader.getContext().leaves()) {
+                SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
+                fillSegmentStats(segmentReader, true, stats);
+            }
             success = true;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -177,20 +186,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @SuppressForbidden(reason = "we manage references explicitly here")
-    private synchronized DirectoryReader getReader() throws IOException {
-        DirectoryReader reader = null;
-        boolean success = false;
-        try {
-            if (lastOpenedReader != null && lastOpenedReader.tryIncRef()) {
-                reader = lastOpenedReader;
-            }
-            success = true;
-            return reader;
-        } finally {
-            if (success == false) {
-                IOUtils.close(reader);
-            }
+    private synchronized DirectoryReader getReader() {
+        if (lastOpenedReader != null && lastOpenedReader.tryIncRef()) {
+            return lastOpenedReader;
         }
+        return null;
     }
 
     @Override
@@ -583,6 +583,21 @@ public final class FrozenEngine extends ReadOnlyEngine {
         public LeafReader getDelegate() {
             return in;
         }
+    }
+
+    @Override
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        if (includeUnloadedSegments) {
+            final SegmentsStats stats = new SegmentsStats();
+            stats.add(this.stats);
+            if (includeSegmentFileSizes == false) {
+                stats.clearFileSizes();
+            }
+            return stats;
+        } else {
+            return super.segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
+        }
+
     }
 
     synchronized boolean isReaderOpen() {

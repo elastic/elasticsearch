@@ -146,11 +146,11 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
             return false;
         }
         SnapshotLifecyclePolicy other = (SnapshotLifecyclePolicy) obj;
-        return this.id.equals(other.id) &&
-            this.name.equals(other.name) &&
-            this.schedule.equals(other.schedule) &&
-            this.repository.equals(other.repository) &&
-            this.configuration.equals(other.configuration);
+        return Objects.equals(id, other.id) &&
+            Objects.equals(name, other.name) &&
+            Objects.equals(schedule, other.schedule) &&
+            Objects.equals(repository, other.repository) &&
+            Objects.equals(configuration, other.configuration);
     }
 
     @Override

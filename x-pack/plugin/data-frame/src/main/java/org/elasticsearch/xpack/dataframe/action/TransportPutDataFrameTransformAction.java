@@ -125,7 +125,7 @@ public class TransportPutDataFrameTransformAction
 
         if (dest.length > 0) {
             listener.onFailure(new ElasticsearchStatusException(
-                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_TARGET_INDEX_ALREADY_EXISTS, config.getDestination()),
+                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_INDEX_ALREADY_EXISTS, config.getDestination()),
                 RestStatus.BAD_REQUEST));
             return;
         }
@@ -163,7 +163,7 @@ public class TransportPutDataFrameTransformAction
                 listener::onFailure);
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
-        } else {
+        } else { // No security enabled, just create the transform
             putDataFrame(config, listener);
         }
     }
@@ -222,7 +222,7 @@ public class TransportPutDataFrameTransformAction
         ActionListener<Boolean> createDestinationIndexListener = ActionListener.wrap(
             createIndexResult -> dataFrameTransformsConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
             createDestinationIndexException -> listener.onFailure(
-                new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_CREATE_TARGET_INDEX,
+                new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_CREATE_DEST_INDEX,
                     createDestinationIndexException))
         );
 
@@ -230,7 +230,7 @@ public class TransportPutDataFrameTransformAction
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
             mappings -> DataframeIndex.createDestinationIndex(client, config, mappings, createDestinationIndexListener),
             deduceTargetMappingsException -> listener.onFailure(
-                new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_TARGET_MAPPINGS,
+                new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_DEST_MAPPINGS,
                     deduceTargetMappingsException))
         );
 

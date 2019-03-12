@@ -28,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
@@ -106,6 +107,13 @@ public class TransportStartDataFrameTransformAction extends
         // <2> Create the task in cluster state so that it will start executing on the node
         ActionListener<DataFrameTransformConfig> getTransformListener = ActionListener.wrap(
             config -> {
+                if (config.isValid() == false) {
+                    listener.onFailure(new ElasticsearchStatusException(
+                        DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_CONFIG_INVALID, request.getId()),
+                        RestStatus.BAD_REQUEST
+                    ));
+                    return;
+                }
                 PersistentTasksCustomMetaData.PersistentTask<DataFrameTransform> existingTask =
                     getExistingTask(transformTask.getId(), state);
                 if (existingTask == null) {
@@ -120,7 +128,7 @@ public class TransportStartDataFrameTransformAction extends
             listener::onFailure
         );
 
-        // <1> Get the config to verify it exists
+        // <1> Get the config to verify it exists and is valid
         dataFrameTransformsConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
     }
 

@@ -47,6 +47,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
 
         // create a transform
         createPivotReviewsTransform("test_usage", "pivot_reviews", null);
+        // TODO remove as soon as stats are stored in an index instead of ClusterState with the task
         startAndWaitForTransform("test_usage", "pivot_reviews");
 
         usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));

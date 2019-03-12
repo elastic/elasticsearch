@@ -129,9 +129,10 @@ public class DataFrameTransformsConfigManager {
      */
     public void getTransformConfigurations(String transformId,
                                            ActionListener<List<DataFrameTransformConfig>> resultListener) {
+        final boolean isAllOrWildCard = Strings.isAllOrWildcard(new String[]{transformId});
         BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery("doc_type", DataFrameTransformConfig.NAME));
-        if (Strings.isAllOrWildcard(new String[]{transformId}) == false) {
+        if (isAllOrWildCard == false) {
             queryBuilder.filter(QueryBuilders.termQuery(DataFrameField.ID.getPreferredName(), transformId));
         }
 
@@ -154,7 +155,7 @@ public class DataFrameTransformsConfigManager {
                         }
                         configs.add(config);
                     }
-                    if (configs.isEmpty() && (Strings.isAllOrWildcard(new String[]{transformId}) == false)) {
+                    if (configs.isEmpty() && (isAllOrWildCard == false)) {
                         resultListener.onFailure(new ResourceNotFoundException(
                             DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
                         return;

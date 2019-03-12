@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
 import java.util.List;
 
+import static org.elasticsearch.ExceptionsHelper.convertToElastic;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 public class TransportStopDataFrameTransformAction extends
@@ -108,9 +108,9 @@ public class TransportStopDataFrameTransformAction extends
             List<FailedNodeException> failedNodeExceptions) {
 
         if (taskOperationFailures.isEmpty() == false) {
-            throw ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+            throw convertToElastic(taskOperationFailures.get(0).getCause());
         } else if (failedNodeExceptions.isEmpty() == false) {
-            throw ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+            throw convertToElastic(failedNodeExceptions.get(0));
         }
 
         // Either the transform doesn't exist (the user didn't create it yet) or was deleted
@@ -118,11 +118,9 @@ public class TransportStopDataFrameTransformAction extends
         // In either case, let the user know
         if (tasks.size() == 0) {
             if (taskOperationFailures.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper
-                    .convertToElastic(taskOperationFailures.get(0).getCause());
+                throw convertToElastic(taskOperationFailures.get(0).getCause());
             } else if (failedNodeExceptions.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper
-                    .convertToElastic(failedNodeExceptions.get(0));
+                throw convertToElastic(failedNodeExceptions.get(0));
             } else {
                 // This can happen we the actual task in the node no longer exists, or was never started
                 return new StopDataFrameTransformAction.Response(true);

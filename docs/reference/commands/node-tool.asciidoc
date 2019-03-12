@@ -74,7 +74,7 @@ If there is at least one remaining master-eligible node, but it is not possible
 to restart a majority of them, then the `elasticsearch-node unsafe-bootstrap`
 command will unsafely override the cluster's <<modules-discovery-voting,voting
 configuration>> as if performing another
-<<modules-discovery-bootstrap-cluster,cluster bootstrapping process>>, allowing
+<<modules-discovery-bootstrap-cluster,cluster bootstrapping process>>. 
 the target node to form a new cluster on its own. This new cluster forms using
 the cluster metadata held locally on the target node. This can lead to
 arbitrary data loss since the target node may not hold the latest cluster

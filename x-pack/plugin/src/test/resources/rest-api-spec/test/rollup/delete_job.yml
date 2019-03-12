@@ -6,17 +6,16 @@ setup:
         index: foo
         body:
           mappings:
-            _doc:
-              properties:
-                the_field:
-                  type: date
-                value_field:
-                  type: integer
+            properties:
+              the_field:
+                type: date
+              value_field:
+                type: integer
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -42,7 +41,7 @@ setup:
 "Test basic delete_job":
 
   - do:
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
 
   - match:
@@ -70,17 +69,23 @@ setup:
             documents_processed: 0
             rollups_indexed: 0
             trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
           status:
             job_state: "stopped"
             upgraded_doc_id: true
 
   - do:
-      xpack.rollup.delete_job:
+      rollup.delete_job:
         id: foo
   - is_true: acknowledged
 
   - do:
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
   - match:
       jobs: []
@@ -89,7 +94,7 @@ setup:
 "Test delete job twice":
 
   - do:
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
 
   - match:
@@ -117,17 +122,23 @@ setup:
             documents_processed: 0
             rollups_indexed: 0
             trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
           status:
             job_state: "stopped"
             upgraded_doc_id: true
 
   - do:
-      xpack.rollup.delete_job:
+      rollup.delete_job:
         id: foo
   - is_true: acknowledged
 
   - do:
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
   - match:
       jobs: []
@@ -136,7 +147,7 @@ setup:
 "Test delete running job":
 
   - do:
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
 
   - match:
@@ -164,18 +175,24 @@ setup:
             documents_processed: 0
             rollups_indexed: 0
             trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
           status:
             job_state: "stopped"
             upgraded_doc_id: true
 
   - do:
-      xpack.rollup.start_job:
+      rollup.start_job:
         id: foo
   - is_true: started
 
   - do:
       catch: request
-      xpack.rollup.delete_job:
+      rollup.delete_job:
         id: foo
   - is_false: acknowledged
   - match: { task_failures.0.reason.type: "illegal_state_exception" }
@@ -188,5 +205,5 @@ setup:
       catch: /the task with id \[does_not_exist\] doesn't exist/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.delete_job:
+      rollup.delete_job:
         id: does_not_exist

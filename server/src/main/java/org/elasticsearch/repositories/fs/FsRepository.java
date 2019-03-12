@@ -43,7 +43,8 @@ import java.util.function.Function;
  * <dl>
  * <dt>{@code location}</dt><dd>Path to the root of repository. This is mandatory parameter.</dd>
  * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
- * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
+ * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size.
+ *      Defaults to not chucked.</dd>
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
@@ -60,16 +61,11 @@ public class FsRepository extends BlobStoreRepository {
             new ByteSizeValue(Long.MAX_VALUE), new ByteSizeValue(5), new ByteSizeValue(Long.MAX_VALUE), Property.NodeScope);
     public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING = Setting.byteSizeSetting("repositories.fs.chunk_size",
         new ByteSizeValue(Long.MAX_VALUE), new ByteSizeValue(5), new ByteSizeValue(Long.MAX_VALUE), Property.NodeScope);
-    public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
-    public static final Setting<Boolean> REPOSITORIES_COMPRESS_SETTING =
-        Setting.boolSetting("repositories.fs.compress", false, Property.NodeScope);
     private final Environment environment;
 
     private ByteSizeValue chunkSize;
 
     private final BlobPath basePath;
-
-    private boolean compress;
 
     /**
      * Constructs a shared file system repository.
@@ -104,8 +100,6 @@ public class FsRepository extends BlobStoreRepository {
         } else {
             this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(environment.settings());
         }
-        this.compress = COMPRESS_SETTING.exists(metadata.settings())
-            ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(environment.settings());
         this.basePath = BlobPath.cleanPath();
     }
 
@@ -114,11 +108,6 @@ public class FsRepository extends BlobStoreRepository {
         final String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         final Path locationFile = environment.resolveRepoFile(location);
         return new FsBlobStore(environment.settings(), locationFile);
-    }
-
-    @Override
-    protected boolean isCompress() {
-        return compress;
     }
 
     @Override

@@ -13,21 +13,21 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
@@ -35,14 +35,15 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
+import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import java.util.Arrays;
@@ -121,8 +122,9 @@ public final class CcrLicenseChecker {
                 client.getRemoteClusterClient(clusterAlias),
                 request,
                 onFailure,
-                leaderClusterState -> {
-                    IndexMetaData leaderIndexMetaData = leaderClusterState.getMetaData().index(leaderIndex);
+                remoteClusterStateResponse -> {
+                    ClusterState remoteClusterState = remoteClusterStateResponse.getState();
+                    IndexMetaData leaderIndexMetaData = remoteClusterState.getMetaData().index(leaderIndex);
                     if (leaderIndexMetaData == null) {
                         onFailure.accept(new IndexNotFoundException(leaderIndex));
                         return;
@@ -159,16 +161,23 @@ public final class CcrLicenseChecker {
             final String clusterAlias,
             final ClusterStateRequest request,
             final Consumer<Exception> onFailure,
-            final Consumer<ClusterState> leaderClusterStateConsumer) {
-        checkRemoteClusterLicenseAndFetchClusterState(
+            final Consumer<ClusterStateResponse> leaderClusterStateConsumer) {
+        try {
+            Client remoteClient = systemClient(client.getRemoteClusterClient(clusterAlias));
+            checkRemoteClusterLicenseAndFetchClusterState(
                 client,
                 clusterAlias,
-                systemClient(client.getRemoteClusterClient(clusterAlias)),
+                remoteClient,
                 request,
                 onFailure,
                 leaderClusterStateConsumer,
                 CcrLicenseChecker::clusterStateNonCompliantRemoteLicense,
                 e -> clusterStateUnknownRemoteLicense(clusterAlias, e));
+        } catch (Exception e) {
+            // client.getRemoteClusterClient(...) can fail with a IllegalArgumentException if remote
+            // connection is unknown
+            onFailure.accept(e);
+        }
     }
 
     /**
@@ -192,7 +201,7 @@ public final class CcrLicenseChecker {
             final Client remoteClient,
             final ClusterStateRequest request,
             final Consumer<Exception> onFailure,
-            final Consumer<ClusterState> leaderClusterStateConsumer,
+            final Consumer<ClusterStateResponse> leaderClusterStateConsumer,
             final Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,
             final Function<Exception, ElasticsearchStatusException> unknownLicense) {
         // we have to check the license on the remote cluster
@@ -204,7 +213,7 @@ public final class CcrLicenseChecker {
                     public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
                         if (licenseCheck.isSuccess()) {
                             final ActionListener<ClusterStateResponse> clusterStateListener =
-                                    ActionListener.wrap(s -> leaderClusterStateConsumer.accept(s.getState()), onFailure);
+                                ActionListener.wrap(leaderClusterStateConsumer::accept, onFailure);
                             // following an index in remote cluster, so use remote client to fetch leader index metadata
                             remoteClient.admin().cluster().state(request, clusterStateListener);
                         } else {
@@ -320,7 +329,7 @@ public final class CcrLicenseChecker {
                 message.append(indices.length == 1 ? " index " : " indices ");
                 message.append(Arrays.toString(indices));
 
-                HasPrivilegesResponse.ResourcePrivileges resourcePrivileges = response.getIndexPrivileges().get(0);
+                ResourcePrivileges resourcePrivileges = response.getIndexPrivileges().iterator().next();
                 for (Map.Entry<String, Boolean> entry : resourcePrivileges.getPrivileges().entrySet()) {
                     if (entry.getValue() == false) {
                         message.append(", privilege for action [");

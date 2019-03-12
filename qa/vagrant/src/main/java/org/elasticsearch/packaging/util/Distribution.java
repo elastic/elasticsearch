@@ -19,34 +19,60 @@
 
 package org.elasticsearch.packaging.util;
 
+import java.util.Locale;
+
 public enum Distribution {
 
-    OSS_TAR(Packaging.TAR, Flavor.OSS),
-    OSS_ZIP(Packaging.ZIP, Flavor.OSS),
-    OSS_DEB(Packaging.DEB, Flavor.OSS),
-    OSS_RPM(Packaging.RPM, Flavor.OSS),
+    OSS_LINUX(Packaging.TAR, Platform.LINUX, Flavor.OSS),
+    OSS_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.OSS),
+    OSS_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.OSS),
+    OSS_DEB(Packaging.DEB, Platform.LINUX, Flavor.OSS),
+    OSS_RPM(Packaging.RPM, Platform.LINUX, Flavor.OSS),
 
-    DEFAULT_TAR(Packaging.TAR, Flavor.DEFAULT),
-    DEFAULT_ZIP(Packaging.ZIP, Flavor.DEFAULT),
-    DEFAULT_DEB(Packaging.DEB, Flavor.DEFAULT),
-    DEFAULT_RPM(Packaging.RPM, Flavor.DEFAULT);
+    DEFAULT_LINUX(Packaging.TAR, Platform.LINUX, Flavor.DEFAULT),
+    DEFAULT_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.DEFAULT),
+    DEFAULT_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.DEFAULT),
+    DEFAULT_DEB(Packaging.DEB, Platform.LINUX, Flavor.DEFAULT),
+    DEFAULT_RPM(Packaging.RPM, Platform.LINUX, Flavor.DEFAULT);
 
     public final Packaging packaging;
+    public final Platform platform;
     public final Flavor flavor;
 
-    Distribution(Packaging packaging, Flavor flavor) {
+    Distribution(Packaging packaging, Platform platform, Flavor flavor) {
         this.packaging = packaging;
+        this.platform = platform;
         this.flavor = flavor;
     }
 
     public String filename(String version) {
-        return flavor.name + "-" + version + packaging.extension;
+        String architecture = "";
+        if (version.startsWith("6.") == false) {
+
+            if (packaging == Packaging.DEB) {
+                architecture = "-amd64";
+            } else {
+                if (packaging != Packaging.RPM) {
+                    architecture = "-" + platform.toString();
+                }
+                architecture += "-x86_64";
+            }
+        }
+        return flavor.name + "-" + version + architecture + packaging.extension;
+    }
+
+    public boolean isDefault() {
+        return flavor.equals(Flavor.DEFAULT);
+    }
+
+    public boolean isOSS() {
+        return flavor.equals(Flavor.OSS);
     }
 
     public enum Packaging {
 
-        TAR(".tar.gz", Platforms.LINUX),
-        ZIP(".zip", true),
+        TAR(".tar.gz", Platforms.LINUX || Platforms.DARWIN),
+        ZIP(".zip", Platforms.WINDOWS),
         DEB(".deb", Platforms.isDPKG()),
         RPM(".rpm", Platforms.isRPM());
 
@@ -59,6 +85,16 @@ public enum Distribution {
         Packaging(String extension, boolean compatible) {
             this.extension = extension;
             this.compatible = compatible;
+        }
+    }
+
+    public enum Platform {
+        LINUX,
+        WINDOWS,
+        DARWIN;
+
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 

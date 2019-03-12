@@ -173,7 +173,7 @@ Internally, a date is represented as a 64 bit number representing a timestamp
 in milliseconds-since-the-epoch (01/01/1970 midnight UTC). These timestamps are
 returned as the ++key++ name of the bucket. The `key_as_string` is the same
 timestamp converted to a formatted
-date string using the `format` parameter sprcification:
+date string using the `format` parameter specification:
 
 TIP: If you don't specify `format`, the first date
 <<mapping-date-format,format>> specified in the field mapping is used.

@@ -75,6 +75,7 @@ public class Build {
     public enum Type {
 
         DEB("deb"),
+        DOCKER("docker"),
         RPM("rpm"),
         TAR("tar"),
         ZIP("zip"),
@@ -94,6 +95,8 @@ public class Build {
             switch (displayName) {
                 case "deb":
                     return Type.DEB;
+                case "docker":
+                    return Type.DOCKER;
                 case "rpm":
                     return Type.RPM;
                 case "tar":
@@ -139,7 +142,7 @@ public class Build {
             // not running from the official elasticsearch jar file (unit tests, IDE, uber client jar, shadiness)
             shortHash = "Unknown";
             date = "Unknown";
-            version = "Unknown";
+            version = Version.CURRENT.toString();
             final String buildSnapshot = System.getProperty("build.snapshot");
             if (buildSnapshot != null) {
                 try {

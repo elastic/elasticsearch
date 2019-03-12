@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 /**
  * A {@code UnaryPlan} is a {@code LogicalPlan} with exactly one child, for example, {@code WHERE x} in a
@@ -20,8 +20,8 @@ public abstract class UnaryPlan extends LogicalPlan {
 
     private final LogicalPlan child;
 
-    UnaryPlan(Location location, LogicalPlan child) {
-        super(location, Collections.singletonList(child));
+    UnaryPlan(Source source, LogicalPlan child) {
+        super(source, Collections.singletonList(child));
         this.child = child;
     }
 

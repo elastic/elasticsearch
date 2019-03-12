@@ -7,7 +7,7 @@ import java.util.regex.Matcher
 
 // Apply the java plugin to this project so the sources can be edited in an IDE
 apply plugin: 'elasticsearch.build'
-test.enabled = false
+unitTest.enabled = false
 
 dependencies {
   // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
@@ -72,6 +72,13 @@ Project mainProject = project
 
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
+forbiddenPatterns {
+  exclude '**/system_key'
+}
+
+// Tests are pushed down to subprojects 
+testingConventions.enabled = false 
+
 /**
  * Subdirectories of this project are test rolling upgrades with various
  * configuration options based on their name.
@@ -95,6 +102,10 @@ subprojects {
         srcDirs = ["${mainProject.projectDir}/src/test/resources"]
       }
     }
+  }
+
+  forbiddenPatterns {
+    exclude '**/system_key'
   }
 
   String outputDir = "${buildDir}/generated-resources/${project.name}"
@@ -145,9 +156,8 @@ subprojects {
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.security.authc.token.enabled', 'true'
       setting 'xpack.security.audit.enabled', 'true'
-      setting 'xpack.security.audit.outputs', 'index'
-      setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      setting 'xpack.ssl.keystore.password', 'testnode'
+      setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+      setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (version.onOrAfter('7.0.0')) {
@@ -174,6 +184,20 @@ subprojects {
         }
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
       }
+
+      if (version.onOrAfter('6.6.0')) {
+        setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
+      }
+
+      // Old versions of the code contain an invalid assertion that trips
+      // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
+      // the assertion, but this is impossible for released versions.
+      // However, released versions run without assertions, so end users won't
+      // be suffering the effects.  This argument effectively removes the
+      // incorrect assertion from the older versions used in the BWC tests.
+      if (version.before('5.6.9') || (version.onOrAfter('6.0.0') && version.before('6.2.4'))) {
+        jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
+      }
     }
 
     Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
@@ -187,7 +211,6 @@ subprojects {
         setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
         clusterName = 'rolling-upgrade'
         otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
-        minimumMasterNodes = { 2 }
         /* Override the data directory so the new node always gets the node we
         * just stopped's data directory. */
         dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
@@ -199,15 +222,23 @@ subprojects {
         setting 'xpack.license.self_generated.type', 'trial'
         setting 'xpack.security.enabled', 'true'
         setting 'xpack.security.transport.ssl.enabled', 'true'
-        setting 'xpack.ssl.keystore.path', 'testnode.jks'
-        keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
+        setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+        keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'testnode'
         setting 'node.attr.upgraded', 'true'
         setting 'xpack.security.authc.token.enabled', 'true'
         setting 'xpack.security.audit.enabled', 'true'
-        setting 'xpack.security.audit.outputs', 'index'
         setting 'node.name', "upgraded-node-${stopNode}"
         dependsOn copyTestNodeKeystore
         extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+        if (version.onOrAfter('7.0.0')) {
+          setting 'xpack.security.authc.realms.file.file1.order', '0'
+          setting 'xpack.security.authc.realms.native.native1.order', '1'
+        } else {
+          setting 'xpack.security.authc.realms.file1.type', 'file'
+          setting 'xpack.security.authc.realms.file1.order', '0'
+          setting 'xpack.security.authc.realms.native1.type', 'native'
+          setting 'xpack.security.authc.realms.native1.order', '1'
+        }
         if (withSystemKey) {
           setting 'xpack.watcher.encrypt_sensitive_data', 'true'
           keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
@@ -288,17 +319,17 @@ subprojects {
     }
   }
 
-  test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+    unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
   // basic integ tests includes testing bwc against the most recent version
-  task integTest {
+  task bwcTestSnapshots {
     if (project.bwc_tests_enabled) {
       for (final def version : bwcVersions.unreleasedWireCompatible) {
         dependsOn "v${version}#bwcTest"
       }
     }
   }
-  check.dependsOn(integTest)
+  check.dependsOn(bwcTestSnapshots)
 
   dependencies {
     // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here

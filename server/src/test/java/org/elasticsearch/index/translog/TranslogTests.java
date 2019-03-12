@@ -35,6 +35,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Assertions;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -72,6 +73,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -378,8 +380,7 @@ public class TranslogTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             stats.writeTo(out);
             StreamInput in = out.bytes().streamInput();
-            stats = new TranslogStats();
-            stats.readFrom(in);
+            stats = new TranslogStats(in);
         }
         return stats;
     }
@@ -473,9 +474,7 @@ public class TranslogTests extends ESTestCase {
             final TranslogStats stats = stats();
             final BytesStreamOutput out = new BytesStreamOutput();
             stats.writeTo(out);
-            final TranslogStats copy = new TranslogStats();
-            copy.readFrom(out.bytes().streamInput());
-
+            final TranslogStats copy = new TranslogStats(out.bytes().streamInput());
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
             assertThat(copy.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));
 
@@ -713,7 +712,6 @@ public class TranslogTests extends ESTestCase {
             Translog.Snapshot filter = new Translog.SeqNoFilterSnapshot(snapshot, between(200, 300), between(300, 400)); // out range
             assertThat(filter, SnapshotMatchers.size(0));
             assertThat(filter.totalOperations(), equalTo(snapshot.totalOperations()));
-            assertThat(filter.overriddenOperations(), equalTo(snapshot.overriddenOperations()));
             assertThat(filter.skippedOperations(), equalTo(snapshot.totalOperations()));
         }
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
@@ -724,7 +722,6 @@ public class TranslogTests extends ESTestCase {
             Translog.Snapshot filter = new Translog.SeqNoFilterSnapshot(snapshot, fromSeqNo, toSeqNo);
             assertThat(filter, SnapshotMatchers.containsOperationsInAnyOrder(selectedOps));
             assertThat(filter.totalOperations(), equalTo(snapshot.totalOperations()));
-            assertThat(filter.overriddenOperations(), equalTo(snapshot.overriddenOperations()));
             assertThat(filter.skippedOperations(), equalTo(snapshot.skippedOperations() + operations.size() - selectedOps.size()));
         }
     }
@@ -2188,14 +2185,8 @@ public class TranslogTests extends ESTestCase {
             Collections.sort(writtenOperations, (a, b) -> a.location.compareTo(b.location));
             assertFalse(translog.isOpen());
             final Checkpoint checkpoint = Checkpoint.read(config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME));
-            Iterator<LocationOperation> iterator = writtenOperations.iterator();
-            while (iterator.hasNext()) {
-                LocationOperation next = iterator.next();
-                if (checkpoint.offset < (next.location.translogLocation + next.location.size)) {
-                    // drop all that haven't been synced
-                    iterator.remove();
-                }
-            }
+            // drop all that haven't been synced
+            writtenOperations.removeIf(next -> checkpoint.offset < (next.location.translogLocation + next.location.size));
             try (Translog tlog =
                      new Translog(config, translogUUID, createTranslogDeletionPolicy(),
                          () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
@@ -2816,24 +2807,29 @@ public class TranslogTests extends ESTestCase {
             null);
 
         Engine.Index eIndex = new Engine.Index(newUid(doc), doc, randomSeqNum, randomPrimaryTerm,
-            1, VersionType.INTERNAL, Origin.PRIMARY, 0, 0, false);
+            1, VersionType.INTERNAL, Origin.PRIMARY, 0, 0, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
         Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true);
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
+        Version wireVersion = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
         BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(wireVersion);
         Translog.Operation.writeOperation(out, index);
         StreamInput in = out.bytes().streamInput();
+        in.setVersion(wireVersion);
         Translog.Index serializedIndex = (Translog.Index) Translog.Operation.readOperation(in);
         assertEquals(index, serializedIndex);
 
         Engine.Delete eDelete = new Engine.Delete(doc.type(), doc.id(), newUid(doc), randomSeqNum, randomPrimaryTerm,
-            2, VersionType.INTERNAL, Origin.PRIMARY, 0);
+            2, VersionType.INTERNAL, Origin.PRIMARY, 0, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
         Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomPrimaryTerm, randomSeqNum, true);
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
 
         out = new BytesStreamOutput();
+        out.setVersion(wireVersion);
         Translog.Operation.writeOperation(out, delete);
         in = out.bytes().streamInput();
+        in.setVersion(wireVersion);
         Translog.Delete serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);
         assertEquals(delete, serializedDelete);
     }

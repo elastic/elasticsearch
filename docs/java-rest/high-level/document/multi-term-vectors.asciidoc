@@ -27,7 +27,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 
 
 The second way can be used when all term vectors requests share the same
-arguments, such as index, type, and other settings. In this case, a template
+arguments, such as index and other settings. In this case, a template
 +{tvrequest}+ can be created with all necessary settings set, and
 this template request can be passed to +{request}+ along with all
 documents' ids for which to execute these requests.

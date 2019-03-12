@@ -162,22 +162,6 @@ fi
     remove_plugin_example
 }
 
-@test "[$GROUP] fail if java executable is not found" {
-  [ "$GROUP" == "TAR PLUGINS" ] || skip "Test case only supported by TAR PLUGINS"
-  local JAVA=$(which java)
-
-  sudo chmod -x $JAVA
-  run "$ESHOME/bin/elasticsearch-plugin"
-  sudo chmod +x $JAVA
-
-  [ "$status" -eq 1 ]
-  local expected="could not find java; set JAVA_HOME or ensure java is in PATH"
-  [[ "$output" == *"$expected"* ]] || {
-    echo "Expected error message [$expected] but found: $output"
-    false
-  }
-}
-
 # Note that all of the tests from here to the end of the file expect to be run
 # in sequence and don't take well to being run one at a time.
 @test "[$GROUP] install a sample plugin" {
@@ -231,16 +215,16 @@ fi
     install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-4.0.0.jar poi-ooxml-4.0.0.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
 }
 
-@test "[$GROUP] install ingest-geoip plugin" {
-    install_and_check_plugin ingest geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
-}
-
-@test "[$GROUP] install ingest-user-agent plugin" {
-    install_and_check_plugin ingest user-agent
-}
-
 @test "[$GROUP] check ingest-common module" {
     check_module ingest-common jcodings-*.jar joni-*.jar
+}
+
+@test "[$GROUP] check ingest-geoip module" {
+    check_module ingest-geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
+}
+
+@test "[$GROUP] check ingest-user-agent module" {
+    check_module ingest-user-agent
 }
 
 @test "[$GROUP] check lang-expression module" {
@@ -362,14 +346,6 @@ fi
 
 @test "[$GROUP] remove ingest-attachment plugin" {
     remove_plugin ingest-attachment
-}
-
-@test "[$GROUP] remove ingest-geoip plugin" {
-    remove_plugin ingest-geoip
-}
-
-@test "[$GROUP] remove ingest-user-agent plugin" {
-    remove_plugin ingest-user-agent
 }
 
 @test "[$GROUP] remove murmur3 mapper plugin" {

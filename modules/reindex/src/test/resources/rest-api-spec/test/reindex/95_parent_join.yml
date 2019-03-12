@@ -4,30 +4,26 @@ setup:
           index: source
           body:
             mappings:
-              doc:
-                properties:
-                  join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
+              properties:
+                join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
 
   - do:
       indices.create:
           index: dest
           body:
             mappings:
-              doc:
-                properties:
-                  join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
+              properties:
+                join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
 
   - do:
       index:
         index: source
-        type:  doc
         id:    1
         body:  { "join_field": { "name": "parent" } }
 
   - do:
       index:
         index: source
-        type:  doc
         id:    2
         routing: 1
         body:  { "join_field": { "name": "child", "parent": "1" } }
@@ -35,7 +31,6 @@ setup:
   - do:
       index:
         index: source
-        type:  doc
         id:    3
         routing: 1
         body:  { "join_field": { "name": "grand_child", "parent": "2" } }
@@ -58,6 +53,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -69,6 +65,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -114,6 +111,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:
@@ -125,6 +123,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: dest
         body:
           query:

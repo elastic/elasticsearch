@@ -36,6 +36,7 @@ public class ConnectionProfileTests extends ESTestCase {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         TimeValue connectTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
         TimeValue handshakeTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
+        TimeValue pingInterval = TimeValue.timeValueMillis(randomIntBetween(1, 10));
         boolean compressionEnabled = randomBoolean();
         final boolean setConnectTimeout = randomBoolean();
         if (setConnectTimeout) {
@@ -48,6 +49,10 @@ public class ConnectionProfileTests extends ESTestCase {
         final boolean setCompress = randomBoolean();
         if (setCompress) {
             builder.setCompressionEnabled(compressionEnabled);
+        }
+        final boolean setPingInterval = randomBoolean();
+        if (setPingInterval) {
+            builder.setPingInterval(pingInterval);
         }
         builder.addConnections(1, TransportRequestOptions.Type.BULK);
         builder.addConnections(2, TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.RECOVERY);
@@ -80,6 +85,12 @@ public class ConnectionProfileTests extends ESTestCase {
             assertEquals(compressionEnabled, build.getCompressionEnabled());
         } else {
             assertNull(build.getCompressionEnabled());
+        }
+
+        if (setPingInterval) {
+            assertEquals(pingInterval, build.getPingInterval());
+        } else {
+            assertNull(build.getPingInterval());
         }
 
         List<Integer> list = new ArrayList<>(10);
@@ -160,7 +171,10 @@ public class ConnectionProfileTests extends ESTestCase {
         if (connectionHandshakeSet) {
             builder.setHandshakeTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
-
+        final boolean pingIntervalSet = randomBoolean();
+        if (pingIntervalSet) {
+            builder.setPingInterval(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
         final boolean connectionCompressSet = randomBoolean();
         if (connectionCompressSet) {
             builder.setCompressionEnabled(randomBoolean());
@@ -176,6 +190,8 @@ public class ConnectionProfileTests extends ESTestCase {
             equalTo(connectionTimeoutSet ? profile.getConnectTimeout() : defaultProfile.getConnectTimeout()));
         assertThat(resolved.getHandshakeTimeout(),
             equalTo(connectionHandshakeSet ? profile.getHandshakeTimeout() : defaultProfile.getHandshakeTimeout()));
+        assertThat(resolved.getPingInterval(),
+            equalTo(pingIntervalSet ? profile.getPingInterval() : defaultProfile.getPingInterval()));
         assertThat(resolved.getCompressionEnabled(),
             equalTo(connectionCompressSet ? profile.getCompressionEnabled() : defaultProfile.getCompressionEnabled()));
     }
@@ -188,9 +204,10 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
         assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
-        assertEquals(TransportService.TCP_CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getConnectTimeout());
-        assertEquals(TransportService.TCP_CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getHandshakeTimeout());
-        assertEquals(Transport.TRANSPORT_TCP_COMPRESS.get(Settings.EMPTY), profile.getCompressionEnabled());
+        assertEquals(TransportSettings.CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getConnectTimeout());
+        assertEquals(TransportSettings.CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getHandshakeTimeout());
+        assertEquals(TransportSettings.TRANSPORT_COMPRESS.get(Settings.EMPTY), profile.getCompressionEnabled());
+        assertEquals(TransportSettings.PING_SCHEDULE.get(Settings.EMPTY), profile.getPingInterval());
 
         profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.builder().put("node.master", false).build());
         assertEquals(12, profile.getNumConnections());

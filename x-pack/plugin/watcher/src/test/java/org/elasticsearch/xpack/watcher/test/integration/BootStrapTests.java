@@ -24,14 +24,14 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatch;
-import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -52,7 +52,6 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
@@ -62,7 +61,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testLoadMalformedWatchRecord() throws Exception {
-        client().prepareIndex(Watch.INDEX, Watch.DOC_TYPE, "_id")
+        client().prepareIndex().setIndex(Watch.INDEX).setId("_id")
                 .setSource(jsonBuilder().startObject()
                         .startObject(WatchField.TRIGGER.getPreferredName())
                         .startObject("schedule")
@@ -75,12 +74,12 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                 .get();
 
         // valid watch record:
-        DateTime now = DateTime.now(UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid("_id", now);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         ExecutableCondition condition = InternalAlwaysCondition.INSTANCE;
         String index = HistoryStoreField.getHistoryIndexNameForTime(now);
-        client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
+        client().prepareIndex().setIndex(index).setId(wid.value())
                 .setSource(jsonBuilder().startObject()
                         .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
                         .field(event.type(), event)
@@ -98,7 +97,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
         // unknown condition:
         wid = new Wid("_id", now);
-        client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
+        client().prepareIndex().setIndex(index).setId(wid.value())
                 .setSource(jsonBuilder().startObject()
                         .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
                         .field(event.type(), event)
@@ -116,7 +115,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
         // unknown trigger:
         wid = new Wid("_id", now);
-        client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
+        client().prepareIndex().setIndex(index).setId(wid.value())
                 .setSource(jsonBuilder().startObject()
                         .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
                         .startObject("unknown").endObject()
@@ -141,7 +140,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "Supposedly fixed; https://github.com/elastic/x-pack-elasticsearch/issues/1915")
     public void testLoadExistingWatchesUponStartup() throws Exception {
         stopWatcher();
 
@@ -152,11 +150,11 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < numWatches; i++) {
             bulkRequestBuilder.add(
-                    client().prepareIndex(Watch.INDEX, Watch.DOC_TYPE, "_id" + i)
+                    client().prepareIndex().setIndex(Watch.INDEX).setId("_id" + i)
                             .setSource(watchBuilder()
                                     .trigger(schedule(cron("0 0/5 * * * ? 2050")))
                                     .input(searchInput(request))
-                                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
+                                    .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 1L))
                                     .buildAsBytes(XContentType.JSON), XContentType.JSON
                             )
                             .setWaitForActiveShards(ActiveShardCount.ALL));
@@ -174,7 +172,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
     public void testMixedTriggeredWatchLoading() throws Exception {
         createIndex("output");
-        client().prepareIndex("my-index", "foo", "bar")
+        client().prepareIndex().setIndex("my-index").setId("bar")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setSource("field", "value").get();
 
@@ -191,14 +189,14 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                     .trigger(schedule(cron("0/5 * * * * ? 2050")))
                     .input(searchInput(request))
                     .condition(InternalAlwaysCondition.INSTANCE)
-                    .addAction("_id", indexAction("output", "test"))
+                    .addAction("_id", indexAction("output"))
                     .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
             ).get();
         }
 
         stopWatcher();
 
-        DateTime now = DateTime.now(UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         final int numRecords = scaledRandomIntBetween(numWatches, 128);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < numRecords; i++) {
@@ -208,10 +206,9 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             Wid wid = new Wid(watchId, now);
             TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
             bulkRequestBuilder.add(
-                    client().prepareIndex(
-                            TriggeredWatchStoreField.INDEX_NAME,
-                            TriggeredWatchStoreField.DOC_TYPE,
-                            triggeredWatch.id().value())
+                    client().prepareIndex()
+                            .setIndex(TriggeredWatchStoreField.INDEX_NAME)
+                            .setId(triggeredWatch.id().value())
                             .setSource(jsonBuilder().value(triggeredWatch))
                             .request());
         }
@@ -222,10 +219,9 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertSingleExecutionAndCompleteWatchHistory(numWatches, numRecords);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29846")
     public void testTriggeredWatchLoading() throws Exception {
         createIndex("output");
-        client().prepareIndex("my-index", "foo", "bar")
+        client().prepareIndex().setIndex("my-index").setId("bar")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setSource("field", "value").get();
 
@@ -238,13 +234,13 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                 .trigger(schedule(cron("0/5 * * * * ? 2050")))
                 .input(searchInput(request))
                 .condition(InternalAlwaysCondition.INSTANCE)
-                .addAction("_id", indexAction("output", "test"))
+                .addAction("_id", indexAction("output"))
                 .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
         ).get();
 
         stopWatcher();
 
-        DateTime now = DateTime.now(UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         final int numRecords = scaledRandomIntBetween(2, 12);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < numRecords; i++) {
@@ -253,7 +249,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             Wid wid = new Wid(watchId, now);
             TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
             bulkRequestBuilder.add(client()
-                    .prepareIndex(TriggeredWatchStoreField.INDEX_NAME, TriggeredWatchStoreField.DOC_TYPE, triggeredWatch.id().value())
+                    .prepareIndex().setIndex(TriggeredWatchStoreField.INDEX_NAME).setId(triggeredWatch.id().value())
                     .setSource(jsonBuilder().value(triggeredWatch))
                     .setWaitForActiveShards(ActiveShardCount.ALL)
             );
@@ -276,8 +272,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
             refresh();
             SearchResponse searchResponse = client().prepareSearch("output").get();
-            assertThat(searchResponse.getHits().getTotalHits(), is(greaterThanOrEqualTo(numberOfWatches)));
-            long successfulWatchExecutions = searchResponse.getHits().getTotalHits();
+            assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(numberOfWatches)));
+            long successfulWatchExecutions = searchResponse.getHits().getTotalHits().value;
 
             // the watch history should contain entries for each triggered watch, which a few have been marked as not executed
             SearchResponse historySearchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX + "*").setSize(10000).get();
@@ -310,7 +306,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             // we rarely create an .watches alias in the base class
             assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
         }
-        DateTime triggeredTime = new DateTime(2015, 11, 5, 0, 0, 0, 0, DateTimeZone.UTC);
+        LocalDateTime localDateTime = LocalDateTime.of(2015, 11, 5, 0, 0, 0, 0);
+        ZonedDateTime triggeredTime =  ZonedDateTime.of(localDateTime,ZoneOffset.UTC);
         final String watchRecordIndex = HistoryStoreField.getHistoryIndexNameForTime(triggeredTime);
 
         logger.info("Stopping watcher");
@@ -324,13 +321,13 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             Wid wid = new Wid(watchId, triggeredTime);
             TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
             bulkRequestBuilder.add(
-                    client().prepareIndex(TriggeredWatchStoreField.INDEX_NAME,
-                        TriggeredWatchStoreField.DOC_TYPE, triggeredWatch.id().value()).setSource(jsonBuilder().value(triggeredWatch))
+                    client().prepareIndex().setIndex(TriggeredWatchStoreField.INDEX_NAME)
+                        .setId(triggeredWatch.id().value()).setSource(jsonBuilder().value(triggeredWatch))
             );
 
             String id = internalCluster().getInstance(ClusterService.class).localNode().getId();
             WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, "executed", id);
-            bulkRequestBuilder.add(client().prepareIndex(watchRecordIndex, HistoryStore.DOC_TYPE, watchRecord.id().value())
+            bulkRequestBuilder.add(client().prepareIndex().setIndex(watchRecordIndex).setId(watchRecord.id().value())
                     .setSource(jsonBuilder().value(watchRecord))
             );
         }
@@ -350,7 +347,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             // the actual documents are in the output index
             refresh();
             SearchResponse searchResponse = client().prepareSearch(watchRecordIndex).setSize(numRecords).get();
-            assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo((long) numRecords));
+            assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo((long) numRecords));
             for (int i = 0; i < numRecords; i++) {
                 assertThat(searchResponse.getHits().getAt(i).getSourceAsMap().get("state"),
                         is(ExecutionState.EXECUTED.id()));

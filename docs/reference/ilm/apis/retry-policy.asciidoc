@@ -1,12 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-retry-policy]]
-=== Retry Policy Execution API
+=== Retry policy execution API
 ++++
-<titleabbrev>Retry Policy</titleabbrev>
+<titleabbrev>Retry policy</titleabbrev>
 ++++
-
-beta[]
 
 Retry executing the policy for an index that is in the ERROR step.
 
@@ -31,7 +29,8 @@ include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
 ==== Authorization
 
-include::ilm-index-mgt-privilege.asciidoc[]
+You must have the `manage_ilm` privileges on the indices being managed to use this API.
+For more information, see {stack-ov}/security-privileges.html[Security Privileges].
 
 ==== Examples
 

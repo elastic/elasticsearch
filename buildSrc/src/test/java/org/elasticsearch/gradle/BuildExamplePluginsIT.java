@@ -40,12 +40,14 @@ import java.util.stream.Collectors;
 
 public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
-    private static List<File> EXAMPLE_PLUGINS = Collections.unmodifiableList(
+    private static final List<File> EXAMPLE_PLUGINS = Collections.unmodifiableList(
         Arrays.stream(
             Objects.requireNonNull(System.getProperty("test.build-tools.plugin.examples"))
                 .split(File.pathSeparator)
         ).map(File::new).collect(Collectors.toList())
     );
+
+    private static final String BUILD_TOOLS_VERSION = Objects.requireNonNull(System.getProperty("test.version_under_test"));
 
     @Rule
     public TemporaryFolder tmpDir = new TemporaryFolder();
@@ -74,11 +76,6 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
     public void testCurrentExamplePlugin() throws IOException {
         FileUtils.copyDirectory(examplePlugin, tmpDir.getRoot());
-        // just get rid of deprecation warnings
-        Files.write(
-            getTempPath("settings.gradle"),
-            "enableFeaturePreview('STABLE_PUBLISHING')\n".getBytes(StandardCharsets.UTF_8)
-        );
 
         adaptBuildScriptForTest();
 
@@ -96,7 +93,8 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
     private void adaptBuildScriptForTest() throws IOException {
         // Add the local repo as a build script URL so we can pull in build-tools and apply the plugin under test
-        // + is ok because we have no other repo and just want to pick up latest
+        // we need to specify the exact version of build-tools because gradle automatically adds its plugin portal
+        // which appears to mirror jcenter, opening us up to pulling a "later" version of build-tools
         writeBuildScript(
             "buildscript {\n" +
                 "    repositories {\n" +
@@ -105,7 +103,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
                 "        }\n" +
                 "    }\n" +
                 "    dependencies {\n" +
-                "        classpath \"org.elasticsearch.gradle:build-tools:+\"\n" +
+                "        classpath \"org.elasticsearch.gradle:build-tools:" + BUILD_TOOLS_VERSION + "\"\n" +
                 "    }\n" +
                 "}\n"
         );
@@ -126,6 +124,9 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
                 "repositories {\n" +
                 "  maven {\n" +
                 "    url \"" + getLocalTestRepoPath()  + "\"\n" +
+                "  }\n" +
+                "  flatDir {\n" +
+                "    dir '" + getLocalTestDownloadsPath() + "'\n" +
                 "  }\n" +
                 luceneSnapshotRepo +
                 "}\n"

@@ -57,7 +57,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
     public void testBulkIndexCreatesMapping() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/bulk-log.json");
         BulkRequestBuilder bulkBuilder = client().prepareBulk();
-        bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
+        bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         bulkBuilder.get();
         assertBusy(() -> {
             GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
@@ -105,16 +105,13 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk-missing-index-type.json");
         {
             BulkRequestBuilder bulkBuilder = client().prepareBulk();
-            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
+            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
             ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class, bulkBuilder::get);
 
             assertThat(ex.validationErrors(), containsInAnyOrder(
                 "index is missing",
                 "index is missing",
-                "index is missing",
-                "type is missing",
-                "type is missing",
-                "type is missing"));
+                "index is missing"));
         }
 
         {
@@ -123,7 +120,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
                 .routing("routing")
                 .pipeline("pipeline");
 
-            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
+            bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
             BulkResponse bulkItemResponses = bulkBuilder.get();
             assertFalse(bulkItemResponses.hasFailures());
         }

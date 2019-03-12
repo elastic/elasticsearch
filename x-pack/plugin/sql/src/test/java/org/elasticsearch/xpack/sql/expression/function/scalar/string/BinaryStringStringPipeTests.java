@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +19,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.expression.Expressions.pipe;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
-import static org.elasticsearch.xpack.sql.tree.LocationTests.randomLocation;
+import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
 
 public class BinaryStringStringPipeTests
         extends AbstractNodeTestCase<BinaryStringStringPipe, Pipe> {
@@ -36,7 +36,7 @@ public class BinaryStringStringPipeTests
     public static BinaryStringStringPipe randomBinaryStringStringPipe() {
         List<Pipe> functions = new ArrayList<>();
         functions.add(new Position(
-                randomLocation(),
+                randomSource(),
                 randomStringLiteral(),
                 randomStringLiteral()
                 ).makePipe());
@@ -46,12 +46,12 @@ public class BinaryStringStringPipeTests
 
     @Override
     public void testTransform() {
-        // test transforming only the properties (location, expression),
+        // test transforming only the properties (source, expression),
         // skipping the children (the two parameters of the binary function) which are tested separately
         BinaryStringStringPipe b1 = randomInstance();
         Expression newExpression = randomValueOtherThan(b1.expression(), () -> randomBinaryStringStringExpression());
         BinaryStringStringPipe newB = new BinaryStringStringPipe(
-                b1.location(),
+                b1.source(),
                 newExpression,
                 b1.left(),
                 b1.right(),
@@ -59,7 +59,7 @@ public class BinaryStringStringPipeTests
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
         
         BinaryStringStringPipe b2 = randomInstance();
-        Location newLoc = randomValueOtherThan(b2.location(), () -> randomLocation());
+        Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new BinaryStringStringPipe(
                 newLoc,
                 b2.expression(),
@@ -67,7 +67,7 @@ public class BinaryStringStringPipeTests
                 b2.right(),
                 b2.operation());
         assertEquals(newB,
-                b2.transformPropertiesOnly(v -> Objects.equals(v, b2.location()) ? newLoc : v, Location.class));
+                b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
     }
 
     @Override
@@ -76,23 +76,23 @@ public class BinaryStringStringPipeTests
         Pipe newLeft = pipe(((Expression) randomValueOtherThan(b.left(), () -> randomStringLiteral())));
         Pipe newRight = pipe(((Expression) randomValueOtherThan(b.right(), () -> randomStringLiteral())));
         BinaryStringStringPipe newB =
-                new BinaryStringStringPipe(b.location(), b.expression(), b.left(), b.right(), b.operation());
+                new BinaryStringStringPipe(b.source(), b.expression(), b.left(), b.right(), b.operation());
         
         BinaryPipe transformed = newB.replaceChildren(newLeft, b.right());
         assertEquals(transformed.left(), newLeft);
-        assertEquals(transformed.location(), b.location());
+        assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.right(), b.right());
         
         transformed = newB.replaceChildren(b.left(), newRight);
         assertEquals(transformed.left(), b.left());
-        assertEquals(transformed.location(), b.location());
+        assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.right(), newRight);
         
         transformed = newB.replaceChildren(newLeft, newRight);
         assertEquals(transformed.left(), newLeft);
-        assertEquals(transformed.location(), b.location());
+        assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.right(), newRight);
     }
@@ -100,17 +100,17 @@ public class BinaryStringStringPipeTests
     @Override
     protected BinaryStringStringPipe mutate(BinaryStringStringPipe instance) {
         List<Function<BinaryStringStringPipe, BinaryStringStringPipe>> randoms = new ArrayList<>();
-        randoms.add(f -> new BinaryStringStringPipe(f.location(),
+        randoms.add(f -> new BinaryStringStringPipe(f.source(),
                 f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.left(), () -> randomStringLiteral()))),
                 f.right(),
                 f.operation()));
-        randoms.add(f -> new BinaryStringStringPipe(f.location(),
+        randoms.add(f -> new BinaryStringStringPipe(f.source(),
                 f.expression(),
                 f.left(),
                 pipe(((Expression) randomValueOtherThan(f.right(), () -> randomStringLiteral()))),
                 f.operation()));
-        randoms.add(f -> new BinaryStringStringPipe(f.location(),
+        randoms.add(f -> new BinaryStringStringPipe(f.source(),
                 f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.left(), () -> randomStringLiteral()))),
                 pipe(((Expression) randomValueOtherThan(f.right(), () -> randomStringLiteral()))),
@@ -121,7 +121,7 @@ public class BinaryStringStringPipeTests
 
     @Override
     protected BinaryStringStringPipe copy(BinaryStringStringPipe instance) {
-        return new BinaryStringStringPipe(instance.location(),
+        return new BinaryStringStringPipe(instance.source(),
                 instance.expression(),
                 instance.left(),
                 instance.right(),

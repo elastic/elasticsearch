@@ -1,6 +1,6 @@
 {
   "ilm.put_lifecycle": {
-    "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-put-lifecycle.html",
     "methods": [ "PUT" ],
     "url": {
       "path": "/_ilm/policy/{policy}",

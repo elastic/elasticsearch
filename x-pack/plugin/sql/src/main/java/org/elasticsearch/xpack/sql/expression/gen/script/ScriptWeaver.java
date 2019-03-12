@@ -12,10 +12,14 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.util.DateUtils;
+
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -37,6 +41,9 @@ public interface ScriptWeaver {
             if (attr instanceof AggregateFunctionAttribute) {
                 return scriptWithAggregate((AggregateFunctionAttribute) attr);
             }
+            if (attr instanceof GroupingFunctionAttribute) {
+                return scriptWithGrouping((GroupingFunctionAttribute) attr);
+            }
             if (attr instanceof FieldAttribute) {
                 return scriptWithField((FieldAttribute) attr);
             }
@@ -48,7 +55,18 @@ public interface ScriptWeaver {
 
     default ScriptTemplate scriptWithFoldable(Expression foldable) {
         Object fold = foldable.fold();
+
+        //
+        // Custom type handling
+        //
+
         // wrap intervals with dedicated methods for serialization
+        if (fold instanceof ZonedDateTime) {
+            ZonedDateTime zdt = (ZonedDateTime) fold;
+            return new ScriptTemplate(processScript("{sql}.asDateTime({})"),
+                    paramsBuilder().variable(DateUtils.toString(zdt)).build(), dataType());
+        }
+
         if (fold instanceof IntervalYearMonth) {
             IntervalYearMonth iym = (IntervalYearMonth) fold;
             return new ScriptTemplate(processScript("{sql}.intervalYearMonth({},{})"),
@@ -75,7 +93,7 @@ public interface ScriptWeaver {
 
     default ScriptTemplate scriptWithAggregate(AggregateFunctionAttribute aggregate) {
         String template = "{}";
-        if (aggregate.dataType() == DataType.DATE) {
+        if (aggregate.dataType().isDateBased()) {
             template = "{sql}.asDateTime({})";
         }
         return new ScriptTemplate(processScript(template),
@@ -83,6 +101,16 @@ public interface ScriptWeaver {
                 dataType());
     }
 
+    default ScriptTemplate scriptWithGrouping(GroupingFunctionAttribute grouping) {
+        String template = "{}";
+        if (grouping.dataType().isDateBased()) {
+            template = "{sql}.asDateTime({})";
+        }
+        return new ScriptTemplate(processScript(template),
+                paramsBuilder().grouping(grouping).build(),
+                dataType());
+    }
+    
     default ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),
                 paramsBuilder().variable(field.name()).build(),

@@ -76,13 +76,34 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
                 return Arithmetics.sub((ZonedDateTime) l, ((IntervalDayTime) r).interval());
             }
             if (r instanceof ZonedDateTime && l instanceof Interval<?>) {
-                throw new SqlIllegalArgumentException("Cannot substract a date from an interval; do you mean the reverse?");
+                throw new SqlIllegalArgumentException("Cannot subtract a date from an interval; do you mean the reverse?");
             }
 
             throw new SqlIllegalArgumentException("Cannot compute [-] between [{}] [{}]", l.getClass().getSimpleName(),
                     r.getClass().getSimpleName());
         }, "-"),
-        MUL(Arithmetics::mul, "*"),
+        MUL((Object l, Object r) -> {
+            if (l instanceof Number && r instanceof Number) {
+                return Arithmetics.mul((Number) l, (Number) r);
+            }
+            l = unwrapJodaTime(l);
+            r = unwrapJodaTime(r);
+            if (l instanceof Number && r instanceof IntervalYearMonth) {
+                return ((IntervalYearMonth) r).mul(((Number) l).intValue());
+            }
+            if (r instanceof Number && l instanceof IntervalYearMonth) {
+                return ((IntervalYearMonth) l).mul(((Number) r).intValue());
+            }
+            if (l instanceof Number && r instanceof IntervalDayTime) {
+                return ((IntervalDayTime) r).mul(((Number) l).longValue());
+            }
+            if (r instanceof Number && l instanceof IntervalDayTime) {
+                return ((IntervalDayTime) l).mul(((Number) r).longValue());
+            }
+
+            throw new SqlIllegalArgumentException("Cannot compute [*] between [{}] [{}]", l.getClass().getSimpleName(),
+                    r.getClass().getSimpleName());
+        }, "*"),
         DIV(Arithmetics::div, "/"),
         MOD(Arithmetics::mod, "%");
 

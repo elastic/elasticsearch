@@ -42,22 +42,21 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -90,7 +89,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private Analyzer forceQuoteAnalyzer;
     private String quoteFieldSuffix;
     private boolean analyzeWildcard;
-    private DateTimeZone timeZone;
+    private ZoneId timeZone;
     private Fuzziness fuzziness = Fuzziness.AUTO;
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
     private MappedFieldType currentFieldType;
@@ -228,7 +227,7 @@ public class QueryStringQueryParser extends XQueryParser {
     /**
      * @param timeZone Time Zone to be applied to any range query related to dates.
      */
-    public void setTimeZone(DateTimeZone timeZone) {
+    public void setTimeZone(ZoneId timeZone) {
         this.timeZone = timeZone;
     }
 
@@ -507,7 +506,7 @@ public class QueryStringQueryParser extends XQueryParser {
             }
             setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
             Query query = null;
-            if (currentFieldType instanceof StringFieldType == false) {
+            if (currentFieldType.tokenized() == false) {
                 query = currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);
             } else {
                 query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr);
@@ -525,7 +524,8 @@ public class QueryStringQueryParser extends XQueryParser {
 
     private Query getPossiblyAnalyzedPrefixQuery(String field, String termStr) throws ParseException {
         if (analyzeWildcard == false) {
-            return super.getPrefixQuery(field, termStr);
+            return currentFieldType.prefixQuery(getAnalyzer().normalize(field, termStr).utf8ToString(),
+                getMultiTermRewriteMethod(), context);
         }
         List<List<String> > tlist;
         // get Analyzer from superclass and tokenize the term
@@ -568,7 +568,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
 
         if (tlist.size() == 1 && tlist.get(0).size() == 1) {
-            return super.getPrefixQuery(field, tlist.get(0).get(0));
+            return currentFieldType.prefixQuery(tlist.get(0).get(0), getMultiTermRewriteMethod(), context);
         }
 
         // build a boolean query with prefix on the last position only.
@@ -579,7 +579,7 @@ public class QueryStringQueryParser extends XQueryParser {
             Query posQuery;
             if (plist.size() == 1) {
                 if (isLastPos) {
-                    posQuery = super.getPrefixQuery(field, plist.get(0));
+                    posQuery = currentFieldType.prefixQuery(plist.get(0), getMultiTermRewriteMethod(), context);
                 } else {
                     posQuery = newTermQuery(new Term(field, plist.get(0)));
                 }

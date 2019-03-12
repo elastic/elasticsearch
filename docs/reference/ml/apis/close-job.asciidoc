@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-close-job]]
-=== Close Jobs API
+=== Close jobs API
 ++++
-<titleabbrev>Close Jobs</titleabbrev>
+<titleabbrev>Close jobs</titleabbrev>
 ++++
 
 Closes one or more jobs.
@@ -15,11 +15,11 @@ operations, but you can still explore and navigate results.
 
 ==== Request
 
-`POST _xpack/ml/anomaly_detectors/<job_id>/_close` +
+`POST _ml/anomaly_detectors/<job_id>/_close` +
 
-`POST _xpack/ml/anomaly_detectors/<job_id>,<job_id>/_close` +
+`POST _ml/anomaly_detectors/<job_id>,<job_id>/_close` +
 
-`POST _xpack/ml/anomaly_detectors/_all/_close` +
+`POST _ml/anomaly_detectors/_all/_close` +
 
 
 ==== Description
@@ -78,7 +78,7 @@ The following example closes the `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/total-requests/_close
+POST _ml/anomaly_detectors/total-requests/_close
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:server_metrics_openjob]

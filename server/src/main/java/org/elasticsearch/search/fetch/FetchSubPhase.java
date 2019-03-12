@@ -74,7 +74,6 @@ public interface FetchSubPhase {
             }
             return cache;
         }
-
     }
 
     /**

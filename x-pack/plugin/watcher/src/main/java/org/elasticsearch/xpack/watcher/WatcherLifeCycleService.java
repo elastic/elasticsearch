@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
@@ -34,7 +33,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
-public class WatcherLifeCycleService extends AbstractComponent implements ClusterStateListener {
+public class WatcherLifeCycleService implements ClusterStateListener {
 
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STARTED);
     private final AtomicReference<List<ShardRouting>> previousShardRoutings = new AtomicReference<>(Collections.emptyList());
@@ -83,7 +82,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             return;
         }
 
-        if (event.state().getBlocks().hasGlobalBlock(ClusterBlockLevel.WRITE)) {
+        if (event.state().getBlocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE)) {
             pauseExecution("write level cluster block");
             return;
         }

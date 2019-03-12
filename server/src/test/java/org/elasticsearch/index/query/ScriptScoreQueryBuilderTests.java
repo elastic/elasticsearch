@@ -89,7 +89,7 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     }
 
     @Override
-    protected boolean isCachable(ScriptScoreQueryBuilder queryBuilder) {
+    protected boolean isCacheable(ScriptScoreQueryBuilder queryBuilder) {
         return false;
     }
 }

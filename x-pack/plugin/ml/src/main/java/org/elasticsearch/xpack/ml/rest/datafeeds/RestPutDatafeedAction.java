@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -18,17 +20,24 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+
 public class RestPutDatafeedAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestPutDatafeedAction.class));
 
     public RestPutDatafeedAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, MachineLearning.BASE_PATH + "datafeeds/{"
-                + DatafeedConfig.ID.getPreferredName() + "}", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            PUT, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}", this,
+            PUT, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_put_datafeed_action";
+        return "ml_put_datafeed_action";
     }
 
     @Override

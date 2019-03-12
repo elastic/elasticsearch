@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Power extends BinaryNumericFunction {
 
-    public Power(Location location, Expression left, Expression right) {
-        super(location, left, right, BinaryMathOperation.POWER);
+    public Power(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryMathOperation.POWER);
     }
 
     @Override
@@ -23,6 +23,6 @@ public class Power extends BinaryNumericFunction {
 
     @Override
     protected Power replaceChildren(Expression newLeft, Expression newRight) {
-        return new Power(location(), newLeft, newRight);
+        return new Power(source(), newLeft, newRight);
     }
 }

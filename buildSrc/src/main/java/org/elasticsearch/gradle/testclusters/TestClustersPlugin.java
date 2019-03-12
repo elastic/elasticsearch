@@ -20,6 +20,10 @@ package org.elasticsearch.gradle.testclusters;
 
 import groovy.lang.Closure;
 import org.elasticsearch.GradleServicesAdapter;
+import org.elasticsearch.gradle.BwcVersions;
+import org.elasticsearch.gradle.Distribution;
+import org.elasticsearch.gradle.Version;
+import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -27,6 +31,8 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
@@ -35,11 +41,16 @@ import org.gradle.api.tasks.TaskState;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class TestClustersPlugin implements Plugin<Project> {
@@ -48,14 +59,17 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final String NODE_EXTENSION_NAME = "testClusters";
     static final String HELPER_CONFIGURATION_NAME = "testclusters";
     private static final String SYNC_ARTIFACTS_TASK_NAME = "syncTestClustersArtifacts";
+    private static final int EXECUTOR_SHUTDOWN_TIMEOUT = 1;
+    private static final TimeUnit EXECUTOR_SHUTDOWN_TIMEOUT_UNIT = TimeUnit.MINUTES;
 
-    private final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
+    private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
 
     // this is static because we need a single mapping across multi project builds, as some of the listeners we use,
     // like task graph are singletons across multi project builds.
     private static final Map<Task, List<ElasticsearchNode>> usedClusters = new ConcurrentHashMap<>();
     private static final Map<ElasticsearchNode, Integer> claimsInventory = new ConcurrentHashMap<>();
     private static final Set<ElasticsearchNode> runningClusters = Collections.synchronizedSet(new HashSet<>());
+    private static volatile  ExecutorService executorService;
 
     @Override
     public void apply(Project project) {
@@ -87,12 +101,34 @@ public class TestClustersPlugin implements Plugin<Project> {
             claimsInventory.clear();
             runningClusters.clear();
 
-
             // We have a single task to sync the helper configuration to "artifacts dir"
             // the clusters will look for artifacts there based on the naming conventions.
             // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
             // the build.
-            rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, SyncTestClustersConfiguration.class);
+            rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, sync -> {
+                sync.getInputs().files((Callable<FileCollection>) helperConfiguration::getAsFileTree);
+                sync.getOutputs().dir(getTestClustersConfigurationExtractDir(project));
+                sync.doLast(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        project.sync(spec ->
+                            helperConfiguration.getResolvedConfiguration().getResolvedArtifacts().forEach(resolvedArtifact -> {
+                                final FileTree files;
+                                File file = resolvedArtifact.getFile();
+                                if (file.getName().endsWith(".zip")) {
+                                    files = project.zipTree(file);
+                                } else if (file.getName().endsWith("tar.gz")) {
+                                    files = project.tarTree(file);
+                                } else {
+                                    throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
+                                }
+                                spec.from(files).into(getTestClustersConfigurationExtractDir(project) + "/" +
+                                    resolvedArtifact.getModuleVersion().getId().getGroup()
+                                );
+                            }));
+                    }
+                });
+            });
 
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
             // that are defined in the build script and the ones that will actually be used in this invocation of gradle
@@ -106,6 +142,9 @@ public class TestClustersPlugin implements Plugin<Project> {
             // After each task we determine if there are clusters that are no longer needed.
             configureStopClustersHook(project);
 
+            // configure hooks to make sure no test cluster processes survive the build
+            configureCleanupHooks(project);
+
             // Since we have everything modeled in the DSL, add all the required dependencies e.x. the distribution to the
             // configuration so the user doesn't have to repeat this.
             autoConfigureClusterDependencies(project, rootProject, container);
@@ -117,8 +156,11 @@ public class TestClustersPlugin implements Plugin<Project> {
         NamedDomainObjectContainer<ElasticsearchNode> container = project.container(
             ElasticsearchNode.class,
             name -> new ElasticsearchNode(
+                project.getPath(),
                 name,
-                GradleServicesAdapter.getInstance(project)
+                GradleServicesAdapter.getInstance(project),
+                getTestClustersConfigurationExtractDir(project),
+                new File(project.getBuildDir(), "testclusters")
             )
         );
         project.getExtensions().add(NODE_EXTENSION_NAME, container);
@@ -137,14 +179,14 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    private void createUseClusterTaskExtension(Project project) {
+    private static void createUseClusterTaskExtension(Project project) {
         // register an extension for all current and future tasks, so that any task can declare that it wants to use a
         // specific cluster.
         project.getTasks().all((Task task) ->
             task.getExtensions().findByType(ExtraPropertiesExtension.class)
                 .set(
                     "useCluster",
-                    new Closure<Void>(this, task) {
+                    new Closure<Void>(project, task) {
                         public void doCall(ElasticsearchNode node) {
                             Object thisObject = this.getThisObject();
                             if (thisObject instanceof Task == false) {
@@ -160,7 +202,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    private void configureClaimClustersHook(Project project) {
+    private static void configureClaimClustersHook(Project project) {
         project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
             taskExecutionGraph.getAllTasks()
                 .forEach(task ->
@@ -174,7 +216,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    private void configureStartClustersHook(Project project) {
+    private static void configureStartClustersHook(Project project) {
         project.getGradle().addListener(
             new TaskActionListener() {
                 @Override
@@ -196,7 +238,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    private void configureStopClustersHook(Project project) {
+    private static void configureStopClustersHook(Project project) {
         project.getGradle().addListener(
             new TaskExecutionListener() {
                 @Override
@@ -226,6 +268,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                                 .filter(entry -> runningClusters.contains(entry.getKey()))
                                 .map(Map.Entry::getKey)
                                 .collect(Collectors.toList());
+                            runningClusters.removeAll(stoppable);
                         }
                         stoppable.forEach(each -> each.stop(false));
                     }
@@ -236,8 +279,8 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    static File getTestClustersBuildDir(Project project) {
-        return new File(project.getRootProject().getBuildDir(), "testclusters");
+    static File getTestClustersConfigurationExtractDir(Project project) {
+        return new File(project.getRootProject().getBuildDir(), "testclusters/extract");
     }
 
     /**
@@ -251,7 +294,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             project.getExtensions().getByName(NODE_EXTENSION_NAME);
     }
 
-    private void autoConfigureClusterDependencies(
+    private static void autoConfigureClusterDependencies(
         Project project,
         Project rootProject,
         NamedDomainObjectContainer<ElasticsearchNode> container
@@ -261,17 +304,112 @@ public class TestClustersPlugin implements Plugin<Project> {
         // We need afterEvaluate here despite the fact that container is a domain object, we can't implement this with
         // all because fields can change after the fact.
         project.afterEvaluate(ip -> container.forEach(esNode -> {
-            // declare dependencies against artifacts needed by cluster formation.
-            String dependency = String.format(
-                "org.elasticsearch.distribution.zip:%s:%s@zip",
-                esNode.getDistribution().getFileName(),
-                esNode.getVersion()
-            );
-            logger.info("Cluster {} depends on {}", esNode.getName(), dependency);
-            rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
+            BwcVersions.UnreleasedVersionInfo unreleasedInfo;
+            final List<Version> unreleased;
+            {
+                ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
+                if (extraProperties.has("bwcVersions")) {
+                    Object bwcVersionsObj = extraProperties.get("bwcVersions");
+                    if (bwcVersionsObj instanceof BwcVersions == false) {
+                        throw new IllegalStateException("Expected project.bwcVersions to be of type VersionCollection " +
+                            "but instead it was " + bwcVersionsObj.getClass());
+                    }
+                    final BwcVersions bwcVersions = (BwcVersions) bwcVersionsObj;
+                    unreleased = ((BwcVersions) bwcVersionsObj).getUnreleased();
+                    unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(esNode.getVersion()));
+                } else {
+                    logger.info("No version information available, assuming all versions used are released");
+                    unreleased = Collections.emptyList();
+                    unreleasedInfo = null;
+                }
+            }
+            if (unreleased.contains(Version.fromString(esNode.getVersion()))) {
+                Map<String, Object> projectNotation = new HashMap<>();
+                projectNotation.put("path", unreleasedInfo.gradleProjectPath);
+                projectNotation.put("configuration", esNode.getDistribution().getLiveConfiguration());
+                rootProject.getDependencies().add(
+                    HELPER_CONFIGURATION_NAME,
+                    project.getDependencies().project(projectNotation)
+                );
+            } else {
+                if (esNode.getDistribution().equals(Distribution.INTEG_TEST)) {
+                    rootProject.getDependencies().add(
+                        HELPER_CONFIGURATION_NAME, "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + esNode.getVersion()
+                    );
+                } else {
+                    // declare dependencies to be downloaded from the download service.
+                    // The BuildPlugin sets up the right repo for this to work
+                    // TODO: move the repo definition in this plugin when ClusterFormationTasks is removed
+                    String dependency = String.format(
+                        "%s:%s:%s:%s@%s",
+                        esNode.getDistribution().getGroup(),
+                        esNode.getDistribution().getArtifactName(),
+                        esNode.getVersion(),
+                        esNode.getDistribution().getClassifier(),
+                        esNode.getDistribution().getFileExtension()
+                    );
+                    logger.info("Cluster {} depends on {}", esNode.getName(), dependency);
+                    rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
+                }
+            }
         }));
     }
 
+    private static void configureCleanupHooks(Project project) {
+        synchronized (runningClusters) {
+            if (executorService == null || executorService.isTerminated()) {
+                executorService = Executors.newSingleThreadExecutor();
+            } else {
+                throw new IllegalStateException("Trying to configure executor service twice");
+            }
+        }
+        // When the Gradle daemon is used, it will interrupt all threads when the build concludes.
+        executorService.submit(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(Long.MAX_VALUE);
+                } catch (InterruptedException interrupted) {
+                    shutDownAllClusters();
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        });
+
+        project.getGradle().buildFinished(buildResult -> {
+            logger.info("Build finished");
+            shutdownExecutorService();
+        });
+        // When the Daemon is not used, or runs into issues, rely on a shutdown hook
+        // When the daemon is used, but does not work correctly and eventually dies off (e.x. due to non interruptible
+        // thread in the build) process will be stopped eventually when the daemon dies.
+        Runtime.getRuntime().addShutdownHook(new Thread(TestClustersPlugin::shutDownAllClusters));
+    }
+
+    private static void shutdownExecutorService() {
+        executorService.shutdownNow();
+        try {
+            if (executorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT, EXECUTOR_SHUTDOWN_TIMEOUT_UNIT) == false) {
+                throw new IllegalStateException(
+                    "Failed to shut down executor service after " +
+                    EXECUTOR_SHUTDOWN_TIMEOUT + " " + EXECUTOR_SHUTDOWN_TIMEOUT_UNIT
+                );
+            }
+        } catch (InterruptedException e) {
+            logger.info("Wait for testclusters shutdown interrupted", e);
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static void shutDownAllClusters() {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Shutting down all test clusters", new RuntimeException());
+        }
+        synchronized (runningClusters) {
+            runningClusters.forEach(each -> each.stop(true));
+            runningClusters.clear();
+        }
+    }
 
 
 }

@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.security.authc.ldap.support;
 
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
+import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
+import com.unboundid.ldap.listener.InMemoryListenerConfig;
 import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
@@ -16,6 +18,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -23,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
@@ -30,6 +34,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapLoadBalancin
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
@@ -37,7 +42,15 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
+import java.net.InetAddress;
 import java.security.AccessController;
+import java.security.KeyStore;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
@@ -64,7 +77,25 @@ public abstract class LdapTestCase extends ESTestCase {
     public void startLdap() throws Exception {
         ldapServers = new InMemoryDirectoryServer[numberOfLdapServers];
         for (int i = 0; i < numberOfLdapServers; i++) {
-            InMemoryDirectoryServer ldapServer = new InMemoryDirectoryServer("o=sevenSeas");
+            InMemoryDirectoryServerConfig serverConfig = new InMemoryDirectoryServerConfig("o=sevenSeas");
+            List<InMemoryListenerConfig> listeners = new ArrayList<>(2);
+            listeners.add(InMemoryListenerConfig.createLDAPConfig("ldap", null, 0, null));
+            if (openLdapsPort()) {
+                final char[] ldapPassword = "ldap-password".toCharArray();
+                final KeyStore ks = CertParsingUtils.getKeyStoreFromPEM(
+                    getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-test-case.crt"),
+                    getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-test-case.key"),
+                    ldapPassword
+                );
+                X509ExtendedKeyManager keyManager = CertParsingUtils.keyManager(ks, ldapPassword, KeyManagerFactory.getDefaultAlgorithm());
+                final SSLContext context = SSLContext.getInstance(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS.get(0));
+                context.init(new KeyManager[] { keyManager }, null, null);
+                SSLServerSocketFactory serverSocketFactory = context.getServerSocketFactory();
+                SSLSocketFactory clientSocketFactory = context.getSocketFactory();
+                listeners.add(InMemoryListenerConfig.createLDAPSConfig("ldaps", null, 0, serverSocketFactory, clientSocketFactory));
+            }
+            serverConfig.setListenerConfigs(listeners);
+            InMemoryDirectoryServer ldapServer = new InMemoryDirectoryServer(serverConfig);
             ldapServer.add("o=sevenSeas", new Attribute("dc", "UnboundID"),
                     new Attribute("objectClass", "top", "domain", "extensibleObject"));
             ldapServer.importFromLDIF(false,
@@ -78,8 +109,12 @@ public abstract class LdapTestCase extends ESTestCase {
         }
     }
 
+    protected boolean openLdapsPort() {
+        return false;
+    }
+
     @After
-    public void stopLdap() throws Exception {
+    public void stopLdap() {
         for (int i = 0; i < numberOfLdapServers; i++) {
             ldapServers[i].shutDown(true);
         }
@@ -88,7 +123,11 @@ public abstract class LdapTestCase extends ESTestCase {
     protected String[] ldapUrls() throws LDAPException {
         List<String> urls = new ArrayList<>(numberOfLdapServers);
         for (int i = 0; i < numberOfLdapServers; i++) {
-            LDAPURL url = new LDAPURL("ldap", "localhost", ldapServers[i].getListenPort(), null, null, null, null);
+            InetAddress listenAddress = ldapServers[i].getListenAddress();
+            if (listenAddress == null) {
+                listenAddress = InetAddress.getLoopbackAddress();
+            }
+            LDAPURL url = new LDAPURL("ldap", NetworkAddress.format(listenAddress), ldapServers[i].getListenPort(), null, null, null, null);
             urls.add(url.toString());
         }
         return urls.toArray(Strings.EMPTY_ARRAY);

@@ -59,9 +59,10 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -227,8 +228,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexed();
-            double queryValue = parse(value);
-            long scaledValue = Math.round(queryValue * scalingFactor);
+            long scaledValue = Math.round(scale(value));
             Query query = NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -241,8 +241,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             failIfNotIndexed();
             List<Long> scaledValues = new ArrayList<>(values.size());
             for (Object value : values) {
-                double queryValue = parse(value);
-                long scaledValue = Math.round(queryValue * scalingFactor);
+                long scaledValue = Math.round(scale(value));
                 scaledValues.add(scaledValue);
             }
             Query query = NumberFieldMapper.NumberType.LONG.termsQuery(name(), Collections.unmodifiableList(scaledValues));
@@ -257,7 +256,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             failIfNotIndexed();
             Long lo = null;
             if (lowerTerm != null) {
-                double dValue = parse(lowerTerm) * scalingFactor;
+                double dValue = scale(lowerTerm);
                 if (includeLower == false) {
                     dValue = Math.nextUp(dValue);
                 }
@@ -265,7 +264,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
             Long hi = null;
             if (upperTerm != null) {
-                double dValue = parse(upperTerm) * scalingFactor;
+                double dValue = scale(upperTerm);
                 if (includeUpper == false) {
                     dValue = Math.nextDown(dValue);
                 }
@@ -302,7 +301,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, DateTimeZone timeZone) {
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             if (timeZone != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
                     + "] does not support custom time zones");
@@ -325,6 +324,19 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public int hashCode() {
             return 31 * super.hashCode() + Double.hashCode(scalingFactor);
+        }
+
+        /**
+         * Parses input value and multiplies it with the scaling factor.
+         * Uses the round-trip of creating a {@link BigDecimal} from the stringified {@code double}
+         * input to ensure intuitively exact floating point operations.
+         * (e.g. for a scaling factor of 100, JVM behaviour results in {@code 79.99D * 100 ==> 7998.99..} compared to
+         * {@code scale(79.99) ==> 7999})
+         * @param input Input value to parse floating point num from
+         * @return Scaled value
+         */
+        private double scale(Object input) {
+            return new BigDecimal(Double.toString(parse(input))).multiply(BigDecimal.valueOf(scalingFactor)).doubleValue();
         }
     }
 

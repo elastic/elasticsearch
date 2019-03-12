@@ -1,8 +1,0 @@
-ccruser:
-  cluster:
-    - read_ccr
-  indices:
-    - names: [ 'allowed-index', 'logs-eu-*' ]
-      privileges:
-        - monitor
-        - read

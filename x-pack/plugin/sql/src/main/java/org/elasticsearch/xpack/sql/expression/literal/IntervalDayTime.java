@@ -54,4 +54,9 @@ public class IntervalDayTime extends Interval<Duration> {
     public IntervalDayTime sub(Interval<Duration> interval) {
         return new IntervalDayTime(interval().minus(interval.interval()), DataTypes.compatibleInterval(dataType(), interval.dataType()));
     }
+
+    @Override
+    public Interval<Duration> mul(long mul) {
+        return new IntervalDayTime(interval().multipliedBy(mul), dataType());
+    }
 }

@@ -152,6 +152,9 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                 batchRuns++;
 
                 for (Rule<?, TreeType> rule : batch.rules) {
+                    if (log.isTraceEnabled()) {
+                        log.trace("About to apply rule {}", rule);
+                    }
                     Transformation tf = new Transformation(currentPlan, rule);
                     tfs.add(tf);
                     currentPlan = tf.after;

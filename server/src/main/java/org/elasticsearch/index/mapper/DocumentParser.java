@@ -21,10 +21,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -106,7 +107,8 @@ final class DocumentParser {
             throw new IllegalArgumentException("It is forbidden to index into the default mapping [" + MapperService.DEFAULT_MAPPING + "]");
         }
 
-        if (Objects.equals(source.type(), docMapper.type()) == false) {
+        if (Objects.equals(source.type(), docMapper.type()) == false &&
+                MapperService.SINGLE_MAPPING_NAME.equals(source.type()) == false) { // used by typeless APIs
             throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type ["
                 + docMapper.type() + "]");
         }
@@ -445,13 +447,7 @@ final class DocumentParser {
         if (idField != null) {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
-            if (idField.stringValue() != null) {
-                // backward compat with 5.x
-                // TODO: Remove on 7.0
-                nestedDoc.add(new Field(IdFieldMapper.NAME, idField.stringValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            } else {
-                nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            }
+            nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
@@ -666,18 +662,18 @@ final class DocumentParser {
         return builder;
     }
 
-    private static Mapper.Builder<?, ?> newLongBuilder(String name, Version indexCreated) {
+    private static Mapper.Builder<?, ?> newLongBuilder(String name) {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
     }
 
-    private static Mapper.Builder<?, ?> newFloatBuilder(String name, Version indexCreated) {
+    private static Mapper.Builder<?, ?> newFloatBuilder(String name) {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
     }
 
-    private static Mapper.Builder<?, ?> newDateBuilder(String name, FormatDateTimeFormatter dateTimeFormatter, Version indexCreated) {
+    private static Mapper.Builder<?, ?> newDateBuilder(String name, DateFormatter dateTimeFormatter) {
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
         if (dateTimeFormatter != null) {
-            builder.dateTimeFormatter(dateTimeFormatter);
+            builder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());
         }
         return builder;
     }
@@ -707,34 +703,34 @@ final class DocumentParser {
             if (parseableAsLong && context.root().numericDetection()) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
                 if (builder == null) {
-                    builder = newLongBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());
+                    builder = newLongBuilder(currentFieldName);
                 }
                 return builder;
             } else if (parseableAsDouble && context.root().numericDetection()) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);
                 if (builder == null) {
-                    builder = newFloatBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());
+                    builder = newFloatBuilder(currentFieldName);
                 }
                 return builder;
             } else if (parseableAsLong == false && parseableAsDouble == false && context.root().dateDetection()) {
                 // We refuse to match pure numbers, which are too likely to be
                 // false positives with date formats that include eg.
                 // `epoch_millis` or `YYYY`
-                for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
+                for (DateFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                     try {
-                        dateTimeFormatter.parser().parseMillis(text);
-                    } catch (IllegalArgumentException e) {
+                        dateTimeFormatter.parse(text);
+                    } catch (ElasticsearchParseException | DateTimeParseException | IllegalArgumentException e) {
                         // failure to parse this, continue
                         continue;
                     }
                     Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);
                     if (builder == null) {
-                        builder = newDateBuilder(currentFieldName, dateTimeFormatter, context.indexSettings().getIndexVersionCreated());
+                        builder = newDateBuilder(currentFieldName, dateTimeFormatter);
                     }
                     if (builder instanceof DateFieldMapper.Builder) {
                         DateFieldMapper.Builder dateBuilder = (DateFieldMapper.Builder) builder;
-                        if (dateBuilder.isDateTimeFormatterSet() == false) {
-                            dateBuilder.dateTimeFormatter(dateTimeFormatter);
+                        if (dateBuilder.isFormatterSet() == false) {
+                            dateBuilder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());
                         }
                     }
                     return builder;
@@ -752,7 +748,7 @@ final class DocumentParser {
             if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
                 if (builder == null) {
-                    builder = newLongBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());
+                    builder = newLongBuilder(currentFieldName);
                 }
                 return builder;
             } else if (numberType == XContentParser.NumberType.FLOAT || numberType == XContentParser.NumberType.DOUBLE) {
@@ -761,7 +757,7 @@ final class DocumentParser {
                     // no templates are defined, we use float by default instead of double
                     // since this is much more space-efficient and should be enough most of
                     // the time
-                    builder = newFloatBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());
+                    builder = newFloatBuilder(currentFieldName);
                 }
                 return builder;
             }

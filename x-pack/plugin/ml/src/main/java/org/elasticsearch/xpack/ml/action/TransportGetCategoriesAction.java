@@ -36,11 +36,14 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
 
     @Override
     protected void doExecute(Task task, GetCategoriesAction.Request request, ActionListener<GetCategoriesAction.Response> listener) {
-        jobManager.getJobOrThrowIfUnknown(request.getJobId());
-
-        Integer from = request.getPageParams() != null ? request.getPageParams().getFrom() : null;
-        Integer size = request.getPageParams() != null ? request.getPageParams().getSize() : null;
-        jobResultsProvider.categoryDefinitions(request.getJobId(), request.getCategoryId(), true, from, size,
-                r -> listener.onResponse(new GetCategoriesAction.Response(r)), listener::onFailure, client);
+        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
+                jobExists -> {
+                    Integer from = request.getPageParams() != null ? request.getPageParams().getFrom() : null;
+                    Integer size = request.getPageParams() != null ? request.getPageParams().getSize() : null;
+                    jobResultsProvider.categoryDefinitions(request.getJobId(), request.getCategoryId(), true, from, size,
+                            r -> listener.onResponse(new GetCategoriesAction.Response(r)), listener::onFailure, client);
+                },
+                listener::onFailure
+        ));
     }
 }

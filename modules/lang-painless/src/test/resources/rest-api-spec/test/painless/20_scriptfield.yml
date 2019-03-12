@@ -6,22 +6,20 @@ setup:
           index: test
           body:
             mappings:
-              test:
-                properties:
-                  foo:
-                    type: keyword
-                  missing:
-                    type: keyword
-                  date:
-                    type: date
-                    format: yyyy/MM/dd
-                  dates:
-                    type: date
-                    format: yyyy/MM/dd
+              properties:
+                foo:
+                  type: keyword
+                missing:
+                  type: keyword
+                date:
+                  type: date
+                  format: yyyy/MM/dd
+                dates:
+                  type: date
+                  format: yyyy/MM/dd
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: {
               "foo": "aaa",
@@ -35,6 +33,7 @@ setup:
 "Scripted Field":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     bar:
@@ -49,6 +48,7 @@ setup:
 "Scripted Field Doing Compare":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     bar:
@@ -61,6 +61,7 @@ setup:
     - match: { hits.hits.0.fields.bar.0: true}
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     bar:
@@ -76,6 +77,7 @@ setup:
 "Scripted Field with a null safe dereference (non-null)":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     bar:
@@ -90,6 +92,7 @@ setup:
 "Scripted Field with a null safe dereference (null)":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     bar:
@@ -104,6 +107,7 @@ setup:
 "Access a date":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     bar:
@@ -116,6 +120,7 @@ setup:
 "Access many dates":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     bar:
@@ -134,6 +139,7 @@ setup:
     - do:
         catch: bad_request
         search:
+          rest_total_hits_as_int: true
           body:
             script_fields:
               bar:
@@ -148,4 +154,3 @@ setup:
     - match: { error.failed_shards.0.reason.caused_by.reason: "While loop has no escape." }
     - match: { error.failed_shards.0.reason.type: "script_exception" }
     - match: { error.failed_shards.0.reason.reason: "compile error" }
-

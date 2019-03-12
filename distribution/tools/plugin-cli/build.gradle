@@ -35,7 +35,7 @@ dependencyLicenses {
   mapping from: /bc.*/, to: 'bouncycastle'
 }
 
-test {
+unitTest {
   // TODO: find a way to add permissions for the tests in this module
   systemProperty 'tests.security.manager', 'false'
 }

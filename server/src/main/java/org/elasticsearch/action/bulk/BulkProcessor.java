@@ -203,8 +203,13 @@ public class BulkProcessor implements Closeable {
         Objects.requireNonNull(listener, "listener");
         final ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = Scheduler.initScheduler(Settings.EMPTY);
         return new Builder(consumer, listener,
-                (delay, executor, command) -> scheduledThreadPoolExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS),
+            buildScheduler(scheduledThreadPoolExecutor),
                 () -> Scheduler.terminate(scheduledThreadPoolExecutor, 10, TimeUnit.SECONDS));
+    }
+
+    private static Scheduler buildScheduler(ScheduledThreadPoolExecutor scheduledThreadPoolExecutor) {
+        return (command, delay, executor) ->
+            Scheduler.wrapAsScheduledCancellable(scheduledThreadPoolExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
     }
 
     private final int bulkActions;
@@ -296,11 +301,7 @@ public class BulkProcessor implements Closeable {
      * Adds either a delete or an index request.
      */
     public BulkProcessor add(DocWriteRequest<?> request) {
-        return add(request, null);
-    }
-
-    public BulkProcessor add(DocWriteRequest<?> request, @Nullable Object payload) {
-        internalAdd(request, payload);
+        internalAdd(request);
         return this;
     }
 
@@ -314,9 +315,9 @@ public class BulkProcessor implements Closeable {
         }
     }
 
-    private synchronized void internalAdd(DocWriteRequest<?> request, @Nullable Object payload) {
+    private synchronized void internalAdd(DocWriteRequest<?> request) {
         ensureOpen();
-        bulkRequest.add(request, payload);
+        bulkRequest.add(request);
         executeIfNeeded();
     }
 
@@ -325,16 +326,16 @@ public class BulkProcessor implements Closeable {
      */
     public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
                              XContentType xContentType) throws Exception {
-        return add(data, defaultIndex, defaultType, null, null, xContentType);
+        return add(data, defaultIndex, defaultType, null, xContentType);
     }
 
     /**
      * Adds the data from the bytes to be processed by the bulk processor
      */
     public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
-                                          @Nullable String defaultPipeline, @Nullable Object payload,
+                                          @Nullable String defaultPipeline,
                                           XContentType xContentType) throws Exception {
-        bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline, payload, true, xContentType);
+        bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline, true, xContentType);
         executeIfNeeded();
         return this;
     }
@@ -343,7 +344,9 @@ public class BulkProcessor implements Closeable {
         if (flushInterval == null) {
             return new Scheduler.Cancellable() {
                 @Override
-                public void cancel() {}
+                public boolean cancel() {
+                    return false;
+                }
 
                 @Override
                 public boolean isCancelled() {

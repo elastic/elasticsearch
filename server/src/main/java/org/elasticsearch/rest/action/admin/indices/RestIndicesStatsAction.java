@@ -121,6 +121,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
         if (indicesStatsRequest.segments()) {
             indicesStatsRequest.includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));
+            indicesStatsRequest.includeSegmentFileSizes(request.paramAsBoolean("include_unloaded_segments", false));
         }
 
         return channel -> client.admin().indices().stats(indicesStatsRequest, new RestToXContentListener<>(channel));

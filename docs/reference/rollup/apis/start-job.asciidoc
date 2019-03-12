@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-start-job]]
-=== Start Job API
+=== Start rollup job API
 ++++
-<titleabbrev>Start Job</titleabbrev>
+<titleabbrev>Start job</titleabbrev>
 ++++
 
 experimental[]
@@ -13,7 +13,7 @@ Starting an already started job has no action.
 
 ==== Request
 
-`POST _xpack/rollup/job/<job_id>/_start`
+`POST _rollup/job/<job_id>/_start`
 
 //===== Description
 
@@ -39,7 +39,7 @@ If we have already created a rollup job named `sensor`, it can be started with:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/rollup/job/sensor/_start
+POST _rollup/job/sensor/_start
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sensor_rollup_job]
@@ -58,7 +58,7 @@ If however we try to start a job which doesn't exist:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/rollup/job/does_not_exist/_start
+POST _rollup/job/does_not_exist/_start
 --------------------------------------------------
 // CONSOLE
 // TEST[catch:missing]

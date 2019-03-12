@@ -163,7 +163,13 @@ public final class SearchSlowLog implements SearchOperationListener {
                     .append(" ")
                     .append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ")
                     .append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ")
-                    .append("total_hits[").append(context.queryResult().getTotalHits()).append("], ");
+                    .append("total_hits[");
+            if (context.queryResult().getTotalHits() != null) {
+                sb.append(context.queryResult().getTotalHits());
+            } else {
+                sb.append("-1");
+            }
+            sb.append("], ");
             if (context.getQueryShardContext().getTypes() == null) {
                 sb.append("types[], ");
             } else {

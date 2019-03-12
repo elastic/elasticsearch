@@ -49,6 +49,8 @@ whereFieldWithNotEqualsOnString
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND gender <> 'M';
 whereFieldWithLikeMatch
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND last_name LIKE 'K%';
+whereFieldWithNotLikeMatch
+SELECT last_name l FROM "test_emp" WHERE emp_no < 10020 AND first_name NOT LIKE 'Ma%';
 
 whereFieldWithOrderNot
 SELECT last_name l FROM "test_emp" WHERE NOT emp_no < 10003 ORDER BY emp_no LIMIT 5;

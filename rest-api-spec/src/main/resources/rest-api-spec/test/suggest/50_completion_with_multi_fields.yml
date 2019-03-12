@@ -11,18 +11,16 @@
         index: completion_with_sub_keyword
         body:
           mappings:
-            test:
-              "properties":
-                "suggest_1":
-                  "type" : "completion"
-                  "fields":
-                    "text_raw":
-                      "type"  : "keyword"
+            "properties":
+              "suggest_1":
+                "type" : "completion"
+                "fields":
+                  "text_raw":
+                    "type"  : "keyword"
 
   - do:
       index:
         index: completion_with_sub_keyword
-        type:  test
         id:    1
         body:
           suggest_1: "bar"
@@ -30,7 +28,6 @@
   - do:
       index:
         index: completion_with_sub_keyword
-        type:  test
         id:    2
         body:
           suggest_1: "baz"
@@ -40,6 +37,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index:   completion_with_sub_keyword
         body:
           suggest:
@@ -54,6 +52,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index:   completion_with_sub_keyword
         body:
           query:   { term: { suggest_1.text_raw: "bar" }}
@@ -74,18 +73,16 @@
         index: completion_with_sub_completion
         body:
           mappings:
-            test:
-              "properties":
-                "suggest_1":
-                  "type": "completion"
-                  "fields":
-                    "suggest_2":
-                      "type": "completion"
+            "properties":
+              "suggest_1":
+                "type": "completion"
+                "fields":
+                  "suggest_2":
+                    "type": "completion"
 
   - do:
       index:
         index: completion_with_sub_completion
-        type:  test
         id:    1
         body:
           suggest_1: "bar"
@@ -93,7 +90,6 @@
   - do:
       index:
         index: completion_with_sub_completion
-        type:  test
         id:    2
         body:
           suggest_1: "baz"
@@ -103,6 +99,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: completion_with_sub_completion
         body:
           suggest:
@@ -126,27 +123,25 @@
         index: completion_with_context
         body:
           mappings:
-            test:
-              "properties":
-                "suggest_1":
-                  "type": "completion"
-                  "contexts":
-                    -
-                      "name": "color"
-                      "type": "category"
-                  "fields":
-                    "suggest_2":
-                      "type": "completion"
-                      "contexts":
-                        -
-                          "name": "color"
-                          "type": "category"
+            "properties":
+              "suggest_1":
+                "type": "completion"
+                "contexts":
+                  -
+                    "name": "color"
+                    "type": "category"
+                "fields":
+                  "suggest_2":
+                    "type": "completion"
+                    "contexts":
+                      -
+                        "name": "color"
+                        "type": "category"
 
 
   - do:
       index:
         index: completion_with_context
-        type:  test
         id:    1
         body:
           suggest_1:
@@ -157,7 +152,6 @@
   - do:
       index:
         index: completion_with_context
-        type:  test
         id:    2
         body:
           suggest_1:
@@ -170,6 +164,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: completion_with_context
         body:
           suggest:
@@ -197,18 +192,16 @@
         index: completion_with_weight
         body:
           mappings:
-            test:
-              "properties":
-                "suggest_1":
-                  "type": "completion"
-                  "fields":
-                    "suggest_2":
-                      "type": "completion"
+            "properties":
+              "suggest_1":
+                "type": "completion"
+                "fields":
+                  "suggest_2":
+                    "type": "completion"
 
   - do:
       index:
         index: completion_with_weight
-        type:  test
         id:    1
         body:
           suggest_1:
@@ -218,7 +211,6 @@
   - do:
       index:
         index: completion_with_weight
-        type:  test
         id:    2
         body:
           suggest_1:
@@ -230,6 +222,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: completion_with_weight
         body:
           suggest:
@@ -255,18 +248,16 @@
         index: geofield_with_completion
         body:
           mappings:
-            test:
-              "properties":
-                "geofield":
-                  "type": "geo_point"
-                  "fields":
-                    "suggest_1":
-                      "type": "completion"
+            "properties":
+              "geofield":
+                "type": "geo_point"
+                "fields":
+                  "suggest_1":
+                    "type": "completion"
 
   - do:
       index:
         index: geofield_with_completion
-        type:  test
         id:    1
         body:
           geofield: "hgjhrwysvqw7"
@@ -275,7 +266,6 @@
   - do:
       index:
         index: geofield_with_completion
-        type:  test
         id:    1
         body:
           geofield: "hgm4psywmkn7"
@@ -286,6 +276,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: geofield_with_completion
         body:
           suggest:

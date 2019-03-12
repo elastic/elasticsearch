@@ -55,15 +55,13 @@ statement
     | (DESCRIBE | DESC) (tableLike=likePattern | tableIdent=tableIdentifier)                              #showColumns
     | SHOW FUNCTIONS (likePattern)?                                                                       #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
-    | SYS CATALOGS                                                                                        #sysCatalogs
     | SYS TABLES (CATALOG clusterLike=likePattern)?
                  (tableLike=likePattern | tableIdent=tableIdentifier)?
                  (TYPE string (',' string)* )?                                                            #sysTables
     | SYS COLUMNS (CATALOG cluster=string)?
                   (TABLE tableLike=likePattern | tableIdent=tableIdentifier)?
                   (columnPattern=likePattern)?                                                            #sysColumns
-    | SYS TYPES                                                                                           #sysTypes
-    | SYS TABLE TYPES                                                                                     #sysTableTypes  
+    | SYS TYPES ((PLUS | MINUS)?  type=number)?                                                           #sysTypes
     ;
     
 query
@@ -186,7 +184,7 @@ predicated
 // instead the property kind is used to differentiate
 predicate
     : NOT? kind=BETWEEN lower=valueExpression AND upper=valueExpression
-    | NOT? kind=IN '(' expression (',' expression)* ')'
+    | NOT? kind=IN '(' valueExpression (',' valueExpression)* ')'
     | NOT? kind=IN '(' query ')'
     | NOT? kind=LIKE pattern
     | NOT? kind=RLIKE regex=string
@@ -212,11 +210,13 @@ valueExpression
     | left=valueExpression operator=(ASTERISK | SLASH | PERCENT) right=valueExpression  #arithmeticBinary
     | left=valueExpression operator=(PLUS | MINUS) right=valueExpression                #arithmeticBinary
     | left=valueExpression comparisonOperator right=valueExpression                     #comparison
+    | valueExpression CAST_OP dataType                                                  #castOperatorExpression
     ;
 
 primaryExpression
     : castExpression                                                                 #cast
     | extractExpression                                                              #extract
+    | builtinDateTimeFunction                                                        #currentDateTimeFunction
     | constant                                                                       #constantDefault
     | (qualifiedName DOT)? ASTERISK                                                  #star
     | functionExpression                                                             #function
@@ -225,17 +225,22 @@ primaryExpression
     | '(' expression ')'                                                             #parenthesizedExpression
     ;
 
+builtinDateTimeFunction
+    : name=CURRENT_DATE ('(' ')')?
+    | name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
+    ;
+
 castExpression
-    : castTemplate                                                                   
-    | FUNCTION_ESC castTemplate ESC_END                                              
+    : castTemplate
+    | FUNCTION_ESC castTemplate ESC_END
     | convertTemplate
     | FUNCTION_ESC convertTemplate ESC_END
     ;
-    
+
 castTemplate
     : CAST '(' expression AS dataType ')'
     ;
-    
+
 convertTemplate
     : CONVERT '(' expression ',' dataType ')'
     ;
@@ -277,7 +282,7 @@ constant
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : EQ | NULLEQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue
@@ -288,11 +293,6 @@ interval
     : INTERVAL sign=(PLUS | MINUS)? (valueNumeric=number | valuePattern=string) leading=intervalField (TO trailing=intervalField)? 
     ;
     
-intervalValue
-    : number
-    | string
-    ;
-
 intervalField
     : YEAR | YEARS | MONTH | MONTHS | DAY | DAYS | HOUR | HOURS | MINUTE | MINUTES | SECOND | SECONDS
     ;
@@ -339,10 +339,10 @@ string
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
     : ANALYZE | ANALYZED 
-    | CATALOGS | COLUMNS 
+    | CATALOGS | COLUMNS
     | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
-    | FIRST | FORMAT | FUNCTIONS 
+    | FIRST | FORMAT | FULL | FUNCTIONS
     | GRAPHVIZ
     | HOUR
     | INTERVAL
@@ -372,6 +372,8 @@ CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
 CONVERT: 'CONVERT';
+CURRENT_DATE : 'CURRENT_DATE';
+CURRENT_TIMESTAMP : 'CURRENT_TIMESTAMP';
 DAY: 'DAY';
 DAYS: 'DAYS';
 DEBUG: 'DEBUG';
@@ -456,8 +458,10 @@ GUID_ESC: '{GUID';
 
 ESC_END: '}';
 
+// Operators
 EQ  : '=';
-NEQ : '<>' | '!=' | '<=>';
+NULLEQ: '<=>';
+NEQ : '<>' | '!=';
 LT  : '<';
 LTE : '<=';
 GT  : '>';
@@ -468,6 +472,7 @@ MINUS: '-';
 ASTERISK: '*';
 SLASH: '/';
 PERCENT: '%';
+CAST_OP: '::';
 CONCAT: '||';
 DOT: '.';
 PARAM: '?';
@@ -492,7 +497,7 @@ IDENTIFIER
     ;
 
 DIGIT_IDENTIFIER
-    : DIGIT (LETTER | DIGIT | '_' | '@' | ':')+
+    : DIGIT (LETTER | DIGIT | '_' | '@')+
     ;
 
 TABLE_IDENTIFIER

@@ -83,6 +83,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         final Settings settings = Settings.builder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", numberOfReplicas)
+                        .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                         .build();
         createIndex("index", settings);
         ensureGreen("index");
@@ -433,6 +434,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
                 .build();
         assertAcked(prepareCreate("index").setSettings(settings));
@@ -552,6 +554,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", numDataNodes)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
                 .build();
         assertAcked(prepareCreate("index").setSettings(settings));

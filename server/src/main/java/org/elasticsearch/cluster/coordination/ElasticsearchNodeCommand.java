@@ -143,13 +143,18 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
         // if cleaning old files fail, we still succeeded.
         try {
-            terminal.println(Terminal.Verbosity.VERBOSE, "Cleaning up old metadata");
-            MetaData.FORMAT.cleanupOldFiles(newGeneration, dataPaths);
+            cleanUpOldMetaData(terminal, dataPaths, newGeneration);
         } catch (Exception e) {
             terminal.println(Terminal.Verbosity.SILENT,
                 "Warning: Cleaning up old metadata failed, but operation was otherwise successful (message: " + e.getMessage() + ")");
         }
     }
+
+    protected void cleanUpOldMetaData(Terminal terminal, Path[] dataPaths, long newGeneration) {
+        terminal.println(Terminal.Verbosity.VERBOSE, "Cleaning up old metadata");
+        MetaData.FORMAT.cleanupOldFiles(newGeneration, dataPaths);
+    }
+
 
     //package-private for testing
     OptionParser getParser() {

@@ -22,6 +22,7 @@ import joptsimple.OptionSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -31,15 +32,21 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -47,6 +54,7 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE")
@@ -418,5 +426,56 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         state = internalCluster().client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.metaData().settings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
                 equalTo("1234kb"));
+    }
+
+    private static class SimulatedDeleteFailureException extends RuntimeException {
+    }
+
+    public void testCleanupOldMetaDataFails() throws Exception {
+        // establish some metadata.
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
+        Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+        internalCluster().stopRandomDataNode();
+
+        // find data paths
+        Path[] dataPaths;
+        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(environment.settings(), environment)) {
+            dataPaths = nodeEnvironment.nodeDataPaths();
+        }
+
+        Collection<Path> metaDataPaths = metaDataPaths(dataPaths);
+
+        assertFalse(metaDataPaths.isEmpty());
+
+        executeCommand(new UnsafeBootstrapMasterCommand() {
+            @Override
+            protected void cleanUpOldMetaData(Terminal terminal, Path[] dataPaths, long newGeneration) {
+                throw new SimulatedDeleteFailureException();
+            }
+        }, environment, 0, false);
+
+        assertEquals(metaDataPaths, metaDataPaths.stream().filter(Files::exists).collect(Collectors.toList()));
+
+        // assert that new meta data files were not deleted.
+        assertThat(metaDataPaths(dataPaths).size(), greaterThan(metaDataPaths.size()));
+
+        // check that a new run will cleanup.
+        executeCommand(new UnsafeBootstrapMasterCommand(), environment, 0, false);
+
+        assertEquals(metaDataPaths.size(), metaDataPaths(dataPaths).size());
+    }
+
+    private Collection<Path> metaDataPaths(Path[] dataPaths) {
+        Collection<Path> paths = new ArrayList<>();
+        for (Path dataPath : dataPaths) {
+            try (Stream<Path> files = Files.list(dataPath.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
+                files.filter(p -> p.getFileName().toString().startsWith(MetaData.GLOBAL_STATE_FILE_PREFIX)).forEach(paths::add);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        return paths;
     }
 }

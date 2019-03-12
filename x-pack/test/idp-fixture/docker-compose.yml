@@ -23,7 +23,7 @@ services:
       - ./openldap/certs:/container/service/slapd/assets/certs
 
   shibboleth-idp:
-    build: ./idp/
+    image: "unicon/shibboleth-idp:3.4.2"
     depends_on:
       - openldap
     environment:
@@ -34,3 +34,7 @@ services:
       - "4443:4443"
     links:
       - openldap:openldap
+    volumes:
+      - ./idp/shibboleth-idp/conf:/opt/shibboleth-idp/conf
+      - ./idp/shibboleth-idp/credentials:/opt/shibboleth-idp/credentials
+      - ./idp/shib-jetty-base/start.d/ssl.ini:/opt/shib-jetty-base/start.d/ssl.ini

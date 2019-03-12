@@ -255,7 +255,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             assertConnectedExactlyToNodes(nodes1);
 
             // if we disconnect from a node while blocked trying to connect to it then the listener is notified
-            nodeConnectionBlocks.put(node0, connectionBarrier::await);
             final PlainActionFuture<Void> future6 = new PlainActionFuture<>();
             service.connectToNodes(nodes01, () -> future6.onResponse(null));
             expectThrows(ElasticsearchTimeoutException.class, () -> future6.actionGet(timeValueMillis(scaledRandomIntBetween(1, 1000))));

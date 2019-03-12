@@ -20,14 +20,12 @@
 package org.elasticsearch.client.dataframe;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 public class PutDataFrameTransformRequest implements ToXContentObject, Validatable {
 
@@ -44,11 +42,6 @@ public class PutDataFrameTransformRequest implements ToXContentObject, Validatab
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return config.toXContent(builder, params);
-    }
-
-    @Override
-    public Optional<ValidationException> validate() {
-        return Optional.empty();
     }
 
     @Override

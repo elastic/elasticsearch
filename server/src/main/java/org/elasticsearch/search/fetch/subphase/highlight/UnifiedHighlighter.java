@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -68,12 +69,13 @@ public class UnifiedHighlighter implements Highlighter {
         int numberOfFragments;
         try {
 
-            final Analyzer analyzer = getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldType);
+            final Analyzer analyzer = getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldType,
+                    hitContext);
             List<Object> fieldValues = loadFieldValues(fieldType, field, context, hitContext);
             if (fieldValues.size() == 0) {
                 return null;
             }
-            final PassageFormatter passageFormatter = getPassageFormatter(field, encoder);
+            final PassageFormatter passageFormatter = getPassageFormatter(hitContext, field, encoder);
             final IndexSearcher searcher = new IndexSearcher(hitContext.reader());
             final CustomUnifiedHighlighter highlighter;
             final String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
@@ -140,14 +142,14 @@ public class UnifiedHighlighter implements Highlighter {
         return null;
     }
 
-    protected PassageFormatter getPassageFormatter(SearchContextHighlight.Field field, Encoder encoder) {
+    protected PassageFormatter getPassageFormatter(HitContext hitContext, SearchContextHighlight.Field field, Encoder encoder) {
         CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.fieldOptions().preTags()[0],
             field.fieldOptions().postTags()[0], encoder);
         return passageFormatter;
     }
 
     
-    protected Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type) {
+    protected Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type, HitContext hitContext) {
         return HighlightUtils.getAnalyzer(docMapper, type);
     }
     

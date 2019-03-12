@@ -60,7 +60,7 @@ This tool has two modes:
   a brand-new cluster on its own, using its local copy of the cluster metadata.
   This is known as _unsafe cluster bootstrapping_.
 
-* `elastisearch-node detach-cluster` allows you to move nodes from one cluster
+* `elastisearch-node detach-cluster` enables you to move nodes from one cluster
   to another. This can be used to move nodes into the new cluster created with
   the `elastisearch-node unsafe-bootstap` command. If unsafe cluster bootstrapping was not
   possible, it also enables you to

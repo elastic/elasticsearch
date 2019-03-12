@@ -41,10 +41,10 @@ public class LinearRing extends Line {
         }
         int last = lats.length - 1;
         if (lats[0] != lats[last] || lons[0] != lons[last] || (alts != null && alts[0] != alts[last])) {
-            throw new IllegalArgumentException("first and last points of the linear ring must be the same (it must close itself): " +
-                "lats[0]=" + lats[0] + " lats[" + last + "]=" + lats[last] +
-                "lons[0]=" + lons[0] + " lons[" + last + "]=" + lons[last] +
-                (alts == null ? "" : "alts[0]=" + alts[0] + " alts[" + last + "]=" + alts[last] ));
+            throw new IllegalArgumentException("first and last points of the linear ring must be the same (it must close itself):" +
+                " lats[0]=" + lats[0] + " lats[" + last + "]=" + lats[last] +
+                " lons[0]=" + lons[0] + " lons[" + last + "]=" + lons[last] +
+                (alts == null ? "" : " alts[0]=" + alts[0] + " alts[" + last + "]=" + alts[last] ));
         }
     }
 

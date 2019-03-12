@@ -475,3 +475,6 @@ allprojects {
 
 task internalClusterTest {
 }
+
+task bwcTestSnapshots {
+}

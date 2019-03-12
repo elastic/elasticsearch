@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 
 import java.io.IOException;
@@ -58,7 +59,7 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
         public static Request fromXContent(final XContentParser parser) throws IOException {
             Map<String, Object> content = parser.map();
             // Destination and ID are not required for Preview, so we just supply our own
-            content.put(DataFrameTransformConfig.DESTINATION.getPreferredName(), "unused-transform-preview-index");
+            content.put(DataFrameField.DESTINATION.getPreferredName(), "unused-transform-preview-index");
             try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
                 XContentParser newParser = XContentType.JSON
                     .xContent()

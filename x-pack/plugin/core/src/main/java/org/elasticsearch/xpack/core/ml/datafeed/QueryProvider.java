@@ -74,7 +74,7 @@ class QueryProvider implements Writeable, ToXContentObject {
     }
 
     static QueryProvider fromStream(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.CURRENT)) { // Has our bug fix for query/agg providers
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) { // Has our bug fix for query/agg providers
             return new QueryProvider(in.readMap(), in.readOptionalNamedWriteable(QueryBuilder.class), in.readException());
         } else if (in.getVersion().onOrAfter(Version.V_6_6_0)) { // Has the bug, but supports lazy objects
             return new QueryProvider(in.readMap(), null, null);
@@ -95,7 +95,7 @@ class QueryProvider implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.CURRENT)) { // Has our bug fix for query/agg providers
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) { // Has our bug fix for query/agg providers
             out.writeMap(query);
             out.writeOptionalNamedWriteable(parsedQuery);
             out.writeException(parsingException);

@@ -115,13 +115,6 @@ The default is `10%` which is often plenty: for example, if you give the JVM
 two shards that are heavily indexing.
 
 [float]
-=== Disable `_field_names`
-
-The <<mapping-field-names-field,`_field_names` field>> introduces some
-index-time overhead, so you might want to disable it if you never need to
-run `exists` queries.
-
-[float]
 === Additional optimizations
 
 Many of the strategies outlined in <<tune-for-disk-usage>> also

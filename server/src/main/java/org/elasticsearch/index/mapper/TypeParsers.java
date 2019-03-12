@@ -74,7 +74,6 @@ public class TypeParsers {
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
-                analyzer.checkAllowedInMode(AnalysisMode.ALL);
                 indexAnalyzer = analyzer;
                 iterator.remove();
             } else if (propName.equals("search_analyzer")) {
@@ -93,6 +92,23 @@ public class TypeParsers {
                 analyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
                 searchQuoteAnalyzer = analyzer;
                 iterator.remove();
+            }
+        }
+
+        // check analyzers are allowed to work in the respective AnalysisMode
+        {
+            if (indexAnalyzer != null) {
+                if (searchAnalyzer == null) {
+                    indexAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
+                } else {
+                    indexAnalyzer.checkAllowedInMode(AnalysisMode.INDEX_TIME);
+                }
+            }
+            if (searchAnalyzer != null) {
+                searchAnalyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
+            }
+            if (searchQuoteAnalyzer != null) {
+                searchQuoteAnalyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
             }
         }
 

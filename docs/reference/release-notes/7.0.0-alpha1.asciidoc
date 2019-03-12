@@ -7,26 +7,453 @@ The changes listed below have been released for the first time in Elasticsearch 
 [float]
 === Breaking changes
 
-Core::
-* Tribe node has been removed in favor of Cross-Cluster-Search
-
-Cross-Cluster-Search::
-* `http_addresses` has been removed from the <<cluster-remote-info>> API
-  because it is expensive to fetch and no longer needed by Kibana.
-
-Rest API::
-* The Clear Cache API only supports `POST` as HTTP method
-* `CircuitBreakingException` was previously mapped to HTTP status code 503 and is now
-   mapped as HTTP status code 429.
-
 Aggregations::
-* The Percentiles and PercentileRanks aggregations now return `null` in the REST response,
-  instead of `NaN`.  This makes it consistent with the rest of the aggregations.  Note:
-  this only applies to the REST response, the java objects continue to return `NaN` (also
-  consistent with other aggregations)
+* Remove support for deprecated params._agg/_aggs for scripted metric aggregations {pull}32979[#32979] (issues: {issue}29328[#29328], {issue}31597[#31597])
+* Percentile/Ranks should return null instead of NaN when empty {pull}30460[#30460] (issue: {issue}29066[#29066])
+* Render sum as zero if count is zero for stats aggregation {pull}27193[#27193] (issue: {issue}26893[#26893])
+
+Analysis::
+* Remove `delimited_payload_filter` {pull}27705[#27705] (issues: {issue}26625[#26625], {issue}27704[#27704])
+* Limit the number of tokens produced by _analyze {pull}27529[#27529] (issue: {issue}27038[#27038])
+* Add limits for ngram and shingle settings {pull}27211[#27211] (issue: {issue}25887[#25887])
+
+Audit::
+* Logfile auditing settings remove after deprecation  {pull}35205[#35205]
+
+Authentication::
+* Security: remove wrapping in put user response {pull}33512[#33512] (issue: {issue}32332[#32332])
+
+Authorization::
+* Remove aliases resolution limitations when security is enabled {pull}31952[#31952] (issue: {issue}31516[#31516])
+
+CRUD::
+* Version conflict exception message enhancement {pull}29432[#29432] (issue: {issue}21278[#21278])
+* Using ObjectParser in UpdateRequest {pull}29293[#29293] (issue: {issue}28740[#28740])
+
+Distributed::
+* Remove undocumented action.master.force_local setting {pull}29351[#29351]
+* Remove tribe node support {pull}28443[#28443]
+* Forbid negative values for index.unassigned.node_left.delayed_timeout {pull}26828[#26828]
+
+Features/Indices APIs::
+* Indices Exists API should return 404 for empty wildcards {pull}34499[#34499]
+* Default to one shard {pull}30539[#30539]
+* Limit the number of nested documents {pull}27405[#27405] (issue: {issue}26962[#26962])
+
+Features/Ingest::
+* INGEST: Add Configuration Except. Data to Metdata {pull}32322[#32322] (issue: {issue}27728[#27728])
+
+Features/Stats::
+* Remove the suggest metric from stats APIs {pull}29635[#29635] (issue: {issue}29589[#29589])
+* Align cat thread pool info to thread pool config {pull}29195[#29195] (issue: {issue}29123[#29123])
+* Align thread pool info to thread pool configuration {pull}29123[#29123] (issue: {issue}29113[#29113])
+
+Geo::
+* Use geohash cell instead of just a corner in geo_bounding_box {pull}30698[#30698] (issue: {issue}25154[#25154])
+
+Infra/Circuit Breakers::
+* Introduce durability of circuit breaking exception {pull}34460[#34460] (issue: {issue}31986[#31986])
+* Circuit-break based on real memory usage {pull}31767[#31767]
+
+Infra/Core::
+* Core: Default node.name to the hostname {pull}33677[#33677]
+* Remove bulk fallback for write thread pool {pull}29609[#29609]
+* CCS: Drop http address from remote cluster info {pull}29568[#29568] (issue: {issue}29207[#29207])
+* Remove the index thread pool {pull}29556[#29556]
+* Main response should not have status 503 when okay {pull}29045[#29045] (issue: {issue}8902[#8902])
+* Automatically prepare indices for splitting {pull}27451[#27451]
+* Don't refresh on `_flush` `_force_merge` and `_upgrade` {pull}27000[#27000] (issue: {issue}26972[#26972])
+
+Infra/Packaging::
+* Packaging: Remove windows bin files from the tar distribution {pull}30596[#30596]
+
+Infra/REST API::
+* REST: Remove GET support for clear cache indices {pull}29525[#29525]
+* REST : Clear Indices Cache API remove deprecated url params {pull}29068[#29068]
+
+Infra/Scripting::
+* Remove support for deprecated StoredScript contexts {pull}31394[#31394] (issues: {issue}27612[#27612], {issue}28939[#28939])
+* Scripting: Remove getDate methods from ScriptDocValues {pull}30690[#30690]
+* Handle missing and multiple values in script {pull}29611[#29611] (issue: {issue}29286[#29286])
+* Drop `ScriptDocValues#date` and `ScriptDocValues#dates` in 7.0.0 [ISSUE] {pull}23008[#23008]
+
+Infra/Settings::
+* Remove config prompting for secrets and text {pull}27216[#27216]
+
+Mapping::
+* Match phrase queries against non-indexed fields should throw an exception {pull}31060[#31060]
+* Remove legacy mapping code. {pull}29224[#29224]
+* Reject updates to the `_default_` mapping. {pull}29165[#29165] (issues: {issue}15613[#15613], {issue}28248[#28248])
+* Remove the `update_all_types` option. {pull}28288[#28288]
+* Remove the `_default_` mapping. {pull}28248[#28248]
+* Reject the `index_options` parameter for numeric fields {pull}26668[#26668] (issue: {issue}21475[#21475])
+
+Network::
+* Network: Remove http.enabled setting {pull}29601[#29601] (issue: {issue}12792[#12792])
+* Remove HTTP max content length leniency {pull}29337[#29337]
+
+Percolator::
+* remove deprecated percolator map_unmapped_fields_as_string setting {pull}28060[#28060]
+
+Ranking::
+* Add minimal sanity checks to custom/scripted similarities. {pull}33564[#33564] (issue: {issue}33309[#33309])
+* Scroll queries asking for rescore are considered invalid {pull}32918[#32918] (issue: {issue}31775[#31775])
+
+Search::
+* Remove deprecated url parameters `_source_include` and `_source_exclude` {pull}35097[#35097] (issues: {issue}22792[#22792], {issue}33475[#33475])
+* Disallow negative query boost {pull}34486[#34486] (issue: {issue}33309[#33309])
+* Forbid negative `weight` in Function Score Query {pull}33390[#33390] (issue: {issue}31927[#31927])
+* In the field capabilities API, remove support for providing fields in the request body. {pull}30185[#30185]
+* Remove deprecated options for query_string {pull}29203[#29203] (issue: {issue}25551[#25551])
+* Fix Laplace scorer to multiply by alpha (and not add) {pull}27125[#27125]
+* Remove _primary and _replica shard preferences {pull}26791[#26791] (issue: {issue}26335[#26335])
+* Limit the number of expanded fields it query_string and simple_query_string {pull}26541[#26541] (issue: {issue}25105[#25105])
+* Make purely negative queries return scores of 0. {pull}26015[#26015] (issue: {issue}23449[#23449])
+
+Snapshot/Restore::
+* Include size of snapshot in snapshot metadata  {pull}30890[#30890] (issue: {issue}18543[#18543])
+* Remove azure deprecated settings {pull}26099[#26099] (issue: {issue}23405[#23405])
+
+Store::
+* drop elasticsearch-translog for 7.0 {pull}33373[#33373] (issues: {issue}31389[#31389], {issue}32281[#32281])
+* completely drop `index.shard.check_on_startup: fix` for 7.0 {pull}33194[#33194]
 
 Suggesters::
-* Plugins that register suggesters can now define their own types of suggestions and must
-  explicitly indicate the type of suggestion that they produce. Existing plugins will
-  require changes to their plugin registration. See the `custom-suggester` example
-  plugin {pull}30284[#30284]
+* Fix threshold frequency computation in Suggesters {pull}34312[#34312] (issue: {issue}34282[#34282])
+* Make Geo Context Mapping Parsing More Strict {pull}32821[#32821] (issues: {issue}32202[#32202], {issue}32412[#32412])
+*  Make Geo Context Parsing More Strict {pull}32412[#32412] (issue: {issue}32202[#32202])
+* Remove the ability to index or query context suggestions without context {pull}31007[#31007] (issue: {issue}30712[#30712])
+
+
+
+[[breaking-java-7.0.0-alpha1]]
+[float]
+=== Breaking Java changes
+
+Aggregations::
+* Change GeoHashGrid.Bucket#getKey() to return String {pull}31748[#31748] (issue: {issue}30320[#30320])
+
+Analysis::
+* Remove deprecated AnalysisPlugin#requriesAnalysisSettings method {pull}32037[#32037] (issue: {issue}32025[#32025])
+
+Features/Java High Level REST Client::
+* API: Drop deprecated methods from Retry {pull}33925[#33925]
+* REST hl client: cluster health to default to cluster level {pull}31268[#31268] (issue: {issue}29331[#29331])
+* REST high-level Client: remove deprecated API methods {pull}31200[#31200] (issue: {issue}31069[#31069])
+
+Features/Java Low Level REST Client::
+* LLREST: Drop deprecated methods {pull}33223[#33223] (issues: {issue}29623[#29623], {issue}30315[#30315])
+
+Geo::
+* [Geo] Decouple geojson parse logic from ShapeBuilders {pull}27212[#27212]
+
+Infra/Core::
+* Core: Remove RequestBuilder from Action {pull}30966[#30966]
+
+Infra/Transport API::
+* Java api clean up: remove deprecated `isShardsAcked` {pull}28311[#28311] (issues: {issue}27784[#27784], {issue}27819[#27819])
+
+[[deprecation-7.0.0-alpha1]]
+[float]
+=== Deprecations
+
+Analysis::
+* Replace parameter unicodeSetFilter with unicode_set_filter  {pull}29215[#29215] (issue: {issue}22823[#22823])
+* Replace delimited_payload_filter by delimited_payload {pull}26625[#26625] (issue: {issue}21978[#21978])
+
+Features/Indices APIs::
+* Default copy settings to true and deprecate on the REST layer {pull}30598[#30598]
+
+Infra/Transport API::
+* Deprecate the transport client in favour of the high-level REST client {pull}27085[#27085]
+
+Mapping::
+* Deprecate type exists requests. {pull}34663[#34663]
+
+Search::
+* Deprecate filtering on `_type`. {pull}29468[#29468] (issue: {issue}15613[#15613])
+
+
+
+[[feature-7.0.0-alpha1]]
+[float]
+=== New features
+
+Analysis::
+* Relax TermVectors API to work with textual fields other than TextFieldType {pull}31915[#31915] (issue: {issue}31902[#31902])
+
+CCR::
+* Generalize search.remote settings to cluster.remote {pull}33413[#33413]
+
+Distributed::
+* log messages from allocation commands {pull}25955[#25955] (issues: {issue}22821[#22821], {issue}25325[#25325])
+
+Features/Ingest::
+* Revert "Introduce a Hashing Processor (#31087)" {pull}32178[#32178]
+* Add ingest-attachment support for per document `indexed_chars` limit {pull}28977[#28977] (issue: {issue}28942[#28942])
+
+Features/Java High Level REST Client::
+* GraphClient for the high level REST client and associated tests {pull}32366[#32366]
+
+Features/Monitoring::
+* [Elasticsearch Monitoring] Collect only display_name (for now) {pull}35265[#35265] (issue: {issue}8445[#8445])
+
+Infra/Core::
+* Skip shard refreshes if shard is `search idle` {pull}27500[#27500]
+
+Infra/Logging::
+* Logging: Unify log rotation for index/search slow log {pull}27298[#27298]
+
+Infra/Plugins::
+* Reload secure settings for plugins {pull}31383[#31383] (issue: {issue}29135[#29135])
+
+Infra/REST API::
+* Add an `include_type_name` option. {pull}29453[#29453] (issue: {issue}15613[#15613])
+
+Machine Learning::
+* [ML] Filter undefined job groups from update job calendar actions {pull}30757[#30757]
+
+Mapping::
+* Add a `feature_vector` field. {pull}31102[#31102] (issue: {issue}27552[#27552])
+* Expose Lucene's FeatureField. {pull}30618[#30618]
+
+Ranking::
+* Add ranking evaluation API {pull}27478[#27478] (issue: {issue}19195[#19195])
+
+Recovery::
+* Allow to trim all ops above a certain seq# with a term lower than X, … {pull}31211[#31211] (issue: {issue}10708[#10708])
+
+SQL::
+* SQL: Add basic support for ST_AsWKT geo function {pull}34205[#34205]
+* SQL: Add support for SYS GEOMETRY_COLUMNS {pull}30496[#30496] (issue: {issue}29872[#29872])
+
+Search::
+* Add “took” timing info to response for _msearch/template API {pull}30961[#30961] (issue: {issue}30957[#30957])
+* Expose the lucene Matches API to searches [ISSUE] {pull}29631[#29631]
+* Add allow_partial_search_results flag to search requests with default setting true {pull}28440[#28440] (issue: {issue}27435[#27435])
+* Enable adaptive replica selection by default {pull}26522[#26522] (issue: {issue}24915[#24915])
+
+Suggesters::
+* serialize suggestion responses as named writeables {pull}30284[#30284] (issue: {issue}26585[#26585])
+
+
+
+[[enhancement-7.0.0-alpha1]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Uses MergingDigest instead of AVLDigest in percentiles agg {pull}28702[#28702] (issue: {issue}19528[#19528])
+
+Discovery-Plugins::
+* Rename discovery.zen.minimum_master_nodes [ISSUE] {pull}14058[#14058]
+
+Engine::
+* Remove versionType from translog {pull}31945[#31945]
+*  do retry if primary fails on AsyncAfterWriteAction {pull}31857[#31857] (issues: {issue}31716[#31716], {issue}31755[#31755])
+* handle AsyncAfterWriteAction exception before listener is registered {pull}31755[#31755] (issue: {issue}31716[#31716])
+* Use IndexWriter#flushNextBuffer to free memory {pull}27753[#27753]
+* Remove pre 6.0.0 support from InternalEngine {pull}27720[#27720]
+
+Features/Indices APIs::
+*  Add cluster-wide shard limit {pull}32856[#32856] (issue: {issue}20705[#20705])
+* Remove RestGetAllAliasesAction {pull}31308[#31308] (issue: {issue}31129[#31129])
+* Add rollover-creation-date setting to rolled over index {pull}31144[#31144] (issue: {issue}30887[#30887])
+* add is-write-index flag to aliases {pull}30942[#30942]
+* Make index and bulk APIs work without types. {pull}29479[#29479]
+
+Features/Ingest::
+* ingest: Add ignore_missing property to foreach filter (#22147) {pull}31578[#31578] (issue: {issue}22147[#22147])
+
+Features/Java High Level REST Client::
+* HLRC API for _termvectors {pull}32610[#32610] (issue: {issue}27205[#27205])
+
+Features/Stats::
+* Stats to record how often the ClusterState diff mechanism is used successfully {pull}26973[#26973]
+
+Features/Watcher::
+* Watcher: Validate email adresses when storing a watch {pull}34042[#34042] (issue: {issue}33980[#33980])
+
+Infra/Circuit Breakers::
+* Have circuit breaker succeed on unknown mem usage {pull}33125[#33125] (issue: {issue}31767[#31767])
+* Account for XContent overhead in in-flight breaker {pull}31613[#31613]
+* Script Stats: Add compilation limit counter to stats {pull}26387[#26387]
+
+Infra/Core::
+* Add RunOnce utility class that executes a Runnable exactly once {pull}35484[#35484]
+* Improved IndexNotFoundException's default error message {pull}34649[#34649] (issue: {issue}34628[#34628])
+* Set a bounded default for http.max_warning_header_count [ISSUE] {pull}33479[#33479]
+
+Infra/Packaging::
+* Choose JVM options ergonomically {pull}30684[#30684]
+
+Infra/REST API::
+* Remove hand-coded XContent duplicate checks {pull}34588[#34588] (issues: {issue}22073[#22073], {issue}22225[#22225], {issue}22253[#22253])
+* Add the `include_type_name` option to the search and document APIs. {pull}29506[#29506] (issue: {issue}15613[#15613])
+* Validate `op_type` for `_create` {pull}27483[#27483]
+
+Infra/Scripting::
+* Tests: Add support for custom contexts to mock scripts {pull}34100[#34100]
+* Scripting: Reflect factory signatures in painless classloader {pull}34088[#34088]
+* Handle missing values in painless {pull}32207[#32207] (issue: {issue}29286[#29286])
+
+Infra/Settings::
+* Settings: Add keystore creation to add commands {pull}26126[#26126]
+
+Infra/Transport API::
+* Change BWC version for VerifyRepositoryResponse {pull}30796[#30796] (issue: {issue}30762[#30762])
+
+Network::
+* Add cors support to NioHttpServerTransport {pull}30827[#30827] (issue: {issue}28898[#28898])
+* Reintroduce mandatory http pipelining support {pull}30820[#30820]
+* Make http pipelining support mandatory {pull}30695[#30695] (issues: {issue}28898[#28898], {issue}29500[#29500])
+* Add nio http server transport {pull}29587[#29587] (issue: {issue}28898[#28898])
+* Add class for serializing message to bytes {pull}29384[#29384] (issue: {issue}28898[#28898])
+* Selectors operate on channel contexts {pull}28468[#28468] (issue: {issue}27260[#27260])
+* Unify nio read / write channel contexts {pull}28160[#28160] (issue: {issue}27260[#27260])
+* Create nio-transport plugin for NioTransport {pull}27949[#27949] (issue: {issue}27260[#27260])
+* Add elasticsearch-nio jar for base nio classes {pull}27801[#27801] (issue: {issue}27802[#27802])
+
+Ranking::
+* Add k parameter to PrecisionAtK metric {pull}27569[#27569]
+
+SQL::
+* SQL: Introduce support for NULL values {pull}34573[#34573] (issue: {issue}32079[#32079])
+
+Search::
+* Make limit on number of expanded fields configurable {pull}35284[#35284] (issues: {issue}26541[#26541], {issue}34778[#34778])
+* Search: Simply SingleFieldsVisitor {pull}34052[#34052]
+* Don't count hits via the collector if the hit count can be computed from index stats. {pull}33701[#33701]
+* Limit the number of concurrent requests per node {pull}31206[#31206] (issue: {issue}31192[#31192])
+* Default max concurrent search req. numNodes * 5 {pull}31171[#31171] (issues: {issue}30783[#30783], {issue}30994[#30994])
+* Change ScriptException status to 400 (bad request) {pull}30861[#30861] (issue: {issue}12315[#12315])
+* Change default value to true for transpositions parameter of fuzzy query {pull}26901[#26901]
+* Introducing "took" time (in ms) for `_msearch` {pull}23767[#23767] (issue: {issue}23131[#23131])
+
+Snapshot/Restore::
+* #31608 Add S3 Setting to Force Path Type Access {pull}34721[#34721] (issue: {issue}31608[#31608])
+
+Store::
+* add RemoveCorruptedShardDataCommand {pull}32281[#32281] (issues: {issue}31389[#31389], {issue}32279[#32279])
+
+ZenDiscovery::
+* [Zen2] Introduce vote withdrawal {pull}35446[#35446]
+* Zen2: Add basic Zen1 transport-level BWC {pull}35443[#35443]
+* Zen2: Add diff-based publishing {pull}35290[#35290]
+* [Zen2] Introduce auto_shrink_voting_configuration setting {pull}35217[#35217]
+* Introduce transport API for cluster bootstrapping {pull}34961[#34961]
+* [Zen2] Reconfigure cluster as its membership changes {pull}34592[#34592] (issue: {issue}33924[#33924])
+* Zen2: Fail fast on disconnects {pull}34503[#34503]
+* [Zen2] Add storage-layer disruptions to CoordinatorTests {pull}34347[#34347]
+* [Zen2] Add low-level bootstrap implementation {pull}34345[#34345]
+* [Zen2] Gather votes from all nodes {pull}34335[#34335]
+* Zen2: Add Cluster State Applier {pull}34257[#34257]
+* [Zen2] Add safety phase to CoordinatorTests {pull}34241[#34241]
+* [Zen2] Integrate FollowerChecker with Coordinator {pull}34075[#34075]
+* Integrate LeaderChecker with Coordinator {pull}34049[#34049]
+* Zen2: Trigger join when active master detected {pull}34008[#34008]
+* Zen2: Update PeerFinder term on term bump {pull}33992[#33992]
+* [Zen2] Calculate optimal cluster configuration {pull}33924[#33924]
+* [Zen2] Introduce FollowersChecker {pull}33917[#33917]
+* Zen2: Integrate publication pipeline into Coordinator {pull}33771[#33771]
+* Zen2: Add DisruptableMockTransport {pull}33713[#33713]
+* [Zen2] Implement basic cluster formation {pull}33668[#33668]
+* [Zen2] Introduce LeaderChecker {pull}33024[#33024]
+* Zen2: Add leader-side join handling logic {pull}33013[#33013]
+* [Zen2] Add PeerFinder#onFoundPeersUpdated {pull}32939[#32939]
+* [Zen2] Introduce PreVoteCollector {pull}32847[#32847]
+* [Zen2] Introduce ElectionScheduler {pull}32846[#32846]
+* [Zen2] Introduce ElectionScheduler {pull}32709[#32709]
+* [Zen2] Add HandshakingTransportAddressConnector {pull}32643[#32643] (issue: {issue}32246[#32246])
+* [Zen2] Add UnicastConfiguredHostsResolver {pull}32642[#32642] (issue: {issue}32246[#32246])
+* Zen2: Cluster state publication pipeline {pull}32584[#32584] (issue: {issue}32006[#32006])
+* [Zen2] Introduce gossip-like discovery of master nodes {pull}32246[#32246]
+* Add core coordination algorithm for cluster state publishing  {pull}32171[#32171] (issue: {issue}32006[#32006])
+* Add term and config to cluster state {pull}32100[#32100] (issue: {issue}32006[#32006])
+
+
+
+[[bug-7.0.0-alpha1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix InternalAutoDateHistogram reproducible failure {pull}32723[#32723] (issue: {issue}32215[#32215])
+
+Analysis::
+* Close #26771: beider_morse phonetic encoder failure when languageset unspecified  {pull}26848[#26848] (issue: {issue}26771[#26771])
+
+Authorization::
+* Empty GetAliases authorization fix {pull}34444[#34444] (issue: {issue}31952[#31952])
+
+Docs Infrastructure::
+* Docs build fails due to missing nexus.png [ISSUE] {pull}33101[#33101]
+
+Features/Indices APIs::
+* Validate top-level keys for create index request (#23755) {pull}23869[#23869] (issue: {issue}23755[#23755])
+
+Features/Ingest::
+* INGEST: Fix Deprecation Warning in Script Proc. {pull}32407[#32407]
+
+Features/Java High Level REST Client::
+* HLRC: Drop extra level from user parser {pull}34932[#34932]
+
+Features/Java Low Level REST Client::
+* Remove I/O pool blocking sniffing call from onFailure callback, add some logic around host exclusion {pull}27985[#27985] (issue: {issue}27984[#27984])
+
+Features/Watcher::
+* Watcher: Ignore system locale/timezone in croneval CLI tool {pull}33215[#33215]
+
+Geo::
+* [build] Test `GeoShapeQueryTests#testPointsOnly` fails  [ISSUE] {pull}27454[#27454]
+
+Infra/Core::
+* Ensure shard is refreshed once it's inactive {pull}27559[#27559] (issue: {issue}27500[#27500])
+
+Infra/Settings::
+* Change format how settings represent lists / array {pull}26723[#26723]
+
+Infra/Transport API::
+* Remove version read/write logic in Verify Response {pull}30879[#30879] (issue: {issue}30807[#30807])
+* Enable muted Repository test {pull}30875[#30875] (issue: {issue}30807[#30807])
+* Bad regex in CORS settings should throw a nicer error {pull}29108[#29108]
+
+License::
+* Update versions for start_trial after backport {pull}30218[#30218] (issue: {issue}30135[#30135])
+
+Mapping::
+* Ensure that field aliases cannot be used in multi-fields. {pull}32219[#32219]
+
+Network::
+* Adjust SSLDriver behavior for JDK11 changes {pull}32145[#32145] (issues: {issue}32122[#32122], {issue}32144[#32144])
+* Netty4SizeHeaderFrameDecoder error {pull}31057[#31057]
+* Fix memory leak in http pipelining {pull}30815[#30815] (issue: {issue}30801[#30801])
+* Fix issue with finishing handshake in ssl driver {pull}30580[#30580]
+
+Search::
+* Ensure realtime `_get` and `_termvectors` don't run on the network thread {pull}33814[#33814] (issue: {issue}27500[#27500])
+* [bug] fuzziness custom auto {pull}33462[#33462] (issue: {issue}33454[#33454])
+* Fix inner hits retrieval when stored fields are disabled (_none_) {pull}33018[#33018] (issue: {issue}32941[#32941])
+* Set maxScore for empty TopDocs to Nan rather than 0 {pull}32938[#32938]
+* Handle leniency for cross_fields type in multi_match query {pull}27045[#27045] (issue: {issue}23210[#23210])
+* Raise IllegalArgumentException instead if query validation failed {pull}26811[#26811] (issue: {issue}26799[#26799])
+
+Security::
+* Handle 6.4.0+ BWC for Application Privileges {pull}32929[#32929]
+
+ZenDiscovery::
+* [Zen2] Remove duplicate discovered peers {pull}35505[#35505]
+
+
+[[upgrade-7.0.0-alpha1]]
+[float]
+=== Upgrades
+
+Geo::
+* Upgrade JTS to 1.14.0 {pull}29141[#29141] (issue: {issue}29122[#29122])
+
+Infra/Core::
+* Upgrade to a Lucene 8 snapshot {pull}33310[#33310] (issues: {issue}32899[#32899], {issue}33028[#33028], {issue}33309[#33309])
+
+Network::
+* NETWORKING: Fix Netty Leaks by upgrading to 4.1.28 {pull}32511[#32511] (issue: {issue}32487[#32487])

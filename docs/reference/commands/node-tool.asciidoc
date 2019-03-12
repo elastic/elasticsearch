@@ -44,7 +44,7 @@ least one of them is restarted.
 
 In very rare circumstances it may not be possible to restart enough nodes to
 restore the cluster's availability. If such a disaster occurs, you should
-build a new cluster from a recent snapshot, and re-import any data that was
+build a new cluster from a recent snapshot and re-import any data that was
 ingested since that snapshot was taken.
 
 However, if the disaster is serious enough then it may not be possible to

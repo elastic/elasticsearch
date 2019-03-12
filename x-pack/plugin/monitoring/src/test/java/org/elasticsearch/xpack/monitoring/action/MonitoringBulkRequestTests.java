@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
@@ -125,7 +124,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         final long interval = randomNonNegativeLong();
 
         final MonitoringBulkRequest bulkRequest = new MonitoringBulkRequest();
-        bulkRequest.add(system, defaultType, content.bytes(), xContentType, timestamp, interval);
+        bulkRequest.add(system, content.bytes(), xContentType, timestamp, interval);
 
         final Collection<MonitoringBulkDoc> bulkDocs = bulkRequest.getDocs();
         assertNotNull(bulkDocs);
@@ -142,8 +141,6 @@ public class MonitoringBulkRequestTests extends ESTestCase {
             assertThat(bulkDoc.getXContentType(), equalTo(xContentType));
             ++count;
         }
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testAddRequestContentWithEmptySource() throws IOException {
@@ -187,12 +184,10 @@ public class MonitoringBulkRequestTests extends ESTestCase {
 
         final MonitoringBulkRequest bulkRequest = new MonitoringBulkRequest();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            bulkRequest.add(randomFrom(MonitoredSystem.values()), null, content.bytes(), xContentType, 0L, 0L)
+            bulkRequest.add(randomFrom(MonitoredSystem.values()), content.bytes(), xContentType, 0L, 0L)
         );
 
         assertThat(e.getMessage(), containsString("source is missing for monitoring document [][doc][" + nbDocs + "]"));
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testAddRequestContentWithUnrecognizedIndexName() throws IOException {
@@ -226,12 +221,10 @@ public class MonitoringBulkRequestTests extends ESTestCase {
 
         final MonitoringBulkRequest bulkRequest = new MonitoringBulkRequest();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-                bulkRequest.add(randomFrom(MonitoredSystem.values()), null, content.bytes(), xContentType, 0L, 0L)
+                bulkRequest.add(randomFrom(MonitoredSystem.values()), content.bytes(), xContentType, 0L, 0L)
         );
 
         assertThat(e.getMessage(), containsString("unrecognized index name [" + indexName + "]"));
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testSerialization() throws IOException {

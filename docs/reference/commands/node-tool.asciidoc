@@ -77,7 +77,7 @@ configuration>> as if performing another
 <<modules-discovery-bootstrap-cluster,cluster bootstrapping process>>. 
 the target node to form a new cluster on its own. This new cluster forms using
 the cluster metadata held locally on the target node. This can lead to
-arbitrary data loss since the target node may not hold the latest cluster
+WARNING: These steps can lead to arbitrary data loss since the target node may not hold the latest cluster
 metadata, and this out-of-date metadata may make it impossible to use some or
 all of the indices in the cluster.
 

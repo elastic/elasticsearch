@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecyclePolicy;
@@ -116,11 +117,7 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             for (SnapshotLifecyclePolicyItem item : lifecycles) {
-                builder.startObject(item.getPolicy().getId());
-                builder.field("version", item.getVersion());
-                builder.field("modified_date", item.getModifiedDate());
-                builder.field("policy", item.getPolicy());
-                builder.endObject();
+                item.toXContent(builder, params);
             }
             builder.endObject();
             return builder;
@@ -149,7 +146,7 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
      * {@link SnapshotLifecyclePolicyMetadata}, however, it elides the headers to ensure that they
      * are not leaked to the user since they may contain sensitive information.
      */
-    public static class SnapshotLifecyclePolicyItem {
+    public static class SnapshotLifecyclePolicyItem implements ToXContentFragment {
 
         private final SnapshotLifecyclePolicy policy;
         private final long version;
@@ -196,6 +193,16 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
             return policy.equals(other.policy) &&
                 version == other.version &&
                 modifiedDate == other.modifiedDate;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(policy.getId());
+            builder.field("version", version);
+            builder.field("modified_date", modifiedDate);
+            builder.field("policy", policy);
+            builder.endObject();
+            return builder;
         }
     }
 }

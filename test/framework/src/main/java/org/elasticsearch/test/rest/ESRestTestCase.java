@@ -197,13 +197,17 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected final Request newGetClusterSettingsRequest() {
+        final Request request = new Request("GET", "/_cluster/settings");
+        request.setOptions(permitCompressedClusterStateSizeDeprecationMessage());
+        return request;
+    }
+
+    private RequestOptions permitCompressedClusterStateSizeDeprecationMessage() {
         final Builder builder = RequestOptions.DEFAULT.toBuilder();
         final VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(nodeVersions);
         warningsHandler.compatible(TransportClusterStateAction.COMPRESSED_CLUSTER_STATE_SIZE_DEPRECATION_MESSAGE);
         builder.setWarningsHandler(warningsHandler);
-        final Request request = new Request("GET", "/_cluster/settings");
-        request.setOptions(builder.build());
-        return request;
+        return builder.build();
     }
 
     /**
@@ -518,6 +522,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                  */
                 Request request = new Request("GET", "_cat/templates");
                 request.addParameter("h", "name");
+                request.setOptions(permitCompressedClusterStateSizeDeprecationMessage());
                 String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
                 if (false == "".equals(templates)) {
                     for (String template : templates.split("\n")) {

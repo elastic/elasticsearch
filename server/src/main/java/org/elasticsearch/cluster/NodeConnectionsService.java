@@ -391,6 +391,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         private void onCompletion(ActivityType completedActivityType, @Nullable Exception e, Runnable oppositeActivity) {
             assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
+            assert activityType != ActivityType.IDLE;
 
             final Runnable cleanup;
             synchronized (mutex) {

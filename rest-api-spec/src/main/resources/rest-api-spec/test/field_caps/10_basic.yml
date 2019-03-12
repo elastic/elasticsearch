@@ -303,8 +303,8 @@ setup:
 ---
 "Field caps with include_unmapped":
   - skip:
-      version: " - 6.99.99"
-      reason: include_unmapped has been added in 7.0.0
+      version: " - 7.99.99"
+      reason: include_unmapped has been added in 7.1.0
 
   - do:
       field_caps:

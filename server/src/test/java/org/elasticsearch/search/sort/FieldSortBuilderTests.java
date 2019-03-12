@@ -140,7 +140,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             mutated.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
             break;
         case 5:
-            mutated.setNumericType(randomValueOtherThan(original.getNumericType(), () -> randomFrom("long", "double")));
+            mutated.setNumericType(randomValueOtherThan(original.getNumericType(), () -> randomFrom("LONG", "DOUBLE")));
             break;
         default:
             throw new IllegalStateException("Unsupported mutation.");

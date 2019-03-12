@@ -213,7 +213,7 @@ public class ClusterStateChanges {
             transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
-        joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger);
+        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger);
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {

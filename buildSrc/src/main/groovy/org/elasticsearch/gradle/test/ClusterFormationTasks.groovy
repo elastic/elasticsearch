@@ -299,6 +299,12 @@ class ClusterFormationTasks {
         // its run after plugins have been installed, as the extra config files may belong to plugins
         setup = configureExtraConfigFilesTask(taskName(prefix, node, 'extraConfig'), project, setup, node)
 
+        // If the node runs in a FIPS 140-2 JVM, the BCFKS default keystore will be password protected
+        if (project.inFipsJvm){
+            node.config.systemProperties.put('javax.net.ssl.trustStorePassword', 'password')
+            node.config.systemProperties.put('javax.net.ssl.keyStorePassword', 'password')
+        }
+
         // extra setup commands
         for (Map.Entry<String, Object[]> command : node.config.setupCommands.entrySet()) {
             // the first argument is the actual script name, relative to home

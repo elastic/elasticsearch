@@ -12,7 +12,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
@@ -159,9 +159,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
                     .subAggregation(avgAggregationBuilder)
                     .field("time")
                     .interval(TimeValue.timeValueMinutes(5).millis())));
-        datafeedConfigBuilder.setQuery(Collections.singletonMap(RangeQueryBuilder.NAME,
-            Collections.singletonMap("value",
-                Collections.singletonMap(RangeQueryBuilder.GTE_FIELD.getPreferredName(), numDocs/2))));
+        datafeedConfigBuilder.setParsedQuery(QueryBuilders.rangeQuery("value").gte(numDocs/2));
         datafeedConfigBuilder.setFrequency(TimeValue.timeValueMinutes(5));
         datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
 
@@ -253,6 +251,6 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private DelayedDataDetector newDetector(Job job, DatafeedConfig datafeedConfig) {
-        return DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, client());
+        return DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, client(), xContentRegistry());
     }
 }

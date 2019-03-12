@@ -62,7 +62,8 @@ This tool has two modes:
 
 * `elastisearch-node detach-cluster` allows you to move nodes from one cluster
   to another. This can be used to move nodes into the new cluster created with
-  the `elastisearch-node unsafe-bootstap` command above. It also allows you to
+  the `elastisearch-node unsafe-bootstap` command. If unsafe cluster bootstrapping was not
+  possible, it also enables you to
   move nodes into a brand-new cluster if unsafe cluster bootstrapping was not
   possible.
 

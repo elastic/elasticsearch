@@ -131,7 +131,7 @@ GET index/_search
                 "match": { "body": "elasticsearch" }
             },
             "script" : {
-                "source" : "_score * rational(doc['pagerank'].value, 10)" <1>
+                "source" : "_score * saturation(doc['pagerank'].value, 10)" <1>
             }
         }
     }

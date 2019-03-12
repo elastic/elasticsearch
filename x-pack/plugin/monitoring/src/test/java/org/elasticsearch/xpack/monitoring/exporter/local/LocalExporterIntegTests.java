@@ -218,7 +218,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
      */
     private void checkMonitoringTemplates() {
         final Set<String> templates = new HashSet<>();
-        templates.add(".monitoring-alerts");
+        templates.add(".monitoring-alerts-7");
         templates.add(".monitoring-es");
         templates.add(".monitoring-kibana");
         templates.add(".monitoring-logstash");

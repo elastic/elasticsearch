@@ -106,6 +106,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 future.actionGet();
             }
         });
+        reconnectionThread.start();
 
         final List<DiscoveryNode> allNodes = generateNodes();
         for (int iteration = 0; iteration < 3; iteration++) {

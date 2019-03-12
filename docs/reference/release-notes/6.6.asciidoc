@@ -32,7 +32,9 @@ Engine::
 * Advance max_seq_no before add operation to Lucene {pull}38879[#38879] (issue: {issue}31629[#31629])
 
 Machine Learning::
-* [ML] Stop the ML memory tracker before closing node {pull}39111[#39111] (issue: {issue}37117[#37117])
+* Stop the ML memory tracker before closing nodes {pull}39111[#39111] (issue: {issue}37117[#37117])
+* Fix an issue where interim results would be calculated after advancing time
+into an empty bucket {ml-pull}416[#416] (issue: {ml-issue}324[#324])
 
 SQL::
 * Fix merging of incompatible multi-fields {pull}39560[#39560] (issue: {issue}39547[#39547])

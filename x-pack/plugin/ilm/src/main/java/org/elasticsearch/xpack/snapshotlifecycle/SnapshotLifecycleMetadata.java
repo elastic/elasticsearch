@@ -74,7 +74,6 @@ public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // TODO: clean this up?
         builder.field("policies", this.snapshotConfigurations);
         return builder;
     }

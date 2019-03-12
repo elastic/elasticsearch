@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -139,7 +140,7 @@ public class SchedulerEngine {
     }
 
     public Set<String> scheduledJobIds() {
-        return Collections.unmodifiableSet(schedules.keySet());
+        return Collections.unmodifiableSet(new HashSet<>(schedules.keySet()));
     }
 
     public void add(Job job) {

@@ -68,10 +68,10 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.CronSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.WatchTests;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -80,11 +80,11 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singleton;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -215,7 +215,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
         BytesArray source = new BytesArray("{}");
-        SearchHit hit = new SearchHit(0, "first_foo", new Text(TriggeredWatchStoreField.DOC_TYPE), null);
+        SearchHit hit = new SearchHit(0, "first_foo", new Text(SINGLE_MAPPING_NAME), null);
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null, OriginalIndices.NONE));
         hit.sourceRef(source);
@@ -229,7 +229,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         // First return a scroll response with a single hit and then with no hits
-        hit = new SearchHit(0, "second_foo", new Text(TriggeredWatchStoreField.DOC_TYPE), null);
+        hit = new SearchHit(0, "second_foo", new Text(SINGLE_MAPPING_NAME), null);
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null, OriginalIndices.NONE));
         hit.sourceRef(source);
@@ -262,7 +262,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(), any());
 
         assertThat(TriggeredWatchStore.validate(cs), is(true));
-        DateTime now = DateTime.now(UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(now, now);
 
         Watch watch1 = mock(Watch.class);
@@ -393,8 +393,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         WatcherSearchTemplateService searchTemplateService = mock(WatcherSearchTemplateService.class);
 
         Watch watch = WatcherTestUtils.createTestWatch("fired_test", client, httpClient, emailService, searchTemplateService, logger);
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), DateTime.now(DateTimeZone.UTC), DateTime.now(DateTimeZone.UTC));
-        Wid wid = new Wid("_record", DateTime.now(DateTimeZone.UTC));
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), ZonedDateTime.now(ZoneOffset.UTC),
+            ZonedDateTime.now(ZoneOffset.UTC));
+        Wid wid = new Wid("_record", ZonedDateTime.now(ZoneOffset.UTC));
         TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         triggeredWatch.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
@@ -413,7 +414,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     }
 
     public void testPutTriggeredWatches() throws Exception {
-        DateTime now = DateTime.now(UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         int numberOfTriggeredWatches = randomIntBetween(1, 100);
 
         List<TriggeredWatch> triggeredWatches = new ArrayList<>(numberOfTriggeredWatches);
@@ -445,7 +446,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     }
 
     public void testDeleteTriggeredWatches() throws Exception {
-        DateTime now = DateTime.now(UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
         doAnswer(invocation -> {
             BulkRequest bulkRequest = (BulkRequest) invocation.getArguments()[0];

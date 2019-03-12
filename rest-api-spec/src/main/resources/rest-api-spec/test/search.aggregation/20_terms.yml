@@ -1,7 +1,6 @@
 setup:
   - do:
       indices.create:
-          include_type_name: false
           index: test_1
           body:
             settings:
@@ -25,7 +24,6 @@ setup:
 
   - do:
       indices.create:
-          include_type_name: false
           index: test_2
           body:
             settings:
@@ -651,28 +649,34 @@ setup:
   - match: { aggregations.number_terms.buckets.2.doc_count: 1 }
 
 ---
-"Deprecated _term order":
+"Global ordinals are not loaded with the map execution hint":
 
   - skip:
-      reason:  _term order deprecated in 6.0, replaced by _key
-      features: "warnings"
+      version: " - 6.99.99"
+      reason:  bug fixed in 7.0
 
   - do:
       index:
+        refresh: true
         index: test_1
         id: 1
+        routing: 1
         body: { "str": "abc" }
 
   - do:
       index:
+        refresh: true
         index: test_1
         id: 2
+        routing: 1
         body: { "str": "abc" }
 
   - do:
       index:
+        refresh: true
         index: test_1
         id: 3
+        routing: 1
         body: { "str": "bcd" }
 
   - do:
@@ -680,23 +684,37 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "order" :  { "_term" : "desc" } } } } }
-      warnings:
-        - "Deprecated aggregation order key [_term] used, replaced by [_key]"
+        index: test_1
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "map" } } } }
 
-  - match: { hits.total: 3 }
-
+  - match: { hits.total.value: 3}
   - length: { aggregations.str_terms.buckets: 2 }
 
-  - match: { aggregations.str_terms.buckets.0.key: "bcd" }
+  - do:
+      indices.stats:
+        index: test_1
+        metric: fielddata
+        fielddata_fields: str
 
-  - is_false: aggregations.str_terms.buckets.0.key_as_string
+  - match: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
 
-  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - do:
+      search:
+        index: test_1
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "global_ordinals" } } } }
 
-  - match: { aggregations.str_terms.buckets.1.key: "abc" }
+  - match: { hits.total.value: 3}
+  - length: { aggregations.str_terms.buckets: 2 }
 
-  - is_false: aggregations.str_terms.buckets.1.key_as_string
+  - do:
+      indices.stats:
+        index: test_1
+        metric: fielddata
+        fielddata_fields: str
 
-  - match: { aggregations.str_terms.buckets.1.doc_count: 2 }
+  - gt: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
+
+
+
+
+

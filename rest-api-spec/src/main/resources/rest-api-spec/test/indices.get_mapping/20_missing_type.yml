@@ -26,6 +26,7 @@
 "No type matching pattern returns 404":
   - do:
         indices.create:
+          include_type_name: true
           index: test_index
           body:
               mappings:
@@ -50,6 +51,7 @@
 "Existent and non-existent type returns 404 and the existing type":
   - do:
         indices.create:
+          include_type_name: true
           index: test_index
           body:
               mappings:
@@ -74,6 +76,7 @@
 "Existent and non-existent types returns 404 and the existing type":
   - do:
         indices.create:
+          include_type_name: true
           index: test_index
           body:
               mappings:

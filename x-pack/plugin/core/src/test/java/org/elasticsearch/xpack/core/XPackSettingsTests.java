@@ -9,9 +9,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKeyFactory;
+import javax.net.ssl.SSLContext;
 
 import java.security.NoSuchAlgorithmException;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -48,9 +50,28 @@ public class XPackSettingsTests extends ESTestCase {
             Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), bcryptAlgo).build()));
     }
 
+    public void testDefaultSupportedProtocolsWithTLSv13() throws Exception {
+        assumeTrue("current JVM does not support TLSv1.3", supportTLSv13());
+        assertThat(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS, contains("TLSv1.3", "TLSv1.2", "TLSv1.1"));
+    }
+
+    public void testDefaultSupportedProtocolsWithoutTLSv13() throws Exception {
+        assumeFalse("current JVM supports TLSv1.3", supportTLSv13());
+        assertThat(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS, contains("TLSv1.2", "TLSv1.1"));
+    }
+
     private boolean isSecretkeyFactoryAlgoAvailable(String algorithmId) {
         try {
             SecretKeyFactory.getInstance(algorithmId);
+            return true;
+        } catch (NoSuchAlgorithmException e) {
+            return false;
+        }
+    }
+
+    private boolean supportTLSv13() {
+        try {
+            SSLContext.getInstance("TLSv1.3");
             return true;
         } catch (NoSuchAlgorithmException e) {
             return false;

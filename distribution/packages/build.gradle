@@ -18,6 +18,7 @@
 
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.redline_rpm.header.Flags
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -134,6 +135,9 @@ Closure commonPackageConfig(String type, boolean oss) {
       into('modules') {
         with modulesFiles(oss)
       }
+      into('jdk') {
+        with jdkFiles('linux')
+      }
       // we need to specify every intermediate directory in these paths so the package managers know they are explicitly
       // intended to manage them; otherwise they may be left behind on uninstallation. duplicate calls of the same
       // directory are fine
@@ -141,7 +145,7 @@ Closure commonPackageConfig(String type, boolean oss) {
         String[] segments = fcp.relativePath.segments
         for (int i = segments.length - 2; i > 2; --i) {
           directory('/' + segments[0..i].join('/'), 0755)
-          if (segments[-2] == 'bin') {
+          if (segments[-2] == 'bin' || segments[-1] == 'jspawnhelper') {
             fcp.mode = 0755
           } else {
             fcp.mode = 0644
@@ -329,6 +333,8 @@ Closure commonRpmConfig(boolean oss) {
 
     packageGroup 'Application/Internet'
     requires '/bin/bash'
+
+    obsoletes packageName, '7.0.0', Flags.LESS
 
     prefix '/usr'
     packager 'Elasticsearch'

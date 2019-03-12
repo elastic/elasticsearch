@@ -100,17 +100,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class AutodetectProcessManager implements ClusterStateListener {
 
-    // We should be able from the job config to estimate the memory/cpu a job needs to have,
-    // and if we know that then we can prior to assigning a job to a node fail based on the
-    // available resources on that node: https://github.com/elastic/x-pack-elasticsearch/issues/546
-    // However, it is useful to also be able to apply a hard limit.
-
-    // WARNING: This setting cannot be made DYNAMIC, because it is tied to several threadpools
-    // and a threadpool's size can't be changed at runtime.
-    // See MachineLearning#getExecutorBuilders(...)
-    public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
-            Setting.intSetting("xpack.ml.max_open_jobs", 20, 1, 512, Property.NodeScope);
-
     // Undocumented setting for integration test purposes
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
             Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Property.NodeScope);
@@ -134,7 +123,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     // a map that manages the allocation of temporary space to jobs
     private final ConcurrentMap<String, Path> nativeTmpStorage = new ConcurrentHashMap<>();
 
-    private final int maxAllowedRunningJobs;
+    private volatile int maxAllowedRunningJobs;
 
     private final NamedXContentRegistry xContentRegistry;
 
@@ -151,7 +140,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
-        this.maxAllowedRunningJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
+        this.maxAllowedRunningJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.normalizerFactory = normalizerFactory;
         this.jobManager = jobManager;
@@ -161,6 +150,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
         this.auditor = auditor;
         this.nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
         clusterService.addListener(this);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxAllowedRunningJobs);
+    }
+
+    void setMaxAllowedRunningJobs(int maxAllowedRunningJobs) {
+        this.maxAllowedRunningJobs = maxAllowedRunningJobs;
     }
 
     public void onNodeStartup() {
@@ -522,11 +517,14 @@ public class AutodetectProcessManager implements ClusterStateListener {
     }
 
     AutodetectCommunicator create(JobTask jobTask, Job job, AutodetectParams autodetectParams, BiConsumer<Exception, Boolean> handler) {
-        // Closing jobs can still be using some or all threads in MachineLearning.AUTODETECT_THREAD_POOL_NAME
+        // Copy for consistency within a single method call
+        int localMaxAllowedRunningJobs = maxAllowedRunningJobs;
+        // Closing jobs can still be using some or all threads in MachineLearning.JOB_COMMS_THREAD_POOL_NAME
         // that an open job uses, so include them too when considering if enough threads are available.
         int currentRunningJobs = processByAllocation.size();
-        if (currentRunningJobs > maxAllowedRunningJobs) {
-            throw new ElasticsearchStatusException("max running job capacity [" + maxAllowedRunningJobs + "] reached",
+        // TODO: in future this will also need to consider jobs that are not anomaly detector jobs
+        if (currentRunningJobs > localMaxAllowedRunningJobs) {
+            throw new ElasticsearchStatusException("max running job capacity [" + localMaxAllowedRunningJobs + "] reached",
                     RestStatus.TOO_MANY_REQUESTS);
         }
 
@@ -547,7 +545,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         }
 
         // A TP with no queue, so that we fail immediately if there are no threads available
-        ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
+        ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, autodetectParams.dataCounts(), jobDataCountsPersister);
         ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobResultsProvider,
                 new JobRenormalizedResultsPersister(job.getId(), client), normalizerFactory);

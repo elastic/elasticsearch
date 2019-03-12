@@ -641,23 +641,23 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Add an aggregation to perform as part of the search.
      */
     public SearchSourceBuilder aggregation(AggregationBuilder aggregation) {
-            if (aggregations == null) {
+        if (aggregations == null) {
             aggregations = AggregatorFactories.builder();
-            }
+        }
         aggregations.addAggregator(aggregation);
-            return this;
+        return this;
     }
 
     /**
      * Add an aggregation to perform as part of the search.
      */
     public SearchSourceBuilder aggregation(PipelineAggregationBuilder aggregation) {
-            if (aggregations == null) {
+        if (aggregations == null) {
             aggregations = AggregatorFactories.builder();
-            }
-        aggregations.addPipelineAggregator(aggregation);
-            return this;
         }
+        aggregations.addPipelineAggregator(aggregation);
+        return this;
+    }
 
     /**
      * Gets the bytes representing the aggregation builders for this request.

@@ -229,8 +229,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             IndexShard replica = shards.addReplica();
             shards.recoverReplica(replica);
 
-            SegmentsStats segmentsStats = replica.segmentStats(false);
-            SegmentsStats primarySegmentStats = shards.getPrimary().segmentStats(false);
+            SegmentsStats segmentsStats = replica.segmentStats(false, false);
+            SegmentsStats primarySegmentStats = shards.getPrimary().segmentStats(false, false);
             assertNotEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, primarySegmentStats.getMaxUnsafeAutoIdTimestamp());
             assertEquals(primarySegmentStats.getMaxUnsafeAutoIdTimestamp(), segmentsStats.getMaxUnsafeAutoIdTimestamp());
             assertNotEquals(Long.MAX_VALUE, segmentsStats.getMaxUnsafeAutoIdTimestamp());
@@ -584,7 +584,6 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 assertThat(op2.seqNo(), equalTo(op1.seqNo()));
                 assertThat(op2.primaryTerm(), greaterThan(op1.primaryTerm()));
                 assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
-                assertThat(snapshot.overriddenOperations(), equalTo(0));
                 assertThat(snapshot.skippedOperations(), equalTo(1));
             }
 

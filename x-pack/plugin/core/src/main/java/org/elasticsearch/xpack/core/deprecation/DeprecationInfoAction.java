@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -60,6 +60,23 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
      */
     public static <T> List<DeprecationIssue> filterChecks(List<T> checks, Function<T, DeprecationIssue> mapper) {
         return checks.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toList());
+    }
+
+    private static List<DeprecationIssue> mergeNodeIssues(NodesDeprecationCheckResponse response) {
+        Map<DeprecationIssue, List<String>> issueListMap = new HashMap<>();
+        for (NodesDeprecationCheckAction.NodeResponse resp : response.getNodes()) {
+            for (DeprecationIssue issue : resp.getDeprecationIssues()) {
+                issueListMap.computeIfAbsent(issue, (key) -> new ArrayList<>()).add(resp.getNode().getName());
+            }
+        }
+
+        return issueListMap.entrySet().stream()
+            .map(entry -> {
+                DeprecationIssue issue = entry.getKey();
+                String details = issue.getDetails() != null ? issue.getDetails() + " " : "";
+                return new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(),
+                    details + "(nodes impacted: " + entry.getValue() + ")");
+            }).collect(Collectors.toList());
     }
 
     @Override
@@ -159,35 +176,34 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Response
          * this function will run through all the checks and build out the final list of issues that exist in the
          * cluster.
          *
-         * @param nodesInfo The list of {@link NodeInfo} metadata objects for retrieving node-level information
-         * @param nodesStats The list of {@link NodeStats} metadata objects for retrieving node-level information
          * @param state The cluster state
          * @param indexNameExpressionResolver Used to resolve indices into their concrete names
          * @param indices The list of index expressions to evaluate using `indexNameExpressionResolver`
          * @param indicesOptions The options to use when resolving and filtering which indices to check
          * @param datafeeds The ml datafeed configurations
-         * @param clusterSettingsChecks The list of cluster-level checks
-         * @param nodeSettingsChecks The list of node-level checks
+         * @param nodeDeprecationResponse The response containing the deprecation issues found on each node
          * @param indexSettingsChecks The list of index-level checks that will be run across all specified
          *                            concrete indices
+         * @param clusterSettingsChecks The list of cluster-level checks
          * @param mlSettingsCheck The list of ml checks
          * @return The list of deprecation issues found in the cluster
          */
-        public static DeprecationInfoAction.Response from(List<NodeInfo> nodesInfo, List<NodeStats> nodesStats, ClusterState state,
-                                                  IndexNameExpressionResolver indexNameExpressionResolver,
-                                                  String[] indices, IndicesOptions indicesOptions,
-                                                  List<DatafeedConfig> datafeeds,
-                                                  List<Function<ClusterState,DeprecationIssue>>clusterSettingsChecks,
-                                                  List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> nodeSettingsChecks,
-                                                  List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks,
-                                                  List<Function<DatafeedConfig, DeprecationIssue>> mlSettingsCheck) {
+        public static DeprecationInfoAction.Response from(ClusterState state,
+                                                          NamedXContentRegistry xContentRegistry,
+                                                          IndexNameExpressionResolver indexNameExpressionResolver,
+                                                          String[] indices, IndicesOptions indicesOptions,
+                                                          List<DatafeedConfig> datafeeds,
+                                                          NodesDeprecationCheckResponse nodeDeprecationResponse,
+                                                          List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks,
+                                                          List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
+                                                          List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>>
+                                                              mlSettingsCheck) {
             List<DeprecationIssue> clusterSettingsIssues = filterChecks(clusterSettingsChecks,
                 (c) -> c.apply(state));
-            List<DeprecationIssue> nodeSettingsIssues = filterChecks(nodeSettingsChecks,
-                (c) -> c.apply(nodesInfo, nodesStats));
+            List<DeprecationIssue> nodeSettingsIssues = mergeNodeIssues(nodeDeprecationResponse);
             List<DeprecationIssue> mlSettingsIssues = new ArrayList<>();
             for (DatafeedConfig config : datafeeds) {
-                mlSettingsIssues.addAll(filterChecks(mlSettingsCheck, (c) -> c.apply(config)));
+                mlSettingsIssues.addAll(filterChecks(mlSettingsCheck, (c) -> c.apply(config, xContentRegistry)));
             }
 
             String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, indices);

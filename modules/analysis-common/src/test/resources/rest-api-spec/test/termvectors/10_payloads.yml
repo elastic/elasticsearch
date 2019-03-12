@@ -3,7 +3,6 @@
   # because there are no token filters that support payloads in core.
   - do:
       indices.create:
-        include_type_name: false
         index: test
         body:
           settings:

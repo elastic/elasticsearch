@@ -21,9 +21,7 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -157,7 +155,6 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             }
             {
                 mappingsAndSettings.startObject("mappings");
-                mappingsAndSettings.startObject("doc");
                 mappingsAndSettings.startObject("properties");
                 {
                     mappingsAndSettings.startObject("query");
@@ -176,19 +173,16 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                 }
                 mappingsAndSettings.endObject();
                 mappingsAndSettings.endObject();
-                mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
             Request request = new Request("PUT", "/" + index);
-            RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
-            request.setOptions(options);
+            request.setOptions(allowTypesRemovalWarnings());
             request.setJsonEntity(Strings.toString(mappingsAndSettings));
             Response rsp = client().performRequest(request);
             assertEquals(200, rsp.getStatusLine().getStatusCode());
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
-                request = new Request("PUT", "/" + index + "/doc/" + Integer.toString(i));
+                request = new Request("PUT", "/" + index + "/_doc/" + Integer.toString(i));
                 request.setJsonEntity((String) CANDIDATES.get(i)[0]);
                 rsp = client().performRequest(request);
                 assertEquals(201, rsp.getStatusLine().getStatusCode());

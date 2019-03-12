@@ -104,7 +104,7 @@ The following example shows the use of metadata and transforming dates into a re
 
 [source,Painless]
 ----
-POST _xpack/watcher/watch/_execute
+POST _watcher/watch/_execute
 {
   "watch" : {
     "metadata" : { "min_hits": 10000 },

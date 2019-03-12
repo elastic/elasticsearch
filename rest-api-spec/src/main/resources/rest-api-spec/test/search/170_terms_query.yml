@@ -5,7 +5,6 @@
       reason: index.max_terms_count setting has been added in 7.0.0
   - do:
       indices.create:
-          include_type_name: false
           index: test_index
           body:
               settings:

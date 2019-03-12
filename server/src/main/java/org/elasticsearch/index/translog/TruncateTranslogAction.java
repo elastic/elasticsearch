@@ -71,6 +71,8 @@ public class TruncateTranslogAction {
             commits = DirectoryReader.listCommits(indexDirectory);
         } catch (IndexNotFoundException infe) {
             throw new ElasticsearchException("unable to find a valid shard at [" + indexPath + "]", infe);
+        } catch (IOException e) {
+            throw new ElasticsearchException("unable to list commits at [" + indexPath + "]", e);
         }
 
         // Retrieve the generation and UUID from the existing data

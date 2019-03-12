@@ -16,9 +16,9 @@ import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +26,6 @@ public class Watch implements ToXContentObject {
 
     public static final String INCLUDE_STATUS_KEY = "include_status";
     public static final String INDEX = ".watches";
-    public static final String DOC_TYPE = "doc";
 
     private final String id;
     private final Trigger trigger;
@@ -112,7 +111,7 @@ public class Watch implements ToXContentObject {
      *
      * @return  {@code true} if the status of this watch changed, {@code false} otherwise.
      */
-    public boolean setState(boolean active, DateTime now) {
+    public boolean setState(boolean active, ZonedDateTime now) {
         return status.setActive(active, now);
     }
 
@@ -121,7 +120,7 @@ public class Watch implements ToXContentObject {
      *
      * @return  {@code true} if the status of this watch changed, {@code false} otherwise.
      */
-    public boolean ack(DateTime now, String... actions) {
+    public boolean ack(ZonedDateTime now, String... actions) {
         return status.onAck(now, actions);
     }
 

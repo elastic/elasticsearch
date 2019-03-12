@@ -65,7 +65,6 @@ This tool has two modes:
   the `elastisearch-node unsafe-bootstap` command. If unsafe cluster bootstrapping was not
   possible, it also enables you to
   move nodes into a brand-new cluster.
-  possible.
 
 [[node-tool-unsafe-bootstrap]]
 [float]

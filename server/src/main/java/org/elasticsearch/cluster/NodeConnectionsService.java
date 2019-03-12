@@ -77,7 +77,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private final TransportService transportService;
 
-    // protects changes to targetsByNode and its values but crucially is not held while connecting or disconnecting
+    // Protects changes to targetsByNode and its values (i.e. ConnectionTarget#activityType and ConnectionTarget#listener).
+    // Crucially there are no blocking calls under this mutex: it is not held while connecting or disconnecting.
     private final Object mutex = new Object();
 
     // contains an entry for every node in the latest cluster state, as well as for nodes from which we are in the process of

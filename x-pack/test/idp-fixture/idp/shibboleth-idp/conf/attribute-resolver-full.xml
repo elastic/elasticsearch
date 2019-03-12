@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    This file is an EXAMPLE configuration file containing lots of commented
+    example attributes, encoders, and a couple of example data connectors.
+     
+    Not all attribute definitions or data connectors are demonstrated, but
+    a variety of LDAP attributes, some common to Shibboleth deployments and
+    many not, are included.
+    
+    Deployers should refer to the Identity Provider 3 documentation
+    
+    https://wiki.shibboleth.net/confluence/display/IDP30/AttributeResolverConfiguration
+     
+    for a complete list of components and their options.
+-->
+<AttributeResolver
+        xmlns="urn:mace:shibboleth:2.0:resolver"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="urn:mace:shibboleth:2.0:resolver http://shibboleth.net/schema/idp/shibboleth-attribute-resolver.xsd">
+
+    <!-- ========================================== -->
+    <!--      Attribute Definitions                 -->
+    <!-- ========================================== -->
+
+    <!-- Schema: Core schema attributes-->
+<!--
+
+    <AttributeDefinition xsi:type="Simple" id="uid">
+        <InputDataConnector ref="myLDAP" attributeNames="uid"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:uid" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:0.9.2342.19200300.100.1.1" friendlyName="uid" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="mail">
+        <InputDataConnector ref="myLDAP" attributeNames="mail"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:mail" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:0.9.2342.19200300.100.1.3" friendlyName="mail" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="homePhone">
+        <InputDataConnector ref="myLDAP" attributeNames="homePhone"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:homePhone" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:0.9.2342.19200300.100.1.20" friendlyName="homePhone" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="homePostalAddress">
+        <InputDataConnector ref="myLDAP" attributeNames="homePostalAddress"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:homePostalAddress" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:0.9.2342.19200300.100.1.39" friendlyName="homePostalAddress" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="mobileNumber">
+        <InputDataConnector ref="myLDAP" attributeNames="mobile"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:mobile" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:0.9.2342.19200300.100.1.41" friendlyName="mobile" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="pagerNumber">
+        <InputDataConnector ref="myLDAP" attributeNames="pager"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:pager" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:0.9.2342.19200300.100.1.42" friendlyName="pager" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="surname">
+        <InputDataConnector ref="myLDAP" attributeNames="sn"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:sn" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.5.4.4" friendlyName="sn" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="locality">
+        <InputDataConnector ref="myLDAP" attributeNames="l"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:l" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.5.4.7" friendlyName="l" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="stateProvince">
+        <InputDataConnector ref="myLDAP" attributeNames="st"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:st" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.5.4.8" friendlyName="st" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="street">
+        <InputDataConnector ref="myLDAP" attributeNames="street"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:street" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.5.4.9" friendlyName="street" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="organizationName">
+        <InputDataConnector ref="myLDAP" attributeNames="o"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:o" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.5.4.10" friendlyName="o" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="organizationalUnit">
+        <InputDataConnector ref="myLDAP" attributeNames="ou"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:ou" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.5.4.11" friendlyName="ou" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="title">
+        <InputDataConnector ref="myLDAP" attributeNames="title"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:title" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.5.4.12" friendlyName="title" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="postalAddress">
+        <InputDataConnector ref="myLDAP" attributeNames="postalAddress"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:postalAddress" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.5.4.16" friendlyName="postalAddress" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="postalCode">
+        <InputDataConnector ref="myLDAP" attributeNames="postalCode"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:postalCode" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.5.4.17" friendlyName="postalCode" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="postOfficeBox">
+        <InputDataConnector ref="myLDAP" attributeNames="postOfficeBox"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:postOfficeBox" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.5.4.18" friendlyName="postOfficeBox" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="telephoneNumber">
+        <InputDataConnector ref="myLDAP" attributeNames="telephoneNumber"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:telephoneNumber" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.5.4.20" friendlyName="telephoneNumber" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="givenName">
+        <InputDataConnector ref="myLDAP" attributeNames="givenName"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:givenName" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.5.4.42" friendlyName="givenName" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="initials">
+        <InputDataConnector ref="myLDAP" attributeNames="initials"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:initials" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.5.4.43" friendlyName="initials" encodeType="false" />
+    </AttributeDefinition>
+-->
+
+    <!-- Schema: inetOrgPerson attributes-->
+<!--
+    <AttributeDefinition xsi:type="Simple" id="departmentNumber">
+        <InputDataConnector ref="myLDAP" attributeNames="departmentNumber"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:departmentNumber" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.16.840.1.113730.3.1.2" friendlyName="departmentNumber" encodeType="false" />
+    </AttributeDefinition>
+    
+    <AttributeDefinition xsi:type="Simple" id="displayName">
+        <InputDataConnector ref="myLDAP" attributeNames="displayName"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:displayName" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.16.840.1.113730.3.1.241" friendlyName="displayName" encodeType="false" />
+    </AttributeDefinition> 
+
+    <AttributeDefinition xsi:type="Simple" id="employeeNumber">
+        <InputDataConnector ref="myLDAP" attributeNames="employeeNumber"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:employeeNumber" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.16.840.1.113730.3.1.3" friendlyName="employeeNumber" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="employeeType">
+        <InputDataConnector ref="myLDAP" attributeNames="employeeType"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:employeeType" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.16.840.1.113730.3.1.4" friendlyName="employeeType" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="jpegPhoto">
+        <InputDataConnector ref="myLDAP" attributeNames="jpegPhoto"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:jpegPhoto" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:0.9.2342.19200300.100.1.60" friendlyName="jpegPhoto" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="preferredLanguage">
+        <InputDataConnector ref="myLDAP" attributeNames="preferredLanguage"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:preferredLanguage" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:2.16.840.1.113730.3.1.39" friendlyName="preferredLanguage" encodeType="false" />
+    </AttributeDefinition>
+-->
+    <!-- Schema: eduPerson attributes -->
+<!-- 
+    <AttributeDefinition xsi:type="Simple" id="eduPersonAffiliation">
+        <InputDataConnector ref="myLDAP" attributeNames="eduPersonAffiliation" />
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:eduPersonAffiliation" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.1" friendlyName="eduPersonAffiliation" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="eduPersonEntitlement">
+        <InputDataConnector ref="myLDAP" attributeNames="eduPersonEntitlement"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:eduPersonEntitlement" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.7" friendlyName="eduPersonEntitlement" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="eduPersonNickname">
+        <InputDataConnector ref="myLDAP" attributeNames="eduPersonNickname"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:eduPersonNickname" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.2" friendlyName="eduPersonNickname" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Simple" id="eduPersonPrimaryAffiliation">
+        <InputDataConnector ref="myLDAP" attributeNames="eduPersonPrimaryAffiliation"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:eduPersonPrimaryAffiliation" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.5" friendlyName="eduPersonPrimaryAffiliation" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Prescoped" id="eduPersonPrincipalName">
+        <InputDataConnector ref="myLDAP" attributeNames="eduPersonPrincipalName"/>
+        <AttributeEncoder xsi:type="SAML1ScopedString" name="urn:mace:dir:attribute-def:eduPersonPrincipalName" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2ScopedString" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" friendlyName="eduPersonPrincipalName" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Prescoped" id="eduPersonPrincipalNamePrior">
+        <InputDataConnector ref="myLDAP" attributeNames="eduPersonPrincipalNamePrior"/>
+        <AttributeEncoder xsi:type="SAML1ScopedString" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.12" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2ScopedString" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.12" friendlyName="eduPersonPrincipalNamePrior" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Scoped" id="eduPersonScopedAffiliation" scope="%{idp.scope}">
+        <InputDataConnector ref="myLDAP" attributeNames="eduPersonAffiliation"/>
+        <AttributeEncoder xsi:type="SAML1ScopedString" name="urn:mace:dir:attribute-def:eduPersonScopedAffiliation" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2ScopedString" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.9" friendlyName="eduPersonScopedAffiliation" encodeType="false" />
+    </AttributeDefinition>
+    
+    <AttributeDefinition xsi:type="Simple" id="eduPersonAssurance">
+        <InputDataConnector ref="myLDAP" attributeNames="eduPersonAssurance"/>
+        <AttributeEncoder xsi:type="SAML1String" name="urn:mace:dir:attribute-def:eduPersonAssurance" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2String" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.11" friendlyName="eduPersonAssurance" encodeType="false" />
+    </AttributeDefinition>
+-->
+
+    <!-- Semi-deprecated eduPersonUniqueId, should be phased out in favor of SAML subject-id replacement below. -->
+<!-- 
+    <AttributeDefinition xsi:type="Scoped" id="eduPersonUniqueId" scope="%{idp.scope}">
+        <InputDataConnector ref="myLDAP" attributeNames="%{idp.persistentId.sourceAttribute}"/>
+        <AttributeEncoder xsi:type="SAML1ScopedString" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.13" encodeType="false" />
+        <AttributeEncoder xsi:type="SAML2ScopedString" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.13" friendlyName="eduPersonUniqueId" encodeType="false" />
+    </AttributeDefinition>
+-->
+
+    <!-- Schema: SAML Subject ID Attributes -->
+<!--
+    <AttributeDefinition xsi:type="Scoped" id="samlSubjectID" scope="%{idp.scope}">
+        <InputDataConnector ref="myLDAP" attributeNames="%{idp.persistentId.sourceAttribute}"/>
+        <AttributeEncoder xsi:type="SAML2ScopedString" name="urn:oasis:names:tc:SAML:attribute:subject-id" friendlyName="subject-id" encodeType="false" />
+    </AttributeDefinition>
+
+    <AttributeDefinition xsi:type="Scoped" id="samlPairwiseID" scope="%{idp.scope}">
+        <InputDataConnector ref="computed" attributeNames="computedId"/>
+        <AttributeEncoder xsi:type="SAML2ScopedString" name="urn:oasis:names:tc:SAML:attribute:pairwise-id" friendlyName="pairwise-id" encodeType="false" />
+    </AttributeDefinition>
+-->
+
+    <!-- ========================================== -->
+    <!--      Data Connectors                       -->
+    <!-- ========================================== -->
+
+    <!-- Example Static Connector -->
+
+    <!-- Example Relational Database Connector -->
+<!--
+    <DataConnector id="mySIS" xsi:type="RelationalDatabase">
+        <ApplicationManagedConnection jdbcDriver="oracle.jdbc.driver.OracleDriver"
+                                         jdbcURL="jdbc:oracle:thin:@db.example.org:1521:SomeDB" 
+                                         jdbcUserName="myid" 
+                                         jdbcPassword="mypassword" />
+        <QueryTemplate>
+            <![CDATA[
+                SELECT * FROM student WHERE gzbtpid = '$resolutionContext.principal'
+            ]]>
+        </QueryTemplate>
+
+        <Column columnName="gzbtpid" attributeID="uid" />
+        <Column columnName="fqlft" attributeID="gpa" />
+    </DataConnector>
+-->
+
+    <!-- Example LDAP Connector -->
+<!--
+    <DataConnector id="myLDAP" xsi:type="LDAPDirectory"
+        ldapURL="%{idp.attribute.resolver.LDAP.ldapURL}"
+        baseDN="%{idp.attribute.resolver.LDAP.baseDN}" 
+        principal="%{idp.attribute.resolver.LDAP.bindDN}"
+        principalCredential="%{idp.attribute.resolver.LDAP.bindDNCredential}"
+        useStartTLS="%{idp.attribute.resolver.LDAP.useStartTLS:true}"
+        connectTimeout="%{idp.attribute.resolver.LDAP.connectTimeout}"
+		trustFile="%{idp.attribute.resolver.LDAP.trustCertificates}"
+        responseTimeout="%{idp.attribute.resolver.LDAP.responseTimeout}">
+        <FilterTemplate>
+            <![CDATA[
+                %{idp.attribute.resolver.LDAP.searchFilter}
+            ]]>
+        </FilterTemplate>
+	    <ConnectionPool
+            minPoolSize="%{idp.pool.LDAP.minSize:3}"
+            maxPoolSize="%{idp.pool.LDAP.maxSize:10}"
+            blockWaitTime="%{idp.pool.LDAP.blockWaitTime:PT3S}"
+            validatePeriodically="%{idp.pool.LDAP.validatePeriodically:true}"
+            validateTimerPeriod="%{idp.pool.LDAP.validatePeriod:PT5M}"
+            expirationTime="%{idp.pool.LDAP.idleTime:PT10M}"
+            failFastInitialize="%{idp.pool.LDAP.failFastInitialize:false}" />
+    </DataConnector>
+-->
+
+    <!-- DataConector for pairwise-id (example depends on saml-nameid.properties). -->
+
+<!-- 
+    <DataConnector id="computed" xsi:type="ComputedId"
+	    generatedAttributeID="computedId"
+	    salt="%{idp.persistentId.salt}"
+	    algorithm="%{idp.persistentId.algorithm:SHA}"
+        encoding="%{idp.persistentId.encoding:BASE32}">
+	    
+        <InputDataConnector ref="myLDAP" attributeNames="%{idp.persistentId.sourceAttribute}" />
+        
+	</DataConnector>
+-->
+
+</AttributeResolver>

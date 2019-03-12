@@ -324,7 +324,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         final Shell sh = new Shell();
 
         Platforms.PlatformAction action = () -> {
-            final Result result = sh.run(bin.elasticsearchShard + " help");
+            final Result result = sh.run(bin.elasticsearchShard + " -h");
             assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
         };
 

@@ -71,7 +71,8 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
     }
 
     public void testAddOrRenewRetentionLease() throws IOException {
-        final IndexShard indexShard = newStartedShard(true);
+        final IndexShard indexShard = newStartedShard(true,
+            Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         final long primaryTerm = indexShard.getOperationPrimaryTerm();
         try {
             final int length = randomIntBetween(0, 8);
@@ -102,7 +103,8 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
     }
 
     public void testRemoveRetentionLease() throws IOException {
-        final IndexShard indexShard = newStartedShard(true);
+        final IndexShard indexShard = newStartedShard(true,
+            Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         final long primaryTerm = indexShard.getOperationPrimaryTerm();
         try {
             final int length = randomIntBetween(0, 8);
@@ -143,6 +145,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         final long retentionLeaseMillis = randomLongBetween(1, TimeValue.timeValueHours(12).millis());
         final Settings settings = Settings
                 .builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .put(
                         IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(),
                         TimeValue.timeValueMillis(retentionLeaseMillis))
@@ -268,7 +271,8 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
     }
 
     public void testRetentionLeaseStats() throws IOException {
-        final IndexShard indexShard = newStartedShard(true);
+        final IndexShard indexShard = newStartedShard(true,
+            Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         try {
             final int length = randomIntBetween(0, 8);
             final long[] minimumRetainingSequenceNumbers = new long[length];
@@ -287,6 +291,22 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         } finally {
             closeShards(indexShard);
         }
+    }
+
+    public void testRetentionLeasesActionsFailWithSoftDeletesDisabled() throws Exception {
+        IndexShard shard = newStartedShard(true, Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
+        assertThat(expectThrows(AssertionError.class, () -> shard.addRetentionLease(randomAlphaOfLength(10),
+            randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE), "test", ActionListener.wrap(() -> {}))).getMessage(),
+            equalTo("retention leases requires soft deletes but [index] does not have soft deletes enabled"));
+        assertThat(expectThrows(AssertionError.class, () -> shard.renewRetentionLease(
+            randomAlphaOfLength(10), randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE), "test")).getMessage(),
+            equalTo("retention leases requires soft deletes but [index] does not have soft deletes enabled"));
+        assertThat(expectThrows(AssertionError.class, () -> shard.removeRetentionLease(
+            randomAlphaOfLength(10), ActionListener.wrap(() -> {}))).getMessage(),
+            equalTo("retention leases requires soft deletes but [index] does not have soft deletes enabled"));
+        assertThat(expectThrows(AssertionError.class, shard::syncRetentionLeases).getMessage(),
+            equalTo("retention leases requires soft deletes but [index] does not have soft deletes enabled"));
+        closeShards(shard);
     }
 
     private void assertRetentionLeases(

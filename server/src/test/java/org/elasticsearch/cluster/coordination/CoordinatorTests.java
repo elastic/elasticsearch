@@ -871,7 +871,6 @@ public class CoordinatorTests extends ESTestCase {
         assertEquals(0L, newNodePublishStats.getIncompatibleClusterStateDiffReceivedCount());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38867")
     public void testIncompatibleDiffResendsFullState() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
@@ -884,12 +883,12 @@ public class CoordinatorTests extends ESTestCase {
         final PublishClusterStateStats prePublishStats = follower.coordinator.stats().getPublishStats();
         logger.info("--> submitting first value to {}", leader);
         leader.submitValue(randomLong());
-        cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY + defaultMillis(PUBLISH_TIMEOUT_SETTING), "publish first state");
+        cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "publish first state");
         logger.info("--> healing {}", follower);
         follower.heal();
         logger.info("--> submitting second value to {}", leader);
         leader.submitValue(randomLong());
-        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        cluster.stabilise();
         final PublishClusterStateStats postPublishStats = follower.coordinator.stats().getPublishStats();
         assertEquals(prePublishStats.getFullClusterStateReceivedCount() + 1,
             postPublishStats.getFullClusterStateReceivedCount());

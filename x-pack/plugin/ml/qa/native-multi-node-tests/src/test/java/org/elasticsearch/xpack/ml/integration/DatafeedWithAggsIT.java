@@ -42,7 +42,7 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
     public void testRealtime() throws Exception {
         String dataIndex = "datafeed-with-aggs-rt-data";
 
-        // A job with a bucket_span of 1s
+        // A job with a bucket_span of 2s
         String jobId = "datafeed-with-aggs-rt-job";
         DataDescription.Builder dataDescription = new DataDescription.Builder();
 

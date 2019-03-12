@@ -207,7 +207,7 @@ public class MockNioTransport extends TcpTransport {
             };
             MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, MockNioTransport.this);
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),
-                readWriteHandler, new InboundChannelBuffer(pageSupplier, PageCacheRecycler.BYTE_PAGE_SIZE));
+                readWriteHandler, new InboundChannelBuffer(pageSupplier, allocator.pageSize()));
             nioChannel.setContext(context);
             nioChannel.addConnectListener((v, e) -> {
                 if (e == null) {

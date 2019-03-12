@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction.Request;
 
-public class StartDataFrameTransformActionTests extends AbstractWireSerializingTestCase<Request> {
+public class StartDataFrameTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override
     protected Request createTestInstance() {
         return new Request(randomAlphaOfLengthBetween(1, 20));

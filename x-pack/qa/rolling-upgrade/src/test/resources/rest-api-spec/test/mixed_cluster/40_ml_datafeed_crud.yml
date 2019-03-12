@@ -15,7 +15,6 @@
 
 ---
 "Put job and datafeed in mixed cluster":
-
   - do:
       ml.put_job:
         job_id: mixed-cluster-datafeed-job

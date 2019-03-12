@@ -6,12 +6,12 @@
       "number_of_shards": 1,
       "number_of_replicas": 0,
       "auto_expand_replicas": "0-1",
-      "format": 6,
+      "format": 7,
       "codec": "best_compression"
     }
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "dynamic": false,
       "properties": {
         "timestamp": {

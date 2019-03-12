@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.audit.logfile;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -807,15 +806,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
 
     private static Optional<String[]> indices(TransportMessage message) {
-        final String[] indices;
         if (message instanceof IndicesRequest) {
-            indices = ((IndicesRequest) message).indices();
-        } else if (message instanceof ReplicationRequest) {
-            indices = ((ReplicationRequest<?>) message).indices();
-        } else {
-            indices = null;
+            final String[] indices = ((IndicesRequest) message).indices();
+            if (indices != null) {
+                return Optional.of(((IndicesRequest) message).indices());
+            }
         }
-        return Optional.ofNullable(indices);
+        return Optional.empty();
     }
 
     private static String effectiveRealmName(Authentication authentication) {

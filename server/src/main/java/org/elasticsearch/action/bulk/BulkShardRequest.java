@@ -26,6 +26,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
@@ -42,6 +44,17 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     public BulkItemRequest[] items() {
         return items;
+    }
+
+    @Override
+    public String[] indices() {
+        List<String> indices = new ArrayList<>();
+        for (BulkItemRequest item : items) {
+            if (item != null) {
+                indices.add(item.index());
+            }
+        }
+        return indices.toArray(new String[indices.size()]);
     }
 
     @Override

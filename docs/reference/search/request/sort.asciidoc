@@ -172,8 +172,8 @@ a double in order to be compatible with the values produced by the
 `index_double` index.
 It is also possible to transform a floating point field into a `long`
 but note that in this case floating points are replaced by the largest
-value that is less than or equal to the argument and is equal to a mathematical
-integer.
+value that is less than or equal (greater than or equal if the value
+is negative) to the argument and is equal to a mathematical integer.
 
 [[nested-sorting]]
 ==== Sorting within nested objects.

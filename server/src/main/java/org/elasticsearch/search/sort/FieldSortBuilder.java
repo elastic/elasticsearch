@@ -399,7 +399,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             }
             final SortField field;
             if (numericType != null) {
-                if (fieldData instanceof SortedNumericDVIndexFieldData == false) {
+                if (fieldData instanceof IndexNumericFieldData == false) {
                     throw new QueryShardException(context,
                         "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName());
                 }
@@ -428,7 +428,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 && Objects.equals(this.nestedPath, builder.nestedPath) && Objects.equals(this.missing, builder.missing)
                 && Objects.equals(this.order, builder.order) && Objects.equals(this.sortMode, builder.sortMode)
                 && Objects.equals(this.unmappedType, builder.unmappedType) && Objects.equals(this.nestedSort, builder.nestedSort))
-                && Objects.equals(this.nestedFilter, builder.numericType);
+                && Objects.equals(this.numericType, builder.numericType);
     }
 
     @Override

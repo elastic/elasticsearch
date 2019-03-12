@@ -90,7 +90,7 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
         long curTime = aMinuteAgo;
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         while (curTime < aMinuteLater) {
-            IndexRequest indexRequest = new IndexRequest(dataIndex);
+            IndexRequest indexRequest = new IndexRequest(dataIndex, "type");
             indexRequest.source("time", curTime);
             bulkRequestBuilder.add(indexRequest);
             curTime += TimeValue.timeValueSeconds(1).millis();

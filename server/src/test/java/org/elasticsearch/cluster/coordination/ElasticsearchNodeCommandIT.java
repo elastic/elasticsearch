@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
@@ -57,7 +56,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE")
+@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
 public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, int nodeOrdinal, boolean abort)
@@ -157,7 +156,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     public void testBootstrapNotBootstrappedCluster() throws Exception {
         internalCluster().startNode(
                 Settings.builder()
-                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
+                        .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
                         .build());
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().setLocal(true)
@@ -174,7 +173,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     public void testDetachNotBootstrappedCluster() throws Exception {
         internalCluster().startNode(
                 Settings.builder()
-                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
+                        .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
                         .build());
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().setLocal(true)
@@ -264,12 +263,12 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
         logger.info("--> start 1st master-eligible node");
         masterNodes.add(internalCluster().startMasterOnlyNode(Settings.builder()
-                .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
+                .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
                 .build())); // node ordinal 0
 
         logger.info("--> start one data-only node");
         String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
-                .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
+                .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
                 .build()); // node ordinal 1
 
         logger.info("--> start 2nd and 3rd master-eligible nodes and bootstrap");
@@ -393,7 +392,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
         String node = internalCluster().startMasterOnlyNode(Settings.builder()
                 // give the cluster 2 seconds to elect the master (it should not)
-                .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "2s")
+                .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "2s")
                 .build());
 
         ClusterState state = internalCluster().client().admin().cluster().prepareState().setLocal(true)

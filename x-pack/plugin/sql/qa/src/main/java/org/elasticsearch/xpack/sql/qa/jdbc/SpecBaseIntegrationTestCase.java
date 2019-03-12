@@ -107,7 +107,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     }
 
     protected int fetchSize() {
-        return between(1, 500);
+        return between(1, 150);
     }
 
     // TODO: use UTC for now until deciding on a strategy for handling date extraction

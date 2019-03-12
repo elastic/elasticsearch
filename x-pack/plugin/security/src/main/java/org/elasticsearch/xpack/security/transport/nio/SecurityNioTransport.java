@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.security.transport.nio;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
@@ -35,8 +33,8 @@ import org.elasticsearch.transport.nio.NioTcpServerChannel;
 import org.elasticsearch.transport.nio.NioTransport;
 import org.elasticsearch.transport.nio.TcpReadWriteHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper;
-import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
+import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
+import org.elasticsearch.xpack.core.security.transport.SecurityTransportExceptionHandler;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -69,6 +67,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 public class SecurityNioTransport extends NioTransport {
     private static final Logger logger = LogManager.getLogger(SecurityNioTransport.class);
 
+    private final SecurityTransportExceptionHandler exceptionHandler;
     private final IPFilter authenticator;
     private final SSLService sslService;
     private final Map<String, SSLConfiguration> profileConfiguration;
@@ -80,13 +79,13 @@ public class SecurityNioTransport extends NioTransport {
                                 SSLService sslService, NioGroupFactory groupFactory) {
         super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
             groupFactory);
+        this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.authenticator = authenticator;
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         if (sslEnabled) {
             final SSLConfiguration transportConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
-            Map<String, SSLConfiguration> profileConfiguration = SecurityNetty4Transport.getTransportProfileConfigurations(settings,
-                sslService, transportConfiguration);
+            Map<String, SSLConfiguration> profileConfiguration = ProfileConfigurations.get(settings, sslService, transportConfiguration);
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
         } else {
             profileConfiguration = Collections.emptyMap();
@@ -103,34 +102,7 @@ public class SecurityNioTransport extends NioTransport {
 
     @Override
     public void onException(TcpChannel channel, Exception e) {
-        if (!lifecycle.started()) {
-            // just close and ignore - we are already stopped and just need to make sure we release all resources
-            CloseableChannel.closeChannel(channel);
-        } else if (SSLExceptionHelper.isNotSslRecordException(e)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    new ParameterizedMessage("received plaintext traffic on an encrypted channel, closing connection {}", channel), e);
-            } else {
-                logger.warn("received plaintext traffic on an encrypted channel, closing connection {}", channel);
-            }
-            CloseableChannel.closeChannel(channel);
-        } else if (SSLExceptionHelper.isCloseDuringHandshakeException(e)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("connection {} closed during ssl handshake", channel), e);
-            } else {
-                logger.warn("connection {} closed during handshake", channel);
-            }
-            CloseableChannel.closeChannel(channel);
-        } else if (SSLExceptionHelper.isReceivedCertificateUnknownException(e)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("client did not trust server's certificate, closing connection {}", channel), e);
-            } else {
-                logger.warn("client did not trust this server's certificate, closing connection {}", channel);
-            }
-            CloseableChannel.closeChannel(channel);
-        } else {
-            super.onException(channel, e);
-        }
+        exceptionHandler.accept(channel, e);
     }
 
     @Override

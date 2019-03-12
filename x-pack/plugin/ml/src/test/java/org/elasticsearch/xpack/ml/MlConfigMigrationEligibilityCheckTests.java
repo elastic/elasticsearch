@@ -22,9 +22,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -50,6 +52,12 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
     @Before
     public void setUpTests() {
         clusterService = mock(ClusterService.class);
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     public void testCanStartMigration_givenMigrationIsDisabled() {
@@ -327,7 +335,7 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
     public void testDatafeedIsEligibleForMigration_givenStartedDatafeed() {
         Job openJob = JobTests.buildJobBuilder("open-job").build();
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(openJob, false);
-        mlMetadata.putDatafeed(createCompatibleDatafeed(openJob.getId()), Collections.emptyMap());
+        mlMetadata.putDatafeed(createCompatibleDatafeed(openJob.getId()), Collections.emptyMap(), xContentRegistry());
         String datafeedId = "df-" + openJob.getId();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
@@ -353,7 +361,7 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
     public void testDatafeedIsEligibleForMigration_givenStartedDatafeedAndMigrationIsDisabled() {
         Job openJob = JobTests.buildJobBuilder("open-job").build();
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(openJob, false);
-        mlMetadata.putDatafeed(createCompatibleDatafeed(openJob.getId()), Collections.emptyMap());
+        mlMetadata.putDatafeed(createCompatibleDatafeed(openJob.getId()), Collections.emptyMap(), xContentRegistry());
         String datafeedId = "df-" + openJob.getId();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
@@ -379,7 +387,7 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
     public void testDatafeedIsEligibleForMigration_givenStoppedDatafeed() {
         Job job = JobTests.buildJobBuilder("closed-job").build();
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(job, false);
-        mlMetadata.putDatafeed(createCompatibleDatafeed(job.getId()), Collections.emptyMap());
+        mlMetadata.putDatafeed(createCompatibleDatafeed(job.getId()), Collections.emptyMap(), xContentRegistry());
         String datafeedId = "df-" + job.getId();
 
         MetaData.Builder metaData = MetaData.builder();
@@ -402,7 +410,7 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
     public void testDatafeedIsEligibleForMigration_givenUnallocatedDatafeed() {
         Job job = JobTests.buildJobBuilder("closed-job").build();
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(job, false);
-        mlMetadata.putDatafeed(createCompatibleDatafeed(job.getId()), Collections.emptyMap());
+        mlMetadata.putDatafeed(createCompatibleDatafeed(job.getId()), Collections.emptyMap(), xContentRegistry());
         String datafeedId = "df-" + job.getId();
 
         MetaData.Builder metaData = MetaData.builder();

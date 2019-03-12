@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.jdbc;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -26,8 +27,11 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
  * from {@code org.elasticsearch.xpack.sql.util.DateUtils} and {@code org.elasticsearch.xpack.sql.proto.StringUtils}.
  */
 final class JdbcDateUtils {
-    
-    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000;
+
+    private JdbcDateUtils() {
+    }
+
+    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
     
     static final DateTimeFormatter ISO_WITH_MILLIS = new DateTimeFormatterBuilder()
         .parseCaseInsensitive()
@@ -47,7 +51,9 @@ final class JdbcDateUtils {
     }
     
     static Date asDate(String date) {
-        return new Date(utcMillisRemoveTime(asMillisSinceEpoch(date)));
+        ZonedDateTime zdt = ISO_WITH_MILLIS.parse(date, ZonedDateTime::from);
+        ZoneId zoneId = zdt.getZone();
+        return new Date(zdt.toLocalDate().atStartOfDay(zoneId).withZoneSameInstant(zoneId).toInstant().toEpochMilli());
     }
     
     static Time asTime(String date) {
@@ -68,10 +74,6 @@ final class JdbcDateUtils {
         } else {
             return ctor.apply(((Number) value).longValue());
         }
-    }
-
-    static long utcMillisRemoveTime(long l) {
-        return l - (l % DAY_IN_MILLIS);
     }
 
     private static long utcMillisRemoveDate(long l) {

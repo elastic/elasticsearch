@@ -31,6 +31,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -156,7 +157,11 @@ final class OutboundHandler {
 
         @Override
         protected void innerOnFailure(Exception e) {
-            logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+            if (NetworkExceptionHelper.isCloseConnectionException(e)) {
+                logger.debug(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+            } else {
+                logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+            }
             closeAndCallback(() -> listener.onFailure(e));
         }
 

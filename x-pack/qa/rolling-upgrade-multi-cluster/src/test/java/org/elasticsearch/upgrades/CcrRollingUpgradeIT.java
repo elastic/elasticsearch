@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -207,7 +208,13 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     public void testCannotFollowLeaderInUpgradedCluster() throws Exception {
-        assumeTrue("Tests only runs with upgrade_state [all]", upgradeState == UpgradeState.ALL);
+        if (upgradeState != UpgradeState.ALL) {
+            return;
+        }
+        if (Version.CURRENT.equals(UPGRADE_FROM_VERSION)) {
+            // can't run this test when executing rolling upgrade against current version.
+            return;
+        }
 
         if (clusterName == ClusterName.FOLLOWER) {
             // At this point the leader cluster has not been upgraded, but follower cluster has been upgrade.

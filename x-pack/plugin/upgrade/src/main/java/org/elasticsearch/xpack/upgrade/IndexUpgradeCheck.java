@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.xpack.upgrade;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Allocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
@@ -18,7 +21,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.upgrade.IndexUpgradeCheckVersion;
 
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -51,7 +53,17 @@ public class IndexUpgradeCheck<T> {
                              Function<IndexMetaData, UpgradeActionRequired> actionRequired,
                              Client client, ClusterService clusterService, String[] types, Script updateScript) {
         this(name, actionRequired, client, clusterService, types, updateScript,
-                listener -> listener.onResponse(null), (t, listener) -> listener.onResponse(TransportResponse.Empty.INSTANCE));
+                (cs, listener) -> {
+                    Allocation clusterRoutingAllocation = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING
+                            .get(cs.getMetaData().settings());
+                    if (Allocation.NONE == clusterRoutingAllocation) {
+                        listener.onFailure(new ElasticsearchException(
+                                "pre-upgrade check failed, please enable cluster routing allocation using setting [{}]",
+                                EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
+                    } else {
+                        listener.onResponse(null);
+                    }
+                }, (t, listener) -> listener.onResponse(TransportResponse.Empty.INSTANCE));
     }
 
     /**
@@ -69,11 +81,11 @@ public class IndexUpgradeCheck<T> {
     public IndexUpgradeCheck(String name,
                              Function<IndexMetaData, UpgradeActionRequired> actionRequired,
                              Client client, ClusterService clusterService, String[] types, Script updateScript,
-                             Consumer<ActionListener<T>> preUpgrade,
+                             BiConsumer<ClusterState, ActionListener<T>> preUpgrade,
                              BiConsumer<T, ActionListener<TransportResponse.Empty>> postUpgrade) {
         this.name = name;
         this.actionRequired = actionRequired;
-        this.reindexer = new InternalIndexReindexer<>(client, clusterService, IndexUpgradeCheckVersion.UPRADE_VERSION, updateScript,
+        this.reindexer = new InternalIndexReindexer<>(client, clusterService, IndexUpgradeCheckVersion.UPGRADE_VERSION, updateScript,
                 types, preUpgrade, postUpgrade);
     }
 
@@ -105,5 +117,10 @@ public class IndexUpgradeCheck<T> {
     public void upgrade(TaskId task, IndexMetaData indexMetaData, ClusterState state,
                         ActionListener<BulkByScrollResponse> listener) {
         reindexer.upgrade(task, indexMetaData.getIndex().getName(), state, listener);
+    }
+
+    // pkg scope for testing
+    InternalIndexReindexer getInternalIndexReindexer() {
+        return reindexer;
     }
 }

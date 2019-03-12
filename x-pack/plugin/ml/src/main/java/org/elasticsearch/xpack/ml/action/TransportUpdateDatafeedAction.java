@@ -49,7 +49,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
                 indexNameExpressionResolver, UpdateDatafeedAction.Request::new);
 
         datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
-        jobConfigProvider = new JobConfigProvider(client);
+        jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
     }
 

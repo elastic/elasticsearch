@@ -64,7 +64,7 @@ Result:
     {
       "doc" : {
         "_index" : "_index",
-        "_type" : "_type",
+        "_type" : "_doc",
         "_id" : "_id",
         "_source" : {
           "host" : {

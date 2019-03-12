@@ -66,6 +66,7 @@ public class MultiMatchQuery extends MatchQuery {
             case PHRASE_PREFIX:
             case BEST_FIELDS:
             case MOST_FIELDS:
+            case BOOLEAN_PREFIX:
                 queries = buildFieldQueries(type, fieldNames, value, minimumShouldMatch);
                 break;
 

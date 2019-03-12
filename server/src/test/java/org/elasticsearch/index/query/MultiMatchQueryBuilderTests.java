@@ -31,6 +31,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -56,6 +57,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
 public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
 
@@ -238,6 +240,51 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             instanceOf(MatchNoDocsQuery.class));
         assertThat(multiMatchQuery("test").field(MISSING_FIELD_NAME).toQuery(createShardContext()),
             instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testToQueryBooleanPrefixSingleField() throws IOException {
+        final MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("foo bar", STRING_FIELD_NAME);
+        builder.type(Type.BOOLEAN_PREFIX);
+        final Query query = builder.toQuery(createShardContext());
+        assertThat(query, instanceOf(BooleanQuery.class));
+        final BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(booleanQuery.clauses(), hasSize(2));
+        assertThat(assertBooleanSubQuery(booleanQuery, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "foo")));
+        assertThat(assertBooleanSubQuery(booleanQuery, PrefixQuery.class, 1).getPrefix(), equalTo(new Term(STRING_FIELD_NAME, "bar")));
+    }
+
+    public void testToQueryBooleanPrefixMultipleFields() throws IOException {
+        {
+            final MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("foo bar", STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+            builder.type(Type.BOOLEAN_PREFIX);
+            final Query query = builder.toQuery(createShardContext());
+            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+            final DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
+            assertThat(disMaxQuery.getDisjuncts(), hasSize(2));
+            for (Query disjunctQuery : disMaxQuery.getDisjuncts()) {
+                assertThat(disjunctQuery, instanceOf(BooleanQuery.class));
+                final BooleanQuery booleanQuery = (BooleanQuery) disjunctQuery;
+                assertThat(booleanQuery.clauses(), hasSize(2));
+                assertThat(assertBooleanSubQuery(booleanQuery, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "foo")));
+                assertThat(assertBooleanSubQuery(booleanQuery, PrefixQuery.class, 1).getPrefix(),
+                    equalTo(new Term(STRING_FIELD_NAME, "bar")));
+            }
+        }
+
+        {
+            // STRING_FIELD_NAME_2 is a keyword field
+            final MultiMatchQueryBuilder queryBuilder = new MultiMatchQueryBuilder("foo bar", STRING_FIELD_NAME, STRING_FIELD_NAME_2);
+            queryBuilder.type(Type.BOOLEAN_PREFIX);
+            final Query query = queryBuilder.toQuery(createShardContext());
+            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+            final DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
+            assertThat(disMaxQuery.getDisjuncts(), hasSize(2));
+            final BooleanQuery firstDisjunct = assertDisjunctionSubQuery(disMaxQuery, BooleanQuery.class, 0);
+            assertThat(firstDisjunct.clauses(), hasSize(2));
+            assertThat(assertBooleanSubQuery(firstDisjunct, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "foo")));
+            final PrefixQuery secondDisjunct = assertDisjunctionSubQuery(disMaxQuery, PrefixQuery.class, 1);
+            assertThat(secondDisjunct.getPrefix(), equalTo(new Term(STRING_FIELD_NAME_2, "foo bar")));
+        }
     }
 
     public void testFromJson() throws IOException {

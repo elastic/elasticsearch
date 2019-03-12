@@ -11,17 +11,22 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.junit.After;
+import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.singletonMap;
@@ -30,6 +35,36 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class CloseFollowerIndexIT extends CcrIntegTestCase {
+
+    private Thread.UncaughtExceptionHandler uncaughtExceptionHandler;
+
+    @Before
+    public void wrapUncaughtExceptionHandler() {
+        uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+                if (t.getThreadGroup().getName().contains(getTestClass().getSimpleName())) {
+                    for (StackTraceElement element : e.getStackTrace()) {
+                        if (element.getClassName().equals(ReadOnlyEngine.class.getName())) {
+                            if (element.getMethodName().equals("assertMaxSeqNoEqualsToGlobalCheckpoint")) {
+                                return;
+                            }
+                        }
+                    }
+                }
+                uncaughtExceptionHandler.uncaughtException(t, e);
+            });
+            return null;
+        });
+    }
+
+    @After
+    public void restoreUncaughtExceptionHandler() {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
+            return null;
+        });
+    }
 
     public void testCloseAndReopenFollowerIndex() throws Exception {
         final String leaderIndexSettings = getIndexSettings(1, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
@@ -62,19 +97,28 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         }
 
         atLeastDocsIndexed(followerClient(), "index2", 32);
-        AcknowledgedResponse response = followerClient().admin().indices().close(new CloseIndexRequest("index2")).get();
+
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest("index2");
+        closeIndexRequest.waitForActiveShards(ActiveShardCount.NONE);
+        AcknowledgedResponse response = followerClient().admin().indices().close(closeIndexRequest).get();
         assertThat(response.isAcknowledged(), is(true));
 
         ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-        List<ClusterBlock> blocks = new ArrayList<>(clusterState.getBlocks().indices().get("index2"));
-        assertThat(blocks.size(), equalTo(1));
-        assertThat(blocks.get(0).id(), equalTo(MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID));
+        assertThat(clusterState.metaData().index("index2").getState(), is(IndexMetaData.State.CLOSE));
+        assertThat(clusterState.getBlocks().hasIndexBlock("index2", MetaDataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
+        assertThat(followerClient().admin().cluster().prepareHealth("index2").get().getStatus(), equalTo(ClusterHealthStatus.RED));
 
         isRunning.set(false);
         for (Thread thread : threads) {
             thread.join();
         }
+
         assertAcked(followerClient().admin().indices().open(new OpenIndexRequest("index2")).get());
+
+        clusterState = followerClient().admin().cluster().prepareState().get().getState();
+        assertThat(clusterState.metaData().index("index2").getState(), is(IndexMetaData.State.OPEN));
+        assertThat(clusterState.getBlocks().hasIndexBlockWithId("index2", MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(false));
+        ensureFollowerGreen("index2");
 
         refresh(leaderClient(), "index1");
         SearchRequest leaderSearchRequest = new SearchRequest("index1");
@@ -86,6 +130,6 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
             followerSearchRequest.source().trackTotalHits(true);
             long followerIndexDocs = followerClient().search(followerSearchRequest).actionGet().getHits().getTotalHits().value;
             assertThat(followerIndexDocs, equalTo(leaderIndexDocs));
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 }

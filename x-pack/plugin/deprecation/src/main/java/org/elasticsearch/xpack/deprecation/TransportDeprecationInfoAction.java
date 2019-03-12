@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,18 +49,20 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings settings;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportDeprecationInfoAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver,
-                                          XPackLicenseState licenseState, NodeClient client) {
+                                          XPackLicenseState licenseState, NodeClient client, NamedXContentRegistry xContentRegistry) {
         super(DeprecationInfoAction.NAME, transportService, clusterService, threadPool, actionFilters,
             DeprecationInfoAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settings = settings;
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
@@ -99,7 +102,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                 getDatafeedConfigs(ActionListener.wrap(
                     datafeeds -> {
                         listener.onResponse(
-                            DeprecationInfoAction.Response.from(state, indexNameExpressionResolver,
+                            DeprecationInfoAction.Response.from(state, xContentRegistry, indexNameExpressionResolver,
                                 request.indices(), request.indicesOptions(), datafeeds,
                                 response, INDEX_SETTINGS_CHECKS, CLUSTER_SETTINGS_CHECKS,
                                 ML_SETTINGS_CHECKS));

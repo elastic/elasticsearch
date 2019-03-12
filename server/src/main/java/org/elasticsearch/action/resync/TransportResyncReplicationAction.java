@@ -48,7 +48,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class TransportResyncReplicationAction extends TransportWriteAction<ResyncReplicationRequest,
@@ -117,12 +116,12 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
     @Override
     protected WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> shardOperationOnPrimary(
-        ResyncReplicationRequest request, IndexShard primary) throws Exception {
-        final ResyncReplicationRequest replicaRequest = performOnPrimary(request, primary);
+        ResyncReplicationRequest request, IndexShard primary) {
+        final ResyncReplicationRequest replicaRequest = performOnPrimary(request);
         return new WritePrimaryResult<>(replicaRequest, new ResyncReplicationResponse(), null, null, primary, logger);
     }
 
-    public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request, IndexShard primary) {
+    public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request) {
         return request;
     }
 
@@ -210,10 +209,9 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         }
 
         @Override
-        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception, Runnable onSuccess,
-                                      Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
-            shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, false, message, exception,
-                createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception, ActionListener<Void> listener) {
+            shardStateAction.remoteShardFailed(
+                replica.shardId(), replica.allocationId().getId(), primaryTerm, false, message, exception, listener);
         }
     }
 }

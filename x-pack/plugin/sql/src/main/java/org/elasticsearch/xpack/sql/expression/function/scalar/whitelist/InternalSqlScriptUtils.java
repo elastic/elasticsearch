@@ -348,7 +348,7 @@ public final class InternalSqlScriptUtils {
     public static ZonedDateTime asDateTime(Object dateTime) {
         return (ZonedDateTime) asDateTime(dateTime, false);
     }
-    
+
     private static Object asDateTime(Object dateTime, boolean lenient) {
         if (dateTime == null) {
             return null;
@@ -363,7 +363,10 @@ public final class InternalSqlScriptUtils {
             if (dateTime instanceof Number) {
                 return DateUtils.asDateTime(((Number) dateTime).longValue());
             }
-    
+
+            if (dateTime instanceof String) {
+                return DateUtils.asDateTime(dateTime.toString());
+            }
             throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
         }
         return dateTime;

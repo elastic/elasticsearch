@@ -13,15 +13,15 @@ An events resource has the following properties:
   (string) A description of the scheduled event.
 
 `end_time`::
-  (string) The timestamp for the end of the scheduled event. The datetime string
-  is in ISO 8601 format.
+  (date) The timestamp for the end of the scheduled event
+  in milliseconds since the epoch or ISO 8601 format.
 
 `event_id`::
   (string) An automatically-generated identifier for the scheduled event.
 
 `start_time`::
- (string) The timestamp for the beginning of the scheduled event. The datetime
- string is in ISO 8601 format.
+ (date) The timestamp for the beginning of the scheduled event
+ in milliseconds since the epoch or ISO 8601 format.
 
 For more information, see
 {xpack-ref}/ml-calendars.html[Calendars and Scheduled Events].

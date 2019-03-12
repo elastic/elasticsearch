@@ -226,7 +226,7 @@ public enum DataType {
     }
 
     public boolean isPrimitive() {
-        return this != OBJECT && this != NESTED;
+        return this != OBJECT && this != NESTED && this != UNSUPPORTED;
     }
 
     public boolean isDateBased() {

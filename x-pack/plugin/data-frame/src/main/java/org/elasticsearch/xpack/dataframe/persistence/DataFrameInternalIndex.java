@@ -29,7 +29,6 @@ public final class DataFrameInternalIndex {
     public static final String INDEX_NAME = INDEX_TEMPLATE_NAME;
 
     // constants for mappings
-    public static final String ENABLED = "enabled";
     public static final String DYNAMIC = "dynamic";
     public static final String PROPERTIES = "properties";
     public static final String TYPE = "type";
@@ -37,9 +36,6 @@ public final class DataFrameInternalIndex {
     // data types
     public static final String DOUBLE = "double";
     public static final String KEYWORD = "keyword";
-
-    // internal document types, e.g. "transform_config"
-    public static final String DOC_TYPE = "doc_type";
 
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
         IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(INDEX_TEMPLATE_NAME)
@@ -49,7 +45,6 @@ public final class DataFrameInternalIndex {
                         // the configurations are expected to be small
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
-                // todo: remove type
                 .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(mappings()))
                 .build();
         return dataFrameTemplate;
@@ -62,14 +57,12 @@ public final class DataFrameInternalIndex {
         builder.startObject(MapperService.SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
 
-        // no need to analyze anything, we use the config index as key value store, revisit if we decide to search on it
-        builder.field(ENABLED, false);
         // do not allow anything outside of the defined schema
-        builder.field(DYNAMIC, "strict");
+        builder.field(DYNAMIC, "false");
         // the schema definitions
         builder.startObject(PROPERTIES);
         // overall doc type
-        builder.startObject(DOC_TYPE).field(TYPE, KEYWORD).endObject();
+        builder.startObject(DataFrameField.INDEX_DOC_TYPE.getPreferredName()).field(TYPE, KEYWORD).endObject();
         // add the schema for transform configurations
         addDataFrameTransformsConfigMappings(builder);
 
@@ -85,6 +78,12 @@ public final class DataFrameInternalIndex {
     private static XContentBuilder addDataFrameTransformsConfigMappings(XContentBuilder builder) throws IOException {
         return builder
             .startObject(DataFrameField.ID.getPreferredName())
+                .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(DataFrameField.SOURCE.getPreferredName())
+                .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(DataFrameField.DESTINATION.getPreferredName())
                 .field(TYPE, KEYWORD)
             .endObject();
     }

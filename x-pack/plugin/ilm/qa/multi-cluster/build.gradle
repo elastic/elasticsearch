@@ -51,6 +51,7 @@ followClusterTestCluster {
 followClusterTestRunner {
     systemProperty 'tests.target_cluster', 'follow'
     systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+    systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(0).transportUri()}"
     /* To support taking index snapshots, we have to set path.repo setting */
     systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
     finalizedBy 'leaderClusterTestCluster#stop'

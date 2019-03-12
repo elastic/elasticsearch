@@ -334,7 +334,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexShard indexShard = null;
         ShardLock lock = null;
         try {
-            lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
+            lock = nodeEnv.shardLock(shardId, "shard creation", TimeUnit.SECONDS.toMillis(5));
             eventListener.beforeIndexShardCreated(shardId, indexSettings);
             ShardPath path;
             try {
@@ -673,7 +673,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // once we change the refresh interval we schedule yet another refresh
                 // to ensure we are in a clean and predictable state.
                 // it doesn't matter if we move from or to <code>-1</code>  in both cases we want
-                // docs to become visible immediately. This also flushes all pending indexing / search reqeusts
+                // docs to become visible immediately. This also flushes all pending indexing / search requests
                 // that are waiting for a refresh.
                 threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
                     @Override
@@ -790,7 +790,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void syncRetentionLeases() {
-        sync(IndexShard::syncRetentionLeases, "retention lease");
+        if (indexSettings.isSoftDeleteEnabled()) {
+            sync(IndexShard::syncRetentionLeases, "retention lease");
+        }
     }
 
     private void sync(final Consumer<IndexShard> sync, final String source) {
@@ -830,17 +832,20 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     abstract static class BaseAsyncTask extends AbstractAsyncTask {
+
         protected final IndexService indexService;
 
-        BaseAsyncTask(IndexService indexService, TimeValue interval) {
+        BaseAsyncTask(final IndexService indexService, final TimeValue interval) {
             super(indexService.logger, indexService.threadPool, interval, true);
             this.indexService = indexService;
             rescheduleIfNecessary();
         }
 
+        @Override
         protected boolean mustReschedule() {
-            // don't re-schedule if its closed or if we don't have a single shard here..., we are done
-            return indexService.closed.get() == false;
+            // don't re-schedule if the IndexService instance is closed or if the index is closed
+            return indexService.closed.get() == false
+                && indexService.indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN;
         }
     }
 

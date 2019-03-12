@@ -19,7 +19,7 @@ bin/elasticsearch-node unsafe-bootstrap|detach-cluster
 
 Sometimes {es} nodes are temporarily stopped, perhaps because of the need to
 perform some maintenance activity or perhaps because of a hardware failure.
-Once the temporary condition has been resolved you should restart the node and
+After you resolve the temporary condition and restart the node,
 it will rejoin the cluster and continue normally. Depending on your
 configuration, your cluster may be able to remain completely available even
 while one or more of its nodes are stopped.

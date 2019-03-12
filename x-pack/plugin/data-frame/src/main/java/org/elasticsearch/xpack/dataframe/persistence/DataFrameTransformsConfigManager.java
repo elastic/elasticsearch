@@ -58,6 +58,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class DataFrameTransformsConfigManager {
 
     private static final Logger logger = LogManager.getLogger(DataFrameTransformsConfigManager.class);
+    private static final int DEFAULT_SIZE = 100;
 
     public static final Map<String, String> TO_XCONTENT_PARAMS = Collections.singletonMap(DataFrameField.FOR_INTERNAL_STORAGE, "true");
 
@@ -127,6 +128,7 @@ public class DataFrameTransformsConfigManager {
      * @param transformId Can be a single transformId, `*`, or `_all`
      * @param resultListener Listener to alert when request is completed
      */
+    // TODO add pagination support
     public void getTransformConfigurations(String transformId,
                                            ActionListener<List<DataFrameTransformConfig>> resultListener) {
         final boolean isAllOrWildCard = Strings.isAllOrWildcard(new String[]{transformId});
@@ -139,7 +141,7 @@ public class DataFrameTransformsConfigManager {
         SearchRequest request = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .setTrackTotalHits(true)
-            .setSize(10_000) // TODO support pagination
+            .setSize(DEFAULT_SIZE)
             .setQuery(queryBuilder)
             .request();
 

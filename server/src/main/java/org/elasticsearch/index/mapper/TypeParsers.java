@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
@@ -80,6 +81,7 @@ public class TypeParsers {
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
+                analyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
                 searchAnalyzer = analyzer;
                 iterator.remove();
             } else if (propName.equals("search_quote_analyzer")) {
@@ -87,8 +89,26 @@ public class TypeParsers {
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
+                analyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
                 searchQuoteAnalyzer = analyzer;
                 iterator.remove();
+            }
+        }
+
+        // check analyzers are allowed to work in the respective AnalysisMode
+        {
+            if (indexAnalyzer != null) {
+                if (searchAnalyzer == null) {
+                    indexAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
+                } else {
+                    indexAnalyzer.checkAllowedInMode(AnalysisMode.INDEX_TIME);
+                }
+            }
+            if (searchAnalyzer != null) {
+                searchAnalyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
+            }
+            if (searchQuoteAnalyzer != null) {
+                searchQuoteAnalyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
             }
         }
 

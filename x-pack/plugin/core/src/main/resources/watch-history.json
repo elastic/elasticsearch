@@ -9,7 +9,7 @@
     "index.format": 6
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "_meta": {
         "watcher-history-version": "${xpack.watcher.template.version}"
       },

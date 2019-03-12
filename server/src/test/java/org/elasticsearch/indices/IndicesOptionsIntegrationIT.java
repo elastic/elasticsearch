@@ -477,6 +477,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(search("t*"), false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39578")
     public void testOpenCloseApiWildcards() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
         ensureGreen();

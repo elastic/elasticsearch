@@ -68,14 +68,6 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     public void readFrom(final StreamInput in) throws IOException {
         //  TODO: https://github.com/elastic/elasticsearch/issues/38556
         //assert Version.CURRENT.major <= 7;
-        if (in.getVersion().equals(Version.V_6_0_0)) {
-            /*
-             * Resync replication request serialization was broken in 6.0.0 due to the elements of the stream not being prefixed with a
-             * byte indicating the type of the operation.
-             */
-            // TODO: remove this check in 8.0.0 which provides no BWC guarantees with 6.x.
-            throw new IllegalStateException("resync replication request serialization is broken in 6.0.0");
-        }
         super.readFrom(in);
         if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             trimAboveSeqNo = in.readZLong();

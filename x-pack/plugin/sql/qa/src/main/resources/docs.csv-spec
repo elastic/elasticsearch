@@ -2348,25 +2348,25 @@ Arumugam
 ////////////
 limitationSubSelect
 // tag::limitationSubSelect
-SELECT * FROM (SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%') WHERE first_name LIKE 'A%';
+SELECT * FROM (SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%') WHERE first_name LIKE 'A%' ORDER BY 1;
 
   first_name   |   last_name
 ---------------+---------------
-Anneke         |Preusig
-Alejandro      |McAlpine
-Anoosh         |Peyn
-Arumugam       |Ossenbruggen
+ Alejandro     |McAlpine
+ Anneke        |Preusig
+ Anoosh        |Peyn
+ Arumugam      |Ossenbruggen
 // end::limitationSubSelect
 ;
 
-limitationSubSelect
+limitationSubSelectRewritten
 // tag::limitationSubSelectRewritten
-SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%' AND first_name LIKE 'A%';
+SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%' AND first_name LIKE 'A%' ORDER BY 1;
 // end::limitationSubSelectRewritten
   first_name   |   last_name
 ---------------+---------------
-Anneke         |Preusig
-Alejandro      |McAlpine
-Anoosh         |Peyn
-Arumugam       |Ossenbruggen
+ Alejandro     |McAlpine
+ Anneke        |Preusig
+ Anoosh        |Peyn
+ Arumugam      |Ossenbruggen
 ;

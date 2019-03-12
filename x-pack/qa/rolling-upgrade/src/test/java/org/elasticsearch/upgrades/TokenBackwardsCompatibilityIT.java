@@ -180,7 +180,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private boolean isMasterOnLatestVersion() throws Exception {
-        Response response = client().performRequest(new Request("GET", "_cluster/state"));
+        Response response = client().performRequest(newGetClusterStateRequest());
         assertOK(response);
         final String masterNodeId = ObjectPath.createFromResponse(response).evaluate("master_node");
         response = client().performRequest(new Request("GET", "_nodes"));

@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -232,7 +231,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
 
         // verifying if we can still read some properties from cluster state api:
-        Map<String, Object> clusterState = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+        Map<String, Object> clusterState = entityAsMap(client().performRequest(newGetClusterStateRequest()));
 
         // Check some global properties:
         String clusterName = (String) clusterState.get("cluster_name");
@@ -1010,7 +1009,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      */
     @SuppressWarnings("unchecked")
     private void assertClosedIndex(final String index, final boolean checkRoutingTable) throws IOException {
-        final Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+        final Map<String, ?> state = entityAsMap(client().performRequest(newGetClusterStateRequest()));
 
         final Map<String, ?> metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata.indices." + index, state);
         assertThat(metadata, notNullValue());
@@ -1107,7 +1106,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         client().performRequest(new Request("DELETE", "/restored_*"));
 
         // Check settings added by the restore process
-        Request clusterSettingsRequest = new Request("GET", "/_cluster/settings");
+        Request clusterSettingsRequest = newGetClusterSettingsRequest();
         clusterSettingsRequest.addParameter("flat_settings", "true");
         Map<String, Object> clusterSettingsResponse = entityAsMap(client().performRequest(clusterSettingsRequest));
         @SuppressWarnings("unchecked") final Map<String, Object> persistentSettings =

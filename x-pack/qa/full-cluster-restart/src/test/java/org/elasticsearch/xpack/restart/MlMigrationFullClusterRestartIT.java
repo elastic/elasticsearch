@@ -185,7 +185,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
         assertBusy(() -> {
             // wait for the eligible configs to be moved from the clusterstate
-            Request getClusterState = new Request("GET", "/_cluster/state/metadata");
+            Request getClusterState = newGetClusterMetadataRequest();
             Response response = client().performRequest(getClusterState);
             Map<String, Object> responseMap = entityAsMap(response);
 
@@ -211,7 +211,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
     @SuppressWarnings("unchecked")
     private void checkTaskParamsAreUpdated(String jobId, String datafeedId) throws Exception {
-        Request getClusterState = new Request("GET", "/_cluster/state/metadata");
+        Request getClusterState = newGetClusterMetadataRequest();
         Response response = client().performRequest(getClusterState);
         Map<String, Object> responseMap = entityAsMap(response);
 

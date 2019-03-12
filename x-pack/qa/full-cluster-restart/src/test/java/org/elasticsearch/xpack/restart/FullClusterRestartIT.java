@@ -568,8 +568,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(ObjectPath.eval("status.job_state", taskResponseStatus), expectedStates);
 
         // check that the rollup job is started using the Cluster State API
-        final Request clusterStateRequest = new Request("GET", "_cluster/state/metadata");
-        Map<String, Object> clusterStateResponse = entityAsMap(client().performRequest(clusterStateRequest));
+        Map<String, Object> clusterStateResponse = entityAsMap(client().performRequest(newGetClusterMetadataRequest()));
         List<Map<String, Object>> rollupJobTasks = ObjectPath.eval("metadata.persistent_tasks.tasks", clusterStateResponse);
 
         boolean hasRollupTask = false;

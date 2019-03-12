@@ -419,7 +419,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
      */
     @SuppressWarnings("unchecked")
     private void assertClosedIndex(final String index, final boolean checkRoutingTable) throws IOException {
-        final Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+        final Map<String, ?> state = entityAsMap(client().performRequest(newGetClusterStateRequest()));
 
         final Map<String, ?> metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata.indices." + index, state);
         assertThat(metadata, notNullValue());

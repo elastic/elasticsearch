@@ -20,8 +20,10 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
@@ -38,6 +40,14 @@ public class GetClusterStateTests extends ESSingleNodeTestCase {
         assertNotNull(response.getClusterName());
         // assume the cluster state size is 50 bytes or more, just so we aren't testing against size of 0
         assertThat(response.getTotalCompressedSize().getBytes(), greaterThanOrEqualTo(50L));
+        assertWarnings(TransportClusterStateAction.COMPRESSED_CLUSTER_STATE_SIZE_DEPRECATION_MESSAGE);
+    }
+
+    public void testGetClusterStateExcludingSize() {
+        ClusterStateResponse response = client().admin().cluster().prepareState().setCompressedClusterStateSize(false).get();
+        assertNotNull(response.getState());
+        assertNotNull(response.getClusterName());
+        assertThat(response.getTotalCompressedSize().getBytes(), equalTo(0L));
     }
 
     public void testSizeDerivedFromFullClusterState() {
@@ -50,5 +60,6 @@ public class GetClusterStateTests extends ESSingleNodeTestCase {
         assertEquals(totalCompressedSize, response.getTotalCompressedSize().getBytes());
         assertNotEquals(clusterState, response.getState());
         assertEquals(0, response.getState().nodes().getSize());
+        assertWarnings(TransportClusterStateAction.COMPRESSED_CLUSTER_STATE_SIZE_DEPRECATION_MESSAGE);
     }
 }

@@ -74,7 +74,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/pause_follow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
-                Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
+                Map<String, Object> clusterState = toMap(adminClient().performRequest(newGetClusterStateRequest()));
                 List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
                 assertThat(tasks.size(), equalTo(0));
                 assertThat(countCcrNodeTasks(), equalTo(0));
@@ -85,7 +85,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/pause_follow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
-                Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
+                Map<String, Object> clusterState = toMap(adminClient().performRequest(newGetClusterStateRequest()));
                 List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
                 assertThat(tasks.size(), equalTo(0));
                 assertThat(countCcrNodeTasks(), equalTo(0));

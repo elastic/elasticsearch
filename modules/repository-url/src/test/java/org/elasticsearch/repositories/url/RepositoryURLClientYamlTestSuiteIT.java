@@ -70,7 +70,7 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
      **/
     @Before
     public void registerRepositories() throws IOException {
-        Request clusterSettingsRequest = new Request("GET", "/_cluster/settings");
+        Request clusterSettingsRequest = newGetClusterSettingsRequest();
         clusterSettingsRequest.addParameter("include_defaults", "true");
         clusterSettingsRequest.addParameter("filter_path", "defaults.path.repo,defaults.repositories.url.allowed_urls");
         Response clusterSettingsResponse = client().performRequest(clusterSettingsRequest);

@@ -100,4 +100,12 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
         request.indicesOptions(indicesOptions);
         return this;
     }
+
+    /**
+     * Should the cluster state result include the size of the compressed cluster state in bytes. Defaults to {@code true}.
+     */
+    public ClusterStateRequestBuilder setCompressedClusterStateSize(boolean compressedClusterStateSize) {
+        request.compressedClusterStateSize(compressedClusterStateSize);
+        return this;
+    }
 }

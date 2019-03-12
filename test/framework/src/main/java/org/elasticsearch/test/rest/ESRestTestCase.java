@@ -28,6 +28,7 @@ import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RequestOptions.Builder;
@@ -182,7 +183,29 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert hasXPack != null;
         assert nodeVersions != null;
     }
-    
+
+    protected final Request newGetClusterStateRequest() {
+        final Request request = new Request("GET", "/_cluster/state");
+        request.setOptions(expectWarnings(TransportClusterStateAction.COMPRESSED_CLUSTER_STATE_SIZE_DEPRECATION_MESSAGE));
+        return request;
+    }
+
+    protected final Request newGetClusterMetadataRequest() {
+        final Request request = new Request("GET", "/_cluster/state/metadata");
+        request.setOptions(expectWarnings(TransportClusterStateAction.COMPRESSED_CLUSTER_STATE_SIZE_DEPRECATION_MESSAGE));
+        return request;
+    }
+
+    protected final Request newGetClusterSettingsRequest() {
+        final Builder builder = RequestOptions.DEFAULT.toBuilder();
+        final VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(nodeVersions);
+        warningsHandler.compatible(TransportClusterStateAction.COMPRESSED_CLUSTER_STATE_SIZE_DEPRECATION_MESSAGE);
+        builder.setWarningsHandler(warningsHandler);
+        final Request request = new Request("GET", "/_cluster/settings");
+        request.setOptions(builder.build());
+        return request;
+    }
+
     /**
      * Helper class to check warnings in REST responses with sensitivity to versions
      * used in the target cluster.
@@ -563,7 +586,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Remove any cluster settings.
      */
     private void wipeClusterSettings() throws IOException {
-        Map<?, ?> getResponse = entityAsMap(adminClient().performRequest(new Request("GET", "/_cluster/settings")));
+        Map<?, ?> getResponse = entityAsMap(adminClient().performRequest(newGetClusterSettingsRequest()));
 
         boolean mustClear = false;
         XContentBuilder clearCommand = JsonXContent.contentBuilder();
@@ -904,7 +927,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {
-        Response response = client().performRequest(new Request("GET", endpoint));
+        return requestAsMap(new Request("GET", endpoint));
+    }
+
+    protected static Map<String, Object> requestAsMap(Request request) throws IOException {
+        Response response = client().performRequest(request);
         XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
                 response.getEntity().getContent(), false);

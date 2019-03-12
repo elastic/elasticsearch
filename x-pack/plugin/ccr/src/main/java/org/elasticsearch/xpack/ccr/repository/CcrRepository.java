@@ -163,7 +163,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         Client remoteClient = getRemoteClusterClient();
-        ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true).setNodes(true)
+        ClusterStateResponse response
+            = remoteClient.admin().cluster().prepareState().setCompressedClusterStateSize(false).clear().setMetaData(true).setNodes(true)
             .get(ccrSettings.getRecoveryActionTimeout());
         ImmutableOpenMap<String, IndexMetaData> indicesMap = response.getState().metaData().indices();
         ArrayList<String> indices = new ArrayList<>(indicesMap.size());
@@ -227,7 +228,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     @Override
     public RepositoryData getRepositoryData() {
         Client remoteClient = getRemoteClusterClient();
-        ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true)
+        ClusterStateResponse response
+            = remoteClient.admin().cluster().prepareState().setCompressedClusterStateSize(false).clear().setMetaData(true)
             .get(ccrSettings.getRecoveryActionTimeout());
         MetaData remoteMetaData = response.getState().getMetaData();
 

@@ -34,6 +34,7 @@ public final class CcrRequests {
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
         clusterStateRequest.indices(leaderIndex);
+        clusterStateRequest.compressedClusterStateSize(false);
         return clusterStateRequest;
     }
 

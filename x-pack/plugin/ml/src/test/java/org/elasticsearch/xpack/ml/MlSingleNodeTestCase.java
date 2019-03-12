@@ -88,7 +88,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
     protected void waitForMlTemplates() throws Exception {
         // block until the templates are installed
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = client().admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState();
             assertTrue("Timed out waiting for the ML templates to be installed",
                     MachineLearning.allTemplatesInstalled(state));
         });

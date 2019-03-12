@@ -40,6 +40,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     private boolean metaData = true;
     private boolean blocks = true;
     private boolean customs = true;
+    private boolean compressedClusterStateSize = true;
     private Long waitForMetaDataVersion;
     private TimeValue waitForTimeout = DEFAULT_WAIT_FOR_NODE_TIMEOUT;
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -61,6 +62,9 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
             waitForTimeout = in.readTimeValue();
             waitForMetaDataVersion = in.readOptionalLong();
         }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO aiming for V_6_7_0 after backport
+            compressedClusterStateSize = in.readBoolean();
+        }
     }
 
     @Override
@@ -76,6 +80,9 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeTimeValue(waitForTimeout);
             out.writeOptionalLong(waitForMetaDataVersion);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO aiming for V_6_7_0 after backport
+            out.writeBoolean(compressedClusterStateSize);
         }
     }
 
@@ -189,6 +196,15 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
                 waitForMetaDataVersion + "]");
         }
         this.waitForMetaDataVersion = waitForMetaDataVersion;
+        return this;
+    }
+
+    public boolean compressedClusterStateSize() {
+        return compressedClusterStateSize;
+    }
+
+    public ClusterStateRequest compressedClusterStateSize(boolean compressedClusterStateSize) {
+        this.compressedClusterStateSize = compressedClusterStateSize;
         return this;
     }
 

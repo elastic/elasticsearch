@@ -357,8 +357,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.ALL)
                             .settings(defaultIndexSettings(shards)),
                         assertNoFailureListener(
-                            () -> masterAdminClient.cluster().state(new ClusterStateRequest(), assertNoFailureListener(
-                                clusterStateResponse -> {
+                            () -> masterAdminClient.cluster().state(new ClusterStateRequest().compressedClusterStateSize(false),
+                                assertNoFailureListener(clusterStateResponse -> {
                                     final ShardRouting shardToRelocate =
                                         clusterStateResponse.getState().routingTable().allShards(index).get(0);
                                     final TestClusterNode currentPrimaryNode =
@@ -368,8 +368,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                     final Runnable maybeForceAllocate = new Runnable() {
                                         @Override
                                         public void run() {
-                                            masterAdminClient.cluster().state(new ClusterStateRequest(), assertNoFailureListener(
-                                                resp -> {
+                                            masterAdminClient.cluster().state(new ClusterStateRequest().compressedClusterStateSize(false),
+                                                assertNoFailureListener(resp -> {
                                                     final ShardRouting shardRouting = resp.getState().routingTable()
                                                         .shardRoutingTable(shardToRelocate.shardId()).primaryShard();
                                                     if (shardRouting.unassigned()

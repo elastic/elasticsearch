@@ -160,6 +160,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 });
             newService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,
                 (request, channel, task) -> {
+                    assertFalse(request.compressedClusterStateSize());
                     DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
                     for (DiscoveryNode node : knownNodes) {
                         builder.add(node);

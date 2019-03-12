@@ -32,8 +32,22 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterStateApiTests extends ESSingleNodeTestCase {
 
+    public void testEmitsDeprecationWarningIfCompressedClusterStateSizeNotSuppressed() {
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        client().admin().cluster().state(clusterStateRequest).actionGet();
+        assertWarnings(TransportClusterStateAction.COMPRESSED_CLUSTER_STATE_SIZE_DEPRECATION_MESSAGE);
+    }
+
+    public void testEmitsDeprecationWarningIfCompressedClusterStateSizeRequested() {
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.compressedClusterStateSize(true);
+        client().admin().cluster().state(clusterStateRequest).actionGet();
+        assertWarnings(TransportClusterStateAction.COMPRESSED_CLUSTER_STATE_SIZE_DEPRECATION_MESSAGE);
+    }
+
     public void testWaitForMetaDataVersion() throws Exception {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.compressedClusterStateSize(false);
         clusterStateRequest.waitForTimeout(TimeValue.timeValueHours(1));
         ActionFuture<ClusterStateResponse> future1 = client().admin().cluster().state(clusterStateRequest);
         assertThat(future1.isDone(), is(true));
@@ -42,6 +56,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
 
         // Verify that cluster state api returns after the cluster settings have been updated:
         clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.compressedClusterStateSize(false);
         clusterStateRequest.waitForMetaDataVersion(metadataVersion + 1);
 
         ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(clusterStateRequest);

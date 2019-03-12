@@ -22,6 +22,7 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.client.HasAttributeNodeSelector;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
@@ -296,6 +297,11 @@ public class DoSection implements ExecutableSection {
                     /*
                      * We skip warnings related to types deprecation so that we can continue to run the many
                      * mixed-version tests that used typed APIs.
+                     */
+                } else if (message.equals(TransportClusterStateAction.COMPRESSED_CLUSTER_STATE_SIZE_DEPRECATION_MESSAGE)) {
+                    /*
+                     * Many tests call GET _cluster/state or GET _cluster/settings which yields this warning. Rather than adjusting
+                     * all the tests, simply accept that this warning can be ignored.
                      */
                 } else if (expected.remove(message) == false) {
                     unexpected.add(header);

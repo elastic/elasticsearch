@@ -354,7 +354,7 @@ public class IndexingIT extends ESRestTestCase {
                 Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
                 HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))));
         }
-        response = client().performRequest(new Request("GET", "_cluster/state"));
+        response = client().performRequest(newGetClusterStateRequest());
         nodes.setMasterNodeId(ObjectPath.createFromResponse(response).evaluate("master_node"));
         return nodes;
     }

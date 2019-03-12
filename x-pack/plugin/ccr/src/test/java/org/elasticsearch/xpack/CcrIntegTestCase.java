@@ -345,7 +345,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         if (actionGet.isTimedOut()) {
             logger.info("{} timed out, cluster state:\n{}\n{}",
                 method,
-                testCluster.client().admin().cluster().prepareState().get().getState(),
+                testCluster.client().admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState(),
                 testCluster.client().admin().cluster().preparePendingClusterTasks().get());
             fail("timed out waiting for " + color + " state");
         }
@@ -402,7 +402,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             assertThat("Follow stats not empty: " + Strings.toString(statsResponse.getFollowStats()),
                 statsResponse.getFollowStats().getStatsResponses(), empty());
 
-            final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
+            final ClusterState clusterState
+                = followerClient().admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState();
             final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             assertThat(tasks.tasks(), empty());
 
@@ -526,7 +527,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     private Map<Integer, List<DocIdSeqNoAndTerm>> getDocIdAndSeqNos(InternalTestCluster cluster, String index) throws IOException {
-        final ClusterState state = cluster.client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = cluster.client().admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState();
         List<ShardRouting> shardRoutings = state.routingTable().allShards(index);
         Randomness.shuffle(shardRoutings);
         final Map<Integer, List<DocIdSeqNoAndTerm>> docs = new HashMap<>();

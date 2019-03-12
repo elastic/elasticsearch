@@ -105,14 +105,14 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
     }
 
     private String getClusterUUID() throws Exception {
-        Response response = client().performRequest(new Request("GET", "/_cluster/state/metadata"));
+        Response response = client().performRequest(newGetClusterMetadataRequest());
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         String clusterUUID = objectPath.evaluate("metadata.cluster_uuid");
         return clusterUUID;
     }
 
     public String getHttpHost() throws IOException {
-        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_cluster/state")));
+        ObjectPath path = ObjectPath.createFromResponse(client().performRequest(newGetClusterStateRequest()));
         String masterNodeId = path.evaluate("master_node");
 
         ObjectPath nodesPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")));

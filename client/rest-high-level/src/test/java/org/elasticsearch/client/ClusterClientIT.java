@@ -78,7 +78,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(setResponse.getPersistentSettings().get(persistentSettingKey), notNullValue());
         assertThat(setResponse.getPersistentSettings().get(persistentSettingKey), equalTo(persistentSettingValue));
 
-        Map<String, Object> setMap = getAsMap("/_cluster/settings");
+        Map<String, Object> setMap = requestAsMap(newGetClusterSettingsRequest());
         String transientSetValue = (String) XContentMapValues.extractValue("transient." + transientSettingKey, setMap);
         assertThat(transientSetValue, equalTo(transientSettingValue + ByteSizeUnit.BYTES.getSuffix()));
         String persistentSetValue = (String) XContentMapValues.extractValue("persistent." + persistentSettingKey, setMap);
@@ -96,7 +96,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(resetResponse.getTransientSettings(), equalTo(Settings.EMPTY));
         assertThat(resetResponse.getPersistentSettings(), equalTo(Settings.EMPTY));
 
-        Map<String, Object> resetMap = getAsMap("/_cluster/settings");
+        Map<String, Object> resetMap = requestAsMap(newGetClusterSettingsRequest());
         String transientResetValue = (String) XContentMapValues.extractValue("transient." + transientSettingKey, resetMap);
         assertThat(transientResetValue, equalTo(null));
         String persistentResetValue = (String) XContentMapValues.extractValue("persistent." + persistentSettingKey, resetMap);

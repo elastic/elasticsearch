@@ -24,6 +24,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.Client;
@@ -167,6 +168,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                         ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(
                             new LivenessResponse(clusterName, connection.getNode()));
                     } else if (ClusterStateAction.NAME.equals(action)) {
+                        assertFalse(((ClusterStateRequest)request).compressedClusterStateSize());
                         assertHeaders(threadPool);
                         ClusterName cluster1 = clusterName;
                         ClusterState.Builder builder = ClusterState.builder(cluster1);

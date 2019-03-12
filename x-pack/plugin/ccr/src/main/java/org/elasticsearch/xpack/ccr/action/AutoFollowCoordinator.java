@@ -198,6 +198,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                     request.clear();
                     request.metaData(true);
                     request.routingTable(true);
+                    request.compressedClusterStateSize(false);
                     request.waitForMetaDataVersion(metadataVersion);
                     request.waitForTimeout(waitForMetadataTimeOut);
                     // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API

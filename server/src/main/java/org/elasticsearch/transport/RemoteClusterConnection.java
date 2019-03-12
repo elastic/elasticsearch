@@ -202,6 +202,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         Runnable runnable = () -> {
             final ClusterStateRequest request = new ClusterStateRequest();
             request.clear();
+            request.compressedClusterStateSize(false);
             request.nodes(true);
             request.local(true); // run this on the node that gets the request it's as good as any other
             final DiscoveryNode node = getAnyConnectedNode();
@@ -473,6 +474,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                             }
                             ClusterStateRequest request = new ClusterStateRequest();
                             request.clear();
+                            request.compressedClusterStateSize(false);
                             request.nodes(true);
                             // here we pass on the connection since we can only close it once the sendRequest returns otherwise
                             // due to the async nature (it will return before it's actually sent) this can cause the request to fail

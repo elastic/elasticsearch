@@ -222,8 +222,7 @@ public class RollupIT extends ESRestTestCase {
         assertThat(ObjectPath.eval("status.job_state", taskResponseStatus), isOneOf(states));
 
         // check that the rollup job is started using the Cluster State API
-        final Request clusterStateRequest = new Request("GET", "_cluster/state/metadata");
-        Map<String, Object> clusterStateResponse = toMap(client().performRequest(clusterStateRequest));
+        Map<String, Object> clusterStateResponse = toMap(client().performRequest(newGetClusterMetadataRequest()));
         List<Map<String, Object>> rollupJobTasks = ObjectPath.eval("metadata.persistent_tasks.tasks", clusterStateResponse);
 
         boolean hasRollupTask = false;

@@ -77,7 +77,7 @@ public class Netty4BadRequestIT extends ESRestTestCase {
     }
 
     public void testInvalidParameterValue() throws IOException {
-        final Request request = new Request("GET", "/_cluster/settings");
+        final Request request = newGetClusterSettingsRequest();
         request.addParameter("pretty", "neither-true-nor-false");
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         final Response response = e.getResponse();
@@ -89,7 +89,7 @@ public class Netty4BadRequestIT extends ESRestTestCase {
     }
 
     public void testInvalidHeaderValue() throws IOException {
-        final Request request = new Request("GET", "/_cluster/settings");
+        final Request request = newGetClusterSettingsRequest();
         final RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader("Content-Type", "\t");
         request.setOptions(options);

@@ -115,6 +115,7 @@ public final class CcrLicenseChecker {
         final ClusterStateRequest request = new ClusterStateRequest();
         request.clear();
         request.metaData(true);
+        request.compressedClusterStateSize(false);
         request.indices(leaderIndex);
         checkRemoteClusterLicenseAndFetchClusterState(
                 client,

@@ -59,7 +59,8 @@ public class RemoteClusterClientTests extends ESTestCase {
                 RemoteClusterService remoteClusterService = service.getRemoteClusterService();
                 assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode));
                 Client client = remoteClusterService.getRemoteClusterClient(threadPool, "test");
-                ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().execute().get();
+                ClusterStateResponse clusterStateResponse
+                    = client.admin().cluster().prepareState().setCompressedClusterStateSize(false).execute().get();
                 assertNotNull(clusterStateResponse);
                 assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
                 // also test a failure, there is no handler for scroll registered
@@ -103,7 +104,8 @@ public class RemoteClusterClientTests extends ESTestCase {
                         semaphore.acquire();
                         RemoteClusterService remoteClusterService = service.getRemoteClusterService();
                         Client client = remoteClusterService.getRemoteClusterClient(threadPool, "test");
-                        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().execute().get();
+                        ClusterStateResponse clusterStateResponse
+                            = client.admin().cluster().prepareState().setCompressedClusterStateSize(false).execute().get();
                         assertNotNull(clusterStateResponse);
                         assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
                         assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode));

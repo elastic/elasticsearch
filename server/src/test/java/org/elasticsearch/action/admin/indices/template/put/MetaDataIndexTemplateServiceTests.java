@@ -141,7 +141,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         putTemplateDetail(new PutRequest("test", "foo-1").patterns(Arrays.asList("foo-*")).order(1));
         putTemplateDetail(new PutRequest("test", "foo-2").patterns(Arrays.asList("foo-*")).order(2));
         putTemplateDetail(new PutRequest("test", "bar").patterns(Arrays.asList("bar-*")).order(between(0, 100)));
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = client().admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState();
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "foo-1234").stream()
             .map(IndexTemplateMetaData::name).collect(Collectors.toList()), contains("foo-2", "foo-1"));
         assertThat(MetaDataIndexTemplateService.findTemplates(state.metaData(), "bar-xyz").stream()

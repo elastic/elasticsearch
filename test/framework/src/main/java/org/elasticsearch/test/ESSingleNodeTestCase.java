@@ -122,7 +122,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         super.tearDown();
         assertAcked(client().admin().indices().prepareDelete("*").get());
-        MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
+        MetaData metaData = client().admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().keySet(),
                 metaData.persistentSettings().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().keySet(),
@@ -336,7 +336,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID)
                         .waitForNoRelocatingShards(true)).actionGet();
         if (actionGet.isTimedOut()) {
-            logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState(),
+            logger.info("ensureGreen timed out, cluster state:\n{}\n{}",
+                client().admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState(),
                 client().admin().cluster().preparePendingClusterTasks().get());
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
         }

@@ -113,7 +113,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         String watchId = "cluster_health_watch";
 
         // get master publish address
-        Response clusterStateResponse = adminClient().performRequest(new Request("GET", "/_cluster/state"));
+        Response clusterStateResponse = adminClient().performRequest(newGetClusterStateRequest());
         ObjectPath clusterState = ObjectPath.createFromResponse(clusterStateResponse);
         String masterNode = clusterState.evaluate("master_node");
         assertThat(masterNode, is(notNullValue()));

@@ -443,6 +443,46 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
     }
 
+    // TODO refactor this out. Find a better way to audit bulk items!
+    @Override
+    public void explicitAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String[] indices,
+                                    String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo) {
+        assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
+        final User user = authentication.getUser();
+        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
+        if (isSystem && eventType == ACCESS_GRANTED) {
+            eventType = SYSTEM_ACCESS_GRANTED;
+        }
+        if (events.contains(eventType)) {
+            if (eventFilterPolicyRegistry.ignorePredicate()
+                    .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(effectiveRealmName(authentication)),
+                            Optional.of(authorizationInfo), Optional.ofNullable(indices))) == false) {
+                final LogEntryBuilder logEntryBuilder = new LogEntryBuilder()
+                        .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
+                        .with(EVENT_ACTION_FIELD_NAME, eventType == ACCESS_DENIED ? "access_denied" : "access_granted")
+                        .with(ACTION_FIELD_NAME, action)
+                        .with(REQUEST_NAME_FIELD_NAME, requestName)
+                        .withRequestId(requestId)
+                        .withSubject(authentication)
+                        .with(INDICES_FIELD_NAME, indices)
+                        .withOpaqueId(threadContext)
+                        .withXForwardedFor(threadContext)
+                        .with(authorizationInfo.asMap());
+                final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
+                if (restAddress != null) {
+                    logEntryBuilder
+                        .with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
+                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
+                } else if (remoteAddress != null) {
+                    logEntryBuilder
+                        .with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
+                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(remoteAddress.address()));
+                }
+                logger.info(logEntryBuilder.build());
+            }
+        }
+    }
+
     @Override
     public void accessDenied(String requestId, Authentication authentication, String action, TransportMessage message,
                              AuthorizationInfo authorizationInfo) {

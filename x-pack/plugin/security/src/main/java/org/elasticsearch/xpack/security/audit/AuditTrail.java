@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -71,5 +72,8 @@ public interface AuditTrail {
 
     void runAsDenied(String requestId, Authentication authentication, RestRequest request,
                      AuthorizationInfo authorizationInfo);
+
+    void explicitAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String[] indices,
+                             String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo);
 
 }

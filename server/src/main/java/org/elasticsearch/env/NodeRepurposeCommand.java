@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
-import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -52,7 +51,8 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     static final String NO_DATA_TO_CLEAN_UP_FOUND = "No data to clean-up found";
     static final String NO_SHARD_DATA_TO_CLEAN_UP_FOUND = "No shard data to clean-up found";
     static final String PRE_V7_MESSAGE =
-        "No manifest found, please abort if this node was ever started on 7.0 (assuming 6.x meta data format)";
+        "No manifest file found. If you were previously running this node on Elasticsearch version 6, please proceed.\n" +
+            "If this node was ever started on Elasticsearch version 7 or higher, it might mean metadata corruption, please abort.";
 
     public NodeRepurposeCommand() {
         super("Repurpose this node to another master/data role, cleaning up any excess persisted data");
@@ -76,7 +76,6 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     @Override
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         assert DiscoveryNode.isDataNode(env.settings()) == false;
-
 
         if (DiscoveryNode.isMasterNode(env.settings()) == false) {
             processNoMasterNoDataNode(terminal, dataPaths);
@@ -104,6 +103,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         outputVerboseInformation(terminal, nodePaths, indexPaths, indexUUIDs);
 
         terminal.println(noMasterMessage(indexUUIDs.size(), shardDataPaths.size(), indexMetaDataPaths.size()));
+        outputHowToSeeVerboseInformation(terminal);
 
         final Manifest manifest = loadManifest(terminal, dataPaths);
 
@@ -134,6 +134,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         outputVerboseInformation(terminal, nodePaths, shardDataPaths, indexUUIDs);
 
         terminal.println(shardMessage(shardDataPaths.size(), indexUUIDs.size()));
+        outputHowToSeeVerboseInformation(terminal);
 
         terminal.println("Node is being re-purposed as master and no-data. Clean-up of shard data will be performed.");
         confirm(terminal, "Do you want to proceed?");
@@ -150,16 +151,18 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
             pathsToCleanup.forEach(p -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + p.toString()));
             terminal.println(Terminal.Verbosity.VERBOSE, "Indices affected:");
             indexUUIDs.forEach(uuid -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + toIndexName(nodePaths, uuid)));
-        } else {
-            terminal.println("Use -v to see list of paths and indices affected");
         }
     }
 
+    private void outputHowToSeeVerboseInformation(Terminal terminal) {
+        if (terminal.isPrintable(Terminal.Verbosity.VERBOSE) == false) {
+            terminal.println("Use -v to see list of paths and indices affected");
+        }
+    }
     private String toIndexName(NodeEnvironment.NodePath[] nodePaths, String uuid) {
-        Index index = new Index("dummy", uuid);
         Path[] indexPaths = new Path[nodePaths.length];
         for (int i = 0; i < nodePaths.length; i++) {
-            indexPaths[i] = nodePaths[i].resolve(index);
+            indexPaths[i] = nodePaths[i].resolve(uuid);
         }
         try {
             IndexMetaData metaData = IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, indexPaths);

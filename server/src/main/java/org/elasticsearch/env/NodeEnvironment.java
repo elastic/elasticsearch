@@ -128,7 +128,11 @@ public final class NodeEnvironment  implements Closeable {
          * ${data.paths}/nodes/{node.id}/indices/{index.uuid}
          */
         public Path resolve(Index index) {
-            return indicesPath.resolve(index.getUUID());
+            return resolve(index.getUUID());
+        }
+
+        Path resolve(String uuid) {
+            return indicesPath.resolve(uuid);
         }
 
         @Override

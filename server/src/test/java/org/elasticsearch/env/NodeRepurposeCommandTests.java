@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.not;
 public class NodeRepurposeCommandTests extends ESTestCase {
 
     private static final Index INDEX = new Index("testIndex", "testUUID");
-    private Settings settings;
+    private Settings dataMasterSettings;
     private Environment environment;
     private Path[] nodePaths;
     private Settings dataNoMasterSettings;
@@ -64,31 +64,31 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
     @Before
     public void createNodePaths() throws IOException {
-        settings = buildEnvSettings(Settings.EMPTY);
-        environment = TestEnvironment.newEnvironment(settings);
-        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment)) {
+        dataMasterSettings = buildEnvSettings(Settings.EMPTY);
+        environment = TestEnvironment.newEnvironment(dataMasterSettings);
+        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(dataMasterSettings, environment)) {
             nodePaths = nodeEnvironment.nodeDataPaths();
         }
         dataNoMasterSettings = Settings.builder()
-            .put(settings)
+            .put(dataMasterSettings)
             .put(Node.NODE_MASTER_SETTING.getKey(), false)
             .build();
         noDataNoMasterSettings = Settings.builder()
-            .put(settings)
+            .put(dataMasterSettings)
             .put(Node.NODE_DATA_SETTING.getKey(), false)
             .put(Node.NODE_MASTER_SETTING.getKey(), false)
             .build();
         noDataMasterSettings = Settings.builder()
-            .put(settings)
+            .put(dataMasterSettings)
             .put(Node.NODE_DATA_SETTING.getKey(), false)
             .put(Node.NODE_MASTER_SETTING.getKey(), true)
             .build();
     }
 
     public void testEarlyExitNoCleanup() throws Exception {
-        createIndexDataFiles(settings, true);
+        createIndexDataFiles(dataMasterSettings, randomInt(10));
 
-        verifyNoQuestions(settings, containsString(NO_CLEANUP));
+        verifyNoQuestions(dataMasterSettings, containsString(NO_CLEANUP));
         verifyNoQuestions(dataNoMasterSettings, containsString(NO_CLEANUP));
     }
 
@@ -103,7 +103,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         verifyNoQuestions(noDataMasterSettings,
             allOf(containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND), not(containsString(PRE_V7_MESSAGE))));
 
-        createIndexDataFiles(settings, false);
+        createIndexDataFiles(dataMasterSettings, 0);
 
         verifyNoQuestions(noDataMasterSettings,
             allOf(containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND), not(containsString(PRE_V7_MESSAGE))));
@@ -111,7 +111,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     }
 
     public void testLocked() throws IOException {
-        try (NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+        try (NodeEnvironment env = new NodeEnvironment(dataMasterSettings, TestEnvironment.newEnvironment(dataMasterSettings))) {
             assertThat(expectThrows(ElasticsearchException.class,
                 () -> verifyNoQuestions(noDataNoMasterSettings, null)).getMessage(),
                 containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG));
@@ -132,13 +132,13 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     }
 
     private void checkCleanupAll(Matcher<String> additionalOutputMatcher) throws Exception {
-        boolean includeShardData = randomBoolean();
+        int shardCount = randomInt(10);
         boolean verbose = randomBoolean();
-        createIndexDataFiles(settings, includeShardData);
+        createIndexDataFiles(dataMasterSettings, shardCount);
 
         String messageText = NodeRepurposeCommand.noMasterMessage(
             1,
-            includeShardData ? environment.dataFiles().length : 0,
+            environment.dataFiles().length*shardCount,
             environment.dataFiles().length);
 
         Matcher<String> outputMatcher = allOf(
@@ -160,13 +160,14 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     }
 
     public void testCleanupShardData() throws Exception {
+        int shardCount = randomIntBetween(1, 10);
         boolean verbose = randomBoolean();
         Manifest manifest = randomBoolean() ? createManifest(INDEX) : null;
 
-        createIndexDataFiles(settings, true);
+        createIndexDataFiles(dataMasterSettings, shardCount);
 
         Matcher<String> matcher = allOf(
-            containsString(NodeRepurposeCommand.shardMessage(environment.dataFiles().length, 1)),
+            containsString(NodeRepurposeCommand.shardMessage(environment.dataFiles().length * shardCount, 1)),
             conditionalNot(containsString("testUUID"), verbose == false),
             conditionalNot(containsString("testIndex"), verbose == false)
         );
@@ -257,9 +258,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         assertEquals(oldManifest.getCurrentTerm(), newManifest.getCurrentTerm());
     }
 
-    private void createIndexDataFiles(Settings settings, boolean includeShardData) throws IOException {
-        String shardDataDirName = Integer.toString(randomInt(10));
-
+    private void createIndexDataFiles(Settings settings, int shardCount) throws IOException {
+        int shardDataDirNumber = randomInt(10);
         try (NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
             IndexMetaData.FORMAT.write(IndexMetaData.builder(INDEX.getName())
                 .settings(Settings.builder().put("index.version.created", Version.CURRENT))
@@ -267,8 +267,9 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                 .numberOfReplicas(1)
                 .build(), env.indexPaths(INDEX));
             for (Path path : env.indexPaths(INDEX)) {
-                if (includeShardData) {
-                    Files.createDirectories(path.resolve(shardDataDirName));
+                for (int i = 0; i < shardCount; ++i) {
+                    Files.createDirectories(path.resolve(Integer.toString(shardDataDirNumber)));
+                    shardDataDirNumber += randomIntBetween(1,10);
                 }
             }
         }

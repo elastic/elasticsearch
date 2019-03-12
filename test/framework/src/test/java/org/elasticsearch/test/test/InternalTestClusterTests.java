@@ -19,6 +19,7 @@
 package org.elasticsearch.test.test;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;

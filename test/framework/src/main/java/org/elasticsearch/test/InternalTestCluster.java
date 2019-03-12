@@ -1184,7 +1184,8 @@ public final class InternalTestCluster extends TestCluster {
         final Client client = client(viaNode);
         try {
             if (awaitBusy(() -> {
-                DiscoveryNodes discoveryNodes = client.admin().cluster().prepareState().get().getState().nodes();
+                DiscoveryNodes discoveryNodes
+                    = client.admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState().nodes();
                 if (discoveryNodes.getSize() != expectedNodes.size()) {
                     return false;
                 }
@@ -1196,7 +1197,7 @@ public final class InternalTestCluster extends TestCluster {
                 return true;
             }, 30, TimeUnit.SECONDS) == false) {
                 throw new IllegalStateException("cluster failed to form with expected nodes " + expectedNodes + " and actual nodes " +
-                    client.admin().cluster().prepareState().get().getState().nodes());
+                    client.admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState().nodes());
             }
         } catch (InterruptedException e) {
             throw new IllegalStateException(e);
@@ -1386,7 +1387,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public void assertSameDocIdsOnShards() throws Exception {
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = client().admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState();
             for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
                 for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
                     ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
@@ -1872,7 +1873,8 @@ public final class InternalTestCluster extends TestCluster {
     public String getMasterName(@Nullable String viaNode) {
         try {
             Client client = viaNode != null ? client(viaNode) : client();
-            final DiscoveryNode masterNode = client.admin().cluster().prepareState().get().getState().nodes().getMasterNode();
+            final DiscoveryNode masterNode
+                = client.admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState().nodes().getMasterNode();
             assertNotNull(masterNode);
             return masterNode.getName();
         } catch (Exception e) {

@@ -555,7 +555,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             try {
                 if (cluster() != null) {
                     if (currentClusterScope != Scope.TEST) {
-                        MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
+                        MetaData metaData = client().admin().cluster().prepareState().setCompressedClusterStateSize(false)
+                            .execute().actionGet().getState().getMetaData();
 
                         final Set<String> persistentKeys = new HashSet<>(metaData.persistentSettings().keySet());
                         assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());
@@ -950,7 +951,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (actionGet.isTimedOut()) {
             logger.info("{} timed out, cluster state:\n{}\n{}",
                 method,
-                client().admin().cluster().prepareState().get().getState(),
+                client().admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState(),
                 client().admin().cluster().preparePendingClusterTasks().get());
             fail("timed out waiting for " + color + " state");
         }
@@ -980,7 +981,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .health(request).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("waitForRelocation timed out (status={}), cluster state:\n{}\n{}", status,
-                client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
+                client().admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState(),
+                client().admin().cluster().preparePendingClusterTasks().get());
             assertThat("timed out waiting for relocation", actionGet.isTimedOut(), equalTo(false));
         }
         if (status != null) {
@@ -1071,7 +1073,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public void logClusterState() {
         logger.debug("cluster state:\n{}\n{}",
-            client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
+            client().admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState(),
+            client().admin().cluster().preparePendingClusterTasks().get());
     }
 
     /**
@@ -1104,7 +1107,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (cluster() != null && cluster().size() > 0) {
             final NamedWriteableRegistry namedWriteableRegistry = cluster().getNamedWriteableRegistry();
             final Client masterClient = client();
-            ClusterState masterClusterState = masterClient.admin().cluster().prepareState().all().get().getState();
+            ClusterState masterClusterState
+                = masterClient.admin().cluster().prepareState().setCompressedClusterStateSize(false).all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
             // remove local node reference
             masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
@@ -1112,7 +1116,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
             String masterId = masterClusterState.nodes().getMasterNodeId();
             for (Client client : cluster().getClients()) {
-                ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
+                ClusterState localClusterState
+                    = client.admin().cluster().prepareState().setCompressedClusterStateSize(false).all().setLocal(true).get().getState();
                 byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
                 // remove local node reference
                 localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null, namedWriteableRegistry);
@@ -1239,7 +1244,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .setWaitForNoRelocatingShards(true)
             .get();
         if (clusterHealthResponse.isTimedOut()) {
-            ClusterStateResponse stateResponse = client(viaNode).admin().cluster().prepareState().get();
+            ClusterStateResponse stateResponse
+                = client(viaNode).admin().cluster().prepareState().setCompressedClusterStateSize(false).get();
             fail("failed to reach a stable cluster of [" + nodeCount + "] nodes. Tried via [" + viaNode + "]. last cluster state:\n"
                 + stateResponse.getState());
         }
@@ -2083,7 +2089,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected NumShards getNumShards(String index) {
-        MetaData metaData = client().admin().cluster().prepareState().get().getState().metaData();
+        MetaData metaData = client().admin().cluster().prepareState().setCompressedClusterStateSize(false).get().getState().metaData();
         assertThat(metaData.hasIndex(index), equalTo(true));
         int numShards = Integer.valueOf(metaData.index(index).getSettings().get(SETTING_NUMBER_OF_SHARDS));
         int numReplicas = Integer.valueOf(metaData.index(index).getSettings().get(SETTING_NUMBER_OF_REPLICAS));
@@ -2095,7 +2101,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public Set<String> assertAllShardsOnNodes(String index, String... pattern) {
         Set<String> nodes = new HashSet<>();
-        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState clusterState
+            = client().admin().cluster().prepareState().setCompressedClusterStateSize(false).execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {

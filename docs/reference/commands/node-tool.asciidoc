@@ -78,7 +78,8 @@ configuration>> as if performing another
 The target node can then form a new cluster on its own by using
 the cluster metadata held locally on the target node. 
 
-WARNING: These steps can lead to arbitrary data loss since the target node may not hold the latest cluster
+[WARNING]
+These steps can lead to arbitrary data loss since the target node may not hold the latest cluster
 metadata, and this out-of-date metadata may make it impossible to use some or
 all of the indices in the cluster.
 
@@ -131,7 +132,6 @@ tool>>, described below, on every other node in the cluster.
 8. Investigate the data in the cluster to discover if any was lost during this
 process.
 
-[WARNING]
 When you run the tool it will make sure that the node that is being used to
 bootstrap the cluster is not running. It is important that all other
 master-eligible nodes are also stopped while this tool is running, but the tool
@@ -202,7 +202,6 @@ cluster`.
 7. Wait for all recoveries to have completed, and investigate the data in the
 cluster to discover if any was lost during this process.
 
-[NOTE]
 The message `Node was successfully detached from the cluster` does not mean
 that there has been no data loss, it just means that tool was able to complete
 its job.

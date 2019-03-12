@@ -23,29 +23,26 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -443,9 +440,10 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
             dataPaths = nodeEnvironment.nodeDataPaths();
         }
 
-        Collection<Path> metaDataPaths = metaDataPaths(dataPaths);
+        NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
 
-        assertFalse(metaDataPaths.isEmpty());
+        final Manifest originalManifest = loadLatestManifest(dataPaths, namedXContentRegistry);
+        final MetaData originalMetaData = loadMetaData(dataPaths, namedXContentRegistry, originalManifest);
 
         executeCommand(new UnsafeBootstrapMasterCommand() {
             @Override
@@ -454,27 +452,28 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
             }
         }, environment, 0, false);
 
-        assertEquals(metaDataPaths, metaDataPaths.stream().filter(Files::exists).collect(Collectors.toList()));
 
-        // assert that new meta data files were not deleted.
-        assertThat(metaDataPaths(dataPaths).size(), greaterThan(metaDataPaths.size()));
+        // check original meta-data left untouched.
+        assertEquals(loadMetaData(dataPaths, namedXContentRegistry, originalManifest).clusterUUID(), originalMetaData.clusterUUID());
+
+        // check that we got new clusterUUID despite deletion failing
+        final Manifest secondManifest = loadLatestManifest(dataPaths, namedXContentRegistry);
+        final MetaData secondMetaData = loadMetaData(dataPaths, namedXContentRegistry, secondManifest);
+        assertThat(secondManifest.getGlobalGeneration(), greaterThan(originalManifest.getGlobalGeneration()));
+        assertNotEquals(originalMetaData.clusterUUID(), secondMetaData.clusterUUID());
 
         // check that a new run will cleanup.
         executeCommand(new UnsafeBootstrapMasterCommand(), environment, 0, false);
 
-        assertEquals(metaDataPaths.size(), metaDataPaths(dataPaths).size());
+        assertNull(loadMetaData(dataPaths, namedXContentRegistry, originalManifest));
+        assertNull(loadMetaData(dataPaths, namedXContentRegistry, secondManifest));
     }
 
-    private Collection<Path> metaDataPaths(Path[] dataPaths) {
-        Collection<Path> paths = new ArrayList<>();
-        for (Path dataPath : dataPaths) {
-            try (Stream<Path> files = Files.list(dataPath.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
-                files.filter(p -> p.getFileName().toString().startsWith(MetaData.GLOBAL_STATE_FILE_PREFIX)).forEach(paths::add);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
+    private Manifest loadLatestManifest(Path[] dataPaths, NamedXContentRegistry namedXContentRegistry) throws IOException {
+        return Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, dataPaths);
+    }
 
-        return paths;
+    private MetaData loadMetaData(Path[] dataPaths, NamedXContentRegistry namedXContentRegistry, Manifest manifest) {
+        return MetaData.FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(), dataPaths);
     }
 }

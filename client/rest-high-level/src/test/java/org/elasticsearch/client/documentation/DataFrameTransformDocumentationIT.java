@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class DataFrameDocumentationIT extends ESRestHighLevelClientTestCase {
+public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private void createIndex(String indexName) throws IOException {
 

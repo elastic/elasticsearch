@@ -6,7 +6,7 @@
 [id="{upid}-{api}"]
 === Put Data Frame Transform API
 
-The Put Data Frame Transform API is used to create a new {dataframe-job}.
+The Put Data Frame Transform API is used to create a new {dataframe-transform}.
 
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 
@@ -24,14 +24,14 @@ include-tagged::{doc-tests-file}[{api}-request]
 [id="{upid}-{api}-config"]
 ==== Data Frame Transform Configuration
 
-The `DataFrameTransformConfig` object contains all the details about the {dataframe-job}
+The `DataFrameTransformConfig` object contains all the details about the {dataframe-transform}
 configuration and contains the following arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-config]
 --------------------------------------------------
-<1> The data frame transform ID
+<1> The {dataframe-transform} ID
 <2> The source index or index pattern
 <3> The destination index
 <4> Optionally a QueryConfig
@@ -40,7 +40,7 @@ include-tagged::{doc-tests-file}[{api}-config]
 [id="{upid}-{api}-query-config"]
 ==== QueryConfig
 
-The query with which to select data from the source index.
+The query with which to select data from the source.
 If not set a `match_all` query is used by default.
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -50,7 +50,7 @@ include-tagged::{doc-tests-file}[{api}-query-config]
 
 ==== PivotConfig
 
-Defines the pivot transform `group by` fields and the aggregation to reduce the data.
+Defines the pivot function `group by` fields and the aggregation to reduce the data.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -59,12 +59,12 @@ include-tagged::{doc-tests-file}[{api}-pivot-config]
 
 ===== GroupConfig
 The grouping terms. Defines the group by and destination fields
-which are produced by the grouping transform. There are 3 types of
+which are produced by the pivot function. There are 3 types of
 groups
 
 * Terms
 * Histogram
-* Date Historgram
+* Date Histogram
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -76,7 +76,7 @@ include-tagged::{doc-tests-file}[{api}-group-config]
 ===== AggregationConfig
 
 Defines the aggregations for the group fields.
-The aggregation must be one of `avg`, `min`, `max` or `sum`.
+// TODO link to the supported aggregations
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -90,4 +90,4 @@ include::../execution.asciidoc[]
 ==== Response
 
 The returned +{response}+ acknowledges the successful creation of
-the new {dataframe-job} or an error if the configuration is invalid.
+the new {dataframe-transform} or an error if the configuration is invalid.

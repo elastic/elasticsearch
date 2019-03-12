@@ -15,7 +15,7 @@ A +{request}+ object requires a non-null `id`.
 ---------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 ---------------------------------------------------
-<1> Constructing a new request referencing an existing {dataframe-job}
+<1> Constructing a new request referencing an existing {dataframe-transform}
 
 include::../execution.asciidoc[]
 

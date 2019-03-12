@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
@@ -39,8 +40,9 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 
-public class DataFrameIT extends ESRestHighLevelClientTestCase {
+public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
     private void createIndex(String indexName) throws IOException {
 
@@ -87,6 +89,12 @@ public class DataFrameIT extends ESRestHighLevelClientTestCase {
         ack = execute(new DeleteDataFrameTransformRequest(transform.getId()), client::deleteDataFrameTransform,
                 client::deleteDataFrameTransformAsync);
         assertTrue(ack.isAcknowledged());
+
+        // The second delete should fail
+        ElasticsearchStatusException deleteError = expectThrows(ElasticsearchStatusException.class,
+                () -> execute(new DeleteDataFrameTransformRequest(transform.getId()), client::deleteDataFrameTransform,
+                        client::deleteDataFrameTransformAsync));
+        assertThat(deleteError.getMessage(), containsString("Transform with id [test-crud] could not be found"));
     }
 }
 

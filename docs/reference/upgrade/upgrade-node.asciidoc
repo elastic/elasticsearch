@@ -2,7 +2,7 @@ To upgrade using a <<deb,Debian>> or <<rpm,RPM>> package:
 
 *   Use `rpm` or `dpkg` to install the new package.  All files are
     installed in the appropriate location for the operating system
-    and Elasticsearch config files are not overwritten.
+    and {es} config files are not overwritten.
 
 To upgrade using a zip or compressed tarball:
 

@@ -1,15 +1,8 @@
 [[restart-upgrade]]
 == Full cluster restart upgrade
 
-A full cluster restart upgrade requires that you shut all nodes in the cluster
-down, upgrade them, and restart the cluster. A full cluster restart was required
-when upgrading to major versions prior to 6.x. Elasticsearch 6.x supports
-<<rolling-upgrades, rolling upgrades>> from *Elasticsearch 5.6*. Upgrading to
-6.x from earlier versions requires a full cluster restart. See the
-<<upgrade-paths,Upgrade paths table>> to verify the type of upgrade you need
-to perform.
-
-To perform a full cluster restart upgrade:
+To upgrade directly to {es} {version} from 6.6 or earlier, you must shut down all
+nodes in the cluster, upgrade each node to {version}, and restart the cluster:
 
 . *Disable shard allocation.*
 +
@@ -26,7 +19,7 @@ recovery.
 include::synced-flush.asciidoc[]
 --
 
-. *Stop any machine learning jobs that are running.* 
+. *Stop any machine learning jobs that are running.*
 +
 --
 include::close-ml.asciidoc[]
@@ -52,7 +45,7 @@ include::set-paths-tip.asciidoc[]
 . *Upgrade any plugins.*
 +
 Use the `elasticsearch-plugin` script to install the upgraded version of each
-installed Elasticsearch plugin. All plugins must be upgraded when you upgrade
+installed {es} plugin. All plugins must be upgraded when you upgrade
 a node.
 
 . *Start each upgraded node.*

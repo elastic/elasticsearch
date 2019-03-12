@@ -335,7 +335,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         Runnable ensureConnected(@Nullable ActionListener<Void> listener) {
             assert Thread.holdsLock(mutex) : "mutex not held";
 
-            if (activityType.equals(ActivityType.IDLE)) {
+            if (activityType == ActivityType.IDLE) {
                 if (transportService.nodeConnected(discoveryNode)) {
                     return () -> listener.onResponse(null);
                 } else {
@@ -353,7 +353,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         private void addListener(@Nullable ActionListener<Void> listener) {
             assert Thread.holdsLock(mutex) : "mutex not held";
-            assert activityType.equals(ActivityType.IDLE) == false;
+            assert activityType != ActivityType.IDLE;
             if (listener != null) {
                 future.addListener(listener);
             }
@@ -371,13 +371,13 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             assert Thread.holdsLock(mutex) : "mutex not held";
             assert newActivityType.equals(ActivityType.IDLE) == false;
 
-            if (activityType.equals(ActivityType.IDLE)) {
+            if (activityType == ActivityType.IDLE) {
                 activityType = newActivityType;
                 addListener(listener);
                 return activity;
             }
 
-            if (activityType.equals(newActivityType)) {
+            if (activityType == newActivityType) {
                 addListener(listener);
                 return () -> {
                 };
@@ -391,11 +391,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         private void onCompletion(ActivityType completedActivityType, @Nullable Exception e, Runnable oppositeActivity) {
             assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-            assert activityType != ActivityType.IDLE;
 
             final Runnable cleanup;
             synchronized (mutex) {
-                if (activityType.equals(completedActivityType)) {
+                assert activityType != ActivityType.IDLE;
+                if (activityType == completedActivityType) {
                     final PlainListenableActionFuture<Void> oldFuture = getAndClearFuture();
                     activityType = ActivityType.IDLE;
 
@@ -414,7 +414,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         boolean isPendingDisconnection() {
             assert Thread.holdsLock(mutex) : "mutex not held";
-            return activityType.equals(ActivityType.DISCONNECTING);
+            return activityType == ActivityType.DISCONNECTING;
         }
 
         @Override

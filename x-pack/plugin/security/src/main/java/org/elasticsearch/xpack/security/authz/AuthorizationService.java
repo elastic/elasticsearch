@@ -308,7 +308,8 @@ public class AuthorizationService {
             // if this is performing multiple actions on the index, then check each of those actions.
             assert request instanceof BulkShardRequest
                 : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
-            authorizeBulkItems(requestInfo, authzInfo, authzEngine, authorizedIndicesSupplier, metaData, requestId,
+            authorizeBulkItems(requestInfo, authzInfo, authzEngine, resolvedIndicesAsyncSupplier, authorizedIndicesSupplier,
+                metaData, requestId,
                 ActionListener.wrap(ignore -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
                     listener::onFailure));
         } else {
@@ -433,7 +434,7 @@ public class AuthorizationService {
      * overhead to each bulk request.
      */
     private void authorizeBulkItems(RequestInfo requestInfo, AuthorizationInfo authzInfo,
-                                    AuthorizationEngine authzEngine,
+                                    AuthorizationEngine authzEngine, AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
                                     AsyncSupplier<List<String>> authorizedIndicesSupplier,
                                     MetaData metaData, String requestId, ActionListener<Void> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
@@ -444,6 +445,8 @@ public class AuthorizationService {
         final Map<String, Set<String>> actionToIndicesMap = new HashMap<>();
 
         authorizedIndicesSupplier.getAsync(ActionListener.wrap(authorizedIndices -> {
+            resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(overallResolvedIndices -> {
+                final Set<String> localIndices = new HashSet<>(overallResolvedIndices.getLocal());
                 for (BulkItemRequest item : request.items()) {
                     String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
                         final ResolvedIndices resolvedIndices =
@@ -456,7 +459,12 @@ public class AuthorizationService {
                             throw illegalArgument("Bulk item should write to exactly 1 index, but request writes to "
                                 + String.join(",", resolvedIndices.getLocal()));
                         }
-                        return resolvedIndices.getLocal().get(0);
+                        final String resolved = resolvedIndices.getLocal().get(0);
+                        if (localIndices.contains(resolved) == false) {
+                            throw illegalArgument("Found bulk item that writes to index " + resolved + " but the request writes to " +
+                                localIndices);
+                        }
+                        return resolved;
                     });
 
                     final String itemAction = getAction(item);
@@ -509,6 +517,7 @@ public class AuthorizationService {
                                 groupedActionListener.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult)),
                             groupedActionListener::onFailure));
                 });
+                }, listener::onFailure));
             }, listener::onFailure));
     }
 

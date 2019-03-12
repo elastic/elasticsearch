@@ -27,8 +27,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.MappedRole;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.MappedRole.TemplateRole;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.RoleMappingTemplate;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
@@ -60,12 +59,12 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         // Does match DN
         final ExpressionRoleMapping mapping1 = new ExpressionRoleMapping("dept_h",
                 new FieldExpression("dn", Collections.singletonList(new FieldValue("*,ou=dept_h,o=forces,dc=gc,dc=ca"))),
-                MappedRole.getStaticRoleList(Arrays.asList("dept_h", "defence")), Collections.emptyMap(), true);
+                Arrays.asList("dept_h", "defence"), Collections.emptyList(), Collections.emptyMap(), true);
         // Does not match - user is not in this group
         final ExpressionRoleMapping mapping2 = new ExpressionRoleMapping("admin",
-                new FieldExpression("groups", Collections.singletonList(
-                        new FieldValue(randomiseDn("cn=esadmin,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")))),
-            MappedRole.getStaticRoleList(Arrays.asList("admin")), Collections.emptyMap(), true);
+            new FieldExpression("groups", Collections.singletonList(
+                new FieldValue(randomiseDn("cn=esadmin,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")))),
+            Arrays.asList("admin"), Collections.emptyList(), Collections.emptyMap(), true);
         // Does match - user is one of these groups
         final ExpressionRoleMapping mapping3 = new ExpressionRoleMapping("flight",
                 new FieldExpression("groups", Arrays.asList(
@@ -73,13 +72,15 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
                         new FieldValue(randomiseDn("cn=betaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")),
                         new FieldValue(randomiseDn("cn=gammaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca"))
                 )),
-            Arrays.asList(new TemplateRole(new BytesArray("{ \"source\":\"{{metadata.extra_group}}\" }"), TemplateRole.Format.STRING)),
+            Collections.emptyList(),
+            Arrays.asList(new RoleMappingTemplate(new BytesArray("{ \"source\":\"{{metadata.extra_group}}\" }"),
+                RoleMappingTemplate.Format.STRING)),
             Collections.emptyMap(), true);
         // Does not match - mapping is not enabled
         final ExpressionRoleMapping mapping4 = new ExpressionRoleMapping("mutants",
                 new FieldExpression("groups", Collections.singletonList(
                         new FieldValue(randomiseDn("cn=mutants,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")))),
-            MappedRole.getStaticRoleList(Arrays.asList("mutants")), Collections.emptyMap(), false);
+            Arrays.asList("mutants"), Collections.emptyList(), Collections.emptyMap(), false);
 
         final Client client = mock(Client.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);

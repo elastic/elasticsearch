@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.ScriptService;
@@ -38,6 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A representation of a single role-mapping for use in NativeRoleMappingStore.
@@ -58,14 +58,8 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     private static final String UPGRADE_API_TYPE_FIELD = "type";
 
     static {
-        PARSER.declareFieldArray(Builder::roles, (parser, ctx) -> MappedRole.parse(parser), Fields.ROLES, ValueType.OBJECT_ARRAY);
-        PARSER.declareFieldArray(Builder::roles, (parser, ctx) -> {
-                if (ctx.indexFormat) {
-                    return MappedRole.parse(parser);
-                }
-                throw new XContentParseException("Field " + Fields.ROLE_TEMPLATES + " is not allowed here");
-            },
-            Fields.ROLE_TEMPLATES, ValueType.OBJECT_ARRAY);
+        PARSER.declareStringArray(Builder::roles, Fields.ROLES);
+        PARSER.declareObjectArray(Builder::roleTemplates, (parser, ctx) -> RoleMappingTemplate.parse(parser), Fields.ROLE_TEMPLATES);
         PARSER.declareField(Builder::rules, (parser, ctx) -> ExpressionParser.parseObject(parser, ctx.name), Fields.RULES,
             ValueType.OBJECT);
         PARSER.declareField(Builder::metadata, XContentParser::map, Fields.METADATA, ValueType.OBJECT);
@@ -79,15 +73,17 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
     private final String name;
     private final RoleMapperExpression expression;
-    private final List<MappedRole> roles;
+    private final List<String> roles;
+    private final List<RoleMappingTemplate> roleTemplates ;
     private final Map<String, Object> metadata;
     private final boolean enabled;
 
-    public ExpressionRoleMapping(String name, RoleMapperExpression expr, List<MappedRole> roles, Map<String, Object> metadata,
-                                 boolean enabled) {
+    public ExpressionRoleMapping(String name, RoleMapperExpression expr, List<String> roles, List<RoleMappingTemplate> templates,
+                                 Map<String, Object> metadata, boolean enabled) {
         this.name = name;
         this.expression = expr;
-        this.roles = roles;
+        this.roles = roles == null ? Collections.emptyList() : roles;
+        this.roleTemplates = templates == null ? Collections.emptyList() : templates;
         this.metadata = metadata;
         this.enabled = enabled;
     }
@@ -95,10 +91,11 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     public ExpressionRoleMapping(StreamInput in) throws IOException {
         this.name = in.readString();
         this.enabled = in.readBoolean();
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            this.roles = MappedRole.getStaticRoleList(in.readStringList());
+        this.roles = in.readStringList();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.roleTemplates = in.readList(RoleMappingTemplate::new);
         } else {
-            this.roles = in.readNamedWriteableList(MappedRole.class);
+            this.roleTemplates = Collections.emptyList();
         }
         this.expression = ExpressionParser.readExpression(in);
         this.metadata = in.readMap();
@@ -108,10 +105,9 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeBoolean(enabled);
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeStringCollection(MappedRole.getStaticRoleNames(roles));
-        } else {
-            out.writeNamedWriteableList(roles);
+        out.writeStringCollection(roles);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeList(roleTemplates);
         }
         ExpressionParser.writeExpression(expression, out);
         out.writeMap(metadata);
@@ -140,8 +136,16 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      * The list of {@link RoleDescriptor roles} (specified by name) that should be assigned to users
      * that match the {@link #getExpression() expression} in this mapping.
      */
-    public List<MappedRole> getRoles() {
+    public List<String> getRoles() {
         return Collections.unmodifiableList(roles);
+    }
+
+    /**
+     * The list of {@link RoleDescriptor roles} (specified by a template that evaluates to one or more names) that should be assigned
+     * to users that match the {@link #getExpression() expression} in this mapping.
+     */
+    public List<RoleMappingTemplate> getRoleTemplates() {
+        return Collections.unmodifiableList(roleTemplates);
     }
 
     /**
@@ -162,7 +166,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "<" + name + " ; " + roles + " = " + Strings.toString(expression) + ">";
+        return getClass().getSimpleName() + "<" + name + " ; " + roles + "/" + roleTemplates + " = " + Strings.toString(expression) + ">";
     }
 
 
@@ -179,12 +183,13 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             Objects.equals(this.name, that.name) &&
             Objects.equals(this.expression, that.expression) &&
             Objects.equals(this.roles, that.roles) &&
+            Objects.equals(this.roleTemplates, that.roleTemplates) &&
             Objects.equals(this.metadata, that.metadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, expression, roles, metadata, enabled);
+        return Objects.hash(name, expression, roles, roleTemplates, metadata, enabled);
     }
 
     /**
@@ -223,25 +228,16 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean indexFormat) throws IOException {
         builder.startObject();
         builder.field(Fields.ENABLED.getPreferredName(), enabled);
-        // when storing in the index, we put template-names and fixed-names in different fields because they have different mapping types
-        if (indexFormat) {
+        if (roles.isEmpty() == false) {
             builder.startArray(Fields.ROLES.getPreferredName());
-            for (MappedRole r : roles) {
-                if (r instanceof MappedRole.NamedRole) {
-                    builder.value(r);
-                }
+            for (String r : roles) {
+                builder.value(r);
             }
             builder.endArray();
+        }
+        if (roleTemplates.isEmpty() == false) {
             builder.startArray(Fields.ROLE_TEMPLATES.getPreferredName());
-            for (MappedRole r : roles) {
-                if (r instanceof MappedRole.TemplateRole) {
-                    builder.value(r);
-                }
-            }
-            builder.endArray();
-        } else {
-            builder.startArray(Fields.ROLES.getPreferredName());
-            for (MappedRole r : roles) {
+            for (RoleMappingTemplate r : roleTemplates) {
                 builder.value(r);
             }
             builder.endArray();
@@ -258,9 +254,10 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     }
 
     public Set<String> getRoleNames(ScriptService scriptService, ExpressionModel model) {
-        return this.roles.stream()
-            .flatMap(r -> r.getRoleNames(scriptService, model).stream())
-            .collect(Collectors.toSet());
+        return Stream.concat(this.roles.stream(),
+            this.roleTemplates.stream()
+                .flatMap(r -> r.getRoleNames(scriptService, model).stream())
+        ).collect(Collectors.toSet());
     }
 
     /**
@@ -268,7 +265,8 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      */
     private static class Builder {
         private RoleMapperExpression rules;
-        private List<MappedRole> roles;
+        private List<String> roles;
+        private List<RoleMappingTemplate> roleTemplates;
         private Map<String, Object> metadata = Collections.emptyMap();
         private Boolean enabled;
 
@@ -277,12 +275,13 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             return this;
         }
 
-        Builder roles(List<MappedRole> roles) {
-            if (this.roles == null) {
-                this.roles = new ArrayList<>(roles);
-            } else {
-                this.roles.addAll(roles);
-            }
+        Builder roles(List<String> roles) {
+            this.roles = new ArrayList<>(roles);
+            return this;
+        }
+
+        Builder roleTemplates(List<RoleMappingTemplate> templates) {
+            this.roleTemplates = new ArrayList<>(templates);
             return this;
         }
 
@@ -297,7 +296,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         }
 
         private ExpressionRoleMapping build(String name) {
-            if (roles == null) {
+            if (roles == null && roleTemplates == null) {
                 throw missingField(name, Fields.ROLES);
             }
             if (rules == null) {
@@ -306,7 +305,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             if (enabled == null) {
                 throw missingField(name, Fields.ENABLED);
             }
-            return new ExpressionRoleMapping(name, rules, roles, metadata, enabled);
+            return new ExpressionRoleMapping(name, rules, roles, roleTemplates, metadata, enabled);
         }
 
         private IllegalStateException missingField(String id, ParseField field) {

@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.MappedRole;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.RoleMappingTemplate;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -36,7 +36,8 @@ public class PutRoleMappingRequest extends ActionRequest
 
     private String name = null;
     private boolean enabled = true;
-    private List<MappedRole> roles = Collections.emptyList();
+    private List<String> roles = Collections.emptyList();
+    private List<RoleMappingTemplate> roleTemplates = Collections.emptyList();
     private RoleMapperExpression rules = null;
     private Map<String, Object> metadata = Collections.emptyMap();
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
@@ -48,20 +49,20 @@ public class PutRoleMappingRequest extends ActionRequest
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (name == null) {
-            validationException = addValidationError("role-mapping name is missing",
-                    validationException);
+            validationException = addValidationError("role-mapping name is missing", validationException);
         }
-            if (roles.isEmpty()) {
-            validationException = addValidationError("role-mapping roles are missing",
-                    validationException);
+        if (roles.isEmpty() && roleTemplates.isEmpty()) {
+            validationException = addValidationError("role-mapping roles are missing", validationException);
+        }
+        if (roles.size() > 0 && roleTemplates.size() > 0) {
+            validationException = addValidationError("role-mapping cannot have both roles and role-templates", validationException);
         }
         if (rules == null) {
-            validationException = addValidationError("role-mapping rules are missing",
-                    validationException);
+            validationException = addValidationError("role-mapping rules are missing", validationException);
         }
         if (MetadataUtils.containsReservedMetadata(metadata)) {
-            validationException = addValidationError("metadata keys may not start with [" +
-                    MetadataUtils.RESERVED_PREFIX + "]", validationException);
+            validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
+                validationException);
         }
         return validationException;
     }
@@ -82,12 +83,20 @@ public class PutRoleMappingRequest extends ActionRequest
         this.enabled = enabled;
     }
 
-    public List<MappedRole> getRoles() {
+    public List<String> getRoles() {
         return Collections.unmodifiableList(roles);
     }
 
-    public void setRoles(List<MappedRole> roles) {
+    public List<RoleMappingTemplate> getRoleTemplates() {
+        return Collections.unmodifiableList(roleTemplates);
+    }
+
+    public void setRoles(List<String> roles) {
         this.roles = new ArrayList<>(roles);
+    }
+
+    public void setRoleTemplates(List<RoleMappingTemplate> templates) {
+        this.roleTemplates = new ArrayList<>(templates);
     }
 
     public RoleMapperExpression getRules() {
@@ -127,10 +136,9 @@ public class PutRoleMappingRequest extends ActionRequest
         super.readFrom(in);
         this.name = in.readString();
         this.enabled = in.readBoolean();
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            this.roles = MappedRole.getStaticRoleList(in.readStringList());
-        } else {
-            this.roles = in.readNamedWriteableList(MappedRole.class);
+        this.roles = in.readStringList();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.roleTemplates = in.readList(RoleMappingTemplate::new);
         }
         this.rules = ExpressionParser.readExpression(in);
         this.metadata = in.readMap();
@@ -142,10 +150,9 @@ public class PutRoleMappingRequest extends ActionRequest
         super.writeTo(out);
         out.writeString(name);
         out.writeBoolean(enabled);
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeStringCollection(MappedRole.getStaticRoleNames(roles));
-        } else {
-             out.writeNamedWriteableList(roles);
+        out.writeStringCollection(roles);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeList(roleTemplates);
         }
         ExpressionParser.writeExpression(rules, out);
         out.writeMap(metadata);
@@ -157,6 +164,7 @@ public class PutRoleMappingRequest extends ActionRequest
                 name,
                 rules,
                 roles,
+                roleTemplates,
                 metadata,
                 enabled
         );

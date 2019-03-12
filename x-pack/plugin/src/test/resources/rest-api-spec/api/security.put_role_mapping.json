@@ -23,7 +23,7 @@
       }
     },
     "body": {
-      "description" : "The role to add",
+      "description" : "The role mapping to add",
       "required" : true
     }
   }

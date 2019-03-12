@@ -154,3 +154,9 @@ However, the monitoring APIs were the only exception to this rule. This exceptio
 has been forfeited and index monitoring privileges have to be granted explicitly,
 using the `allow_restricted_indices` flag on the permission (as any other index
 privilege).
+
+[float]
+==== Removed support for `GET` on the `_cache/clear` API
+
+The `_cache/clear` API no longer supports the `GET` HTTP verb. It must be called
+with `POST`.

@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,17 +39,19 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     private final Client client;
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportPreviewDatafeedAction(ThreadPool threadPool, TransportService transportService,
                                           ActionFilters actionFilters, Client client, JobConfigProvider jobConfigProvider,
-                                          DatafeedConfigProvider datafeedConfigProvider) {
+                                          DatafeedConfigProvider datafeedConfigProvider, NamedXContentRegistry xContentRegistry) {
         super(PreviewDatafeedAction.NAME, transportService, actionFilters,
             (Supplier<PreviewDatafeedAction.Request>) PreviewDatafeedAction.Request::new);
         this.threadPool = threadPool;
         this.client = client;
         this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
@@ -67,7 +70,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                                 // NB: this is using the client from the transport layer, NOT the internal client.
                                 // This is important because it means the datafeed search will fail if the user
                                 // requesting the preview doesn't have permission to search the relevant indices.
-                                DataExtractorFactory.create(client, previewDatafeed.build(), jobBuilder.build(),
+                                DataExtractorFactory.create(client, previewDatafeed.build(), jobBuilder.build(), xContentRegistry,
                                         new ActionListener<DataExtractorFactory>() {
                                     @Override
                                     public void onResponse(DataExtractorFactory dataExtractorFactory) {

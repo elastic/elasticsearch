@@ -28,8 +28,8 @@ public class CircleTests extends BaseGeometryTestCase<Circle> {
     @Override
     protected Circle createTestInstance(boolean hasAlt) {
         if (hasAlt) {
-            return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDouble(), randomDoubleBetween(0, 100, false)
-            );
+            return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDouble(),
+                randomDoubleBetween(0, 100, false));
             } else {
             return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDoubleBetween(0, 100, false));
         }

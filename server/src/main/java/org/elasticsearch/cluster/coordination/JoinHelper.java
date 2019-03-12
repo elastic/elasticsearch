@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -84,7 +85,7 @@ public class JoinHelper {
 
     final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = ConcurrentCollections.newConcurrentSet();
 
-    private volatile FailedJoinAttempt lastFailedJoinAttempt;
+    private AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
 
     JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
@@ -217,9 +218,10 @@ public class JoinHelper {
 
 
     void logLastFailedJoinAttempt() {
-        FailedJoinAttempt attempt = lastFailedJoinAttempt;
+        FailedJoinAttempt attempt = lastFailedJoinAttempt.get();
         if (attempt != null) {
             attempt.logWarnWithTimestamp();
+            lastFailedJoinAttempt.compareAndSet(attempt, null);
         }
     }
 
@@ -241,7 +243,7 @@ public class JoinHelper {
                     public void handleResponse(Empty response) {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.debug("successfully joined {} with {}", destination, joinRequest);
-                        lastFailedJoinAttempt = null;
+                        lastFailedJoinAttempt.set(null);
                     }
 
                     @Override
@@ -249,7 +251,7 @@ public class JoinHelper {
                         pendingOutgoingJoins.remove(dedupKey);
                         FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
                         attempt.logNow();
-                        lastFailedJoinAttempt = attempt;
+                        lastFailedJoinAttempt.set(attempt);
                     }
 
                     @Override

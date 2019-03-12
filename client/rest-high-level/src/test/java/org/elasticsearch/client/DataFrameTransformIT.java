@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.AggregationConfig;
@@ -95,6 +96,30 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
                 () -> execute(new DeleteDataFrameTransformRequest(transform.getId()), client::deleteDataFrameTransform,
                         client::deleteDataFrameTransformAsync));
         assertThat(deleteError.getMessage(), containsString("Transform with id [test-crud] could not be found"));
+    }
+
+    public void testStop() throws IOException {
+        String sourceIndex = "transform-source";
+        createIndex(sourceIndex);
+
+        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
+        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
+        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
+        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+
+        String id = "test-stop";
+        DataFrameTransformConfig transform = new DataFrameTransformConfig(id, sourceIndex, "pivot-dest", queryConfig, pivotConfig);
+
+        DataFrameClient client = highLevelClient().dataFrame();
+        AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
+                client::putDataFrameTransformAsync);
+        assertTrue(ack.isAcknowledged());
+
+        StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id);
+        execute(stopRequest, client::stopDataFrameTransform, client::stopDataFrameTransformAsync);
+        assertTrue(ack.isAcknowledged());
     }
 }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.AggregationConfig;
@@ -150,6 +151,13 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+
+        // Stop the Data Frame
+        // tag::stop-data-frame-transform-request
+        StopDataFrameTransformRequest stopRequest =
+                new StopDataFrameTransformRequest("reviewer-avg-rating");
+        // end::stop-data-frame-transform-request
+
     }
 
     public void testDeleteDataFrameTransform() throws IOException, InterruptedException {

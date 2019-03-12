@@ -3,9 +3,9 @@
 [[ccr-upgrading]]
 == Upgrading clusters
 
-In case of upgrading clusters, clusters that are actively using CCR, require a
-slightly different upgrade approach. Otherwise index following may fail during
-a rolling upgrade, because of the following reasons:
+Clusters that are actively using {ccr} require a careful approach to upgrades.
+Otherwise index following may fail during a rolling upgrade, because of the
+following reasons:
 
 * If a new index setting or mapping type is replicated from an upgraded cluster
   to a non-upgraded cluster then the non-upgraded cluster will reject that and
@@ -14,7 +14,7 @@ a rolling upgrade, because of the following reasons:
   file based recovery then a node in a non-upgraded cluster will reject index
   files from a newer Lucene version compared to what it is using.
 
-Rolling upgrading clusters with CCR is different in case of uni-directional
+Rolling upgrading clusters with {ccr} is different in case of uni-directional
 index following and bi-directional index following.
 
 [float]

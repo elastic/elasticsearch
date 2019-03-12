@@ -106,7 +106,7 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
         AtomicReference<Boolean> listenerResult = new AtomicReference<>();
         ActionListener<Boolean> listener = createLatchListener(latch, listenerResult, exception);
 
-        Upgrade.preWatchesIndexUpgrade(client, listener);
+        Upgrade.preWatchesIndexUpgrade(client, getClusterState(), listener);
 
         assertThat("Latch was not counted down", latch.await(10, TimeUnit.SECONDS), is(true));
         assertThat(exception.get(), is(nullValue()));
@@ -138,6 +138,11 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
 
         boolean isWatcherStopped = new WatcherClient(client).prepareWatcherStats().get().watcherMetaData().manuallyStopped();
         assertThat(isWatcherStopped, is(expectWatcherToBeRestartedByUpgrade == false));
+    }
+
+    private ClusterState getClusterState() {
+        ClusterService masterTokenService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        return masterTokenService.state();
     }
 
     private void ensureWatcherIsInCorrectState(WatcherClient watcherClient,
@@ -183,7 +188,7 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
         AtomicReference<Boolean> listenerResult = new AtomicReference<>();
         ActionListener<Boolean> listener = createLatchListener(latch, listenerResult, exception);
 
-        Upgrade.preTriggeredWatchesIndexUpgrade(client, listener);
+        Upgrade.preTriggeredWatchesIndexUpgrade(client, getClusterState(), listener);
 
         assertThat("Latch was not counted down", latch.await(10, TimeUnit.SECONDS), is(true));
         assertThat(exception.get(), is(nullValue()));
@@ -235,7 +240,7 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
             AtomicReference<Boolean> listenerResult = new AtomicReference<>();
             ActionListener<Boolean> listener = createLatchListener(latch, listenerResult, exception);
             logger.info("running Upgrade.preTriggeredWatchesIndexUpgrade()");
-            Upgrade.preTriggeredWatchesIndexUpgrade(client, listener);
+            Upgrade.preTriggeredWatchesIndexUpgrade(client, getClusterState(), listener);
             assertThat("Latch was not counted down", latch.await(10, TimeUnit.SECONDS), is(true));
             assertThat(exception.get(), is(nullValue()));
             assertThat(listenerResult.get(), is(true));
@@ -264,7 +269,7 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
             AtomicReference<Boolean> listenerResult = new AtomicReference<>();
             ActionListener<Boolean> listener = createLatchListener(latch, listenerResult, exception);
             logger.info("running Upgrade.preWatchesIndexUpgrade()");
-            Upgrade.preWatchesIndexUpgrade(client, listener);
+            Upgrade.preWatchesIndexUpgrade(client, getClusterState(), listener);
             assertThat("Latch was not counted down", latch.await(10, TimeUnit.SECONDS), is(true));
             assertThat(exception.get(), is(nullValue()));
             assertThat(listenerResult.get(), is(true));

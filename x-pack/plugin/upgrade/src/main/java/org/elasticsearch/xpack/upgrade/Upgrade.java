@@ -16,9 +16,12 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Allocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -167,7 +170,15 @@ public class Upgrade extends Plugin implements ActionPlugin {
                                     "   ctx._type = \"doc\";" +
                                     "}\n",
                             new HashMap<>()),
-                    listener -> listener.onResponse(null),
+                    (cs, listener) -> {
+                        if (isClusterRoutingAllocationEnabled(cs) == false) {
+                            listener.onFailure(new ElasticsearchException(
+                                    "pre-upgrade check failed, please enable cluster routing allocation using setting [{}]",
+                                    EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
+                        } else {
+                            listener.onResponse(null);
+                        }
+                    },
                     (success, listener) -> postSecurityUpgrade(clientWithOrigin, listener));
         };
     }
@@ -261,7 +272,7 @@ public class Upgrade extends Plugin implements ActionPlugin {
                             "  ctx._source.status = ctx._source.remove(\"_status\");\n" +
                             "}",
                             new HashMap<>()),
-                    booleanActionListener -> preWatchesIndexUpgrade(clientWithOrigin, booleanActionListener),
+                    (cs, booleanActionListener) -> preWatchesIndexUpgrade(clientWithOrigin, cs, booleanActionListener),
                     (shouldStartWatcher, listener) -> postWatchesIndexUpgrade(clientWithOrigin, shouldStartWatcher, listener)
             );
         };
@@ -285,7 +296,7 @@ public class Upgrade extends Plugin implements ActionPlugin {
                     clusterService,
                     new String[]{"triggered-watch"},
                     new Script(ScriptType.INLINE, "painless", "ctx._type = \"doc\";\n", new HashMap<>()),
-                    booleanActionListener -> preTriggeredWatchesIndexUpgrade(clientWithOrigin, booleanActionListener),
+                    (cs, booleanActionListener) -> preTriggeredWatchesIndexUpgrade(clientWithOrigin, cs, booleanActionListener),
                     (shouldStartWatcher, listener) -> postWatchesIndexUpgrade(clientWithOrigin, shouldStartWatcher, listener)
             );
         };
@@ -295,7 +306,12 @@ public class Upgrade extends Plugin implements ActionPlugin {
         return name.equals(indexMetaData.getIndex().getName()) || indexMetaData.getAliases().containsKey(name);
     }
 
-    static void preTriggeredWatchesIndexUpgrade(Client client, ActionListener<Boolean> listener) {
+    static void preTriggeredWatchesIndexUpgrade(Client client, ClusterState cs, ActionListener<Boolean> listener) {
+        if (isClusterRoutingAllocationEnabled(cs) == false) {
+            listener.onFailure(new ElasticsearchException(
+                    "pre-upgrade check failed, please enable cluster routing allocation using setting [{}]",
+                    EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
+        }
         new WatcherClient(client).prepareWatcherStats().execute(ActionListener.wrap(
                 stats -> {
                     if (stats.watcherMetaData().manuallyStopped()) {
@@ -314,6 +330,15 @@ public class Upgrade extends Plugin implements ActionPlugin {
                     }
                 },
                 listener::onFailure));
+    }
+
+    static boolean isClusterRoutingAllocationEnabled(ClusterState cs) {
+        Allocation clusterRoutingAllocation = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING
+                .get(cs.getMetaData().settings());
+        if (Allocation.NONE == clusterRoutingAllocation) {
+            return false;
+        }
+        return true;
     }
 
     private static void preTriggeredWatchesIndexUpgrade(final Client client, final ActionListener<Boolean> listener,
@@ -338,7 +363,13 @@ public class Upgrade extends Plugin implements ActionPlugin {
                 .setSource(triggeredWatchesTemplate, XContentType.JSON).execute(putTriggeredWatchesListener);
     }
 
-    static void preWatchesIndexUpgrade(Client client, ActionListener<Boolean> listener) {
+    static void preWatchesIndexUpgrade(Client client, ClusterState cs, ActionListener<Boolean> listener) {
+        if (isClusterRoutingAllocationEnabled(cs) == false) {
+            listener.onFailure(new ElasticsearchException(
+                    "pre-upgrade check failed, please enable cluster routing allocation using setting [{}]",
+                    EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
+        }
+
         new WatcherClient(client).prepareWatcherStats().execute(ActionListener.wrap(
                     stats -> {
                         if (stats.watcherMetaData().manuallyStopped()) {

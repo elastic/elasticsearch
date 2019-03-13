@@ -1,18 +1,18 @@
-* If you are running Elasticsearch with `systemd`:
+* If you are running {es} with `systemd`:
 +
 [source,sh]
 --------------------------------------------------
 sudo systemctl stop elasticsearch.service
 --------------------------------------------------
 
-* If you are running Elasticsearch with SysV `init`:
+* If you are running {es} with SysV `init`:
 +
 [source,sh]
 --------------------------------------------------
 sudo -i service elasticsearch stop
 --------------------------------------------------
 
-* If you are running Elasticsearch as a daemon:
+* If you are running {es} as a daemon:
 +
 [source,sh]
 --------------------------------------------------

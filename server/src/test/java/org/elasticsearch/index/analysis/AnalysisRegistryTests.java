@@ -20,6 +20,8 @@
 package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
@@ -100,6 +103,29 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
+    }
+
+    public void testOverrideDefaultAnalyzerWithoutAnalysisModeAll() throws IOException {
+        Version version = VersionUtils.randomVersion(random());
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        TokenFilterFactory tokenFilter = new AbstractTokenFilterFactory(IndexSettingsModule.newIndexSettings("index", settings),
+                "my_filter", Settings.EMPTY) {
+            @Override
+            public AnalysisMode getAnalysisMode() {
+                return randomFrom(AnalysisMode.SEARCH_TIME, AnalysisMode.INDEX_TIME);
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return null;
+            }
+        };
+        Analyzer analyzer = new CustomAnalyzer("tokenizerName", null, new CharFilterFactory[0], new TokenFilterFactory[] { tokenFilter });
+        MapperException ex = expectThrows(MapperException.class,
+                () -> emptyRegistry.build(IndexSettingsModule.newIndexSettings("index", settings),
+                        singletonMap("default", new PreBuiltAnalyzerProvider("my_analyzer", AnalyzerScope.INDEX, analyzer)), emptyMap(),
+                        emptyMap(), emptyMap(), emptyMap()));
+        assertEquals("analyzer [my_analyzer] contains filters [my_filter] that are not allowed to run in all mode.", ex.getMessage());
     }
 
     public void testOverrideDefaultIndexAnalyzerIsUnsupported() {

@@ -169,7 +169,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
             transportService::getLocalNode);
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
-            transportService.getThreadPool());
+            transportService.getThreadPool(), joinHelper::logLastFailedJoinAttempt);
     }
 
     private ClusterFormationState getClusterFormationState() {

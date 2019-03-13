@@ -45,8 +45,8 @@ public class ConcurrentDequeRecycler<T> extends DequeRecycler<T> {
     }
 
     @Override
-    public V<T> obtain(int sizing) {
-        final V<T> v = super.obtain(sizing);
+    public V<T> obtain() {
+        final V<T> v = super.obtain();
         if (v.isRecycled()) {
             size.decrementAndGet();
         }

@@ -162,11 +162,6 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
             public V<byte[]> obtain() {
                 return wrap(delegate.obtain());
             }
-
-            @Override
-            public V<byte[]> obtain(int sizing) {
-                return wrap(delegate.obtain(sizing));
-            }
         };
     }
 }

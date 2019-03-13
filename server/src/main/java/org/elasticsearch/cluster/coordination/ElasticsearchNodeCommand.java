@@ -125,26 +125,38 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
     protected void writeNewMetaData(Terminal terminal, Manifest oldManifest, long newCurrentTerm,
                                     MetaData oldMetaData, MetaData newMetaData, Path[] dataPaths) {
+        long newGeneration;
         try {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "[clusterUUID = " + oldMetaData.clusterUUID() + ", committed = " + oldMetaData.clusterUUIDCommitted() + "] => " +
                          "[clusterUUID = " + newMetaData.clusterUUID() + ", committed = " + newMetaData.clusterUUIDCommitted() + "]");
             terminal.println(Terminal.Verbosity.VERBOSE, "New coordination metadata is " + newMetaData.coordinationMetaData());
             terminal.println(Terminal.Verbosity.VERBOSE, "Writing new global metadata to disk");
-            long newGeneration = MetaData.FORMAT.write(newMetaData, dataPaths);
+            newGeneration = MetaData.FORMAT.write(newMetaData, dataPaths);
             Manifest newManifest = new Manifest(newCurrentTerm, oldManifest.getClusterStateVersion(), newGeneration,
                     oldManifest.getIndexGenerations());
             terminal.println(Terminal.Verbosity.VERBOSE, "New manifest is " + newManifest);
             terminal.println(Terminal.Verbosity.VERBOSE, "Writing new manifest file to disk");
             Manifest.FORMAT.writeAndCleanup(newManifest, dataPaths);
-            terminal.println(Terminal.Verbosity.VERBOSE, "Cleaning up old metadata");
-            MetaData.FORMAT.cleanupOldFiles(newGeneration, dataPaths);
         } catch (Exception e) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Cleaning up new metadata");
             MetaData.FORMAT.cleanupOldFiles(oldManifest.getGlobalGeneration(), dataPaths);
             throw new ElasticsearchException(WRITE_METADATA_EXCEPTION_MSG, e);
         }
+        // if cleaning old files fail, we still succeeded.
+        try {
+            cleanUpOldMetaData(terminal, dataPaths, newGeneration);
+        } catch (Exception e) {
+            terminal.println(Terminal.Verbosity.SILENT,
+                "Warning: Cleaning up old metadata failed, but operation was otherwise successful (message: " + e.getMessage() + ")");
+        }
     }
+
+    protected void cleanUpOldMetaData(Terminal terminal, Path[] dataPaths, long newGeneration) {
+        terminal.println(Terminal.Verbosity.VERBOSE, "Cleaning up old metadata");
+        MetaData.FORMAT.cleanupOldFiles(newGeneration, dataPaths);
+    }
+
 
     //package-private for testing
     OptionParser getParser() {

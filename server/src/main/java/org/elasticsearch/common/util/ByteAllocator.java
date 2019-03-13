@@ -20,10 +20,7 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.recycler.AbstractRecyclerC;
 import org.elasticsearch.common.recycler.Recycler;
-
-import static org.elasticsearch.common.recycler.Recyclers.none;
 
 public class ByteAllocator {
 
@@ -72,24 +69,7 @@ public class ByteAllocator {
         }
     }
 
-    private static AbstractRecyclerC<byte[]> recycler(int pageSize) {
-        return new AbstractRecyclerC<byte[]>() {
-            @Override
-            public byte[] newInstance(int sizing) {
-                return new byte[pageSize];
-            }
-
-            @Override
-            public void recycle(byte[] value) {
-            }
-        };
-    }
-
     public static ByteAllocator recyclingInstance(int pageSize, Recycler<byte[]> recycler) {
         return new ByteAllocator(pageSize, recycler);
-    }
-
-    public static ByteAllocator allocatingInstance(int pageSize) {
-        return new ByteAllocator(pageSize, none(recycler(pageSize)));
     }
 }

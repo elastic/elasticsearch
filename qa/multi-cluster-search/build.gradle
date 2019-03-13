@@ -21,6 +21,10 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.standalone-test'
 
+dependencies {
+  testCompile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}"
+}
+
 task remoteClusterTest(type: RestIntegTestTask) {
   mustRunAfter(precommit)
 }
@@ -53,6 +57,6 @@ task integTest {
   dependsOn = [mixedClusterTest]
 }
 
-unitTest.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+unitTest.enabled = false // no unit tests for multi-cluster-search, only integration tests
 
 check.dependsOn(integTest)

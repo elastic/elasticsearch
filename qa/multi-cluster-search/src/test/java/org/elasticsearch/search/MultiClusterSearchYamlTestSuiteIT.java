@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.upgrades;
+package org.elasticsearch.search;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -42,5 +42,4 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
     }
-
 }

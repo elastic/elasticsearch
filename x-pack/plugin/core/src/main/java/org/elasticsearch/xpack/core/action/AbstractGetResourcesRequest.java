@@ -20,6 +20,16 @@ public abstract class AbstractGetResourcesRequest extends ActionRequest {
     private PageParams pageParams = PageParams.defaultParams();
     private boolean allowNoResources = false;
 
+    public AbstractGetResourcesRequest() {
+    }
+
+    // Allow child classes to provide their own defaults if necessary
+    protected AbstractGetResourcesRequest(String resourceId, PageParams pageParams, boolean allowNoResources) {
+        this.resourceId = resourceId;
+        this.pageParams = pageParams;
+        this.allowNoResources = allowNoResources;
+    }
+
     public final void setResourceId(String resourceId) {
         this.resourceId = resourceId;
     }

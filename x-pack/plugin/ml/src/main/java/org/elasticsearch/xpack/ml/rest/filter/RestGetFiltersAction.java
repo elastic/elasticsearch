@@ -55,10 +55,7 @@ public class RestGetFiltersAction extends BaseRestHandler {
             getListRequest.setPageParams(
                     new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
-        } else {
-            getListRequest.setPageParams(null);
         }
-        getListRequest.setAllowNoResources(true);
         return channel -> client.execute(GetFiltersAction.INSTANCE, getListRequest, new RestStatusToXContentListener<>(channel));
     }
 

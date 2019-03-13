@@ -38,6 +38,8 @@ public class GetFiltersAction extends Action<GetFiltersAction.Response> {
     public static class Request extends AbstractGetResourcesRequest {
 
         public Request() {
+            // Put our own defaults for backwards compatibility
+            super(null, null, true);
         }
 
         public void setFilterId(String filterId) {

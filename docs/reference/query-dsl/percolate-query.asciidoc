@@ -160,7 +160,7 @@ Index the document we want to percolate:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/message/1
+PUT /my-index/doctype/1
 {
   "message" : "A new bonsai tree in the office"
 }
@@ -173,7 +173,7 @@ Index response:
 --------------------------------------------------
 {
   "_index": "my-index",
-  "_type": "message",
+  "_type": "doctype",
   "_id": "1",
   "_version": 1,
   "_shards": {
@@ -198,7 +198,7 @@ GET /my-index/_search
             "field": "query",
             "document_type" : "doctype",
             "index" : "my-index",
-            "type" : "message",
+            "type" : "doctype",
             "id" : "1",
             "version" : 1 <1>
         }

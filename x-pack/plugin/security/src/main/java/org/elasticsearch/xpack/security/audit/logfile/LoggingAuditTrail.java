@@ -443,11 +443,17 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
     }
 
-    // TODO refactor this out. Find a better way to audit bulk items!
+    /**
+     * This is a workaround method to log "access_granted" and "access_denied" events for actions not tied to a {@code TransportMessage}, or
+     * when the connection is not 1:1, i.e. several audit events for the an action associated with the same message. We should strive to not
+     * use this.
+     * TODO refactor it out!
+     */
     @Override
-    public void explicitAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String[] indices,
+    public void explicitAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String index,
                                     String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo) {
         assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
+        final String[] indices = index == null ? null : new String[] { index };
         final User user = authentication.getUser();
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
         if (isSystem && eventType == ACCESS_GRANTED) {

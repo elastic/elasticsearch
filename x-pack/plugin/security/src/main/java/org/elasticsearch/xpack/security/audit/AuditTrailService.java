@@ -225,7 +225,7 @@ public class AuditTrailService implements AuditTrail {
     }
 
     @Override
-    public void explicitAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String[] indices,
+    public void explicitAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String indices,
                                     String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo) {
         if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {

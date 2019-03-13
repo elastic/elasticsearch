@@ -501,11 +501,11 @@ public class AuthorizationService {
                                 = indicesAccessControl.getIndexPermissions(resolvedIndex);
                             if (indexAccessControl == null || indexAccessControl.isGranted() == false) {
                                 auditTrail.explicitAccessEvent(requestId, AuditLevel.ACCESS_DENIED, authentication, itemAction,
-                                    new String[] { resolvedIndex }, item.getClass().getSimpleName(), request.remoteAddress(), authzInfo);
+                                        resolvedIndex, item.getClass().getSimpleName(), request.remoteAddress(), authzInfo);
                                 item.abort(resolvedIndex, denialException(authentication, itemAction, null));
                             } else if (audit.get()) {
                                 auditTrail.explicitAccessEvent(requestId, AuditLevel.ACCESS_GRANTED, authentication, itemAction,
-                                    new String[] { resolvedIndex }, item.getClass().getSimpleName(), request.remoteAddress(), authzInfo);
+                                        resolvedIndex, item.getClass().getSimpleName(), request.remoteAddress(), authzInfo);
                             }
                         }
                         listener.onResponse(null);

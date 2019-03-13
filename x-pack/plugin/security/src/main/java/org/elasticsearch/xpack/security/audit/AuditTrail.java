@@ -73,7 +73,7 @@ public interface AuditTrail {
     void runAsDenied(String requestId, Authentication authentication, RestRequest request,
                      AuthorizationInfo authorizationInfo);
 
-    void explicitAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String[] indices,
+    void explicitAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String indices,
                              String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo);
 
 }

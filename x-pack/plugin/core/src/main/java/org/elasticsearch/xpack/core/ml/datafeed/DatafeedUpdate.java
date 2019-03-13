@@ -120,7 +120,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 in.readStringList();
             }
         }
-        if (in.getVersion().before(Version.V_7_1_0)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             this.queryProvider = QueryProvider.fromParsedQuery(in.readOptionalNamedWriteable(QueryBuilder.class));
             this.aggProvider = AggProvider.fromParsedAggs(in.readOptionalWriteable(AggregatorFactories.Builder::new));
         } else {
@@ -166,7 +166,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             out.writeBoolean(true);
             out.writeStringCollection(Collections.emptyList());
         }
-        if (out.getVersion().before(Version.V_7_1_0)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalNamedWriteable(queryProvider == null ? null : queryProvider.getParsedQuery());
             out.writeOptionalWriteable(aggProvider == null ? null : aggProvider.getParsedAggs());
         } else {

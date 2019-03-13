@@ -554,7 +554,7 @@ include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
 == Data Frame APIs
 
 :upid: {mainid}-dataframe
-:doc-tests-file: {doc-tests}/DataFrameDocumentationIT.java
+:doc-tests-file: {doc-tests}/DataFrameTransformDocumentationIT.java
 
 The Java High Level REST Client supports the following Data Frame APIs:
 

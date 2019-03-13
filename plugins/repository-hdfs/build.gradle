@@ -76,20 +76,20 @@ String realm = "BUILD.ELASTIC.CO"
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
   project.tasks.create(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
-    dependsOn project.configurations.hdfsFixture
+    dependsOn project.configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
     executable = new File(project.runtimeJavaHome, 'bin/java')
     env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
       return fixture.portsFile.exists()
-    }
+    }    
 
     final List<String> miniHDFSArgs = []
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
-      miniHDFSArgs.add("-Djava.security.krb5.conf=${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")}");
+      miniHDFSArgs.add("-Djava.security.krb5.conf=${project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")}");
       if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
         miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
       }

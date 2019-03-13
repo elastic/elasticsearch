@@ -134,7 +134,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         /**
          * Uses the sum of the matching boolean fields to score the query
          */
-        BOOLEAN_PREFIX(MatchQuery.Type.BOOLEAN_PREFIX, 1.0f, new ParseField("bool_prefix"));
+        BOOL_PREFIX(MatchQuery.Type.BOOLEAN_PREFIX, 1.0f, new ParseField("bool_prefix"));
 
         private MatchQuery.Type matchQueryType;
         private final float tieBreaker;

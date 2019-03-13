@@ -52,7 +52,9 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -249,12 +251,18 @@ public class MatchQuery {
 
         /*
          * If a keyword analyzer is used, we know that further analysis isn't
-         * needed and can immediately return a term query.
+         * needed and can immediately return a term query. If the query is a bool
+         * prefix query and the field type supports prefix queries, we return
+         * a prefix query instead
          */
-        if (analyzer == Lucene.KEYWORD_ANALYZER
-                && type != Type.PHRASE_PREFIX) {
+        if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
             final Term term = new Term(fieldName, value.toString());
-            return type == Type.BOOLEAN_PREFIX ? builder.newPrefixQuery(term) : builder.newTermQuery(term);
+            if ((fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)
+                && type == Type.BOOLEAN_PREFIX) {
+                return builder.newPrefixQuery(term);
+            } else {
+                return builder.newTermQuery(term);
+            }
         }
 
         return parseInternal(type, fieldName, builder, value);

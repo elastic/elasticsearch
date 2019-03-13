@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -93,10 +94,11 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
 
         // sets other parameters of the multi match query
         if (randomBoolean()) {
-            if (fieldName.equals(STRING_FIELD_NAME)) {
+            if (fieldName.equals(STRING_FIELD_NAME) || fieldName.equals(STRING_ALIAS_FIELD_NAME) || fieldName.equals(STRING_FIELD_NAME_2)) {
                 query.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
             } else {
-                query.type(randomValueOtherThan(MultiMatchQueryBuilder.Type.PHRASE_PREFIX,
+                query.type(randomValueOtherThanMany(
+                    (type) -> type == Type.PHRASE_PREFIX || type == Type.BOOL_PREFIX,
                     () -> randomFrom(MultiMatchQueryBuilder.Type.values())));
             }
         }
@@ -142,6 +144,15 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         }
         // test with fields with boost and patterns delegated to the tests further below
         return query;
+    }
+
+    // todo remove when this is fixed
+    // when we build a random query without specifying a field (e.g. use all fields)
+    // it tries to apply a prefix query to field types that don't support it
+    //@Seed("4E17C992E9209A7A")
+    @Override
+    public void testToQuery() throws IOException {
+        super.testToQuery();
     }
 
     @Override
@@ -244,7 +255,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
 
     public void testToQueryBooleanPrefixSingleField() throws IOException {
         final MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("foo bar", STRING_FIELD_NAME);
-        builder.type(Type.BOOLEAN_PREFIX);
+        builder.type(Type.BOOL_PREFIX);
         final Query query = builder.toQuery(createShardContext());
         assertThat(query, instanceOf(BooleanQuery.class));
         final BooleanQuery booleanQuery = (BooleanQuery) query;
@@ -256,7 +267,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     public void testToQueryBooleanPrefixMultipleFields() throws IOException {
         {
             final MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("foo bar", STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
-            builder.type(Type.BOOLEAN_PREFIX);
+            builder.type(Type.BOOL_PREFIX);
             final Query query = builder.toQuery(createShardContext());
             assertThat(query, instanceOf(DisjunctionMaxQuery.class));
             final DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
@@ -274,7 +285,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         {
             // STRING_FIELD_NAME_2 is a keyword field
             final MultiMatchQueryBuilder queryBuilder = new MultiMatchQueryBuilder("foo bar", STRING_FIELD_NAME, STRING_FIELD_NAME_2);
-            queryBuilder.type(Type.BOOLEAN_PREFIX);
+            queryBuilder.type(Type.BOOL_PREFIX);
             final Query query = queryBuilder.toQuery(createShardContext());
             assertThat(query, instanceOf(DisjunctionMaxQuery.class));
             final DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;

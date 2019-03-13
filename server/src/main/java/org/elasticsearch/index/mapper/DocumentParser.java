@@ -82,7 +82,7 @@ final class DocumentParser {
         return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
     }
 
-    private static boolean isDisabled(ObjectMapper objectMapper, String[] subfields) {
+    private static boolean containsDisabledObjectMapper(ObjectMapper objectMapper, String[] subfields) {
         for (int i = 0; i < subfields.length - 1; ++i) {
             Mapper mapper = objectMapper.getMapper(subfields[i]);
             if (mapper instanceof ObjectMapper == false) {
@@ -409,9 +409,8 @@ final class DocumentParser {
                 if (MapperService.isMetadataField(context.path().pathAsText(currentFieldName))) {
                     throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside"
                         + " a document. Use the index API request parameters.");
-                }
-            } else if (isDisabled(mapper, paths)) {
-                if (parser.currentToken().isValue() == false) {
+                } else if (containsDisabledObjectMapper(mapper, paths)) {
+                    parser.nextToken();
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {

@@ -119,17 +119,17 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
 
     public PainlessContextInfo(String name, List<PainlessContextClassInfo> classes, List<PainlessContextMethodInfo> importedMethods,
             List<PainlessContextClassBindingInfo> classBindings, List<PainlessContextInstanceBindingInfo> instanceBindings) {
-        this.name = name;
-        classes = new ArrayList<>(classes);
+        this.name = Objects.requireNonNull(name);
+        classes = new ArrayList<>(Objects.requireNonNull(classes));
         classes.sort(Comparator.comparing(PainlessContextClassInfo::getSortValue));
         this.classes = Collections.unmodifiableList(classes);
-        importedMethods = new ArrayList<>(importedMethods);
+        importedMethods = new ArrayList<>(Objects.requireNonNull(importedMethods));
         importedMethods.sort(Comparator.comparing(PainlessContextMethodInfo::getSortValue));
         this.importedMethods = Collections.unmodifiableList(importedMethods);
-        classBindings = new ArrayList<>(classBindings);
+        classBindings = new ArrayList<>(Objects.requireNonNull(classBindings));
         classBindings.sort(Comparator.comparing(PainlessContextClassBindingInfo::getSortValue));
         this.classBindings = Collections.unmodifiableList(classBindings);
-        instanceBindings = new ArrayList<>(instanceBindings);
+        instanceBindings = new ArrayList<>(Objects.requireNonNull(instanceBindings));
         instanceBindings.sort(Comparator.comparing(PainlessContextInstanceBindingInfo::getSortValue));
         this.instanceBindings = Collections.unmodifiableList(instanceBindings);
     }

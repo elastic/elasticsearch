@@ -68,9 +68,9 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
     }
 
     public PainlessContextFieldInfo(String declaring, String name, String type) {
-        this.declaring = declaring;
-        this.name = name;
-        this.type = type;
+        this.declaring = Objects.requireNonNull(declaring);
+        this.name = Objects.requireNonNull(name);
+        this.type = Objects.requireNonNull(type);
     }
 
     public PainlessContextFieldInfo(StreamInput in) throws IOException {

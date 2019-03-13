@@ -83,11 +83,11 @@ public class PainlessContextClassBindingInfo implements Writeable, ToXContentObj
     }
 
     public PainlessContextClassBindingInfo(String declaring, String name, String rtn, int readOnly, List<String> parameters) {
-        this.declaring = declaring;
-        this.name = name;
-        this.rtn = rtn;
+        this.declaring = Objects.requireNonNull(declaring);
+        this.name = Objects.requireNonNull(name);
+        this.rtn = Objects.requireNonNull(rtn);
         this.readOnly = readOnly;
-        this.parameters = Collections.unmodifiableList(parameters);
+        this.parameters = Collections.unmodifiableList(Objects.requireNonNull(parameters));
     }
 
     public PainlessContextClassBindingInfo(StreamInput in) throws IOException {

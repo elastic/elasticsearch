@@ -68,8 +68,8 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
     }
 
     public PainlessContextConstructorInfo(String declaring, List<String> parameters) {
-        this.declaring = declaring;
-        this.parameters = Collections.unmodifiableList(parameters);
+        this.declaring = Objects.requireNonNull(declaring);
+        this.parameters = Collections.unmodifiableList(Objects.requireNonNull(parameters));
     }
 
     public PainlessContextConstructorInfo(StreamInput in) throws IOException {

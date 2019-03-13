@@ -78,10 +78,10 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
     }
 
     public PainlessContextMethodInfo(String declaring, String name, String rtn, List<String> parameters) {
-        this.declaring = declaring;
-        this.name = name;
-        this.rtn = rtn;
-        this.parameters = Collections.unmodifiableList(parameters);
+        this.declaring = Objects.requireNonNull(declaring);
+        this.name = Objects.requireNonNull(name);
+        this.rtn = Objects.requireNonNull(rtn);
+        this.parameters = Collections.unmodifiableList(Objects.requireNonNull(parameters));
     }
 
     public PainlessContextMethodInfo(StreamInput in) throws IOException {

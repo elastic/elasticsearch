@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -130,21 +131,17 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
         private final PainlessContextInfo painlessContextInfo;
 
         public Response(List<String> scriptContextNames, PainlessContextInfo painlessContextInfo) {
-            if (scriptContextNames == null) {
-                this.scriptContextNames = null;
-            } else {
-                scriptContextNames = new ArrayList<>(scriptContextNames);
-                scriptContextNames.sort(String::compareTo);
-                this.scriptContextNames = Collections.unmodifiableList(scriptContextNames);
-            }
-
+            Objects.requireNonNull(scriptContextNames);
+            scriptContextNames = new ArrayList<>(scriptContextNames);
+            scriptContextNames.sort(String::compareTo);
+            this.scriptContextNames = Collections.unmodifiableList(scriptContextNames);
             this.painlessContextInfo = painlessContextInfo;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            scriptContextNames = in.readBoolean() ? in.readStringList() : null;
-            painlessContextInfo = in.readBoolean() ? new PainlessContextInfo(in) : null;
+            scriptContextNames = in.readStringList();
+            painlessContextInfo = in.readOptionalWriteable(PainlessContextInfo::new);
         }
 
         @Override
@@ -155,32 +152,18 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-
-            if (scriptContextNames == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeStringCollection(scriptContextNames);
-            }
-
-            if (painlessContextInfo == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                painlessContextInfo.writeTo(out);
-            }
+            out.writeStringCollection(scriptContextNames);
+            out.writeOptionalWriteable(painlessContextInfo);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (scriptContextNames != null) {
+            if (painlessContextInfo == null) {
                 builder.startObject();
                 builder.field(CONTEXTS.getPreferredName(), scriptContextNames);
                 builder.endObject();
-            } else if (painlessContextInfo != null) {
-                painlessContextInfo.toXContent(builder, params);
             } else {
-                throw new IllegalStateException("malformed response");
+                painlessContextInfo.toXContent(builder, params);
             }
 
             return builder;
@@ -199,12 +182,13 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            List<String> scriptContextNames = null;
-            PainlessContextInfo painlessContextInfo = null;
+            List<String> scriptContextNames;
+            PainlessContextInfo painlessContextInfo;
 
             if (request.scriptContextName == null) {
                 scriptContextNames =
                         painlessScriptEngine.getContextsToLookups().keySet().stream().map(v -> v.name).collect(Collectors.toList());
+                painlessContextInfo = null;
             } else {
                 ScriptContext<?> scriptContext = null;
                 PainlessLookup painlessLookup = null;
@@ -222,6 +206,7 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
                     throw new IllegalArgumentException("script context [" + request.getScriptContextName() + "] not found");
                 }
 
+                scriptContextNames = Collections.emptyList();
                 painlessContextInfo = new PainlessContextInfo(scriptContext, painlessLookup);
             }
 

@@ -102,21 +102,21 @@ public class PainlessContextClassInfo implements Writeable, ToXContentObject {
             List<PainlessContextMethodInfo> staticMethods, List<PainlessContextMethodInfo> methods,
             List<PainlessContextFieldInfo> staticFields, List<PainlessContextFieldInfo> fields) {
 
-        this.name = name;
+        this.name = Objects.requireNonNull(name);
         this.imported = imported;
-        constructors = new ArrayList<>(constructors);
+        constructors = new ArrayList<>(Objects.requireNonNull(constructors));
         constructors.sort(Comparator.comparing(PainlessContextConstructorInfo::getSortValue));
         this.constructors = Collections.unmodifiableList(constructors);
-        staticMethods = new ArrayList<>(staticMethods);
+        staticMethods = new ArrayList<>(Objects.requireNonNull(staticMethods));
         staticMethods.sort(Comparator.comparing(PainlessContextMethodInfo::getSortValue));
         this.staticMethods = Collections.unmodifiableList(staticMethods);
-        methods = new ArrayList<>(methods);
+        methods = new ArrayList<>(Objects.requireNonNull(methods));
         methods.sort(Comparator.comparing(PainlessContextMethodInfo::getSortValue));
         this.methods = Collections.unmodifiableList(methods);
-        staticFields = new ArrayList<>(staticFields);
+        staticFields = new ArrayList<>(Objects.requireNonNull(staticFields));
         staticFields.sort(Comparator.comparing(PainlessContextFieldInfo::getSortValue));
         this.staticFields = Collections.unmodifiableList(staticFields);
-        fields = new ArrayList<>(fields);
+        fields = new ArrayList<>(Objects.requireNonNull(fields));
         fields.sort(Comparator.comparing(PainlessContextFieldInfo::getSortValue));
         this.fields = Collections.unmodifiableList(fields);
     }

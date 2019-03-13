@@ -28,9 +28,11 @@ import java.util.Collections;
 
 public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollection<Geometry>> {
     @Override
-    protected GeometryCollection<Geometry> createTestInstance() {
-        return randomGeometryCollection();
+    protected GeometryCollection<Geometry> createTestInstance(boolean hasAlt) {
+        return randomGeometryCollection(hasAlt);
     }
+
+
 
     public void testBasicSerialization() throws IOException, ParseException {
         assertEquals("geometrycollection (point (20.0 10.0),point EMPTY)",
@@ -50,5 +52,9 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
 
         ex = expectThrows(IllegalArgumentException.class, () -> new GeometryCollection<>(null));
         assertEquals("the list of shapes cannot be null or empty", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> new GeometryCollection<>(
+            Arrays.asList(new Point(10, 20), new Point(10, 20, 30))));
+        assertEquals("all elements of the collection should have the same number of dimension", ex.getMessage());
     }
 }

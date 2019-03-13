@@ -22,21 +22,28 @@ package org.elasticsearch.geo.geometry;
 import java.util.Arrays;
 
 /**
- * Represents a Line on the earth's surface in lat/lon decimal degrees.
+ * Represents a Line on the earth's surface in lat/lon decimal degrees and optional altitude in meters.
  */
 public class Line implements Geometry {
     public static final Line EMPTY = new Line();
     private final double[] lats;
     private final double[] lons;
+    private final double[] alts;
 
     protected Line() {
         lats = new double[0];
         lons = new double[0];
+        alts = null;
     }
 
     public Line(double[] lats, double[] lons) {
+        this(lats, lons, null);
+    }
+
+    public Line(double[] lats, double[] lons, double[] alts) {
         this.lats = lats;
         this.lons = lons;
+        this.alts = alts;
         if (lats == null) {
             throw new IllegalArgumentException("lats must not be null");
         }
@@ -48,6 +55,9 @@ public class Line implements Geometry {
         }
         if (lats.length < 2) {
             throw new IllegalArgumentException("at least two points in the line is required");
+        }
+        if (alts != null && alts.length != lats.length) {
+            throw new IllegalArgumentException("alts and lats must be equal length");
         }
         for (int i = 0; i < lats.length; i++) {
             GeometryUtils.checkLatitude(lats[i]);
@@ -67,12 +77,24 @@ public class Line implements Geometry {
         return lons[i];
     }
 
+    public double getAlt(int i) {
+        if (alts != null) {
+            return alts[i];
+        } else {
+            return Double.NaN;
+        }
+    }
+
     public double[] getLats() {
         return lats.clone();
     }
 
     public double[] getLons() {
         return lons.clone();
+    }
+
+    public double[] getAlts() {
+        return alts == null ? null : alts.clone();
     }
 
     @Override
@@ -96,19 +118,26 @@ public class Line implements Geometry {
         if (o == null || getClass() != o.getClass()) return false;
         Line line = (Line) o;
         return Arrays.equals(lats, line.lats) &&
-            Arrays.equals(lons, line.lons);
+            Arrays.equals(lons, line.lons) && Arrays.equals(alts, line.alts);
     }
 
     @Override
     public int hashCode() {
         int result = Arrays.hashCode(lats);
         result = 31 * result + Arrays.hashCode(lons);
+        result = 31 * result + Arrays.hashCode(alts);
         return result;
+    }
+
+    @Override
+    public boolean hasAlt() {
+        return alts != null;
     }
 
     @Override
     public String toString() {
         return "lats=" + Arrays.toString(lats) +
-            ", lons=" + Arrays.toString(lons);
+            ", lons=" + Arrays.toString(lons) +
+            (hasAlt() ? ", alts=" + Arrays.toString(alts) : "");
     }
 }

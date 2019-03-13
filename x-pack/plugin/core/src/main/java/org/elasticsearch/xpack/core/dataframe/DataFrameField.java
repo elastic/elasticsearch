@@ -32,6 +32,7 @@ public final class DataFrameField {
     public static final String REST_BASE_PATH = "/_data_frame/";
     public static final String REST_BASE_PATH_TRANSFORMS = REST_BASE_PATH + "transforms/";
     public static final String REST_BASE_PATH_TRANSFORMS_BY_ID = REST_BASE_PATH_TRANSFORMS + "{id}/";
+    public static final String DATA_FRAME_TRANSFORM_AUDIT_ID_FIELD = "transform_id";
 
     // note: this is used to match tasks
     public static final String PERSISTENT_TASK_DESCRIPTION_PREFIX = "data_frame_";

@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.dataframe.action.TransportPreviewDataFrameTransfo
 import org.elasticsearch.xpack.dataframe.action.TransportPutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteDataFrameTransformAction;
@@ -96,6 +97,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     private final Settings settings;
     private final boolean transportClientMode;
     private final SetOnce<DataFrameTransformsConfigManager> dataFrameTransformsConfigManager = new SetOnce<>();
+    private final SetOnce<DataFrameAuditor> dataFrameAuditor = new SetOnce<>();
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
 
     public DataFrame(Settings settings) {
@@ -175,10 +177,10 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         if (enabled == false || transportClientMode) {
             return emptyList();
         }
-
+        dataFrameAuditor.set(new DataFrameAuditor(client, clusterService.getNodeName()));
         dataFrameTransformsConfigManager.set(new DataFrameTransformsConfigManager(client, xContentRegistry));
 
-        return Collections.singletonList(dataFrameTransformsConfigManager.get());
+        return Arrays.asList(dataFrameTransformsConfigManager.get(), dataFrameAuditor.get());
     }
 
     @Override
@@ -188,6 +190,11 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 templates.put(DataFrameInternalIndex.INDEX_TEMPLATE_NAME, DataFrameInternalIndex.getIndexTemplateMetaData());
             } catch (IOException e) {
                 logger.error("Error creating data frame index template", e);
+            }
+            try {
+                templates.put(DataFrameInternalIndex.AUDIT_INDEX, DataFrameInternalIndex.getAuditIndexTemplateMetaData());
+            } catch (IOException e) {
+                logger.warn("Error creating data frame audit index", e);
             }
             return templates;
         };
@@ -204,8 +211,10 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
 
         // the transforms config manager should have been created
         assert dataFrameTransformsConfigManager.get() != null;
+        // the auditor should have been created
+        assert dataFrameAuditor.get() != null;
         return Collections.singletonList(new DataFrameTransformPersistentTasksExecutor(client, dataFrameTransformsConfigManager.get(),
-            schedulerEngine.get(), threadPool));
+            schedulerEngine.get(), dataFrameAuditor.get(), threadPool));
     }
     
     @Override

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.DataFrame;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.Map;
@@ -33,13 +34,15 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     private final DataFrameTransformsConfigManager transformsConfigManager;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
+    private final DataFrameAuditor auditor;
 
     public DataFrameTransformPersistentTasksExecutor(Client client, DataFrameTransformsConfigManager transformsConfigManager,
-            SchedulerEngine schedulerEngine, ThreadPool threadPool) {
+            SchedulerEngine schedulerEngine, DataFrameAuditor auditor, ThreadPool threadPool) {
         super(DataFrameField.TASK_NAME, DataFrame.TASK_THREAD_POOL_NAME);
         this.client = client;
         this.transformsConfigManager = transformsConfigManager;
         this.schedulerEngine = schedulerEngine;
+        this.auditor = auditor;
         this.threadPool = threadPool;
     }
 
@@ -67,6 +70,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
             PersistentTasksCustomMetaData.PersistentTask<DataFrameTransform> persistentTask, Map<String, String> headers) {
         return new DataFrameTransformTask(id, type, action, parentTaskId, persistentTask.getParams(),
-                (DataFrameTransformState) persistentTask.getState(), client, transformsConfigManager, schedulerEngine, threadPool, headers);
+            (DataFrameTransformState) persistentTask.getState(), client, transformsConfigManager, schedulerEngine, auditor, threadPool,
+            headers);
     }
 }

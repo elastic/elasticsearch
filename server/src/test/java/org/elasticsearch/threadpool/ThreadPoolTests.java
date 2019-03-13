@@ -24,13 +24,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
+import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ThreadPoolTests extends ESTestCase {
@@ -85,26 +82,25 @@ public class ThreadPoolTests extends ESTestCase {
         }
     }
 
-    int factorialForked(int n, Executor executor) {
+    int factorialForked(int n, ExecutorService executor) {
         assertCurrentMethodIsNotCalledRecursively();
         if (n <= 1) {
             return 1;
         }
-        Future<Integer> fut = CompletableFuture.supplyAsync(() -> factorialForked(n - 1, executor), executor).thenApply(r -> r * n);
-        return FutureUtils.get(fut);
+        return n * FutureUtils.get(executor.submit(() -> factorialForked(n - 1, executor)));
     }
 
     public void testAssertCurrentMethodIsNotCalledRecursively() {
         expectThrows(AssertionError.class, () -> factorial(between(2, 10)));
         assertThat(factorial(1), equalTo(1)); // is not called recursively
         assertThat(expectThrows(AssertionError.class, () -> factorial(between(2, 10))).getMessage(),
-            containsString("org.elasticsearch.threadpool.ThreadPoolTests#factorial is called recursively"));
+            equalTo("org.elasticsearch.threadpool.ThreadPoolTests#factorial is called recursively"));
         TestThreadPool threadPool = new TestThreadPool("test");
         assertThat(factorialForked(1, threadPool.generic()), equalTo(1));
         assertThat(factorialForked(10, threadPool.generic()), equalTo(3628800));
-        assertThat(expectThrows(Exception.class,
-            () -> factorialForked(between(2, 10), EsExecutors.newDirectExecutorService())).getCause().getMessage(),
-            containsString("org.elasticsearch.threadpool.ThreadPoolTests#factorialForked is called recursively"));
+        assertThat(expectThrows(AssertionError.class,
+            () -> factorialForked(between(2, 10), EsExecutors.newDirectExecutorService())).getMessage(),
+            equalTo("org.elasticsearch.threadpool.ThreadPoolTests#factorialForked is called recursively"));
         terminate(threadPool);
     }
 }

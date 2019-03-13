@@ -19,11 +19,15 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStatsTests;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -80,7 +84,21 @@ public class DataFrameFeatureSetTests extends ESTestCase {
             transformsStateAndStats.add(DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats());
         }
 
+        List<DataFrameTransformConfig> transformConfigWithoutTasks = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(0, 10); ++i) {
+            transformConfigWithoutTasks.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
+        }
+
+        List<DataFrameTransformConfig> transformConfigWithTasks = new ArrayList<>(transformsStateAndStats.size());
+        transformsStateAndStats.forEach(stats ->
+            transformConfigWithTasks.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig(stats.getId())));
+
+        List<DataFrameTransformConfig> allConfigs = new ArrayList<>(transformConfigWithoutTasks.size() + transformConfigWithTasks.size());
+        allConfigs.addAll(transformConfigWithoutTasks);
+        allConfigs.addAll(transformConfigWithTasks);
+
         GetDataFrameTransformsStatsAction.Response mockResponse = new GetDataFrameTransformsStatsAction.Response(transformsStateAndStats);
+        GetDataFrameTransformsAction.Response mockTransformsResponse = new GetDataFrameTransformsAction.Response(allConfigs);
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -88,6 +106,14 @@ public class DataFrameFeatureSetTests extends ESTestCase {
             listener.onResponse(mockResponse);
             return Void.TYPE;
         }).when(client).execute(same(GetDataFrameTransformsStatsAction.INSTANCE), any(), any());
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetDataFrameTransformsAction.Response> listener =
+                (ActionListener<GetDataFrameTransformsAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(mockTransformsResponse);
+            return Void.TYPE;
+        }).when(client).execute(same(GetDataFrameTransformsAction.INSTANCE), any(), any());
 
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
@@ -101,16 +127,18 @@ public class DataFrameFeatureSetTests extends ESTestCase {
             Map<String, Object> usageAsMap = parser.map();
             assertTrue((boolean) XContentMapValues.extractValue("available", usageAsMap));
 
-            if (transformsStateAndStats.isEmpty()) {
+            if (transformsStateAndStats.isEmpty() && transformConfigWithoutTasks.isEmpty()) {
                 // no transforms, no stats
                 assertEquals(null, XContentMapValues.extractValue("transforms", usageAsMap));
                 assertEquals(null, XContentMapValues.extractValue("stats", usageAsMap));
             } else {
-                assertEquals(transformsStateAndStats.size(), XContentMapValues.extractValue("transforms._all", usageAsMap));
+                assertEquals(transformsStateAndStats.size() + transformConfigWithoutTasks.size(),
+                    XContentMapValues.extractValue("transforms._all", usageAsMap));
 
                 Map<String, Integer> stateCounts = new HashMap<>();
                 transformsStateAndStats.stream().map(x -> x.getTransformState().getIndexerState().value())
                         .forEach(x -> stateCounts.merge(x, 1, Integer::sum));
+                transformConfigWithoutTasks.forEach(ignored -> stateCounts.merge(IndexerState.STOPPED.value(), 1, Integer::sum));
                 stateCounts.forEach((k, v) -> assertEquals(v, XContentMapValues.extractValue("transforms." + k, usageAsMap)));
 
                 DataFrameIndexerTransformStats combinedStats = transformsStateAndStats.stream().map(x -> x.getTransformStats())

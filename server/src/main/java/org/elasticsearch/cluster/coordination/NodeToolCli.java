@@ -33,7 +33,8 @@ import org.elasticsearch.env.NodeRepurposeCommand;
 public class NodeToolCli extends MultiCommand {
 
     public NodeToolCli() {
-        super("A CLI tool to unsafely recover a cluster after the permanent loss of too many master-eligible nodes", ()->{});
+        super("A CLI tool to do unsafe cluster and index manipulations on current node",
+            ()->{});
         CommandLoggingConfigurator.configureLoggingWithoutConfig();
         subcommands.put("unsafe-bootstrap", new UnsafeBootstrapMasterCommand());
         subcommands.put("detach-cluster", new DetachClusterCommand());

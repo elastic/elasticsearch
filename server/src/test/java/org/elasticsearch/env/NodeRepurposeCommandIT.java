@@ -24,7 +24,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 
-import java.util.stream.IntStream;
+import java.util.List;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -38,7 +38,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         final String indexName = "test-repurpose";
 
         logger.info("--> starting two nodes");
-        internalCluster().startNodes(2);
+        List<String> nodes = internalCluster().startNodes(2);
 
         logger.info("--> creating index");
         prepareCreate(indexName, Settings.builder()
@@ -67,34 +67,28 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
             () -> internalCluster().startNode(noMasterNoDataSettings)
         );
 
+        int runningOrdinal = nodes.indexOf(internalCluster().getNodeNames()[0]);
+        int stoppedOrdinal = 1-runningOrdinal;
+
         logger.info("--> Repurposing node");
-        executeRepurposeCommand(noMasterNoDataSettings, indexUUID);
+        executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, stoppedOrdinal);
+
+        ElasticsearchException lockedException = expectThrows(ElasticsearchException.class,
+            () -> executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, runningOrdinal)
+        );
+
+        assertThat(lockedException.getMessage(), containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG));
 
         logger.info("--> Starting node after repurpose");
         internalCluster().startNode(noMasterNoDataSettings);
     }
 
-    private void executeRepurposeCommand(Settings settings, String indexUUID) throws Exception {
-        assertEquals("Exactly one node folder/ordinal must succeed", 1,
-            IntStream.range(0, 2).filter(i -> executeRepurposeCommandForOrdinal(settings, indexUUID, i)).count());
-    }
-
-    private boolean executeRepurposeCommandForOrdinal(Settings settings, String indexUUID, int ordinal) {
-        try {
-            boolean verbose = randomBoolean();
-            Matcher<String> matcher = allOf(
-                containsString(NodeRepurposeCommand.noMasterMessage(1, 1, TestEnvironment.newEnvironment(settings).dataFiles().length)),
-                not(contains(NodeRepurposeCommand.PRE_V7_MESSAGE)),
-                NodeRepurposeCommandTests.conditionalNot(containsString(indexUUID), verbose == false));
-            NodeRepurposeCommandTests.verifySuccess(settings, matcher, verbose, ordinal);
-            return true;
-        } catch (ElasticsearchException e) {
-            if (e.getMessage().contains(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG))
-                return false;
-            else
-                throw e;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    private void executeRepurposeCommandForOrdinal(Settings settings, String indexUUID, int ordinal) throws Exception {
+        boolean verbose = randomBoolean();
+        Matcher<String> matcher = allOf(
+            containsString(NodeRepurposeCommand.noMasterMessage(1, 1, TestEnvironment.newEnvironment(settings).dataFiles().length)),
+            not(contains(NodeRepurposeCommand.PRE_V7_MESSAGE)),
+            NodeRepurposeCommandTests.conditionalNot(containsString(indexUUID), verbose == false));
+        NodeRepurposeCommandTests.verifySuccess(settings, matcher, verbose, ordinal);
     }
 }

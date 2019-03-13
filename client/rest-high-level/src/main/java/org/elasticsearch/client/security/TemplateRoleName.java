@@ -17,12 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.client.security.rolemapping;
+package org.elasticsearch.client.security;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -36,9 +37,9 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * A {@link RoleName} that is uses a dynamic template.
+ * A role name that uses a dynamic template.
  */
-public class TemplateRoleName implements RoleName {
+public class TemplateRoleName implements ToXContentObject {
 
     private static final ConstructingObjectParser<TemplateRoleName, Void> PARSER = new ConstructingObjectParser<>("template-role-name",
         true, args -> new TemplateRoleName((String) args[0], (Format) args[1]));
@@ -93,7 +94,7 @@ public class TemplateRoleName implements RoleName {
             .endObject();
     }
 
-    static RoleName fromXContent(XContentParser parser) throws IOException {
+    static TemplateRoleName fromXContent(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
         return PARSER.parse(parser, null);
     }

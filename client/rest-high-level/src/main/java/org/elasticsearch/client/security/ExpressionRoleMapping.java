@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.client.security.rolemapping.RoleName;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.parser.RoleMapperExpressionParser;
 import org.elasticsearch.common.ParseField;
@@ -30,8 +29,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A representation of a single role-mapping.
@@ -43,21 +44,22 @@ public final class ExpressionRoleMapping {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ExpressionRoleMapping, String> PARSER = new ConstructingObjectParser<>("role-mapping", true,
-            (args, name) -> new ExpressionRoleMapping(name, (RoleMapperExpression) args[0], (List<RoleName>) args[1],
-                    (Map<String, Object>) args[2], (boolean) args[3]));
+        (args, name) -> new ExpressionRoleMapping(name, (RoleMapperExpression) args[0], (List<String>) args[1],
+            (List<TemplateRoleName>) args[2], (Map<String, Object>) args[3], (boolean) args[4]));
 
     static {
         PARSER.declareField(constructorArg(), (parser, context) -> RoleMapperExpressionParser.fromXContent(parser), Fields.RULES,
                 ObjectParser.ValueType.OBJECT);
-        PARSER.declareFieldArray(constructorArg(), (parser, context) -> RoleName.fromXContent(parser), Fields.ROLES,
-            ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
+        PARSER.declareStringArray(optionalConstructorArg(), Fields.ROLES);
+        PARSER.declareObjectArray(optionalConstructorArg(), (parser, ctx) -> TemplateRoleName.fromXContent(parser), Fields.ROLE_TEMPLATES);
         PARSER.declareField(constructorArg(), XContentParser::map, Fields.METADATA, ObjectParser.ValueType.OBJECT);
         PARSER.declareBoolean(constructorArg(), Fields.ENABLED);
     }
 
     private final String name;
     private final RoleMapperExpression expression;
-    private final List<RoleName> roles;
+    private final List<String> roles;
+    private final List<TemplateRoleName> roleTemplates;
     private final Map<String, Object> metadata;
     private final boolean enabled;
 
@@ -71,11 +73,12 @@ public final class ExpressionRoleMapping {
      * to the user
      * @param enabled a flag when {@code true} signifies the role mapping is active
      */
-    public ExpressionRoleMapping(final String name, final RoleMapperExpression expr, final List<RoleName> roles,
-            final Map<String, Object> metadata, boolean enabled) {
+    public ExpressionRoleMapping(final String name, final RoleMapperExpression expr, final List<String> roles,
+                                 final List<TemplateRoleName> templates, final Map<String, Object> metadata, boolean enabled) {
         this.name = name;
         this.expression = expr;
-        this.roles = Collections.unmodifiableList(roles);
+        this.roles = roles == null ? Collections.emptyList() : Collections.unmodifiableList(roles);
+        this.roleTemplates = templates == null ? Collections.emptyList() : Collections.unmodifiableList(templates);
         this.metadata = (metadata == null) ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
         this.enabled = enabled;
     }
@@ -88,8 +91,12 @@ public final class ExpressionRoleMapping {
         return expression;
     }
 
-    public List<RoleName> getRoles() {
+    public List<String> getRoles() {
         return roles;
+    }
+
+    public List<TemplateRoleName> getRoleTemplates() {
+        return roleTemplates;
     }
 
     public Map<String, Object> getMetadata() {
@@ -101,53 +108,26 @@ public final class ExpressionRoleMapping {
     }
 
     @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + (enabled ? 1231 : 1237);
-        result = prime * result + ((expression == null) ? 0 : expression.hashCode());
-        result = prime * result + ((metadata == null) ? 0 : metadata.hashCode());
-        result = prime * result + ((name == null) ? 0 : name.hashCode());
-        result = prime * result + ((roles == null) ? 0 : roles.hashCode());
-        return result;
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final ExpressionRoleMapping that = (ExpressionRoleMapping) o;
+        return this.enabled == that.enabled &&
+            Objects.equals(this.name, that.name) &&
+            Objects.equals(this.expression, that.expression) &&
+            Objects.equals(this.roles, that.roles) &&
+            Objects.equals(this.roleTemplates, that.roleTemplates) &&
+            Objects.equals(this.metadata, that.metadata);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        final ExpressionRoleMapping other = (ExpressionRoleMapping) obj;
-        if (enabled != other.enabled)
-            return false;
-        if (expression == null) {
-            if (other.expression != null)
-                return false;
-        } else if (!expression.equals(other.expression))
-            return false;
-        if (metadata == null) {
-            if (other.metadata != null)
-                return false;
-        } else if (!metadata.equals(other.metadata))
-            return false;
-        if (name == null) {
-            if (other.name != null)
-                return false;
-        } else if (!name.equals(other.name))
-            return false;
-        if (roles == null) {
-            if (other.roles != null)
-                return false;
-        } else if (!roles.equals(other.roles))
-            return false;
-        return true;
+    public int hashCode() {
+        return Objects.hash(name, expression, roles, roleTemplates, metadata, enabled);
     }
 
     public interface Fields {
         ParseField ROLES = new ParseField("roles");
+        ParseField ROLE_TEMPLATES = new ParseField("role_templates");
         ParseField ENABLED = new ParseField("enabled");
         ParseField RULES = new ParseField("rules");
         ParseField METADATA = new ParseField("metadata");

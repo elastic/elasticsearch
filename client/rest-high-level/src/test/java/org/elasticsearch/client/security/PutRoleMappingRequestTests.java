@@ -19,9 +19,6 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.client.security.rolemapping.RoleName;
-import org.elasticsearch.client.security.rolemapping.StaticRoleName;
-import org.elasticsearch.client.security.rolemapping.TemplateRoleName;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.common.Strings;
@@ -38,7 +35,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -47,13 +43,14 @@ public class PutRoleMappingRequestTests extends ESTestCase {
     public void testPutRoleMappingRequest() {
         final String name = randomAlphaOfLength(5);
         final boolean enabled = randomBoolean();
-        final List<RoleName> roles = Collections.singletonList(new StaticRoleName("superuser"));
+        final List<String> roles = Collections.singletonList("superuser");
         final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("user");
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put("k1", "v1");
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
 
-        PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(name, roles, rules, enabled, metadata, refreshPolicy);
+        PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(name, enabled, roles, Collections.emptyList(), rules,
+            metadata, refreshPolicy);
         assertNotNull(putRoleMappingRequest);
         assertThat(putRoleMappingRequest.getName(), equalTo(name));
         assertThat(putRoleMappingRequest.isEnabled(), equalTo(enabled));
@@ -66,53 +63,71 @@ public class PutRoleMappingRequestTests extends ESTestCase {
     public void testPutRoleMappingRequestThrowsExceptionForNullOrEmptyName() {
         final String name = randomBoolean() ? null : "";
         final boolean enabled = randomBoolean();
-        final List<RoleName> roles = Collections.singletonList(new StaticRoleName("superuser"));
+        final List<String> roles = Collections.singletonList("superuser");
         final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("user");
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put("k1", "v1");
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
 
         final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class,
-            () -> new PutRoleMappingRequest(name, roles, rules, enabled, metadata, refreshPolicy));
+            () -> new PutRoleMappingRequest(name, enabled, roles, Collections.emptyList(), rules, metadata, refreshPolicy));
         assertThat(ile.getMessage(), equalTo("role-mapping name is missing"));
     }
 
-    public void testPutRoleMappingRequestThrowsExceptionForNullOrEmptyRoles() {
+    public void testPutRoleMappingRequestThrowsExceptionForNullRoles() {
         final String name = randomAlphaOfLength(5);
         final boolean enabled = randomBoolean();
-        final List<RoleName> roles = randomBoolean() ? null : Collections.emptyList();
+        final List<String> roles = null ;
+        final List<TemplateRoleName> roleTemplates = Collections.emptyList();
         final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("user");
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put("k1", "v1");
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
 
-        final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class,
-            () -> new PutRoleMappingRequest(name, roles, rules, enabled, metadata, refreshPolicy));
-        assertThat(ile.getMessage(), equalTo("role-mapping roles are missing"));
+        final RuntimeException ex = expectThrows(RuntimeException.class,
+            () -> new PutRoleMappingRequest(name, enabled, roles, roleTemplates, rules, metadata, refreshPolicy));
+        assertThat(ex.getMessage(), equalTo("role-mapping roles cannot be null"));
+    }
+
+    public void testPutRoleMappingRequestThrowsExceptionForEmptyRoles() {
+        final String name = randomAlphaOfLength(5);
+        final boolean enabled = randomBoolean();
+        final List<String> roles = Collections.emptyList();
+        final List<TemplateRoleName> roleTemplates = Collections.emptyList();
+        final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("user");
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put("k1", "v1");
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+
+        final RuntimeException ex = expectThrows(RuntimeException.class,
+            () -> new PutRoleMappingRequest(name, enabled, roles, roleTemplates, rules, metadata, refreshPolicy));
+        assertThat(ex.getMessage(), equalTo("in a role-mapping, one of roles or role_templates is required"));
     }
 
     public void testPutRoleMappingRequestThrowsExceptionForNullRules() {
         final String name = randomAlphaOfLength(5);
         final boolean enabled = randomBoolean();
-        final List<RoleName> roles = Collections.singletonList(new StaticRoleName("superuser"));
+        final List<String> roles = Collections.singletonList("superuser");
         final RoleMapperExpression rules = null;
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put("k1", "v1");
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
 
-        expectThrows(NullPointerException.class, () -> new PutRoleMappingRequest(name, roles, rules, enabled, metadata, refreshPolicy));
+        expectThrows(NullPointerException.class, () -> new PutRoleMappingRequest(name, enabled, roles, Collections.emptyList(), rules,
+            metadata, refreshPolicy));
     }
 
     public void testPutRoleMappingRequestToXContent() throws IOException {
         final String name = randomAlphaOfLength(5);
         final boolean enabled = randomBoolean();
-        final List<RoleName> roles = Collections.singletonList(new StaticRoleName("superuser"));
+        final List<String> roles = Collections.singletonList("superuser");
         final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("user");
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put("k1", "v1");
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
 
-        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(name, roles, rules, enabled, metadata, refreshPolicy);
+        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(name, enabled, roles, Collections.emptyList(), rules,
+            metadata, refreshPolicy);
 
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         putRoleMappingRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -121,6 +136,7 @@ public class PutRoleMappingRequestTests extends ESTestCase {
              "{"+
                "\"enabled\":" + enabled + "," +
                "\"roles\":[\"superuser\"]," +
+               "\"role_templates\":[]," +
                "\"rules\":{" +
                    "\"field\":{\"username\":[\"user\"]}" +
                "}," +
@@ -133,16 +149,17 @@ public class PutRoleMappingRequestTests extends ESTestCase {
     public void testPutRoleMappingRequestWithTemplateToXContent() throws IOException {
         final String name = randomAlphaOfLength(5);
         final boolean enabled = randomBoolean();
-        final List<RoleName> roles = Arrays.asList(
+        final List<TemplateRoleName> templates = Arrays.asList(
             new TemplateRoleName(Collections.singletonMap("source" , "_realm_{{realm.name}}"), TemplateRoleName.Format.STRING),
-            new StaticRoleName("some_role")
+            new TemplateRoleName(Collections.singletonMap("source" , "some_role"), TemplateRoleName.Format.STRING)
         );
         final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("user");
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put("k1", "v1");
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
 
-        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(name, roles, rules, enabled, metadata, refreshPolicy);
+        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(name, enabled, Collections.emptyList(), templates,
+            rules, metadata, refreshPolicy);
 
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         putRoleMappingRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -150,7 +167,11 @@ public class PutRoleMappingRequestTests extends ESTestCase {
         final String expected =
              "{"+
                "\"enabled\":" + enabled + "," +
-               "\"roles\":[{\"template\":\"{\\\"source\\\":\\\"_realm_{{realm.name}}\\\"}\",\"format\":\"string\"},\"some_role\"]," +
+               "\"roles\":[]," +
+               "\"role_templates\":[" +
+                 "{\"template\":\"{\\\"source\\\":\\\"_realm_{{realm.name}}\\\"}\",\"format\":\"string\"}," +
+                 "{\"template\":\"{\\\"source\\\":\\\"some_role\\\"}\",\"format\":\"string\"}" +
+               "]," +
                "\"rules\":{" +
                    "\"field\":{\"username\":[\"user\"]}" +
                "}," +
@@ -163,53 +184,56 @@ public class PutRoleMappingRequestTests extends ESTestCase {
     public void testEqualsHashCode() {
         final String name = randomAlphaOfLength(5);
         final boolean enabled = randomBoolean();
-        final List<RoleName> roles = Arrays.asList(
-            new StaticRoleName(randomAlphaOfLengthBetween(6, 12)),
-            new TemplateRoleName(randomAlphaOfLengthBetween(12, 60), randomFrom(TemplateRoleName.Format.values()))
-        );
+        final List<String> roles;
+        final List<TemplateRoleName> templates;
+        if (randomBoolean()) {
+            roles = Arrays.asList(randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(6, 12)));
+            templates = Collections.emptyList();
+        } else {
+            roles = Collections.emptyList();
+            templates = Arrays.asList(
+                randomArray(1, 3, TemplateRoleName[]::new,
+                    () -> new TemplateRoleName(randomAlphaOfLengthBetween(12, 60), randomFrom(TemplateRoleName.Format.values()))
+                ));
+        }
         final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("user");
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put("k1", "v1");
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
 
-        PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(name, roles, rules, enabled, metadata, refreshPolicy);
+        PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(name, enabled, roles, templates, rules, metadata,
+            refreshPolicy);
         assertNotNull(putRoleMappingRequest);
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(putRoleMappingRequest, (original) -> {
-            return new PutRoleMappingRequest(original.getName(), original.getRoles(), original.getRules(), original.isEnabled(), original
-                    .getMetadata(), original.getRefreshPolicy());
-        });
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(putRoleMappingRequest, (original) -> {
-            return new PutRoleMappingRequest(original.getName(), original.getRoles(), original.getRules(), original.isEnabled(), original
-                    .getMetadata(), original.getRefreshPolicy());
+            return new PutRoleMappingRequest(original.getName(), original.isEnabled(), original.getRoles(), original.getRoleTemplates(),
+                original.getRules(), original.getMetadata(), original.getRefreshPolicy());
         }, PutRoleMappingRequestTests::mutateTestItem);
     }
 
     private static PutRoleMappingRequest mutateTestItem(PutRoleMappingRequest original) {
         switch (randomIntBetween(0, 5)) {
         case 0:
-            return new PutRoleMappingRequest(randomAlphaOfLength(5), original.getRoles(), original.getRules(), original.isEnabled(),
-                original.getMetadata(), original.getRefreshPolicy());
+            return new PutRoleMappingRequest(randomAlphaOfLength(5), original.isEnabled(), original.getRoles(),
+                original.getRoleTemplates(), original.getRules(), original.getMetadata(), original.getRefreshPolicy());
         case 1:
-            return new PutRoleMappingRequest(original.getName(), original.getRoles(), original.getRules(), !original.isEnabled(),
-                original.getMetadata(), original.getRefreshPolicy());
+            return new PutRoleMappingRequest(original.getName(), !original.isEnabled(), original.getRoles(), original.getRoleTemplates(),
+                original.getRules(), original.getMetadata(), original.getRefreshPolicy());
         case 2:
-            return new PutRoleMappingRequest(original.getName(), original.getRoles(), FieldRoleMapperExpression.ofGroups("group"),
-                original.isEnabled(), original.getMetadata(), original.getRefreshPolicy());
+            return new PutRoleMappingRequest(original.getName(), original.isEnabled(), original.getRoles(), original.getRoleTemplates(),
+                    FieldRoleMapperExpression.ofGroups("group"), original.getMetadata(), original.getRefreshPolicy());
         case 3:
-            return new PutRoleMappingRequest(original.getName(), original.getRoles(), original.getRules(), original.isEnabled(),
-                Collections.emptyMap(), original.getRefreshPolicy());
+            return new PutRoleMappingRequest(original.getName(), original.isEnabled(), original.getRoles(), original.getRoleTemplates(),
+                original.getRules(), Collections.emptyMap(), original.getRefreshPolicy());
         case 4:
-            List<RefreshPolicy> values = Arrays.stream(RefreshPolicy.values())
-                                                .filter(rp -> rp != original.getRefreshPolicy())
-                                                .collect(Collectors.toList());
-            return new PutRoleMappingRequest(original.getName(), original.getRoles(), original.getRules(), original.isEnabled(), original
-                    .getMetadata(), randomFrom(values));
+            return new PutRoleMappingRequest(original.getName(), original.isEnabled(), original.getRoles(), original.getRoleTemplates(),
+                original.getRules(), original.getMetadata(),
+                randomValueOtherThan(original.getRefreshPolicy(), () -> randomFrom(RefreshPolicy.values())));
         case 5:
-            List<RoleName> roles = new ArrayList<>(original.getRoles());
-            roles.add(new StaticRoleName(randomAlphaOfLengthBetween(3, 5)));
-                return new PutRoleMappingRequest(original.getName(), roles, FieldRoleMapperExpression.ofGroups("group"),
-                    original.isEnabled(), original.getMetadata(), original.getRefreshPolicy());
+            List<String> roles = new ArrayList<>(original.getRoles());
+            roles.add(randomAlphaOfLengthBetween(3, 5));
+            return new PutRoleMappingRequest(original.getName(), original.isEnabled(), roles, original.getRoleTemplates(),
+                original.getRules(), original.getMetadata(), original.getRefreshPolicy());
 
         default:
             throw new IllegalStateException("Bad random value");

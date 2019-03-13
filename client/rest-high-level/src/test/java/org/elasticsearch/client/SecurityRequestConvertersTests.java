@@ -43,7 +43,6 @@ import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.rolemapping.StaticRoleName;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
@@ -142,8 +141,8 @@ public class SecurityRequestConvertersTests extends ESTestCase {
                 .addExpression(FieldRoleMapperExpression.ofUsername(username))
                 .addExpression(FieldRoleMapperExpression.ofGroups(groupname))
                 .build();
-        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(roleMappingName,
-            Collections.singletonList(new StaticRoleName(rolename)), rules, true, null, refreshPolicy);
+        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(roleMappingName, true,
+            Collections.singletonList(rolename), Collections.emptyList(), rules, null, refreshPolicy);
 
         final Request request = SecurityRequestConverters.putRoleMapping(putRoleMappingRequest);
 

@@ -49,11 +49,6 @@ public interface RecoveryTargetHandler {
     void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener);
 
     /**
-     * Blockingly waits for cluster state with at least clusterStateVersion to be available
-     */
-    void ensureClusterStateVersion(long clusterStateVersion);
-
-    /**
      * Handoff the primary context between the relocation source and the relocation target.
      *
      * @param primaryContext the primary context from the relocation source

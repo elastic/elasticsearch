@@ -696,10 +696,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
 
         @Override
-        public void ensureClusterStateVersion(long clusterStateVersion) {
-        }
-
-        @Override
         public void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext) {
         }
 

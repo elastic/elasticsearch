@@ -46,11 +46,6 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void ensureClusterStateVersion(long clusterStateVersion) {
-        target.ensureClusterStateVersion(clusterStateVersion);
-    }
-
-    @Override
     public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
         executor.execute(() -> target.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener));
     }

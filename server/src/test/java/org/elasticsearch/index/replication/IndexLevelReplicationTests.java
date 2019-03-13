@@ -120,20 +120,19 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             };
             thread.start();
             IndexShard replica = shards.addReplica();
-            Future<Void> future = shards.asyncRecoverReplica(replica, (indexShard, node)
-                    -> new RecoveryTarget(indexShard, node, recoveryListener, version -> {
-            }) {
-                @Override
-                public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
-                    super.cleanFiles(totalTranslogOps, sourceMetaData);
-                    latch.countDown();
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
+            Future<Void> future = shards.asyncRecoverReplica(replica,
+                (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener) {
+                    @Override
+                    public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
+                        super.cleanFiles(totalTranslogOps, sourceMetaData);
+                        latch.countDown();
+                        try {
+                            latch.await();
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
                     }
-                }
-            });
+                });
             future.get();
             thread.join();
             shards.assertAllEqual(numDocs);
@@ -197,7 +196,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             thread.start();
             IndexShard replica = shards.addReplica();
             Future<Void> fut = shards.asyncRecoverReplica(replica,
-                (shard, node) -> new RecoveryTarget(shard, node, recoveryListener, v -> {}){
+                (shard, node) -> new RecoveryTarget(shard, node, recoveryListener) {
                     @Override
                     public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps,
                                                              ActionListener<Void> listener) {

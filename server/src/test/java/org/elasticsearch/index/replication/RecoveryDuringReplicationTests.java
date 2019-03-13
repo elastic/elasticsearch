@@ -491,7 +491,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             AtomicBoolean recoveryDone = new AtomicBoolean(false);
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica, (indexShard, node) -> {
                 recoveryStart.countDown();
-                return new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
+                return new RecoveryTarget(indexShard, node, recoveryListener) {
                     @Override
                     public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
                         recoveryDone.set(true);
@@ -556,7 +556,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final IndexShard replica = shards.addReplica();
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(
                     replica,
-                    (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
+                    (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener) {
                         @Override
                         public void indexTranslogOperations(
                                 final List<Translog.Operation> operations,
@@ -811,7 +811,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         public BlockingTarget(RecoveryState.Stage stageToBlock, CountDownLatch recoveryBlocked, CountDownLatch releaseRecovery,
                               IndexShard shard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
                               Logger logger) {
-            super(shard, sourceNode, listener, version -> {});
+            super(shard, sourceNode, listener);
             this.recoveryBlocked = recoveryBlocked;
             this.releaseRecovery = releaseRecovery;
             this.stageToBlock = stageToBlock;

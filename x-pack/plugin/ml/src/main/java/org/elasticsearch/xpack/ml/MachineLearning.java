@@ -481,16 +481,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, auditor, autodetectProcessManager);
         this.datafeedManager.set(datafeedManager);
-        MlMemoryTracker memoryTracker = new MlMemoryTracker(settings, clusterService, threadPool, jobManager, jobResultsProvider);
-        this.memoryTracker.set(memoryTracker);
-        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
-                autodetectProcessManager, memoryTracker);
-
-        // This object's constructor attaches to the license state, so there's no need to retain another reference to it
-        new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
-
-        // run node startup tasks
-        autodetectProcessManager.onNodeStartup();
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, environment, threadPool,
@@ -500,6 +490,19 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager(clusterService, (NodeClient) client,
             dataFrameAnalyticsConfigProvider, analyticsProcessManager);
         this.dataFrameAnalyticsManager.set(dataFrameAnalyticsManager);
+
+        // Components shared by anomaly detection and data frame analytics
+        MlMemoryTracker memoryTracker = new MlMemoryTracker(settings, clusterService, threadPool, jobManager, jobResultsProvider,
+            dataFrameAnalyticsConfigProvider);
+        this.memoryTracker.set(memoryTracker);
+        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
+            autodetectProcessManager, memoryTracker);
+
+        // This object's constructor attaches to the license state, so there's no need to retain another reference to it
+        new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
+
+        // run node startup tasks
+        autodetectProcessManager.onNodeStartup();
 
         return Arrays.asList(
                 mlLifeCycleService,

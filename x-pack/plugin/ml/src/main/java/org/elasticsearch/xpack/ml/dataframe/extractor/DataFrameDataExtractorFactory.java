@@ -119,13 +119,13 @@ public class DataFrameDataExtractorFactory {
      */
     public static void validateConfigAndSourceIndex(Client client,
                                                     DataFrameAnalyticsConfig config,
-                                                    ActionListener<Boolean> listener) {
+                                                    ActionListener<DataFrameAnalyticsConfig> listener) {
         Set<String> resultFields = resolveResultsFields(config);
         validateIndexAndExtractFields(client, config.getHeaders(), config.getSource(), config.getAnalysesFields(), resultFields,
             ActionListener.wrap(
                 fields -> {
                     config.getParsedQuery(); // validate query is acceptable
-                    listener.onResponse(true);
+                    listener.onResponse(config);
                 },
                 listener::onFailure
         ));

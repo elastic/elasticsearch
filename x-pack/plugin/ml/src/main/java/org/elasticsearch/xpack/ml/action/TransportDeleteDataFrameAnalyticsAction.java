@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -42,14 +43,17 @@ public class TransportDeleteDataFrameAnalyticsAction
     extends TransportMasterNodeAction<DeleteDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
 
     private final Client client;
+    private final MlMemoryTracker memoryTracker;
 
     @Inject
     public TransportDeleteDataFrameAnalyticsAction(TransportService transportService, ClusterService clusterService,
-                                                      ThreadPool threadPool, ActionFilters actionFilters,
-                                                      IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
+                                                   ThreadPool threadPool, ActionFilters actionFilters,
+                                                   IndexNameExpressionResolver indexNameExpressionResolver, Client client,
+                                                   MlMemoryTracker memoryTracker) {
         super(DeleteDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
             DeleteDataFrameAnalyticsAction.Request::new);
         this.client = client;
+        this.memoryTracker = memoryTracker;
     }
 
     @Override
@@ -65,21 +69,26 @@ public class TransportDeleteDataFrameAnalyticsAction
     @Override
     protected void masterOperation(DeleteDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
+        String id = request.getId();
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        DataFrameAnalyticsState taskState = MlTasks.getDataFrameAnalyticsState(request.getId(), tasks);
+        DataFrameAnalyticsState taskState = MlTasks.getDataFrameAnalyticsState(id, tasks);
         if (taskState != DataFrameAnalyticsState.STOPPED) {
             listener.onFailure(ExceptionsHelper.conflictStatusException("Cannot delete data frame analytics [{}] while its status is [{}]",
-                request.getId(), taskState));
+                id, taskState));
             return;
         }
 
+        // We clean up the memory tracker on delete rather than stop as stop is not a master node action,
+        // and also it is not compulsory to call stop - the task could have stopped by itself
+        memoryTracker.removeDataFrameAnalyticsJob(id);
+
         DeleteRequest deleteRequest = new DeleteRequest(AnomalyDetectorsIndex.configIndexName());
-        deleteRequest.id(DataFrameAnalyticsConfig.documentId(request.getId()));
+        deleteRequest.id(DataFrameAnalyticsConfig.documentId(id));
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, deleteRequest, ActionListener.wrap(
             deleteResponse -> {
                 if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                    listener.onFailure(ExceptionsHelper.missingDataFrameAnalytics(request.getId()));
+                    listener.onFailure(ExceptionsHelper.missingDataFrameAnalytics(id));
                     return;
                 }
                 assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;

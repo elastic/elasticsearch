@@ -104,4 +104,11 @@ public class DataFrameAnalyticsConfigProvider {
             listener::onFailure
         ));
     }
+
+    public void getMultiple(String id, ActionListener<List<DataFrameAnalyticsConfig>> listener) {
+        GetDataFrameAnalyticsAction.Request request = new GetDataFrameAnalyticsAction.Request();
+        request.setResourceId(id);
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsAction.INSTANCE, request, ActionListener.wrap(
+            response -> listener.onResponse(response.getResources().results()), listener::onFailure));
+    }
 }

@@ -64,6 +64,44 @@ teardown:
         transform_id: "airline-transform-start-stop"
 
 ---
+"Test start/stop/start transform":
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { started: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop" }
+  - match: { transforms.0.state.transform_state: "started" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { stopped: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop" }
+  - match: { transforms.0.state.transform_state: "stopped" }
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { started: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop" }
+  - match: { transforms.0.state.transform_state: "started" }
+
+---
 "Test stop missing transform":
   - do:
       catch: missing

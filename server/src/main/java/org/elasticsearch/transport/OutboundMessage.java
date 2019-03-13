@@ -97,9 +97,7 @@ abstract class OutboundMessage extends NetworkMessage implements Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (version.onOrAfter(Version.V_6_3_0)) {
-                out.writeStringArray(features);
-            }
+            out.writeStringArray(features);
             out.writeString(action);
         }
 

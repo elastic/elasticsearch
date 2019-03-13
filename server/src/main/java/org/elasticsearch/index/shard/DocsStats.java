@@ -102,9 +102,7 @@ public class DocsStats implements Streamable, Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
         out.writeVLong(deleted);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeVLong(totalSizeInBytes);
-        }
+        out.writeVLong(totalSizeInBytes);
     }
 
     @Override

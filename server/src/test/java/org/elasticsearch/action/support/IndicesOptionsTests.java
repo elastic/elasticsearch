@@ -76,39 +76,6 @@ public class IndicesOptionsTests extends ESTestCase {
         }
     }
 
-    public void testSerializationPre70() throws Exception {
-        int iterations = randomIntBetween(5, 20);
-        for (int i = 0; i < iterations; i++) {
-            Version version = randomVersionBetween(random(), null, Version.V_6_6_0);
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-
-            BytesStreamOutput output = new BytesStreamOutput();
-            output.setVersion(version);
-            indicesOptions.writeIndicesOptions(output);
-
-            StreamInput streamInput = output.bytes().streamInput();
-            streamInput.setVersion(version);
-            IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(streamInput);
-
-            assertThat(indicesOptions2.ignoreUnavailable(), equalTo(indicesOptions.ignoreUnavailable()));
-            assertThat(indicesOptions2.allowNoIndices(), equalTo(indicesOptions.allowNoIndices()));
-            assertThat(indicesOptions2.expandWildcardsOpen(), equalTo(indicesOptions.expandWildcardsOpen()));
-            assertThat(indicesOptions2.expandWildcardsClosed(), equalTo(indicesOptions.expandWildcardsClosed()));
-
-            assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
-            assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
-
-            assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
-            if (output.getVersion().onOrAfter(Version.V_6_6_0)) {
-                assertEquals(indicesOptions2.ignoreThrottled(), indicesOptions.ignoreThrottled());
-            } else {
-                assertFalse(indicesOptions2.ignoreThrottled()); // make sure we never write this option to pre 6.6
-            }
-
-        }
-    }
-
     public void testFromOptions() {
         boolean ignoreUnavailable = randomBoolean();
         boolean allowNoIndices = randomBoolean();

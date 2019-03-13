@@ -43,6 +43,8 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -60,6 +62,7 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -76,6 +79,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
@@ -575,6 +579,41 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         Exception e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
         assertEquals("[analyzer] must not have a [null] value", e.getMessage());
+    }
+
+    public void testOnlySearchAnalyzerConfigFails() throws MapperParsingException, IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "text")
+                            .field("search_analyzer", "standard")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
+
+        Exception e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("analyzer on field [field] must be set when search_analyzer is set", e.getMessage());
+    }
+
+    public void testUpdateSearchAnalyzer() throws MapperParsingException, IOException {
+        Client client = client();
+        String index = "new_index";
+        client.prepareIndex(index, "_doc", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        SearchResponse searchResponse = client.prepareSearch(index).setQuery(QueryBuilders.matchQuery("field", "Value")).get();
+        assertEquals(1, searchResponse.getHits().getTotalHits().value);
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "text")
+                            .field("search_analyzer", "keyword")
+                        .endObject()
+                    .endObject().endObject());
+        client.admin().indices().preparePutMapping(index).setType("_doc").setSource(mapping, XContentType.JSON).get();
+        // using keyword analyzer now should result in no match since the search term is uppercase
+        searchResponse = client.prepareSearch(index).setQuery(QueryBuilders.matchQuery("field", "Value")).get();
+        assertEquals(0, searchResponse.getHits().getTotalHits().value);
     }
 
     public void testNotIndexedFieldPositionIncrement() throws IOException {

@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -48,6 +50,26 @@ public class TypeParsersTests extends ESTestCase {
             .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(0).build();
     private static final IndexSettings indexSettings = new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY);
+
+    public void testParseTextFieldSearchAnalyzerWithoutAnalyzer() throws IOException {
+        TextFieldMapper.Builder builder = new TextFieldMapper.Builder("textField");
+        Map<String, Object> fieldNode = new HashMap<String, Object>();
+        fieldNode.put("search_analyzer", "my_search_analyzer");
+        Mapper.TypeParser.ParserContext parserContext = mock(Mapper.TypeParser.ParserContext.class);
+
+        Map<String, NamedAnalyzer> analyzers = new HashMap<>();
+        analyzers.put("my_search_analyzer",
+                new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", AnalysisMode.ALL)));
+
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings,
+                new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null, null, analyzers, null, null);
+        when(parserContext.mapperService())
+                .thenReturn(MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "test"));
+        when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
+        MapperParsingException ex = expectThrows(MapperParsingException.class,
+                () -> TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext));
+        assertEquals("analyzer on field [name] must be set when search_analyzer is set", ex.getMessage());
+    }
 
     public void testParseTextFieldCheckAnalyzerAnalysisMode() {
         TextFieldMapper.Builder builder = new TextFieldMapper.Builder("textField");

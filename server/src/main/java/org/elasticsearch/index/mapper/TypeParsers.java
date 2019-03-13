@@ -113,7 +113,13 @@ public class TypeParsers {
         }
 
         if (indexAnalyzer == null && searchAnalyzer != null) {
-            throw new MapperParsingException("analyzer on field [" + name + "] must be set when search_analyzer is set");
+            // is there already a default indexAnalyzer set for this field
+            MappedFieldType mappedFieldType = parserContext.mapperService().fullName(name);
+            if (mappedFieldType != null && mappedFieldType.indexAnalyzer() != null) {
+                indexAnalyzer = mappedFieldType.indexAnalyzer();
+            } else {
+                throw new MapperParsingException("analyzer on field [" + name + "] must be set when search_analyzer is set");
+            }
         }
 
         if (searchAnalyzer == null && searchQuoteAnalyzer != null) {

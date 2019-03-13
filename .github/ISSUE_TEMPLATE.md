@@ -22,7 +22,7 @@ Issues that do not follow these guidelines are likely to be closed.
 
 <!-- Bug report -->
 
-**Elasticsearch version** (`bin/elasticsearch --version`):
+**Elasticsearch version** (`bin/elasticsearch --version` or http(s) GET request to `[node_hostname]:[node_port]/` e.g. `localhost:9200/`):
 
 **Plugins installed**: []
 

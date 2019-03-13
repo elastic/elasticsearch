@@ -71,9 +71,11 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
         String[] tokens = Strings.tokenizeToStringArray(request.getResourceId(), ",");
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
             .sort(request.getResourceIdField())
-            .from(request.getPageParams().getFrom())
-            .size(request.getPageParams().getSize())
             .query(buildQuery(tokens, request.getResourceIdField()));
+        if (request.getPageParams() != null) {
+            sourceBuilder.from(request.getPageParams().getFrom())
+                .size(request.getPageParams().getSize());
+        }
 
         IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
         SearchRequest searchRequest = new SearchRequest(getIndices())
@@ -171,8 +173,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
      * @param parser Constructed XContentParser from search response hits to relay to a parser for the Resource
      * @return parsed Resource typed object
      */
-    protected abstract Resource parse(XContentParser parser);
-
+    protected abstract Resource parse(XContentParser parser) throws IOException;
     /**
      * @param resourceId Resource ID or expression that was not found in the search results
      * @return The exception to throw in the event that an ID or expression is not found

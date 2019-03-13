@@ -16,6 +16,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
@@ -77,6 +78,8 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
         }
 
         GetDataFrameTransformsAction.Request transformsRequest = new GetDataFrameTransformsAction.Request(MetaData.ALL);
+        // TODO Before 7.1, see https://github.com/elastic/elasticsearch/issues/39994
+        transformsRequest.setPageParams(new PageParams(0, 10_000));
         client.execute(GetDataFrameTransformsAction.INSTANCE, transformsRequest, ActionListener.wrap(
             transforms -> {
                 Set<String> transformIds = transforms.getTransformConfigurations()

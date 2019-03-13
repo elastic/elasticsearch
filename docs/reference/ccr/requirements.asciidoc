@@ -3,9 +3,7 @@
 [[ccr-requirements]]
 === Requirements for leader indices
 
-beta[]
-
-Cross-cluster replication works by replaying the history of individual write
+{ccr-cap} works by replaying the history of individual write
 operations that were performed on the shards of the leader index. This means that the
 history of these operations needs to be retained on the leader shards so that
 they can be pulled by the follower shard tasks. The underlying mechanism used to

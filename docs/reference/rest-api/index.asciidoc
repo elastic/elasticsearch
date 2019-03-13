@@ -8,7 +8,7 @@
 directly to configure and access {xpack} features.
 
 * <<info-api,Info API>>
-* <<ccr-apis,Cross-cluster replication APIs>>
+* <<ccr-apis,{ccr-cap} APIs>>
 * <<graph-explore-api,Graph Explore API>>
 * <<freeze-index-api>>, <<unfreeze-index-api>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>

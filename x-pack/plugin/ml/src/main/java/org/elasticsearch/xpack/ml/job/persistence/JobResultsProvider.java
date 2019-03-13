@@ -124,6 +124,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.clientWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -289,8 +290,8 @@ public class JobResultsProvider {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
             // This assumes the requested mapping will be merged with mappings from the template,
             // and may need to be revisited if template merging is ever refactored
-            try (XContentBuilder termFieldsMapping = ElasticsearchMappings.termFieldsMapping(ElasticsearchMappings.DOC_TYPE, termFields)) {
-                createIndexRequest.mapping(ElasticsearchMappings.DOC_TYPE, termFieldsMapping);
+            try (XContentBuilder termFieldsMapping = ElasticsearchMappings.termFieldsMapping(termFields)) {
+                createIndexRequest.mapping(SINGLE_MAPPING_NAME, termFieldsMapping);
             }
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
                     ActionListener.<CreateIndexResponse>wrap(
@@ -309,26 +310,22 @@ public class JobResultsProvider {
                     ), client.admin().indices()::create);
         } else {
             long fieldCountLimit = MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.get(settings);
-            if (violatedFieldCountLimit(indexName, termFields.size(), fieldCountLimit, state)) {
+            IndexMetaData indexMetaData = state.metaData().index(indexName);
+
+            if (violatedFieldCountLimit(termFields.size(), fieldCountLimit, indexMetaData)) {
                 String message = "Cannot create job in index '" + indexName + "' as the " +
                         MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey() + " setting will be violated";
                 finalListener.onFailure(new IllegalArgumentException(message));
             } else {
-                updateIndexMappingWithTermFields(indexName, termFields,
+                updateIndexMappingWithTermFields(indexName, indexMetaData.mapping().type(), termFields,
                         ActionListener.wrap(createAliasListener::onResponse, finalListener::onFailure));
             }
         }
     }
 
-    public static boolean violatedFieldCountLimit(
-            String indexName, long additionalFieldCount, long fieldCountLimit, ClusterState clusterState) {
-        long numFields = 0;
-        IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
-        Iterator<MappingMetaData> mappings = indexMetaData.getMappings().valuesIt();
-        while (mappings.hasNext()) {
-            MappingMetaData mapping = mappings.next();
-            numFields += countFields(mapping.sourceAsMap());
-        }
+    public static boolean violatedFieldCountLimit(long additionalFieldCount, long fieldCountLimit, IndexMetaData indexMetaData) {
+        MappingMetaData mapping = indexMetaData.mapping();
+        long numFields = countFields(mapping.sourceAsMap());
         return numFields + additionalFieldCount > fieldCountLimit;
     }
 
@@ -353,10 +350,12 @@ public class JobResultsProvider {
         return count;
     }
 
-    private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields, ActionListener<Boolean> listener) {
-        // Put the whole "doc" mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
-        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(termFields)) {
-            final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName).setType(ElasticsearchMappings.DOC_TYPE)
+    private void updateIndexMappingWithTermFields(String indexName, String mappingType, Collection<String> termFields,
+                                                  ActionListener<Boolean> listener) {
+        // Put the whole mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
+        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(mappingType, termFields)) {
+            final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName)
+                    .setType(mappingType)
                     .setSource(termFieldsMapping).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
                 @Override
@@ -504,7 +503,7 @@ public class JobResultsProvider {
                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             return objectParser.apply(parser, null);
         } catch (IOException e) {
-            errorHandler.accept(new ElasticsearchParseException("failed to parse " + hit.getType(), e));
+            errorHandler.accept(new ElasticsearchParseException("failed to parse " + hit.getId(), e));
             return null;
         }
     }
@@ -1184,7 +1183,7 @@ public class JobResultsProvider {
                     currentJobs.removeAll(jobIdsToRemove);
                     Calendar updatedCalendar = new Calendar(calendar.getId(), new ArrayList<>(currentJobs), calendar.getDescription());
 
-                    UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, updatedCalendar.documentId());
+                    UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, updatedCalendar.documentId());
                     updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
                     try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -1252,8 +1251,7 @@ public class JobResultsProvider {
                                 ids.remove(jobId);
                                 return new Calendar(c.getId(), new ArrayList<>(ids), c.getDescription());
                             }).forEach(c -> {
-                                UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE,
-                                        c.documentId());
+                                UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, c.documentId());
                                 try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                                     updateRequest.doc(c.toXContent(builder, ToXContent.EMPTY_PARAMS));
                                 } catch (IOException e) {
@@ -1276,7 +1274,7 @@ public class JobResultsProvider {
     }
 
     public void calendar(String calendarId, ActionListener<Calendar> listener) {
-        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, Calendar.documentId(calendarId));
+        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, Calendar.documentId(calendarId));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getDocResponse) {

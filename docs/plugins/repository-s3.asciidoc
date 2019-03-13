@@ -244,8 +244,9 @@ The following settings are supported:
 `storage_class`::
 
     Sets the S3 storage class for objects stored in the snapshot repository.
-    Values may be `standard`, `reduced_redundancy`, `standard_ia`.  Defaults to
-    `standard`. Changing this setting on an existing repository only affects the
+    Values may be `standard`, `reduced_redundancy`, `standard_ia`
+    and `intelligent_tiering`. Defaults to `standard`.
+    Changing this setting on an existing repository only affects the
     storage class for newly created objects, resulting in a mixed usage of
     storage classes. Additionally, S3 Lifecycle Policies can be used to manage
     the storage class of existing objects.  Due to the extra complexity with the

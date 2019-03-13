@@ -21,11 +21,9 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
-import org.junit.Ignore;
 
 import java.util.Arrays;
 
-@Ignore // Awaiting a fix in https://github.com/elastic/elasticsearch/issues/37889.
 public class TestClustersPluginIT extends GradleIntegrationTestCase {
 
     public void testListClusters() {
@@ -152,6 +150,14 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         );
     }
 
+    public void testPluginInstalled() {
+        BuildResult result = getTestClustersRunner(":printLog").build();
+        assertTaskSuccessful(result, ":printLog");
+        assertStartedAndStoppedOnce(result);
+        assertOutputContains(result.getOutput(), "-> Installed dummy");
+        assertOutputContains(result.getOutput(), "loaded plugin [dummy]");
+    }
+
     private void assertNotStarted(BuildResult result) {
         assertOutputDoesNotContain(
             result.getOutput(),
@@ -178,4 +184,6 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
             "Stopping `node{::myTestCluster}`"
         );
     }
+
+
 }

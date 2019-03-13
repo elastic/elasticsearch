@@ -57,7 +57,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
     public void testChainedInputsAreWorking() throws Exception {
         String index = "the-most-awesome-index-ever";
         createIndex(index);
-        client().prepareIndex(index, "type", "id").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex().setIndex(index).setId("id").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         InetSocketAddress address = internalCluster().httpAddresses()[0];
         HttpInput.Builder httpInputBuilder = httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
@@ -72,7 +72,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, SECONDS)))
                         .input(chainedInputBuilder)
-                        .addAction("indexAction", indexAction("my-index", "my-type")))
+                        .addAction("indexAction", indexAction("my-index")))
                 .get();
 
         timeWarp().trigger("_name");
@@ -84,7 +84,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
     public void assertWatchExecuted() {
         try {
             refresh();
-            SearchResponse searchResponse = client().prepareSearch("my-index").setTypes("my-type").get();
+            SearchResponse searchResponse = client().prepareSearch("my-index").get();
             assertHitCount(searchResponse, 1);
             assertThat(searchResponse.getHits().getAt(0).getSourceAsString(), containsString("the-most-awesome-index-ever"));
         } catch (IndexNotFoundException e) {

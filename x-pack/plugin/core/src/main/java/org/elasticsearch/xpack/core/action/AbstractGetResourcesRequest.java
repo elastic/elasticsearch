@@ -16,7 +16,6 @@ import java.util.Objects;
 
 public abstract class AbstractGetResourcesRequest extends ActionRequest {
 
-    public static final String ALLOW_NO_RESOURCES = "allow_no_resources";
     private String resourceId;
     private PageParams pageParams = PageParams.defaultParams();
     private boolean allowNoResources = false;

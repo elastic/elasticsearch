@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest.ALLOW_NO_RESOURCES;
 
 public class RestGetFiltersAction extends BaseRestHandler {
 
@@ -59,7 +58,7 @@ public class RestGetFiltersAction extends BaseRestHandler {
         } else {
             getListRequest.setPageParams(null);
         }
-        getListRequest.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_RESOURCES, true));
+        getListRequest.setAllowNoResources(true);
         return channel -> client.execute(GetFiltersAction.INSTANCE, getListRequest, new RestStatusToXContentListener<>(channel));
     }
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.geo.geometry;
 
 /**
- * Represents a closed line on the earth's surface in lat/lon decimal degrees.
+ * Represents a closed line on the earth's surface in lat/lon decimal degrees and optional altitude in meters.
  * <p>
  * Cannot be serialized by WKT directly but used as a part of polygon
  */

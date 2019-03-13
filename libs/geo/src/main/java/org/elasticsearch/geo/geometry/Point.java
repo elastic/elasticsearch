@@ -20,7 +20,7 @@
 package org.elasticsearch.geo.geometry;
 
 /**
- * Represents a Point on the earth's surface in decimal degrees.
+ * Represents a Point on the earth's surface in decimal degrees and optional altitude in meters.
  */
 public class Point implements Geometry {
     public static final Point EMPTY = new Point();

@@ -20,7 +20,8 @@
 package org.elasticsearch.geo.geometry;
 
 /**
- * Circle geometry (not part of WKT standard, but used in elasticsearch)
+ * Circle geometry (not part of WKT standard, but used in elasticsearch) defined by lat/lon coordinates of the center in degrees
+ * and optional altitude in meters.
  */
 public class Circle implements Geometry {
     public static final Circle EMPTY = new Circle();

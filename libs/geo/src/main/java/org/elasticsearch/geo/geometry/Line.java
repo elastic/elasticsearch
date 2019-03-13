@@ -22,7 +22,7 @@ package org.elasticsearch.geo.geometry;
 import java.util.Arrays;
 
 /**
- * Represents a Line on the earth's surface in lat/lon decimal degrees.
+ * Represents a Line on the earth's surface in lat/lon decimal degrees and optional altitude in meters.
  */
 public class Line implements Geometry {
     public static final Line EMPTY = new Line();

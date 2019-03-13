@@ -20,7 +20,7 @@
 package org.elasticsearch.geo.geometry;
 
 /**
- * Represents a lat/lon rectangle in decimal degrees.
+ * Represents a lat/lon rectangle in decimal degrees and optional altitude in meters.
  */
 public class Rectangle implements Geometry {
     public static final Rectangle EMPTY = new Rectangle();

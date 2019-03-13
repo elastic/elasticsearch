@@ -61,7 +61,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                 }
                 assert authentication != null : "authentication should never be null at this point";
                 final Map<String, Object> tokenMeta = (Map<String, Object>) result.getMetadata().get(SamlRealm.CONTEXT_TOKEN_DATA);
-                tokenService.createUserToken(authentication, originatingAuthentication,
+                tokenService.createOAuth2Tokens(authentication, originatingAuthentication,
                         tokenMeta, true, ActionListener.wrap(tuple -> {
                             final String tokenString = tokenService.getAccessTokenAsString(tuple.v1());
                             final TimeValue expiresIn = tokenService.getExpirationDelay();

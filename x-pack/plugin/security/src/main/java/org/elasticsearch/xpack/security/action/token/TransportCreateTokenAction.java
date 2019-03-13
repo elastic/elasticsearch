@@ -86,7 +86,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
 
     private void createToken(CreateTokenRequest request, Authentication authentication, Authentication originatingAuth,
             boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
-        tokenService.createUserToken(authentication, originatingAuth, Collections.emptyMap(), includeRefreshToken,
+        tokenService.createOAuth2Tokens(authentication, originatingAuth, Collections.emptyMap(), includeRefreshToken,
                 ActionListener.wrap(tuple -> {
                     final String tokenStr = tokenService.getAccessTokenAsString(tuple.v1());
                     final String scope = getResponseScopeValue(request.getScope());

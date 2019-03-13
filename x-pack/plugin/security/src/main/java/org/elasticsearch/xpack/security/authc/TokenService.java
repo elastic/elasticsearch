@@ -227,22 +227,22 @@ public final class TokenService {
     }
 
     /**
-     * Creates a token based on the provided authentication and metadata with an auto-generated token id.
-     * The created token will be stored in the security index.
+     * Creates an access token and optionally a refresh token as well, based on the provided authentication and metadata with an
+     * auto-generated token document id. The created tokens are be stored in the security index.
      */
-    public void createUserToken(Authentication authentication, Authentication originatingClientAuth,
-                                Map<String, Object> metadata, boolean includeRefreshToken,
-                                ActionListener<Tuple<UserToken, String>> listener) {
-        createUserToken(UUIDs.randomBase64UUID(), authentication, originatingClientAuth, metadata, includeRefreshToken, listener);
+    public void createOAuth2Tokens(Authentication authentication, Authentication originatingClientAuth,
+                                   Map<String, Object> metadata, boolean includeRefreshToken,
+                                   ActionListener<Tuple<UserToken, String>> listener) {
+        createOAuth2Tokens(UUIDs.randomBase64UUID(), authentication, originatingClientAuth, metadata, includeRefreshToken, listener);
     }
 
     /**
-     * Create a token based on the provided authentication and metadata with the given token id.
-     * The created token will be stored in the security index.
+     * Create an access token and optionally a refresh token as well, based on the provided authentication and metadata, with the given
+     * token document id. The created tokens are be stored in the security index.
      */
-    private void createUserToken(String userTokenId, Authentication authentication, Authentication originatingClientAuth,
-                                 Map<String, Object> metadata, boolean includeRefreshToken,
-                                 ActionListener<Tuple<UserToken, String>> listener) {
+    private void createOAuth2Tokens(String userTokenId, Authentication authentication, Authentication originatingClientAuth,
+                                    Map<String, Object> metadata, boolean includeRefreshToken,
+                                    ActionListener<Tuple<UserToken, String>> listener) {
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(traceLog("create token", new IllegalArgumentException("authentication must be provided")));
@@ -872,7 +872,7 @@ public final class TokenService {
                                 return;
                             }
                             final UserToken toRefreshUserToken = parsedTokens.v1();
-                            createUserToken(newUserTokenId, toRefreshUserToken.getAuthentication(), clientAuth,
+                            createOAuth2Tokens(newUserTokenId, toRefreshUserToken.getAuthentication(), clientAuth,
                                     toRefreshUserToken.getMetadata(), true, listener);
                         } else if (backoff.hasNext()) {
                             logger.info(() -> new ParameterizedMessage(

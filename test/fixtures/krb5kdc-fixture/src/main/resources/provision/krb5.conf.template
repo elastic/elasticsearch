@@ -32,7 +32,6 @@
 
 [realms]
     ${REALM_NAME} = {
-        kdc = ${KDC_NAME}:88
         kdc = localhost:88
         kdc = 127.0.0.1:88
         admin_server = ${KDC_NAME}:749

@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizatio
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.RoleMappingTemplate;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -407,7 +407,7 @@ public class LdapRealmTests extends LdapTestCase {
 
     /**
      * This tests template role mappings (see
-     * {@link RoleMappingTemplate}) with an LDAP realm, using a additional
+     * {@link TemplateRoleName}) with an LDAP realm, using a additional
      * metadata field (see {@link LdapMetaDataResolverSettings#ADDITIONAL_META_DATA_SETTING}).
      */
     public void testLdapRealmWithTemplatedRoleMapping() throws Exception {

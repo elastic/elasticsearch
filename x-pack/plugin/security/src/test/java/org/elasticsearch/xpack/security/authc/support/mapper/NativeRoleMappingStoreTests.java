@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.RoleMappingTemplate;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
@@ -73,8 +73,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
                         new FieldValue(randomiseDn("cn=gammaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca"))
                 )),
             Collections.emptyList(),
-            Arrays.asList(new RoleMappingTemplate(new BytesArray("{ \"source\":\"{{metadata.extra_group}}\" }"),
-                RoleMappingTemplate.Format.STRING)),
+            Arrays.asList(new TemplateRoleName(new BytesArray("{ \"source\":\"{{metadata.extra_group}}\" }"),
+                TemplateRoleName.Format.STRING)),
             Collections.emptyMap(), true);
         // Does not match - mapping is not enabled
         final ExpressionRoleMapping mapping4 = new ExpressionRoleMapping("mutants",

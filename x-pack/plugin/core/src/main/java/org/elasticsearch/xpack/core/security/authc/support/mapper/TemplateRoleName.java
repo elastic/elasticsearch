@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -45,25 +44,25 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * Representation of a Mustache template for expressing one or more roles names in a {@link ExpressionRoleMapping}.
  */
-public class RoleMappingTemplate implements ToXContent, Writeable {
+public class TemplateRoleName implements ToXContent, Writeable {
 
-    private static final ConstructingObjectParser<RoleMappingTemplate, Void> PARSER = new ConstructingObjectParser<>("role-mapping-template",
-        false, arr -> new RoleMappingTemplate((BytesReference) arr[0], (Format) arr[1]));
+    private static final ConstructingObjectParser<TemplateRoleName, Void> PARSER = new ConstructingObjectParser<>(
+        "role-mapping-template", false, arr -> new TemplateRoleName((BytesReference) arr[0], (Format) arr[1]));
 
     static {
-        PARSER.declareField(constructorArg(), RoleMappingTemplate::extractTemplate, Fields.TEMPLATE, ObjectParser.ValueType.OBJECT_OR_STRING);
+        PARSER.declareField(constructorArg(), TemplateRoleName::extractTemplate, Fields.TEMPLATE, ObjectParser.ValueType.OBJECT_OR_STRING);
         PARSER.declareField(optionalConstructorArg(), Format::fromXContent, Fields.FORMAT, ObjectParser.ValueType.STRING);
     }
 
     private final BytesReference template;
     private final Format format;
 
-    public RoleMappingTemplate(BytesReference template, Format format) {
+    public TemplateRoleName(BytesReference template, Format format) {
         this.template = template;
         this.format = format == null ? Format.STRING : format;
     }
 
-    public RoleMappingTemplate(StreamInput in) throws IOException {
+    public TemplateRoleName(StreamInput in) throws IOException {
         this.template = in.readBytesReference();
         this.format = in.readEnum(Format.class);
     }
@@ -140,7 +139,7 @@ public class RoleMappingTemplate implements ToXContent, Writeable {
         }
     }
 
-    static RoleMappingTemplate parse(XContentParser parser) throws IOException {
+    static TemplateRoleName parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -170,7 +169,7 @@ public class RoleMappingTemplate implements ToXContent, Writeable {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        final RoleMappingTemplate that = (RoleMappingTemplate) o;
+        final TemplateRoleName that = (TemplateRoleName) o;
         return Objects.equals(this.template, that.template) &&
             this.format == that.format;
     }

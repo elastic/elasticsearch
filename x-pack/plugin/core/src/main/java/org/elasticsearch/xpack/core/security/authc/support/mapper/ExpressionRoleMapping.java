@@ -59,7 +59,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
     static {
         PARSER.declareStringArray(Builder::roles, Fields.ROLES);
-        PARSER.declareObjectArray(Builder::roleTemplates, (parser, ctx) -> RoleMappingTemplate.parse(parser), Fields.ROLE_TEMPLATES);
+        PARSER.declareObjectArray(Builder::roleTemplates, (parser, ctx) -> TemplateRoleName.parse(parser), Fields.ROLE_TEMPLATES);
         PARSER.declareField(Builder::rules, (parser, ctx) -> ExpressionParser.parseObject(parser, ctx.name), Fields.RULES,
             ValueType.OBJECT);
         PARSER.declareField(Builder::metadata, XContentParser::map, Fields.METADATA, ValueType.OBJECT);
@@ -74,11 +74,11 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     private final String name;
     private final RoleMapperExpression expression;
     private final List<String> roles;
-    private final List<RoleMappingTemplate> roleTemplates ;
+    private final List<TemplateRoleName> roleTemplates ;
     private final Map<String, Object> metadata;
     private final boolean enabled;
 
-    public ExpressionRoleMapping(String name, RoleMapperExpression expr, List<String> roles, List<RoleMappingTemplate> templates,
+    public ExpressionRoleMapping(String name, RoleMapperExpression expr, List<String> roles, List<TemplateRoleName> templates,
                                  Map<String, Object> metadata, boolean enabled) {
         this.name = name;
         this.expression = expr;
@@ -93,7 +93,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         this.enabled = in.readBoolean();
         this.roles = in.readStringList();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.roleTemplates = in.readList(RoleMappingTemplate::new);
+            this.roleTemplates = in.readList(TemplateRoleName::new);
         } else {
             this.roleTemplates = Collections.emptyList();
         }
@@ -144,7 +144,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      * The list of {@link RoleDescriptor roles} (specified by a template that evaluates to one or more names) that should be assigned
      * to users that match the {@link #getExpression() expression} in this mapping.
      */
-    public List<RoleMappingTemplate> getRoleTemplates() {
+    public List<TemplateRoleName> getRoleTemplates() {
         return Collections.unmodifiableList(roleTemplates);
     }
 
@@ -237,7 +237,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         }
         if (roleTemplates.isEmpty() == false) {
             builder.startArray(Fields.ROLE_TEMPLATES.getPreferredName());
-            for (RoleMappingTemplate r : roleTemplates) {
+            for (TemplateRoleName r : roleTemplates) {
                 builder.value(r);
             }
             builder.endArray();
@@ -266,7 +266,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     private static class Builder {
         private RoleMapperExpression rules;
         private List<String> roles;
-        private List<RoleMappingTemplate> roleTemplates;
+        private List<TemplateRoleName> roleTemplates;
         private Map<String, Object> metadata = Collections.emptyMap();
         private Boolean enabled;
 
@@ -280,7 +280,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             return this;
         }
 
-        Builder roleTemplates(List<RoleMappingTemplate> templates) {
+        Builder roleTemplates(List<TemplateRoleName> templates) {
             this.roleTemplates = new ArrayList<>(templates);
             return this;
         }

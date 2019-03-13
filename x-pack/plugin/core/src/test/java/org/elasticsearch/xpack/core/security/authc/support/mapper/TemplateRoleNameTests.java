@@ -22,7 +22,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.RoleMappingTemplate.Format;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName.Format;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.hamcrest.Matchers;
 
@@ -34,16 +34,17 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class RoleMappingTemplateTests extends ESTestCase {
+public class TemplateRoleNameTests extends ESTestCase {
 
     public void testParseRoles() throws Exception {
-        final RoleMappingTemplate role1 = parse("{ \"template\": { \"source\": \"_user_{{username}}\" } }");
-        assertThat(role1, Matchers.instanceOf(RoleMappingTemplate.class));
+        final TemplateRoleName role1 = parse("{ \"template\": { \"source\": \"_user_{{username}}\" } }");
+        assertThat(role1, Matchers.instanceOf(TemplateRoleName.class));
         assertThat(role1.getTemplate().utf8ToString(), equalTo("{\"source\":\"_user_{{username}}\"}"));
         assertThat(role1.getFormat(), equalTo(Format.STRING));
 
-        final RoleMappingTemplate role2 = parse("{ \"template\": \"{\\\"source\\\":\\\"{{#tojson}}groups{{/tojson}}\\\"}\", \"format\":\"json\" }");
-        assertThat(role2, Matchers.instanceOf(RoleMappingTemplate.class));
+        final TemplateRoleName role2 = parse(
+            "{ \"template\": \"{\\\"source\\\":\\\"{{#tojson}}groups{{/tojson}}\\\"}\", \"format\":\"json\" }");
+        assertThat(role2, Matchers.instanceOf(TemplateRoleName.class));
         assertThat(role2.getTemplate().utf8ToString(),
             equalTo("{\"source\":\"{{#tojson}}groups{{/tojson}}\"}"));
         assertThat(role2.getFormat(), equalTo(Format.JSON));
@@ -58,11 +59,11 @@ public class RoleMappingTemplateTests extends ESTestCase {
     }
 
     public void testSerializeTemplate() throws Exception {
-        trySerialize(new RoleMappingTemplate(new BytesArray(randomAlphaOfLengthBetween(12, 60)), randomFrom(Format.values())));
+        trySerialize(new TemplateRoleName(new BytesArray(randomAlphaOfLengthBetween(12, 60)), randomFrom(Format.values())));
     }
 
     public void testEqualsAndHashCode() throws Exception {
-        tryEquals(new RoleMappingTemplate(new BytesArray(randomAlphaOfLengthBetween(12, 60)), randomFrom(Format.values())));
+        tryEquals(new TemplateRoleName(new BytesArray(randomAlphaOfLengthBetween(12, 60)), randomFrom(Format.values())));
     }
 
     public void testEvaluateRoles() throws Exception {
@@ -72,44 +73,44 @@ public class RoleMappingTemplateTests extends ESTestCase {
         model.defineField("username", "hulk");
         model.defineField("groups", Arrays.asList("avengers", "defenders", "panthenon"));
 
-        final RoleMappingTemplate plainString = new RoleMappingTemplate(new BytesArray("{ \"source\":\"heroes\" }"), Format.STRING);
+        final TemplateRoleName plainString = new TemplateRoleName(new BytesArray("{ \"source\":\"heroes\" }"), Format.STRING);
         assertThat(plainString.getRoleNames(scriptService, model), contains("heroes"));
 
-        final RoleMappingTemplate user = new RoleMappingTemplate(new BytesArray("{ \"source\":\"_user_{{username}}\" }"), Format.STRING);
+        final TemplateRoleName user = new TemplateRoleName(new BytesArray("{ \"source\":\"_user_{{username}}\" }"), Format.STRING);
         assertThat(user.getRoleNames(scriptService, model), contains("_user_hulk"));
 
-        final RoleMappingTemplate groups = new RoleMappingTemplate(new BytesArray("{ \"source\":\"{{#tojson}}groups{{/tojson}}\" }"),
+        final TemplateRoleName groups = new TemplateRoleName(new BytesArray("{ \"source\":\"{{#tojson}}groups{{/tojson}}\" }"),
             Format.JSON);
         assertThat(groups.getRoleNames(scriptService, model), contains("avengers", "defenders", "panthenon"));
     }
 
-    private RoleMappingTemplate parse(String json) throws IOException {
+    private TemplateRoleName parse(String json) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
-        final RoleMappingTemplate role = RoleMappingTemplate.parse(parser);
+        final TemplateRoleName role = TemplateRoleName.parse(parser);
         assertThat(role, notNullValue());
         return role;
     }
 
-    public void trySerialize(RoleMappingTemplate original) throws Exception {
+    public void trySerialize(TemplateRoleName original) throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
         original.writeTo(output);
 
         final StreamInput rawInput = ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes()));
-        final RoleMappingTemplate serialized = new RoleMappingTemplate(rawInput);
+        final TemplateRoleName serialized = new TemplateRoleName(rawInput);
         assertEquals(original, serialized);
     }
 
-    public void tryEquals(RoleMappingTemplate original) {
-        final EqualsHashCodeTestUtils.CopyFunction<RoleMappingTemplate> copy =
-            rmt -> new RoleMappingTemplate(rmt.getTemplate(), rmt.getFormat());
-        final EqualsHashCodeTestUtils.MutateFunction<RoleMappingTemplate> mutate = rmt -> {
+    public void tryEquals(TemplateRoleName original) {
+        final EqualsHashCodeTestUtils.CopyFunction<TemplateRoleName> copy =
+            rmt -> new TemplateRoleName(rmt.getTemplate(), rmt.getFormat());
+        final EqualsHashCodeTestUtils.MutateFunction<TemplateRoleName> mutate = rmt -> {
             if (randomBoolean()) {
-                return new RoleMappingTemplate(rmt.getTemplate(),
+                return new TemplateRoleName(rmt.getTemplate(),
                     randomValueOtherThan(rmt.getFormat(), () -> randomFrom(Format.values())));
             } else {
                 final String templateStr = rmt.getTemplate().utf8ToString();
-                return new RoleMappingTemplate(new BytesArray(templateStr.substring(randomIntBetween(1, templateStr.length() / 2))),
+                return new TemplateRoleName(new BytesArray(templateStr.substring(randomIntBetween(1, templateStr.length() / 2))),
                     rmt.getFormat());
             }
         };

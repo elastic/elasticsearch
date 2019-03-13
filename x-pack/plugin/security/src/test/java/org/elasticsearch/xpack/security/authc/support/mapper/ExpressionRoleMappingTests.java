@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -30,7 +29,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.RoleMappingTemplate;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AllExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
@@ -43,7 +42,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -123,11 +121,11 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         final ExpressionRoleMapping mapping = parse(json, "ldap_sales");
         assertThat(mapping.getRoleTemplates(), iterableWithSize(3));
         assertThat(mapping.getRoleTemplates().get(0).getTemplate().utf8ToString(), equalTo("{\"source\":\"kibana_user\"}"));
-        assertThat(mapping.getRoleTemplates().get(0).getFormat(), equalTo(RoleMappingTemplate.Format.STRING));
+        assertThat(mapping.getRoleTemplates().get(0).getFormat(), equalTo(TemplateRoleName.Format.STRING));
         assertThat(mapping.getRoleTemplates().get(1).getTemplate().utf8ToString(), equalTo("{\"source\":\"sales\"}"));
-        assertThat(mapping.getRoleTemplates().get(1).getFormat(), equalTo(RoleMappingTemplate.Format.STRING));
+        assertThat(mapping.getRoleTemplates().get(1).getFormat(), equalTo(TemplateRoleName.Format.STRING));
         assertThat(mapping.getRoleTemplates().get(2).getTemplate().utf8ToString(), equalTo("{\"source\":\"_user_{{username}}\"}"));
-        assertThat(mapping.getRoleTemplates().get(2).getFormat(), equalTo(RoleMappingTemplate.Format.STRING));
+        assertThat(mapping.getRoleTemplates().get(2).getFormat(), equalTo(TemplateRoleName.Format.STRING));
     }
 
     public void testParsingFailsIfRulesAreMissing() throws Exception {
@@ -299,11 +297,11 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     private ExpressionRoleMapping randomRoleMapping(boolean acceptRoleTemplates) {
         final boolean useTemplate = acceptRoleTemplates && randomBoolean();
         final List<String> roles;
-        final List<RoleMappingTemplate> templates;
+        final List<TemplateRoleName> templates;
         if (useTemplate) {
             roles = Collections.emptyList();
-            templates = Arrays.asList(randomArray(1, 5, RoleMappingTemplate[]::new, () ->
-                new RoleMappingTemplate(new BytesArray(randomAlphaOfLengthBetween(10, 25)), randomFrom(RoleMappingTemplate.Format.values()))
+            templates = Arrays.asList(randomArray(1, 5, TemplateRoleName[]::new, () ->
+                new TemplateRoleName(new BytesArray(randomAlphaOfLengthBetween(10, 25)), randomFrom(TemplateRoleName.Format.values()))
             ));
         } else {
             roles = Arrays.asList(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(4, 12)));

@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.RoleMappingTemplate;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -37,7 +37,7 @@ public class PutRoleMappingRequest extends ActionRequest
     private String name = null;
     private boolean enabled = true;
     private List<String> roles = Collections.emptyList();
-    private List<RoleMappingTemplate> roleTemplates = Collections.emptyList();
+    private List<TemplateRoleName> roleTemplates = Collections.emptyList();
     private RoleMapperExpression rules = null;
     private Map<String, Object> metadata = Collections.emptyMap();
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
@@ -87,7 +87,7 @@ public class PutRoleMappingRequest extends ActionRequest
         return Collections.unmodifiableList(roles);
     }
 
-    public List<RoleMappingTemplate> getRoleTemplates() {
+    public List<TemplateRoleName> getRoleTemplates() {
         return Collections.unmodifiableList(roleTemplates);
     }
 
@@ -95,7 +95,7 @@ public class PutRoleMappingRequest extends ActionRequest
         this.roles = new ArrayList<>(roles);
     }
 
-    public void setRoleTemplates(List<RoleMappingTemplate> templates) {
+    public void setRoleTemplates(List<TemplateRoleName> templates) {
         this.roleTemplates = new ArrayList<>(templates);
     }
 
@@ -138,7 +138,7 @@ public class PutRoleMappingRequest extends ActionRequest
         this.enabled = in.readBoolean();
         this.roles = in.readStringList();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.roleTemplates = in.readList(RoleMappingTemplate::new);
+            this.roleTemplates = in.readList(TemplateRoleName::new);
         }
         this.rules = ExpressionParser.readExpression(in);
         this.metadata = in.readMap();

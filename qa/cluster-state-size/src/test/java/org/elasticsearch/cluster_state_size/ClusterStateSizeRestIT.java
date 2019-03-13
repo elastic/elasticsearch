@@ -52,7 +52,7 @@ public class ClusterStateSizeRestIT extends ESClientYamlSuiteTestCase {
 
     @Override
     protected boolean preserveClusterSettings() {
-        // we did not add any cluster settings, and trying to clean these will trigger a warning
+        // we did not add any cluster settings, we are the only test using this cluster, and trying to clean these will trigger a warning
         return true;
     }
 

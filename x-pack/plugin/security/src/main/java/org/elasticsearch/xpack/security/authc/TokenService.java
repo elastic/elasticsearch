@@ -302,7 +302,7 @@ public final class TokenService {
      * token is validated, which might include authenticated decryption and verification that the token
      * has not been revoked or is expired.
      */
-    void getAndValidateToken(ThreadContext ctx,ActionListener<UserToken> listener) {
+    void getAndValidateToken(ThreadContext ctx, ActionListener<UserToken> listener) {
         if (enabled) {
             final String token = getFromHeader(ctx);
             if (token == null) {

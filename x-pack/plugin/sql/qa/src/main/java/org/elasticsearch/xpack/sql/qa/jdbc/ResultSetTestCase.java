@@ -1057,8 +1057,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
 
             assertEquals(new java.sql.Date(connCalendar2.getTimeInMillis()), results.getDate("test_date"));
             assertEquals(new java.sql.Date(connCalendar2.getTimeInMillis()), results.getDate(1));
-            assertEquals(new java.sql.Date(dateInMillis2 - (dateInMillis2 % 86400000L)), results.getObject("test_date", java.sql.Date.class));
-            assertEquals(new java.sql.Date(dateInMillis2 - (dateInMillis2 % 86400000L)), results.getObject(1, java.sql.Date.class));
+            assertEquals(new java.sql.Date(dateInMillis2 - (dateInMillis2 % 86400000L)),
+                results.getObject("test_date", java.sql.Date.class));
+            assertEquals(new java.sql.Date(dateInMillis2 - (dateInMillis2 % 86400000L)),
+                results.getObject(1, java.sql.Date.class));
 
             // -1 day
             assertEquals(11, results.getInt("day"));

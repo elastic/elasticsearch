@@ -597,5 +597,10 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         public void cancel() {
             // do nothing
         }
+
+        @Override
+        public long getEndTime() {
+            return 0;
+        }
     }
 }

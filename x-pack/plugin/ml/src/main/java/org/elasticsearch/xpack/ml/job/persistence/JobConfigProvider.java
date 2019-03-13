@@ -102,9 +102,11 @@ public class JobConfigProvider {
     }
 
     private final Client client;
+    private final NamedXContentRegistry xContentRegistry;
 
-    public JobConfigProvider(Client client) {
+    public JobConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {
         this.client = client;
+        this.xContentRegistry = xContentRegistry;
     }
 
     /**
@@ -737,7 +739,7 @@ public class JobConfigProvider {
         getJob(config.getJobId(), ActionListener.wrap(
                 jobBuilder -> {
                     try {
-                        DatafeedJobValidator.validate(config, jobBuilder.build());
+                        DatafeedJobValidator.validate(config, jobBuilder.build(), xContentRegistry);
                         listener.onResponse(Boolean.TRUE);
                     } catch (Exception e) {
                         listener.onFailure(e);

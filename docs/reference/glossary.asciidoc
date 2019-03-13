@@ -26,6 +26,12 @@
   same cluster name. Each cluster has a single master node which is
   chosen automatically by the cluster and which can be replaced if the
   current master node fails.
+  
+[[glossary-ccr]] {ccr} (CCR)::
+
+  The {ccr} feature enables you to replicate indices in remote clusters to your
+  local cluster. For more information, see 
+  {stack-ov}/xpack-ccr.html[{ccr-cap}].  
 
 [[glossary-document]] document ::
 
@@ -41,12 +47,6 @@
   The original JSON document that is indexed will be stored in the
   <<glossary-source_field,`_source` field>>, which is returned by default when
   getting or searching for a document.
-
-[[glossary-id]] id ::
-
-  The ID of a <<glossary-document,document>> identifies a document. The
-  `index/id` of a document must be unique. If no ID is provided,
-  then it will be auto-generated. (also see <<glossary-routing,routing>>)
 
 [[glossary-field]] field ::
 
@@ -69,6 +69,17 @@
   in a <<query-filter-context,filter context>>, 
   hence it is called a filter. Filters are simple checks for set inclusion or exclusion. 
   In most cases, the goal of filtering is to reduce the number of documents that have to be examined.
+  
+[[glossary-follower-index]] follower index ::  
+  
+  Follower indices are the target indices for <<glossary-ccr,{ccr}>>. They exist
+  in your local cluster and replicate <<glossary-leader-index,leader indices>>.
+  
+[[glossary-id]] id ::
+
+  The ID of a <<glossary-document,document>> identifies a document. The
+  `index/id` of a document must be unique. If no ID is provided,
+  then it will be auto-generated. (also see <<glossary-routing,routing>>)  
 
 [[glossary-index]] index ::
 
@@ -79,6 +90,12 @@
   An index is a logical namespace which maps to one or more
   <<glossary-primary-shard,primary shards>> and can have zero or more
   <<glossary-replica-shard,replica shards>>.
+  
+[[glossary-leader-index]] leader index ::  
+    
+  Leader indices are the source indices for <<glossary-ccr,{ccr}>>. They exist
+  on remote clusters and are replicated to 
+  <<glossary-follower-index,follower indices>>.
 
 [[glossary-mapping]] mapping ::
 

@@ -55,7 +55,7 @@ public class TypeConverterTests extends ESTestCase {
         assertThat(nativeObject, instanceOf(Date.class));
         assertEquals(now.toLocalDate().atStartOfDay(UTC).toInstant().toEpochMilli(), ((Date) nativeObject).getTime());
 
-        now = ZonedDateTime.now(ZoneId.of("Etc/GMT-10"));
+        now = nowWithMillisResolution(ZoneId.of("Etc/GMT-10"));
         nativeObject = convertAsNative(now, EsType.DATE);
         assertThat(nativeObject, instanceOf(Date.class));
         assertEquals(now.toLocalDate().atStartOfDay(ZoneId.of("Etc/GMT-10")).toInstant().toEpochMilli(), ((Date) nativeObject).getTime());

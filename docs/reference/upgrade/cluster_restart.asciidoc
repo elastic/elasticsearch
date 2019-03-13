@@ -1,8 +1,15 @@
 [[restart-upgrade]]
 == Full cluster restart upgrade
 
-To upgrade directly to {es} {version} from 6.6 or earlier, you must shut down all
-nodes in the cluster, upgrade each node to {version}, and restart the cluster:
+To upgrade directly to {es} {version} from versions 6.0-6.6, you must shut down
+all nodes in the cluster, upgrade each node to {version}, and restart the cluster.
+
+NOTE: If you are running a version prior to 6.0,
+https://www.elastic.co/guide/en/elastic-stack/6.7/upgrading-elastic-stack.html[upgrade to 6.7]
+and reindex your old indices or bring up a new {7.x} cluster and
+<<reindex-upgrade-remote, reindex from remote>>.
+
+To perform a  full cluster restart upgrade to {version}:
 
 . *Disable shard allocation.*
 +

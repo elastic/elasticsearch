@@ -9,5 +9,6 @@ POST _ml/set_upgrade_mode?enabled=false
 --------------------------------------------------
 // CONSOLE
 
-If you closed all {ml} jobs before the upgrade, open them and their associated
-datafeeds from {kib} or with the <<ml-open-job,open jobs API>>. 
+If you closed all {ml} jobs before the upgrade, open the jobs and start the
+datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
+<<ml-start-datafeed,start datafeed>> APIs.

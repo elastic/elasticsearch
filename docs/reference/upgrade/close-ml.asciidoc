@@ -1,7 +1,8 @@
 [testenv="platinum"]
 
 If your {ml} indices were created before {prev-major-version}, they
-must be reindexed. You must close all {ml} jobs to reindex and upgrade.
+must be reindexed. To reindex, you must {stack-ov}/stopping-ml.html[stop
+all {dfeeds} and close all {ml} jobs].
 
 If your {ml} indices were created in {prev-major-version}, you can:
 

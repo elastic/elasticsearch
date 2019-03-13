@@ -36,7 +36,9 @@ public class RefreshStatsTests extends ESTestCase {
         RefreshStats read = new RefreshStats(input);
         assertEquals(-1, input.read());
         assertEquals(stats.getTotal(), read.getTotal());
+        assertEquals(stats.getExternalTotal(), read.getExternalTotal());
         assertEquals(stats.getListeners(), read.getListeners());
         assertEquals(stats.getTotalTimeInMillis(), read.getTotalTimeInMillis());
+        assertEquals(stats.getExternalTotalTimeInMillis(), read.getExternalTotalTimeInMillis());
     }
 }

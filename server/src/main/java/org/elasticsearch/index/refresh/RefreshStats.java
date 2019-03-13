@@ -51,6 +51,8 @@ public class RefreshStats implements Streamable, Writeable, ToXContentFragment {
     public RefreshStats(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
+        externalTotal = in.readVLong();
+        externalTotalTimeInMillis = in.readVLong();
         listeners = in.readVInt();
     }
 

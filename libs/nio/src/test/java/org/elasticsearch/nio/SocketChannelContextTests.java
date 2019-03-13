@@ -286,7 +286,7 @@ public class SocketChannelContextTests extends ESTestCase {
             when(channel.isOpen()).thenReturn(true);
             Runnable closer = mock(Runnable.class);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(1 << 14), closer);
-            InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
+            InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier, 1 << 14);
             buffer.ensureCapacity(1);
             TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, buffer);
             context.closeFromSelector();

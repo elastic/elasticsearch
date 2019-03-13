@@ -30,9 +30,9 @@ public class SSLDriverTests extends ESTestCase {
 
     private final Supplier<InboundChannelBuffer.Page> pageSupplier =
             () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(1 << 14), () -> {});
-    private InboundChannelBuffer serverBuffer = new InboundChannelBuffer(pageSupplier);
-    private InboundChannelBuffer clientBuffer = new InboundChannelBuffer(pageSupplier);
-    private InboundChannelBuffer genericBuffer = new InboundChannelBuffer(pageSupplier);
+    private InboundChannelBuffer serverBuffer = new InboundChannelBuffer(pageSupplier, 1 << 14);
+    private InboundChannelBuffer clientBuffer = new InboundChannelBuffer(pageSupplier, 1 << 14);
+    private InboundChannelBuffer genericBuffer = new InboundChannelBuffer(pageSupplier, 1 << 14);
 
     public void testPingPongAndClose() throws Exception {
         SSLContext sslContext = getSSLContext();

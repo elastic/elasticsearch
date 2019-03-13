@@ -98,7 +98,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
             };
             HttpReadWriteHandler httpHandler = new HttpReadWriteHandler(httpChannel,SecurityNioHttpServerTransport.this,
                 handlingSettings, corsConfig);
-            InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
+            InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier, PageCacheRecycler.BYTE_PAGE_SIZE);
             Consumer<Exception> exceptionHandler = (e) -> securityExceptionHandler.accept(httpChannel, e);
 
             SocketChannelContext context;

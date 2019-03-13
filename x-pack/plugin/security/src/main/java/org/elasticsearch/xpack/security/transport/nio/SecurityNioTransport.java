@@ -160,7 +160,7 @@ public class SecurityNioTransport extends NioTransport {
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
             TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, SecurityNioTransport.this);
-            InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
+            InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier, PageCacheRecycler.BYTE_PAGE_SIZE);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
 
             SocketChannelContext context;

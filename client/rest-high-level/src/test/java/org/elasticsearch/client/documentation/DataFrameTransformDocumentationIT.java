@@ -27,6 +27,8 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
@@ -177,7 +179,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            ActionListener<AcknowledgedResponse> ackListener = listener;
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::put-data-frame-transform-execute-async
@@ -391,7 +392,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 pivotConfig);
 
         PreviewDataFrameTransformRequest request =
-            new PreviewDataFrameTransformRequest(transformConfig); // <3>
+                new PreviewDataFrameTransformRequest(transformConfig); // <3>
         // end::preview-data-frame-transform-request
 
         {
@@ -406,17 +407,17 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         {
             // tag::preview-data-frame-transform-execute-listener
             ActionListener<PreviewDataFrameTransformResponse> listener =
-                new ActionListener<PreviewDataFrameTransformResponse>() {
-                    @Override
-                    public void onResponse(PreviewDataFrameTransformResponse response) {
-                        // <1>
-                    }
+                    new ActionListener<PreviewDataFrameTransformResponse>() {
+                        @Override
+                        public void onResponse(PreviewDataFrameTransformResponse response) {
+                            // <1>
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+                    };
             // end::preview-data-frame-transform-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -457,8 +458,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         {
             // tag::get-data-frame-transform-stats-execute
             GetDataFrameTransformStatsResponse response =
-                client.dataFrame()
-                    .getDataFrameTransformStats(request, RequestOptions.DEFAULT);
+                    client.dataFrame()
+                            .getDataFrameTransformStats(request, RequestOptions.DEFAULT);
             // end::get-data-frame-transform-stats-execute
 
             assertThat(response.getTransformsStateAndStats(), hasSize(1));
@@ -478,18 +479,18 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         {
             // tag::get-data-frame-transform-stats-execute-listener
             ActionListener<GetDataFrameTransformStatsResponse> listener =
-                new ActionListener<GetDataFrameTransformStatsResponse>() {
-                    @Override
-                    public void onResponse(
-                            GetDataFrameTransformStatsResponse response) {
-                        // <1>
-                    }
+                    new ActionListener<GetDataFrameTransformStatsResponse>() {
+                        @Override
+                        public void onResponse(
+                                GetDataFrameTransformStatsResponse response) {
+                            // <1>
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+                    };
             // end::get-data-frame-transform-stats-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -500,6 +501,75 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             client.dataFrame().getDataFrameTransformStatsAsync(
                     request, RequestOptions.DEFAULT, listener);  // <1>
             // end::get-data-frame-transform-stats-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+
+    public void testGetDataFrameTransform() throws IOException, InterruptedException {
+
+        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
+        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
+        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
+        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+
+        
+        DataFrameTransformConfig putTransformConfig = new DataFrameTransformConfig("mega-transform",
+                "source-data", "pivot-dest", queryConfig, pivotConfig);
+
+        RestHighLevelClient client = highLevelClient();
+
+        client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(putTransformConfig), RequestOptions.DEFAULT);
+        transformsToClean.add(putTransformConfig.getId());
+
+        {
+            // tag::get-data-frame-transform-request
+            GetDataFrameTransformRequest request =
+                    new GetDataFrameTransformRequest("mega-transform"); // <1>
+            // end::get-data-frame-transform-request
+
+            // tag::get-data-frame-transform-execute
+            GetDataFrameTransformResponse response =
+                    client.dataFrame()
+                            .getDataFrameTransform(request, RequestOptions.DEFAULT);
+            // end::get-data-frame-transform-execute
+
+            // tag::get-data-frame-transform-response
+            List<DataFrameTransformConfig> transformConfigs =
+                    response.getTransformConfigurations();
+            // end::get-data-frame-transform-response
+
+            assertEquals(1, transformConfigs.size());
+        }
+        {
+            // tag::get-data-frame-transform-execute-listener
+            ActionListener<GetDataFrameTransformResponse> listener =
+                    new ActionListener<GetDataFrameTransformResponse>() {
+                        @Override
+                        public void onResponse(GetDataFrameTransformResponse response) {
+                            // <1>
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+                    };
+            // end::get-data-frame-transform-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            GetDataFrameTransformRequest request = new GetDataFrameTransformRequest("mega-transform");
+
+            // tag::get-data-frame-transform-execute-async
+            client.dataFrame().getDataFrameTransformAsync(
+                    request, RequestOptions.DEFAULT, listener);  // <1>
+            // end::get-data-frame-transform-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

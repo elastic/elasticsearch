@@ -27,6 +27,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
@@ -151,16 +153,8 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);
 
-        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
-        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
-        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
-        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
-
         String id = "test-crud";
-        DataFrameTransformConfig transform = new DataFrameTransformConfig(id,
-            new SourceConfig(new String[]{sourceIndex}, queryConfig), new DestConfig("pivot-dest"), pivotConfig);
+        DataFrameTransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
 
         DataFrameClient client = highLevelClient().dataFrame();
         AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
@@ -178,20 +172,46 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertThat(deleteError.getMessage(), containsString("Transform with id [test-crud] could not be found"));
     }
 
+    public void testGetTransform() throws IOException {
+        String sourceIndex = "transform-source";
+        createIndex(sourceIndex);
+
+        String id = "test-get";
+        DataFrameTransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
+
+        DataFrameClient client = highLevelClient().dataFrame();
+        AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
+                client::putDataFrameTransformAsync);
+        assertTrue(ack.isAcknowledged());
+
+        GetDataFrameTransformRequest getRequest = new GetDataFrameTransformRequest(id);
+        GetDataFrameTransformResponse getResponse = execute(getRequest, client::getDataFrameTransform,
+                client::getDataFrameTransformAsync);
+        assertNull(getResponse.getInvalidTransforms());
+        assertThat(getResponse.getTransformConfigurations(), hasSize(1));
+        assertEquals(transform, getResponse.getTransformConfigurations().get(0));
+    }
+
+    public void testGetMissingTransform() throws IOException {
+        DataFrameClient client = highLevelClient().dataFrame();
+
+//        ElasticsearchStatusException missingError = expectThrows(ElasticsearchStatusException.class,
+//                () -> execute(new GetDataFrameTransformRequest("unknown"), client::getDataFrameTransform,
+//                        client::getDataFrameTransformAsync));
+//        assertThat(missingError.status(), equalTo(RestStatus.NOT_FOUND));
+
+        GetDataFrameTransformResponse getResponse = execute(new GetDataFrameTransformRequest("unknown"), client::getDataFrameTransform,
+                client::getDataFrameTransformAsync);
+        assertEquals(getResponse.getTransformConfigurations().size(), 0);
+//        System.out.println("RES: " + Strings.toString(getResponse));
+    }
+
     public void testStartStop() throws IOException {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);
 
-        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
-        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
-        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
-        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
-
         String id = "test-stop-start";
-        DataFrameTransformConfig transform = new DataFrameTransformConfig(id,
-            new SourceConfig(new String[]{sourceIndex}, queryConfig), new DestConfig("pivot-dest"), pivotConfig);
+        DataFrameTransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
 
         DataFrameClient client = highLevelClient().dataFrame();
         AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
@@ -231,7 +251,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
-        DataFrameTransformConfig transform = new DataFrameTransformConfig("test-preview",
+        DataFrameTransformConfig transform = validDataFrameTransformConfig("test-preview", sourceIndex, null);
             new SourceConfig(new String[]{sourceIndex}, queryConfig), null, pivotConfig);
 
         DataFrameClient client = highLevelClient().dataFrame();
@@ -243,11 +263,24 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertThat(docs, hasSize(2));
         Optional<Map<String, Object>> theresa = docs.stream().filter(doc -> "theresa".equals(doc.get("reviewer"))).findFirst();
         assertTrue(theresa.isPresent());
-        assertEquals(2.5d, (double)theresa.get().get("avg_rating"), 0.01d);
+        assertEquals(2.5d, (double) theresa.get().get("avg_rating"), 0.01d);
 
         Optional<Map<String, Object>> michel = docs.stream().filter(doc -> "michel".equals(doc.get("reviewer"))).findFirst();
         assertTrue(michel.isPresent());
-        assertEquals(3.6d, (double)michel.get().get("avg_rating"), 0.1d);
+        assertEquals(3.6d, (double) michel.get().get("avg_rating"), 0.1d);
+    }
+
+    private DataFrameTransformConfig validDataFrameTransformConfig(String id, String source, String destination) {
+        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
+        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
+        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
+        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+        return new DataFrameTransformConfig(id,
+                new SourceConfig(new String[]{source}, queryConfig),
+                new DestConfig(destination),
+                pivotConfig);
     }
 
     public void testGetStats() throws Exception {

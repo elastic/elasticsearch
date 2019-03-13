@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
@@ -146,5 +147,13 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/foo/_stats"));
+    }
+
+    public void testGetDataFrameTransform() {
+        GetDataFrameTransformRequest getRequest = new GetDataFrameTransformRequest("bar");
+        Request request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/bar"));
     }
 }

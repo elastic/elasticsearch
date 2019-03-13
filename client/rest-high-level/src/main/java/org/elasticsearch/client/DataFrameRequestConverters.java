@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
@@ -47,6 +48,14 @@ final class DataFrameRequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
+    }
+
+    static Request getDataFrameTransform(GetDataFrameTransformRequest request) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_data_frame", "transforms")
+                .addPathPart(request.getId())
+                .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request deleteDataFrameTransform(DeleteDataFrameTransformRequest request) {

@@ -467,6 +467,12 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
         assertNull(loadMetaData(dataPaths, namedXContentRegistry, originalManifest));
         assertNull(loadMetaData(dataPaths, namedXContentRegistry, secondManifest));
+
+        final Manifest finalManifest = loadLatestManifest(dataPaths, namedXContentRegistry);
+        final MetaData finalMetaData = loadMetaData(dataPaths, namedXContentRegistry, finalManifest);
+
+        assertNotNull(finalMetaData);
+        assertNotEquals(secondMetaData.clusterUUID(), finalMetaData.clusterUUID());
     }
 
     private Manifest loadLatestManifest(Path[] dataPaths, NamedXContentRegistry namedXContentRegistry) throws IOException {

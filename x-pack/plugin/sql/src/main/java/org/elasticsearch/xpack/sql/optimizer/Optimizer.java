@@ -884,7 +884,28 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 for (Order o : nonConstant) {
                     Expression fieldToOrder = o.child();
                     for (Expression group : a.groupings()) {
+                        Holder<Boolean> isMatching = new Holder<>(Boolean.FALSE);
                         if (Expressions.equalsAsAttribute(fieldToOrder, group)) {
+                            isMatching.set(Boolean.TRUE);
+                        } else {
+                            a.aggregates().forEach(as -> {
+                                if (as instanceof Alias) {
+                                    Expression child = ((Alias) as).child();
+                                    // The aggregates contain the aliases, while the order by's only attributes and in order to
+                                    // associate either a function or field attribute with either a field or an alias, the aggregates
+                                    // are used as a an intermediate comparison element: groupBy == aggregate == orderBy
+                                    if ((Expressions.equalsAsAttribute(child, group) && Expressions.equalsAsAttribute(child, fieldToOrder))
+                                        || (Expressions.equalsAsAttribute(as, group) && Expressions.equalsAsAttribute(as, fieldToOrder))
+                                        || (Expressions.equalsAsAttribute(child, group) && Expressions.equalsAsAttribute(as, fieldToOrder))
+                                        || (Expressions.equalsAsAttribute(as, group) && Expressions.equalsAsAttribute(child, fieldToOrder)))
+                                    {
+                                        isMatching.set(Boolean.TRUE);
+                                    }
+                                }
+                            });
+                        }
+                        
+                        if (isMatching.get() == true) {
                             // move grouping in front
                             groupings.remove(group);
                             groupings.add(0, group);

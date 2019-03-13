@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.ExactBloomFilter;
+import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -106,9 +106,9 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
     }
 
     LongRareTerms(String name, BucketOrder order, List<PipelineAggregator> pipelineAggregators,
-                         Map<String, Object> metaData, DocValueFormat format,
-                         List<LongRareTerms.Bucket> buckets, long maxDocCount, ExactBloomFilter bloom) {
-        super(name, order, pipelineAggregators, metaData, format, buckets, maxDocCount, bloom);
+                  Map<String, Object> metaData, DocValueFormat format,
+                  List<LongRareTerms.Bucket> buckets, long maxDocCount, SetBackedScalingCuckooFilter filter) {
+        super(name, order, pipelineAggregators, metaData, format, buckets, maxDocCount, filter);
     }
 
     /**
@@ -125,7 +125,7 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
 
     @Override
     public LongRareTerms create(List<LongRareTerms.Bucket> buckets) {
-        return new LongRareTerms(name, order, pipelineAggregators(), metaData, format, buckets, maxDocCount, bloom);
+        return new LongRareTerms(name, order, pipelineAggregators(), metaData, format, buckets, maxDocCount, filter);
     }
 
     @Override
@@ -134,9 +134,9 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
     }
 
     @Override
-    protected LongRareTerms createWithBloom(String name, List<LongRareTerms.Bucket> buckets, ExactBloomFilter bloomFilter) {
+    protected LongRareTerms createWithFilter(String name, List<LongRareTerms.Bucket> buckets, SetBackedScalingCuckooFilter filter) {
         return new LongRareTerms(name, order, pipelineAggregators(), getMetaData(), format,
-            buckets, maxDocCount, bloomFilter);
+            buckets, maxDocCount, filter);
     }
 
     @Override
@@ -145,12 +145,12 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
     }
 
     @Override
-    public boolean containsTerm(ExactBloomFilter bloom, LongRareTerms.Bucket bucket) {
-        return bloom.mightContain((long) bucket.getKey());
+    public boolean containsTerm(SetBackedScalingCuckooFilter filter, LongRareTerms.Bucket bucket) {
+        return filter.mightContain((long) bucket.getKey());
     }
 
     @Override
-    public void addToBloom(ExactBloomFilter bloom, LongRareTerms.Bucket bucket) {
-        bloom.put((long) bucket.getKey());
+    public void addToFilter(SetBackedScalingCuckooFilter filter, LongRareTerms.Bucket bucket) {
+        filter.add((long) bucket.getKey());
     }
 }

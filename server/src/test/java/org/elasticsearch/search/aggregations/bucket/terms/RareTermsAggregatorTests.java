@@ -489,6 +489,39 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         return documents;
     }
 
+    public void testBenchmark() throws IOException {
+        Query query = new MatchAllDocsQuery();
+
+        int size = 3_000_000;
+        List<Long> d = new ArrayList<>(size);
+
+        long[] uniqueValues = new long[]{1, 100, 1000, 10000};
+        for (long v : uniqueValues) {
+            for (long i = 0; i < v; i++) {
+                d.add(i);
+            }
+
+            for (long i = v; i < size; i++) {
+                d.add(i);
+                d.add(i);
+
+
+            }
+
+            executeBench(true, query, d,
+                aggregation -> aggregation.field(LONG_FIELD).maxDocCount(1),
+                agg -> {
+                    logger.error(v + ": " + agg.getBuckets().size());
+                },
+                ValueType.NUMERIC);
+            d.clear();
+        }
+
+
+
+
+    }
+
     private InternalAggregation buildInternalAggregation(RareTermsAggregationBuilder builder, MappedFieldType fieldType,
                                                          IndexSearcher searcher) throws IOException {
         AbstractRareTermsAggregator aggregator = createAggregator(builder, searcher, fieldType);
@@ -575,6 +608,47 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 }
                 verify.accept(rareTerms);
             }
+        }
+    }
+
+    private void executeBench(boolean reduced, Query query, List<Long> dataset,
+                                 Consumer<RareTermsAggregationBuilder> configure,
+                                 Consumer<InternalMappedRareTerms> verify, ValueType valueType) throws IOException {
+
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                for (Long value : dataset) {
+
+                    document.add(new SortedNumericDocValuesField(LONG_FIELD, value));
+                    document.add(new LongPoint(LONG_FIELD, value));
+                    indexWriter.addDocument(document);
+                    document.clear();
+                }
+            }
+
+            logger.info("Start agg");
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+                RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name", valueType);
+                if (configure != null) {
+                    configure.accept(aggregationBuilder);
+                }
+
+                MappedFieldType longFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+                longFieldType.setName(LONG_FIELD);
+                longFieldType.setHasDocValues(true);
+
+                InternalMappedRareTerms rareTerms;
+                if (reduced) {
+                    rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, longFieldType);
+                } else {
+                    rareTerms = search(indexSearcher, query, aggregationBuilder, longFieldType);
+                }
+                verify.accept(rareTerms);
+            }
+            logger.info("End agg");
         }
     }
 

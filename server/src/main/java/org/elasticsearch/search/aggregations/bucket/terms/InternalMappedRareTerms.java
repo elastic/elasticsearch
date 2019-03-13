@@ -18,10 +18,13 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.ExactBloomFilter;
+import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -45,23 +48,25 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     protected List<B> buckets;
     protected Map<String, B> bucketMap;
 
-    final ExactBloomFilter bloom;
+    final SetBackedScalingCuckooFilter filter;
+
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     InternalMappedRareTerms(String name, BucketOrder order, List<PipelineAggregator> pipelineAggregators,
                             Map<String, Object> metaData, DocValueFormat format,
-                            List<B> buckets, long maxDocCount, ExactBloomFilter bloom) {
+                            List<B> buckets, long maxDocCount, SetBackedScalingCuckooFilter filter) {
         super(name, order, maxDocCount, pipelineAggregators, metaData);
         this.format = format;
         this.buckets = buckets;
-        this.bloom = bloom;
+        this.filter = filter;
     }
 
     public long getMaxDocCount() {
         return maxDocCount;
     }
 
-    ExactBloomFilter getBloom() {
-        return bloom;
+    SetBackedScalingCuckooFilter getFilter() {
+        return filter;
     }
 
     /**
@@ -71,24 +76,24 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         buckets = in.readList(stream -> bucketReader.read(stream, format));
-        bloom = new ExactBloomFilter(in);
+        filter = new SetBackedScalingCuckooFilter(in, Randomness.get());
     }
 
     @Override
     protected void writeTermTypeInfoTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeList(buckets);
-        bloom.writeTo(out);
+        filter.writeTo(out);
     }
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Map<Object, List<B>> buckets = new HashMap<>();
         InternalRareTerms<A, B> referenceTerms = null;
-        ExactBloomFilter bloomFilter = null;
+        SetBackedScalingCuckooFilter filter = null;
 
         for (InternalAggregation aggregation : aggregations) {
-            // Unmapped rare terms don't have a bloom filter so we'll skip all this work
+            // Unmapped rare terms don't have a cuckoo filter so we'll skip all this work
             // and save some type casting headaches later.
             if (aggregation.isMapped() == false) {
                 continue;
@@ -113,33 +118,33 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
                 bucketList.add(bucket);
             }
 
-            ExactBloomFilter otherBloom = ((InternalMappedRareTerms)aggregation).getBloom();
-            if (bloomFilter == null) {
-                bloomFilter = new ExactBloomFilter(otherBloom);
+            SetBackedScalingCuckooFilter otherFilter = ((InternalMappedRareTerms)aggregation).getFilter();
+            if (filter == null) {
+                filter = new SetBackedScalingCuckooFilter(otherFilter);
             } else {
-                bloomFilter.merge(otherBloom);
+                filter.merge(otherFilter);
             }
         }
 
         final List<B> rare = new ArrayList<>();
         for (List<B> sameTermBuckets : buckets.values()) {
             final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
-            if ((b.getDocCount() <= maxDocCount && containsTerm(bloomFilter, b) == false)) {
+            if ((b.getDocCount() <= maxDocCount && containsTerm(filter, b) == false)) {
                 rare.add(b);
                 reduceContext.consumeBucketsAndMaybeBreak(1);
             } else if (b.getDocCount() > maxDocCount) {
-                // this term has gone over threshold while merging, so add it to the bloom.
+                // this term has gone over threshold while merging, so add it to the filter.
                 // Note this may happen during incremental reductions too
-                addToBloom(bloomFilter, b);
+                addToFilter(filter, b);
             }
         }
         CollectionUtil.introSort(rare, order.comparator(null));
-        return createWithBloom(name, rare, bloomFilter);
+        return createWithFilter(name, rare, filter);
     }
 
-    public abstract boolean containsTerm(ExactBloomFilter bloom, B bucket);
+    public abstract boolean containsTerm(SetBackedScalingCuckooFilter filter, B bucket);
 
-    public abstract void addToBloom(ExactBloomFilter bloom, B bucket);
+    public abstract void addToFilter(SetBackedScalingCuckooFilter filter, B bucket);
 
     @Override
     public List<B> getBuckets() {
@@ -160,12 +165,12 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
         return super.doEquals(obj)
             && Objects.equals(buckets, that.buckets)
             && Objects.equals(format, that.format)
-            && Objects.equals(bloom, that.bloom);
+            && Objects.equals(filter, that.filter);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(super.doHashCode(), buckets, format, bloom);
+        return Objects.hash(super.doHashCode(), buckets, format, filter);
     }
 
     @Override

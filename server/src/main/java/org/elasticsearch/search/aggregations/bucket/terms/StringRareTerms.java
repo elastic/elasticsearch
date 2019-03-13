@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.ExactBloomFilter;
+import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -107,10 +107,10 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
         }
     }
 
-    public StringRareTerms(String name, BucketOrder order, List<PipelineAggregator> pipelineAggregators,
+    StringRareTerms(String name, BucketOrder order, List<PipelineAggregator> pipelineAggregators,
                            Map<String, Object> metaData, DocValueFormat format,
-                           List<StringRareTerms.Bucket> buckets, long maxDocCount, ExactBloomFilter bloom) {
-        super(name, order, pipelineAggregators, metaData, format, buckets, maxDocCount, bloom);
+                           List<StringRareTerms.Bucket> buckets, long maxDocCount, SetBackedScalingCuckooFilter filter) {
+        super(name, order, pipelineAggregators, metaData, format, buckets, maxDocCount, filter);
     }
 
     /**
@@ -127,7 +127,7 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
 
     @Override
     public StringRareTerms create(List<StringRareTerms.Bucket> buckets) {
-        return new StringRareTerms(name, order, pipelineAggregators(), metaData, format, buckets, maxDocCount, bloom);
+        return new StringRareTerms(name, order, pipelineAggregators(), metaData, format, buckets, maxDocCount, filter);
     }
 
     @Override
@@ -136,9 +136,10 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
     }
 
     @Override
-    protected StringRareTerms createWithBloom(String name, List<StringRareTerms.Bucket> buckets, ExactBloomFilter bloomFilter) {
+    protected StringRareTerms createWithFilter(String name, List<StringRareTerms.Bucket> buckets,
+                                               SetBackedScalingCuckooFilter filterFilter) {
         return new StringRareTerms(name, order, pipelineAggregators(), metaData, format,
-            buckets, maxDocCount, bloomFilter);
+            buckets, maxDocCount, filterFilter);
     }
 
     @Override
@@ -147,12 +148,12 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
     }
 
     @Override
-    public boolean containsTerm(ExactBloomFilter bloom, StringRareTerms.Bucket bucket) {
-        return bloom.mightContain(bucket.termBytes);
+    public boolean containsTerm(SetBackedScalingCuckooFilter filter, StringRareTerms.Bucket bucket) {
+        return filter.mightContain(bucket.termBytes);
     }
 
     @Override
-    public void addToBloom(ExactBloomFilter bloom, StringRareTerms.Bucket bucket) {
-        bloom.put(bucket.termBytes);
+    public void addToFilter(SetBackedScalingCuckooFilter filter, StringRareTerms.Bucket bucket) {
+        filter.add(bucket.termBytes);
     }
 }

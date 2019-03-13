@@ -44,6 +44,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     public static final String NAME = "rare_terms";
 
     private static final ParseField MAX_DOC_COUNT_FIELD_NAME = new ParseField("max_doc_count");
+    private static final ParseField PRECISION = new ParseField("precision");
 
     private static final int MAX_MAX_DOC_COUNT = 10;
     private static final ObjectParser<RareTermsAggregationBuilder, Void> PARSER;
@@ -57,6 +58,8 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
 
         PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
             IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
+
+        PARSER.declareDouble(RareTermsAggregationBuilder::setPrecision, PRECISION);
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
@@ -65,6 +68,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     private IncludeExclude includeExclude = null;
     private int maxDocCount = 1;
+    private double precision = 0.01;
 
     public RareTermsAggregationBuilder(String name, ValueType valueType) {
         super(name, ValuesSourceType.ANY, valueType);
@@ -134,13 +138,35 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
         return includeExclude;
     }
 
+    /**
+     * Get the current false positive rate for individual cuckoo filters.
+     */
+    public double getPrecision() {
+        return precision;
+    }
+
+    /**
+     * Set's the false-positive rate for individual cuckoo filters.  Does not dictate the overall fpp rate
+     * since we use a "scaling" cuckoo filter which adds more filters as required, and the overall
+     * error rate grows differently than individual filters
+     *
+     * This value does, however, affect the overall space usage of the filter.  Coarser precisions provide
+     * more compact filters.  The default is 0.01
+     */
+    public void setPrecision(double precision) {
+        if (precision < 0.00001) {
+            throw new IllegalArgumentException("[precision] must be greater than 0.00001");
+        }
+        this.precision = precision;
+    }
+
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(SearchContext context,
                                                                         ValuesSourceConfig<ValuesSource> config,
                                                                         AggregatorFactory<?> parent,
                                                                         Builder subFactoriesBuilder) throws IOException {
         return new RareTermsAggregatorFactory(name, config, includeExclude,
-            context, parent, subFactoriesBuilder, metaData, maxDocCount);
+            context, parent, subFactoriesBuilder, metaData, maxDocCount, precision);
     }
 
     @Override
@@ -149,19 +175,21 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
             includeExclude.toXContent(builder, params);
         }
         builder.field(MAX_DOC_COUNT_FIELD_NAME.getPreferredName(), maxDocCount);
+        builder.field(PRECISION.getPreferredName(), precision);
         return builder;
     }
 
     @Override
     protected int innerHashCode() {
-        return Objects.hash(includeExclude, maxDocCount);
+        return Objects.hash(includeExclude, maxDocCount, precision);
     }
 
     @Override
     protected boolean innerEquals(Object obj) {
         RareTermsAggregationBuilder other = (RareTermsAggregationBuilder) obj;
         return Objects.equals(includeExclude, other.includeExclude)
-            && Objects.equals(maxDocCount, other.maxDocCount);
+            && Objects.equals(maxDocCount, other.maxDocCount)
+            && Objects.equals(precision, other.precision);
     }
 
     @Override

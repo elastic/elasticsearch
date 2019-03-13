@@ -55,9 +55,10 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
 
     LongRareTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
                                    SearchContext aggregationContext, Aggregator parent, IncludeExclude.LongFilter longFilter,
-                                   int maxDocCount, List<PipelineAggregator> pipelineAggregators,
+                                   int maxDocCount, double precision, List<PipelineAggregator> pipelineAggregators,
                                    Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData, maxDocCount, format, valuesSource, longFilter);
+        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData, maxDocCount, precision,
+            format, valuesSource, longFilter);
         this.map = new LongLongHashMap();
         this.bucketOrds = new LongHash(1, aggregationContext.bigArrays());
     }
@@ -86,7 +87,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                         final long val = values.nextValue();
                         if (previous != val || i == 0) {
                             if ((includeExclude == null) || (includeExclude.accept(val))) {
-                                if (bloom.mightContain(val) == false) {
+                                if (filter.mightContain(val) == false) {
                                     long termCount = map.get(val);
                                     if (termCount == 0) {
                                         // Brand new term, save into map
@@ -117,9 +118,9 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                                             }
                                         } else {
                                             // Otherwise we've breached the threshold, remove from
-                                            // the map and add to the bloom filter
+                                            // the map and add to the cuckoo filter
                                             map.remove(val);
-                                            bloom.put(val);
+                                            filter.add(val);
                                             addRequestCircuitBreakerBytes(-MAP_SLOT_SIZE); // 8 bytes for key, 8 for value
                                             numDeleted += 1;
 
@@ -202,12 +203,12 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
         }
 
         CollectionUtil.introSort(buckets, ORDER.comparator(this));
-        return new LongRareTerms(name, ORDER, pipelineAggregators(), metaData(), format, buckets, maxDocCount, bloom);
+        return new LongRareTerms(name, ORDER, pipelineAggregators(), metaData(), format, buckets, maxDocCount, filter);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new LongRareTerms(name, ORDER, pipelineAggregators(), metaData(), format, emptyList(), 0, bloom);
+        return new LongRareTerms(name, ORDER, pipelineAggregators(), metaData(), format, emptyList(), 0, filter);
     }
 
     @Override

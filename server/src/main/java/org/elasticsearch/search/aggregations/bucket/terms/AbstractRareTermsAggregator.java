@@ -19,7 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.common.util.ExactBloomFilter;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -44,10 +45,11 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
      Sets the number of "removed" values to accumulate before we purge ords
      via the MergingBucketCollector's mergeBuckets() method
      */
-    static final long GC_THRESHOLD = 1000;
+    static final long GC_THRESHOLD = 1000000;
     static final BucketOrder ORDER = BucketOrder.compound(BucketOrder.count(true), BucketOrder.key(true)); // sort by count ascending
 
     protected final long maxDocCount;
+    protected final double precision;
     protected final DocValueFormat format;
     protected final T valuesSource;
     protected final U includeExclude;
@@ -57,18 +59,19 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
 
     MergingBucketsDeferringCollector deferringCollector;
     LeafBucketCollector subCollectors;
-    final ExactBloomFilter bloom;
+    final SetBackedScalingCuckooFilter filter;
 
     AbstractRareTermsAggregator(String name, AggregatorFactories factories, SearchContext context,
-                                          Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData, long maxDocCount, DocValueFormat format,
-                                          T valuesSource, U includeExclude) throws IOException {
+                                Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                                Map<String, Object> metaData, long maxDocCount, double precision,
+                                DocValueFormat format, T valuesSource, U includeExclude) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
 
-        // TODO review: should we expose the BF settings?  What's a good default?
-        this.bloom = new ExactBloomFilter(1000000, 0.03, 7000); // ~7mb
-        this.addRequestCircuitBreakerBytes(bloom.getSizeInBytes());
+        this.filter = new SetBackedScalingCuckooFilter(10000, Randomness.get(), precision);
+        this.filter.registerBreaker(this::addRequestCircuitBreakerBytes);
+
         this.maxDocCount = maxDocCount;
+        this.precision = precision;
         this.format = format;
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;

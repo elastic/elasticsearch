@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.ExactBloomFilter;
+import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -171,7 +171,7 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
         throw new UnsupportedOperationException();
     }
 
-    protected abstract A createWithBloom(String name, List<B> buckets, ExactBloomFilter bloomFilter);
+    protected abstract A createWithFilter(String name, List<B> buckets, SetBackedScalingCuckooFilter filter);
 
     /**
      * Create an array to hold some buckets. Used in collecting the results.

@@ -49,7 +49,7 @@ class JdbcHttpClient {
 
     Cursor query(String sql, List<SqlTypedParamValue> params, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
-                SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, null, conCfg.timeZone().toZoneId(),
+                SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, null, conCfg.zoneId(),
                 fetch,
                 TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
                 false, new RequestInfo(Mode.JDBC));

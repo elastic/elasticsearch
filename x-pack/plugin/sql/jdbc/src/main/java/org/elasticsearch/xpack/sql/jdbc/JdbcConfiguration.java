@@ -158,6 +158,10 @@ class JdbcConfiguration extends ConnectionConfiguration {
         return OPTION_NAMES;
     }
 
+    ZoneId zoneId() {
+        return zoneId;
+    }
+
     public boolean debug() {
         return debug;
     }

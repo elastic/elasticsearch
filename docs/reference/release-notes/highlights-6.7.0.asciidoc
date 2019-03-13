@@ -1,0 +1,54 @@
+[[release-highlights-6.7.0]]
+== 6.7.0 release highlights
+++++
+<titleabbrev>6.7.0</titleabbrev>
+++++
+
+See also <<release-notes-6.7.0,{es} 6.7.0 release notes>>.
+
+[float]
+=== Cross-cluster replication
+
+We introduced cross-cluster replication in 6.5.0 as a beta feature, it is now
+mature enough to declare the feature GA (general availability). Cross-cluster
+replication enables you to replicate indices that exist in remote clusters to
+your local cluster. You create an index in your local cluster (known as
+a _follower index_) that follows an index (known as a _leader index_) in a
+remote cluster. You can also automatically follow indices in a remote cluster
+that match a pattern. The individual write operations that occur on the leader
+indices are then replayed on the follower indices. This functionality is useful
+for replicating data to a second cluster for disaster recovery purposes and for
+geo-proximity so that reads can be served locally.
+
+For more information, see {stack-ov}/xpack-ccr.html[Cross-cluster replication]
+and <<ccr-apis>>.
+
+=== Index lifecycle management
+
+We introduced index lifecycle management in 6.6.0 as a beta feature, it is now
+mature enough to declare the feature GA (general availability). The index
+lifecycle management feature breaks the lifecycle of an index into four phases:
+hot, warm, cold, and delete phase. You can define an index lifecycle policy
+which enables you to:
+
+* Have one primary shard on each hot node to maximize indexing throughput.
+* Replace the hot index with a new empty index as soon as the existing index is “full” or after a time period. 
+* Move the old index to warm nodes, where it can be shrunk to a single shard and force-merged down to a single segment for optimized storage and querying. 
+* Later, move the index to cold nodes for cheaper storage.
+
+See <<index-lifecycle-management>>. 
+
+[float]
+=== {es-sql}
+
+We introduced {es-sql} in 6.3.0 as an experimental feature, it is now
+mature enough to declare the feature GA (general availability). This feature
+enables users who are familiar with SQL to use SQL statements to query {es}
+indices. In addition to querying through the SQL API, you can use the
+<<sql-translate,Translate API>> to see how SQL queries are translated to
+native {es} queries. There are four methods to access {es-sql}: through the
+<<sql-rest, REST endpoints>>, the <<sql-cli,SQL command line interface>>, the
+<<sql-jdbc,JDBC driver>>, and the <<sql-odbc,ODBC driver>>.
+
+
+For more information, see <<xpack-sql, SQL Access>>.

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-apis]]
-== Cross-cluster replication APIs
+== {ccr-cap} APIs
 
 You can use the following APIs to perform {ccr} operations.
 

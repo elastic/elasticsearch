@@ -24,6 +24,7 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
@@ -293,7 +294,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
         // we simply go to the _cat/nodes API and parse all versions in the cluster
-        Response response = restClient.performRequest(getCatNodesVersionMasterRequest());
+        final Request request = new Request("GET", "/_cat/nodes");
+        request.addParameter("h", "version,master");
+        request.setOptions(getCatNodesVersionMasterRequestOptions());
+        Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
         String nodesCatResponse = restTestResponse.getBodyAsString();
         String[] split = nodesCatResponse.split("\n");
@@ -317,10 +321,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new Tuple<>(version, masterVersion);
     }
 
-    protected Request getCatNodesVersionMasterRequest() {
-        final Request request = new Request("GET", "/_cat/nodes");
-        request.addParameter("h", "version,master");
-        return request;
+    protected RequestOptions getCatNodesVersionMasterRequestOptions() {
+        return RequestOptions.DEFAULT;
     }
 
     public void test() throws IOException {

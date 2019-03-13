@@ -397,7 +397,9 @@ public class CCSDuelIT extends ESRestTestCase {
         searchRequest.source(sourceBuilder);
         duelSearch(searchRequest, response -> {
             assertHits(response, 30);
-            assertEquals(3, response.getHits().getHits()[0].getSortValues().length);
+            if (response.getHits().getTotalHits().value > 30) {
+                assertEquals(3, response.getHits().getHits()[0].getSortValues().length);
+            }
         });
     }
 

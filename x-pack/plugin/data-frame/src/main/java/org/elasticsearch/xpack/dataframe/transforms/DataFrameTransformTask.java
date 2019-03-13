@@ -31,8 +31,8 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction.Response;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction.Response;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
@@ -141,7 +141,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                         (task) -> {
                             logger.debug("Successfully updated state for data frame transform [" + transform.getId() + "] to ["
                                     + state.getIndexerState() + "][" + state.getPosition() + "]");
-                            listener.onResponse(new StartDataFrameTransformAction.Response(true));
+                            listener.onResponse(new StartDataFrameTransformTaskAction.Response(true));
                         }, (exc) -> {
                             // We were unable to update the persistent status, so we need to shutdown the indexer too.
                             indexer.stop();

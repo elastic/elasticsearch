@@ -23,6 +23,13 @@ setup:
   - match: { transforms: [] }
 
 ---
+"Test get transform when it does not exist":
+  - do:
+      catch: /Transform with id \[missing-transform-id\] could not be found/
+      data_frame.get_data_frame_transform:
+        transform_id: "missing-transform-id"
+
+---
 "Test delete transform when it does not exist":
   - do:
       catch: missing
@@ -32,7 +39,7 @@ setup:
 ---
 "Test put transform with invalid source index":
   - do:
-      catch: /Failed to validate data frame configuration/
+      catch: /Source index \[missing-index\] does not exist/
       data_frame.put_data_frame_transform:
         transform_id: "missing-source-transform"
         body: >
@@ -98,13 +105,3 @@ setup:
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform" }
   - match: { transforms.1.id: "airline-transform-dos" }
-
-  - do:
-      data_frame.delete_data_frame_transform:
-        transform_id: "airline-transform"
-  - match: { acknowledged: true }
-
-  - do:
-      data_frame.delete_data_frame_transform:
-        transform_id: "airline-transform-dos"
-  - match: { acknowledged: true }

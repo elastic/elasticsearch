@@ -65,13 +65,14 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             = new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
 
         final AtomicLong warningCount = new AtomicLong();
+        final AtomicLong logLastFailedJoinAttemptWarningCount = new AtomicLong();
 
         final ClusterFormationFailureHelper clusterFormationFailureHelper = new ClusterFormationFailureHelper(settingsBuilder.build(),
             () -> {
                 warningCount.incrementAndGet();
                 return new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 0L);
             },
-            deterministicTaskQueue.getThreadPool());
+            deterministicTaskQueue.getThreadPool(), () -> logLastFailedJoinAttemptWarningCount.incrementAndGet());
 
         deterministicTaskQueue.runAllTasks();
         assertThat("should not schedule anything yet", warningCount.get(), is(0L));
@@ -105,8 +106,10 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
 
         assertThat(warningCount.get(), is(5L));
+        assertThat(logLastFailedJoinAttemptWarningCount.get(), is(5L));
 
         warningCount.set(0);
+        logLastFailedJoinAttemptWarningCount.set(0);
         clusterFormationFailureHelper.start();
         clusterFormationFailureHelper.stop();
         clusterFormationFailureHelper.start();
@@ -127,6 +130,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
 
         assertThat(warningCount.get(), is(5L));
+        assertThat(logLastFailedJoinAttemptWarningCount.get(), is(5L));
     }
 
     public void testDescriptionOnMasterIneligibleNodes() {

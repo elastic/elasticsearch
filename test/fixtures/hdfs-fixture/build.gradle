@@ -35,3 +35,5 @@ preProcessFixture.dependsOn syncClasses
 preProcessFixture.doLast {
   file("${buildDir}/shared").mkdirs()
 }
+
+unitTest.enabled = false

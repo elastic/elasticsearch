@@ -6,7 +6,7 @@ all nodes in the cluster, upgrade each node to {version}, and restart the cluste
 
 NOTE: If you are running a version prior to 6.0,
 https://www.elastic.co/guide/en/elastic-stack/6.7/upgrading-elastic-stack.html[upgrade to 6.7]
-and reindex your old indices or bring up a new {7.x} cluster and
+and reindex your old indices or bring up a new {version} cluster and
 <<reindex-upgrade-remote, reindex from remote>>.
 
 To perform a  full cluster restart upgrade to {version}:

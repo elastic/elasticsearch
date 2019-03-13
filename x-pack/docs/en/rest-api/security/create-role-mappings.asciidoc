@@ -50,12 +50,17 @@ mapping is performed.
 user. Within the `metadata` object, keys beginning with `_` are reserved for
 system usage.
 
-`roles` (required)::
-(list) A list of roles that are granted to the users that match the role mapping
-rules.
-The elements in this list may be either
-- a role name as a string
-- a template object
+`roles`::
+(list of strings) A list of role names that are granted to the users that match
+the role mapping rules.
+_Exactly one of `roles` or `role_templates` must be specified_.
+
+`role_templates`::
+(list of objects) A list of mustache templates that will be evaluated to
+determine the roles names that should granted to the users that match the role
+mapping rules.
+The format of these objects is defined below.
+_Exactly one of `roles` or `role_templates` must be specified_.
 
 `rules` (required)::
 (object) The rules that determine which users should be matched by the mapping.
@@ -68,9 +73,11 @@ The most common use for role mappings is to create a mapping from a known value
 on the user to a fixed role name.
 For example, all users in the `cn=admin,dc=example,dc=com` LDAP group should be
 given the `superuser` role in {es}.
+The `roles` field is used for this purpose.
 
 For more complex needs it is possible to use Mustache templates to dynamically
 determine the names of the roles that should be granted to the user.
+The `role_templates` field is used for this purpose.
 
 All of the <<role-mapping-resources,user fields>> that are available in the
 role mapping `rules` are also available in the role templates. Thus it is possible
@@ -205,7 +212,7 @@ using explicit mappings.
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping5
 {
-  "roles": [
+  "role_templates": [
     {
       "template": { "source": "{{#tojson}}groups{{/tojson}}" }, <1>
       "format" : "json" <2>
@@ -218,7 +225,7 @@ POST /_security/role_mapping/mapping5
 }
 ------------------------------------------------------------
 // CONSOLE
-<1> The `tojson` mustache function is used to convert the list of 
+<1> The `tojson` mustache function is used to convert the list of
     group names into a valid JSON array.
 <2> Because the template produces a JSON array, the format must be
     set to `json`.
@@ -322,12 +329,15 @@ As an example, the user `nwong` would be assigned the `saml_user` and
 POST /_security/role_mapping/mapping9
 {
   "rules": { "field": { "realm.name": "cloud-saml" } },
-  "roles": [
-    "saml_user",
+  "role_templates": [
+    { "template": { "source" : "saml_user" } }, <1>
     { "template": { "source" : "_user_{{username}}" } }
   ],
   "enabled": true
 }
 ------------------------------------------------------------
 // CONSOLE
+<1> Because it is not possible to specify both `roles` and `role_templates` in
+    the same role mapping, we can apply a "fixed name" role by using a template
+    that has no substitutions.
 

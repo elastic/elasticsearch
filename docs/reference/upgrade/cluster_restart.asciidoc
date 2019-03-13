@@ -55,6 +55,11 @@ Use the `elasticsearch-plugin` script to install the upgraded version of each
 installed Elasticsearch plugin. All plugins must be upgraded when you upgrade
 a node.
 
+. If you use {es} {security-features} to define realms, verify that your realm
+settings are up-to-date. The format of realm settings changed in version 7.0, in
+particular, the placement of the realm type changed. See
+<<realm-settings,Realm settings>>. 
+
 . *Start each upgraded node.*
 +
 --

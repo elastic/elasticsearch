@@ -45,6 +45,21 @@ import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
+    public static final boolean CLUSTER_STATE_SIZE;
+
+    static {
+        final String property = System.getProperty("es.cluster_state.size");
+        if (property == null) {
+            CLUSTER_STATE_SIZE = false;
+        } else {
+            final boolean clusterStateSize = Boolean.parseBoolean(property);
+            if (clusterStateSize) {
+                CLUSTER_STATE_SIZE = true;
+            } else {
+                throw new IllegalArgumentException("es.cluster_state.size can only be unset or [true] but was [" + property + "]");
+            }
+        }
+    }
 
     @Inject
     public TransportClusterStateAction(TransportService transportService, ClusterService clusterService,
@@ -182,8 +197,15 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 }
             }
         }
-        listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(),
-            PublicationTransportHandler.serializeFullClusterState(currentState, Version.CURRENT).length(), false));
+
+        final long sizeInBytes;
+        if (CLUSTER_STATE_SIZE) {
+            sizeInBytes = PublicationTransportHandler.serializeFullClusterState(currentState, Version.CURRENT).length();
+        } else {
+            sizeInBytes = 0;
+        }
+
+        listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(), sizeInBytes, false));
     }
 
 

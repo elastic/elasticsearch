@@ -16,8 +16,6 @@ do
   ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/$additional_classpath_directory/*"
 done
 
-cd "$ES_HOME"
-
 exec \
   "$JAVA" \
   $ES_JAVA_OPTS \

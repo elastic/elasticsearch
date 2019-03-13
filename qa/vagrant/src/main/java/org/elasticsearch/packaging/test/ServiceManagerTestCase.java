@@ -20,6 +20,7 @@
 package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,15 +32,12 @@ import static org.elasticsearch.packaging.util.Archives.stopElasticsearch;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.FileUtils.slurp;
-import static org.elasticsearch.packaging.util.Packages.assertStatuses;
-import static org.elasticsearch.packaging.util.Packages.maskSysctl;
-import static org.elasticsearch.packaging.util.Packages.recreateTempFiles;
-import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
-import static org.elasticsearch.packaging.util.Packages.unmaskSysctl;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
+import static org.elasticsearch.packaging.util.ServerUtils.waitForElasticsearch;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assume.assumeThat;
@@ -63,7 +61,17 @@ public abstract class ServiceManagerTestCase extends PackagingTestCase {
     public void test20StartServer() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
+        /**
+         * systemctl daemon-reload
+         * enable
+         * is enabled
+         * start
+         * is-active
+         * status
+         * run-tests
+         */
         startElasticsearch();
+
         runElasticsearchTests();
         verifyPackageInstallation(installation, distribution()); // check startup script didn't change permissions
     }
@@ -83,7 +91,13 @@ public abstract class ServiceManagerTestCase extends PackagingTestCase {
         assertStatuses(); // non deterministic
     }
 
-    public void test50ManualStartup() throws IOException {
+    /**
+     * # Simulates the behavior of a system restart:
+     * # the PID directory is deleted by the operating system
+     * # but it should not block ES from starting
+     * # see https://github.com/elastic/elasticsearch/issues/11594
+     */
+    public void test50DeletePID_DIRandRestart() throws IOException {
         rm(installation.pidDir);
 
         recreateTempFiles();
@@ -94,6 +108,12 @@ public abstract class ServiceManagerTestCase extends PackagingTestCase {
 
         assertTrue(Files.exists(pidFile));
     }
+
+
+    /*
+     * @test "[SYSTEMD] start Elasticsearch with custom JVM options" {
+     */
+
 
     public void test60SystemdMask() {
         cleanup();
@@ -106,6 +126,8 @@ public abstract class ServiceManagerTestCase extends PackagingTestCase {
     }
 
     public void test70serviceFileSetsLimits() throws IOException {
+        final Shell sh = new Shell();
+
         cleanup();
 
         installation = installArchive(distribution());
@@ -115,8 +137,74 @@ public abstract class ServiceManagerTestCase extends PackagingTestCase {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         assertTrue(Files.exists(pidFile));
         String pid = slurp(pidFile).trim();
+        String maxFileSize = run(sh, "$(cat /proc/%s/limits | grep \"Max file size\" | awk '{ print $4 }')", pid);
+        assertThat(maxFileSize, equalTo("unlimited"));
+
+        String maxProcesses = run(sh, "$(cat /proc/%s/limits | grep \"Max processes\" | awk '{ print $3 }')", pid);
+        assertThat(maxProcesses, equalTo("4096"));
+
+        String maxOpenFiles = run(sh, "$(cat /proc/%s/limits | grep \"Max open files\" | awk '{ print $4 }')", pid);
+        assertThat(maxOpenFiles, equalTo("65535"));
+
+        String maxAddressSpace = run(sh, "$(cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }')", pid);
+        assertThat(maxAddressSpace, equalTo("unlimited"));
+    }
+
+    private String run(Shell sh, String command, String... args) {
+        String formattedCommand = String.format(command, args);
+        return sh.run(formattedCommand).stdout.trim();
+    }
+
+    public static void restartElasticsearch() throws IOException {
+        final Shell sh = new Shell();
+        if (isSystemd()) {
+            sh.run("systemctl restart elasticsearch.service");
+        }
+//        } else {
+//            sh.run("service elasticsearch start");
+//        }
+
+        waitForElasticsearch();
+
+        if (isSystemd()) {
+            sh.run("systemctl is-active elasticsearch.service");
+            sh.run("systemctl status elasticsearch.service");
+        }
+//        else {
+//            sh.run("service elasticsearch status");
+//        }
+    }
 
 
+    //this will be very non deterministic
+    public static void assertStatuses() {
+        final Shell sh = new Shell();
+        if (isSystemd()) {
+            sh.run("systemctl status elasticsearch.service");
+        }
+    }
+
+    public static void recreateTempFiles() {
+        final Shell sh = new Shell();
+        //only systemd
+        if (isSystemd()) {
+            sh.run("systemd-tmpfiles --create");
+        }
+    }
+
+    public static void maskSysctl() {
+        final Shell sh = new Shell();
+        if (isSystemd()) {
+            sh.run("systemctl mask systemd-sysctl.service");
+        }
+    }
+
+
+    public static void unmaskSysctl() {
+        final Shell sh = new Shell();
+        if (isSystemd()) {
+            sh.run("systemctl mask systemd-sysctl.service");
+        }
     }
 
 }

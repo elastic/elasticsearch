@@ -49,9 +49,6 @@ import java.util.Set;
 
 public class RestClusterStateAction extends BaseRestHandler {
 
-    private final Logger logger = LogManager.getLogger(getClass());
-    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-
     private final SettingsFilter settingsFilter;
 
     public RestClusterStateAction(Settings settings, RestController controller, SettingsFilter settingsFilter) {
@@ -110,7 +107,6 @@ public class RestClusterStateAction extends BaseRestHandler {
                 }
                 builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
                 if (TransportClusterStateAction.CLUSTER_STATE_SIZE) {
-                    deprecationLogger.deprecated("es.cluster_state.size is deprecated and will be removed in 7.0.0");
                     builder.humanReadableField(
                             Fields.CLUSTER_STATE_SIZE_IN_BYTES,
                             Fields.CLUSTER_STATE_SIZE,

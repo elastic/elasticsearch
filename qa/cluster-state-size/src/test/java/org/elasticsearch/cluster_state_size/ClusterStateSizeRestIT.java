@@ -20,8 +20,13 @@
 package org.elasticsearch.cluster_state_size;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+
+import java.util.Collections;
 
 public class ClusterStateSizeRestIT extends ESClientYamlSuiteTestCase {
 
@@ -32,6 +37,23 @@ public class ClusterStateSizeRestIT extends ESClientYamlSuiteTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
+    }
+
+    @Override
+    protected Request getCatNodesVersionMasterRequest() {
+        final Request request = super.getCatNodesVersionMasterRequest();
+        final RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+        final VersionSensitiveWarningsHandler handler = new VersionSensitiveWarningsHandler(Collections.singleton(Version.CURRENT));
+        handler.current("es.cluster_state.size is deprecated and will be removed in 7.0.0");
+        builder.setWarningsHandler(handler);
+        request.setOptions(builder.build());
+        return request;
+    }
+
+    @Override
+    protected boolean preserveClusterSettings() {
+        // we did not add any cluster settings, and trying to clean these will trigger a warning
+        return true;
     }
 
 }

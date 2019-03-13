@@ -291,11 +291,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
-    private static Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
+    private Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
         // we simply go to the _cat/nodes API and parse all versions in the cluster
-        Request request = new Request("GET", "/_cat/nodes");
-        request.addParameter("h", "version,master");
-        Response response = restClient.performRequest(request);
+        Response response = restClient.performRequest(getCatNodesVersionMasterRequest());
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
         String nodesCatResponse = restTestResponse.getBodyAsString();
         String[] split = nodesCatResponse.split("\n");
@@ -317,6 +315,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             }
         }
         return new Tuple<>(version, masterVersion);
+    }
+
+    protected Request getCatNodesVersionMasterRequest() {
+        final Request request = new Request("GET", "/_cat/nodes");
+        request.addParameter("h", "version,master");
+        return request;
     }
 
     public void test() throws IOException {

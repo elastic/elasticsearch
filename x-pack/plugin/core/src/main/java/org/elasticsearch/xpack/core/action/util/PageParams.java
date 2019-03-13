@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.action.util;
+package org.elasticsearch.xpack.core.action.util;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,6 +16,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Helper class collecting options for pagination in a search
+ */
 public class PageParams implements ToXContentObject, Writeable {
 
     public static final ParseField PAGE = new ParseField("page");

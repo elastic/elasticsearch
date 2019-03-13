@@ -124,10 +124,10 @@ This example removes the follower retention leases for `follower_index` from
 --------------------------------------------------
 POST /leader_index/_ccr/forget_follower
 {
-  "follower_cluster" : "",
+  "follower_cluster" : "follower_cluster",
   "follower_index" : "follower_index",
-  "follower_index_uuid" : "",
-  "leader_remote_cluster" : ""
+  "follower_index_uuid" : "vYpnaWPRQB6mNspmoCeYyA",
+  "leader_remote_cluster" : "leader_cluster"
 }
 --------------------------------------------------
 // CONSOLE

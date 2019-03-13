@@ -232,7 +232,7 @@ public class PutRoleMappingRequestTests extends ESTestCase {
         case 5:
             List<String> roles = new ArrayList<>(original.getRoles());
             roles.add(randomAlphaOfLengthBetween(3, 5));
-            return new PutRoleMappingRequest(original.getName(), original.isEnabled(), roles, original.getRoleTemplates(),
+            return new PutRoleMappingRequest(original.getName(), original.isEnabled(), roles, Collections.emptyList(),
                 original.getRules(), original.getMetadata(), original.getRefreshPolicy());
 
         default:

@@ -19,6 +19,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -293,7 +294,14 @@ public final class TokenService {
             }
             securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", documentId, ex)),
                     () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, request, ActionListener
-                            .wrap(indexResponse -> listener.onResponse(new Tuple<>(userToken, refreshToken)), listener::onFailure)));
+                            .wrap(indexResponse -> {
+                                if (indexResponse.getResult() == Result.CREATED) {
+                                    listener.onResponse(new Tuple<>(userToken, refreshToken));
+                                } else {
+                                    listener.onFailure(traceLog("create token",
+                                            new ElasticsearchException("failed to create token document [{}]", indexResponse)));
+                                }
+                            }, listener::onFailure)));
         }
     }
 
@@ -436,7 +444,7 @@ public final class TokenService {
                         }
                     }, listener::onFailure));
                 } else {
-                    logger.debug("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet());
+                    logger.debug(() -> new ParameterizedMessage("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet()));
                     listener.onResponse(null);
                 }
             }
@@ -480,14 +488,12 @@ public final class TokenService {
     public void invalidateAccessToken(String tokenString, ActionListener<TokensInvalidationResult> listener) {
         ensureEnabled();
         if (Strings.isNullOrEmpty(tokenString)) {
-            logger.trace("No token-string provided");
-            listener.onFailure(new IllegalArgumentException("token must be provided"));
+            listener.onFailure(traceLog("no token-string provided", new IllegalArgumentException("token must be provided")));
         } else {
             maybeStartTokenRemover();
             final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
             decodeToken(tokenString, ActionListener.wrap(userToken -> {
                 if (userToken == null) {
-                    logger.error("received a malformed token as part of a invalidation request");
                     listener.onFailure(traceLog("invalidate token", tokenString, malformedTokenException()));
                 } else {
                     indexInvalidation(Collections.singleton(userToken.getId()), backoff, "access_token", null, listener);
@@ -641,15 +647,15 @@ public final class TokenService {
                                 final String failedTokenDocId = getTokenIdFromDocumentId(bulkItemResponse.getFailure().getId());
                                 if (isShardNotAvailableException(cause)) {
                                     retryTokenDocIds.add(failedTokenDocId);
-                                }
-                                else {
+                                } else {
                                     traceLog("invalidate access token", failedTokenDocId, cause);
                                     failedRequestResponses.add(new ElasticsearchException("Error invalidating " + srcPrefix + ": ", cause));
                                 }
                             } else {
                                 UpdateResponse updateResponse = bulkItemResponse.getResponse();
                                 if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
-                                    logger.debug("Invalidated [{}] for doc [{}]", srcPrefix, updateResponse.getGetResult().getId());
+                                    logger.debug(() -> new ParameterizedMessage("Invalidated [{}] for doc [{}]",
+                                            srcPrefix, updateResponse.getGetResult().getId()));
                                     invalidated.add(updateResponse.getGetResult().getId());
                                 } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
                                     previouslyInvalidated.add(updateResponse.getGetResult().getId());
@@ -772,8 +778,8 @@ public final class TokenService {
      * steps: First, we check if the token document is still valid for refresh
      * ({@link TokenService#checkTokenDocForRefresh(Map, Authentication)}. Then, in the case that the token has been refreshed within the
      * previous 30 seconds, we do not create a new token document but instead retrieve the one that was created by the original refresh and
-     * return an access token and refresh token based on that. Otherwise this token document gets its refresh_token marked as refreshed, while
-     * also storing the Instant when it was refreshed along with a pointer to the new token document that holds the refresh_token that
+     * return an access token and refresh token based on that. Otherwise this token document gets its refresh_token marked as refreshed,
+     * while also storing the Instant when it was refreshed along with a pointer to the new token document that holds the refresh_token that
      * supersedes this one. The new document that contains the new access token and refresh token is created and finally the new access
      * token and refresh token are returned to the listener.
      */
@@ -855,7 +861,8 @@ public final class TokenService {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
                     ActionListener.<UpdateResponse>wrap(updateResponse -> {
                         if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
-                            logger.debug("updated the original token document to {}", updateResponse.getGetResult().sourceAsMap());
+                            logger.debug(() -> new ParameterizedMessage("updated the original token document to {}",
+                                    updateResponse.getGetResult().sourceAsMap()));
                             final Tuple<UserToken, String> parsedTokens;
                             try {
                                 parsedTokens = parseTokensFromDocument(source, null);
@@ -868,15 +875,16 @@ public final class TokenService {
                             createUserToken(newUserTokenId, toRefreshUserToken.getAuthentication(), clientAuth,
                                     toRefreshUserToken.getMetadata(), true, listener);
                         } else if (backoff.hasNext()) {
-                            logger.info("failed to update the original token document [{}], the update result was [{}]. Retrying",
-                                    tokenDocId, updateResponse.getResult());
+                            logger.info(() -> new ParameterizedMessage(
+                                    "failed to update the original token document [{}], the update result was [{}]. Retrying", tokenDocId,
+                                    updateResponse.getResult()));
                             final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
                                     .preserveContext(() -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, backoff,
                                             refreshRequested, listener));
                             client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                         } else {
-                            logger.info("failed to update the original token document [{}] after all retries, "
-                                    + "the update result was [{}]. ", tokenDocId, updateResponse.getResult());
+                            logger.info(() -> new ParameterizedMessage("failed to update the original token document [{}]"
+                                    + " after all retries, the update result was [{}]. ", tokenDocId, updateResponse.getResult()));
                             listener.onFailure(invalidGrantException("could not refresh the requested token"));
                         }
                     }, e -> {
@@ -1038,13 +1046,14 @@ public final class TokenService {
             throw invalidGrantException("token is missing client information");
         }
         if (clientAuth.getUser().principal().equals(clientInfo.get("user")) == false) {
-            logger.warn("Token was originally created by [{}] but [{}] attempted to refresh it", clientInfo.get("user"),
-                    clientAuth.getUser().principal());
+            logger.warn(() -> new ParameterizedMessage("Token was originally created by [{}] but [{}] attempted to refresh it",
+                    clientInfo.get("user"), clientAuth.getUser().principal()));
             throw invalidGrantException("tokens must be refreshed by the creating client");
         }
         if (clientAuth.getAuthenticatedBy().getName().equals(clientInfo.get("realm")) == false) {
-            logger.warn("[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
-                    clientInfo.get("user"), clientInfo.get("realm"), clientAuth.getAuthenticatedBy().getName());
+            logger.warn(() -> new ParameterizedMessage(
+                    "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]", clientInfo.get("user"),
+                    clientInfo.get("realm"), clientAuth.getAuthenticatedBy().getName()));
             throw invalidGrantException("tokens must be refreshed by the creating client");
         }
     }
@@ -1600,7 +1609,7 @@ public final class TokenService {
         }
         createdTimeStamps.set(maxTimestamp);
         keyCache = new TokenKeys(Collections.unmodifiableMap(map), currentUsedKeyHash);
-        logger.debug("refreshed keys current: {}, keys: {}", currentUsedKeyHash, keyCache.cache.keySet());
+        logger.debug(() -> new ParameterizedMessage("refreshed keys current: {}, keys: {}", currentUsedKeyHash, keyCache.cache.keySet()));
     }
 
     private SecureString generateTokenKey() {

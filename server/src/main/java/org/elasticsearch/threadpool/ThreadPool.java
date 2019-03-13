@@ -786,4 +786,18 @@ public class ThreadPool implements Scheduler, Closeable {
             "Expected current thread [" + Thread.currentThread() + "] to not be the scheduler thread. Reason: [" + reason + "]";
         return true;
     }
+
+    public static boolean assertCurrentMethodIsNotCalledRecursively() {
+        final StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
+        assert stackTraceElements.length >= 3 : stackTraceElements.length;
+        assert stackTraceElements[0].getMethodName().equals("getStackTrace") : stackTraceElements[0];
+        assert stackTraceElements[1].getMethodName().equals("assertCurrentMethodIsNotCalledRecursively") : stackTraceElements[1];
+        final StackTraceElement testingMethod = stackTraceElements[2];
+        for (int i = 3; i < stackTraceElements.length; i++) {
+            assert stackTraceElements[i].getClassName().equals(testingMethod.getClassName()) == false
+                || stackTraceElements[i].getMethodName().equals(testingMethod.getMethodName()) == false :
+                testingMethod.getClassName() + "#" + testingMethod.getMethodName() + " is called recursively";
+        }
+        return true;
+    }
 }

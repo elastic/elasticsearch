@@ -121,6 +121,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                     fixtureProject,
                     (name, port) -> setSystemProperty(task, name, port)
                 );
+                task.dependsOn(fixtureProject.getTasks().getByName("postProcessFixture"));
             })
         );
 

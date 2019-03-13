@@ -86,7 +86,7 @@
 -Dlog4j.shutdownHookEnabled=false
 -Dlog4j2.disable.jmx=true
 
--Djava.io.tmpdir=${ES_TMPDIR}
+-Djava.io.tmpdir="${ES_TMPDIR}"
 
 ## heap dumps
 

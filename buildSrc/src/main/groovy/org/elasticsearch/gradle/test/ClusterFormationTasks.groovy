@@ -682,7 +682,7 @@ class ClusterFormationTasks {
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
-            ant.exec(executable: node.executable, spawn: node.config.daemonize,
+            ant.exec(executable: node.executable, spawn: node.config.daemonize, newenvironment: true,
                      dir: node.cwd, taskname: 'elasticsearch') {
                 node.env.each { key, value -> env(key: key, value: value) }
                 if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("8.0.0")) ||
@@ -690,6 +690,13 @@ class ClusterFormationTasks {
                     env(key: 'JAVA_HOME', value: project.runtimeJavaHome)
                 }
                 node.args.each { arg(value: it) }
+                if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                    // Having no TMP on Windows defaults to C:\Windows and permission errors
+                    // Since we configure ant to run with a new  environment above, we need to set this to a dir we have access to
+                    File tmpDir = new File(node.baseDir, "tmp")
+                    tmpDir.mkdirs()
+                    env(key: "TMP", value: tmpDir.absolutePath)
+                }
             }
         }
 

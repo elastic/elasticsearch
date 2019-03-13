@@ -1,33 +1,34 @@
 ---
 "Test percolator basics via rest":
 
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
-
   - do:
       indices.create:
+        include_type_name: true
         index: queries_index
         body:
           mappings:
-            properties:
-              query:
-                type: percolator
-              foo:
-                type: keyword
+            queries_type:
+              properties:
+                query:
+                  type: percolator
+                foo:
+                  type: keyword
 
   - do:
       indices.create:
+        include_type_name: true
         index: documents_index
         body:
           mappings:
-            properties:
-              foo:
-                type: keyword
+            documents_type:
+              properties:
+                foo:
+                  type: keyword
 
   - do:
       index:
         index: queries_index
+        type: queries_type
         id:   test_percolator
         body:
           query:
@@ -36,6 +37,7 @@
   - do:
       index:
         index: documents_index
+        type: documents_type
         id: some_id
         body:
           foo: bar
@@ -51,6 +53,7 @@
               percolate:
                 field: query
                 document:
+                  document_type: queries_type
                   foo: bar
   - match:  { hits.total:     1  }
 
@@ -62,6 +65,7 @@
           - query:
               percolate:
                 field: query
+                document_type: queries_type
                 document:
                   foo: bar
   - match:  { responses.0.hits.total:     1  }
@@ -74,6 +78,7 @@
               percolate:
                 field: query
                 index: documents_index
+                type: documents_type
                 id: some_id 
   - match:  { hits.total:     1  }
 
@@ -86,5 +91,6 @@
               percolate:
                 field: query
                 index: documents_index
+                type: documents_type
                 id: some_id
   - match:  { responses.0.hits.total:     1  }

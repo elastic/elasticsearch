@@ -17,7 +17,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
     private final Client client;
 
-    SnapshotLifecycleTask(final Client client) {
+    public SnapshotLifecycleTask(final Client client) {
         this.client = client;
     }
 

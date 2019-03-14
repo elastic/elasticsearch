@@ -58,6 +58,11 @@ modifications to the document data and metadata during reindexing.
 ifdef::include-xpack[]
 [TIP]
 ====
+If you use {ml-features} and your {ml} indices were created before
+{prev-major-version}, you must
+{stack-ov}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs] before
+you reindex the indices.
+
 If you use {es} {security-features}, before you reindex `.security*` internal
 indices it is a good idea to create a temporary superuser account in the `file`
 realm.

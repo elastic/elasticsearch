@@ -18,12 +18,9 @@
  */
 package org.elasticsearch.action.resync;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
@@ -69,28 +66,16 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         //  TODO: https://github.com/elastic/elasticsearch/issues/38556
         //assert Version.CURRENT.major <= 7;
         super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            trimAboveSeqNo = in.readZLong();
-        } else {
-            trimAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
-            maxSeenAutoIdTimestampOnPrimary = in.readZLong();
-        } else {
-            maxSeenAutoIdTimestampOnPrimary = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
-        }
+        trimAboveSeqNo = in.readZLong();
+        maxSeenAutoIdTimestampOnPrimary = in.readZLong();
         operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeZLong(trimAboveSeqNo);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
-            out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
-        }
+        out.writeZLong(trimAboveSeqNo);
+        out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         out.writeArray(Translog.Operation::writeOperation, operations);
     }
 

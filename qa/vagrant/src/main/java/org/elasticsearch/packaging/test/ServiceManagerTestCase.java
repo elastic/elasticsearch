@@ -20,12 +20,14 @@
 package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.stopElasticsearch;
@@ -148,6 +150,23 @@ public abstract class ServiceManagerTestCase extends PackagingTestCase {
 
         String maxAddressSpace = run(sh, "$(cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }')", pid);
         assertThat(maxAddressSpace, equalTo("unlimited"));
+
+        stopElasticsearch(installation);
+    }
+
+    public void test80TestRuntimeDirectory() throws IOException {
+        cleanup();
+        installation = installArchive(distribution());
+        FileUtils.rm(Paths.get("/var/run/elasticsearch"));
+        startElasticsearch();
+        FileUtils.assertPathsExist(Paths.get("/var/run/elasticsearch"));
+        stopElasticsearch(installation);
+    }
+
+    public void test90gcLogsExist() throws IOException {
+        startElasticsearch();
+        FileUtils.assertPathsExist(Paths.get("/var/log/elasticsearch/gc.log.0.current"));
+        stopElasticsearch(installation);
     }
 
     private String run(Shell sh, String command, String... args) {

@@ -301,7 +301,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                         new IntervalSchedule.Interval(60, IntervalSchedule.Interval.Unit.MINUTES))))
                 .defaultThrottlePeriod(throttlePeriod)
                 .addAction("logging", loggingAction("test out"))
-                .addAction("failing_hook", indexAction("foo", "bar").setExecutionTimeField("@timestamp")))
+                .addAction("failing_hook", indexAction("foo").setExecutionTimeField("@timestamp")))
                 .get();
         refresh(Watch.INDEX);
 

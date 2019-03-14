@@ -44,7 +44,7 @@ public abstract class GroupByKey extends Agg {
             } else if (script.outputType() == DataType.TIME) {
                 builder.valueType(ValueType.LONG);
             } else if (script.outputType() == DataType.DATETIME) {
-                builder.valueType(ValueType.DATE);
+                builder.valueType(ValueType.LONG);
             } else if (script.outputType() == DataType.BOOLEAN) {
                 builder.valueType(ValueType.BOOLEAN);
             } else if (script.outputType() == DataType.IP) {

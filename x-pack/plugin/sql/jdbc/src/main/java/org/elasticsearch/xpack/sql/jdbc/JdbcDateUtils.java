@@ -28,8 +28,10 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
  * from {@code org.elasticsearch.xpack.sql.util.DateUtils} and {@code org.elasticsearch.xpack.sql.proto.StringUtils}.
  */
 final class JdbcDateUtils {
-    
-    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000;
+
+    private JdbcDateUtils() {}
+
+    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
     // Not available in Java 8
     public static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
     
@@ -57,28 +59,37 @@ final class JdbcDateUtils {
         .appendOffsetId()
         .toFormatter(Locale.ROOT);
 
+    private static ZonedDateTime asDateTime(String date) {
+        return ISO_DATE_WITH_MILLIS.parse(date, ZonedDateTime::from);
+    }
+
     static long asMillisSinceEpoch(String date) {
-        return ISO_DATE_WITH_MILLIS.parse(date, ZonedDateTime::from).toInstant().toEpochMilli();
+        return asDateTime(date).toInstant().toEpochMilli();
     }
 
     static long timeAsMillisSinceEpoch(String date) {
         return ISO_WITH_MILLIS.parse(date, OffsetTime::from).atDate(EPOCH).toInstant().toEpochMilli();
     }
-    
+
     static Date asDate(String date) {
-        return new Date(utcMillisRemoveTime(asMillisSinceEpoch(date)));
+        ZonedDateTime zdt = asDateTime(date);
+        return new Date(zdt.toLocalDate().atStartOfDay(zdt.getZone()).toInstant().toEpochMilli());
     }
-    
+
+    /**
+     * In contrast to {@link JdbcDateUtils#asDate(String)} here we just want to eliminate
+     * the date part and just set it to EPOCH (1970-01-1)
+     */
     static Time asTime(String date) {
         return new Time(utcMillisRemoveDate(timeAsMillisSinceEpoch(date)));
     }
-    
+
     static Timestamp asTimestamp(String date) {
         return new Timestamp(asMillisSinceEpoch(date));
     }
-    
+
     /*
-     * Handles the value received as parameter, as either String (a ZonedDateTime formatted in ISO 8601 standard with millis) - 
+     * Handles the value received as parameter, as either String (a ZonedDateTime formatted in ISO 8601 standard with millis) -
      * date fields being returned formatted like this. Or a Long value, in case of Histograms.
      */
     static <R> R asDateTimeField(Object value, Function<String, R> asDateTimeMethod, Function<Long, R> ctor) {
@@ -87,10 +98,6 @@ final class JdbcDateUtils {
         } else {
             return ctor.apply(((Number) value).longValue());
         }
-    }
-
-    static long utcMillisRemoveTime(long l) {
-        return l - (l % DAY_IN_MILLIS);
     }
 
     private static long utcMillisRemoveDate(long l) {

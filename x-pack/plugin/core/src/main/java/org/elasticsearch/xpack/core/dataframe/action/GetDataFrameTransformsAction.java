@@ -29,6 +29,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsAction.Response>{
 
     public static final GetDataFrameTransformsAction INSTANCE = new GetDataFrameTransformsAction();
@@ -48,7 +50,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
 
     public static class Request extends AbstractGetResourcesRequest implements ToXContent {
 
-
+        private static final int MAX_SIZE_RETURN = 1000;
 
         public Request(String id) {
             super(id, PageParams.defaultParams(), true);
@@ -68,7 +70,12 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException exception = null;
+            if (getPageParams() != null && getPageParams().getSize() > MAX_SIZE_RETURN) {
+                exception = addValidationError("Param [" + PageParams.SIZE.getPreferredName() +
+                    "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]", exception);
+            }
+            return exception;
         }
 
         @Override

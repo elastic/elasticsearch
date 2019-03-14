@@ -598,22 +598,31 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testUpdateSearchAnalyzer() throws MapperParsingException, IOException {
         Client client = client();
-        String index = "new_index";
+        String index = "test";
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "text")
+                        .field("analyzer", "keyword")
+                    .endObject()
+                .endObject().endObject());
+
+        client.admin().indices().preparePutMapping(index).setType("_doc").setSource(mapping, XContentType.JSON).get();
+        ensureGreen(index);
         client.prepareIndex(index, "_doc", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client.prepareSearch(index).setQuery(QueryBuilders.matchQuery("field", "Value")).get();
-        assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        assertEquals(0, searchResponse.getHits().getTotalHits().value);
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+        String updatedMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                     .startObject("properties")
                         .startObject("field")
                             .field("type", "text")
-                            .field("search_analyzer", "keyword")
+                            .field("search_analyzer", "simple")
                         .endObject()
                     .endObject().endObject());
-        client.admin().indices().preparePutMapping(index).setType("_doc").setSource(mapping, XContentType.JSON).get();
-        // using keyword analyzer now should result in no match since the search term is uppercase
+        client.admin().indices().preparePutMapping(index).setType("_doc").setSource(updatedMapping, XContentType.JSON).get();
         searchResponse = client.prepareSearch(index).setQuery(QueryBuilders.matchQuery("field", "Value")).get();
-        assertEquals(0, searchResponse.getHits().getTotalHits().value);
+        assertEquals(1, searchResponse.getHits().getTotalHits().value);
     }
 
     public void testNotIndexedFieldPositionIncrement() throws IOException {

@@ -203,7 +203,7 @@ The following settings are supported:
 
 [horizontal]
 `location`:: Location of the snapshots. Mandatory.
-`compress`:: Turns on compression of the snapshot files. Compression is applied only to metadata files (index mapping and settings). Data files are not compressed. Defaults to `true`.
+`compress`:: Turns on compression of the snapshot files. Compression is applied only to metadata files (index mapping and settings). Data files are not compressed. Defaults to `false`.
 `chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by
  using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
 `max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `40mb` per second.

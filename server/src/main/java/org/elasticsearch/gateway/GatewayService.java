@@ -203,10 +203,19 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         if (enforceRecoverAfterTime && recoverAfterTime != null) {
             if (scheduledRecovery.compareAndSet(false, true)) {
                 logger.info("delaying initial state recovery for [{}]. {}", recoverAfterTime, reason);
-                threadPool.schedule(() -> {
-                    if (recovered.compareAndSet(false, true)) {
-                        logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
-                        recoveryRunnable.run();
+                threadPool.schedule(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("delayed state recovery failed", e);
+                        resetRecoveredFlags();
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        if (recovered.compareAndSet(false, true)) {
+                            logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
+                            recoveryRunnable.run();
+                        }
                     }
                 }, recoverAfterTime, ThreadPool.Names.GENERIC);
             }
@@ -253,6 +262,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         @Override
         public void onNoLongerMaster(String source) {
             logger.debug("stepped down as master before recovering state [{}]", source);
+            resetRecoveredFlags();
         }
 
         @Override

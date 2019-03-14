@@ -73,6 +73,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         assertTrue(featureSet.enabled());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40022")
     public void testUsage() throws InterruptedException, ExecutionException, IOException {
         Client client = mock(Client.class);
         when(licenseState.isDataFrameAllowed()).thenReturn(true);

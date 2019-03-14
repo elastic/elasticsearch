@@ -10,13 +10,14 @@ running the older version.
 Rolling upgrades are supported:
 
 * Between minor versions
-* https://www.elastic.co/guide/en/elastic-stack/6.7/upgrading-elastic-stack.html[From 5.6 to 6.7]
-* From 6.7 to {version}
+* {stack-ref-67}/upgrading-elastic-stack.html[From 5.6 to 6.7]
+* {stack-ref-70}/upgrading-elastic-stack.html[From 6.7 to 7.0]
+* From {prev-major-version} to {version}
 
 Upgrading directly to {version} from 6.6 or earlier requires a
 <<restart-upgrade, full cluster restart>>.
 
-To perform a rolling upgrade from 6.7 to {version}:
+To perform a rolling upgrade from {prev-major-version} to {version}:
 
 . *Disable shard allocation*.
 +

@@ -9,9 +9,13 @@ package org.elasticsearch.xpack.dataframe.integration;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -20,16 +24,31 @@ import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.junit.AfterClass;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
+    protected static final String TEST_PASSWORD = "x-pack-test-password";
+    protected static final SecureString TEST_PASSWORD_SECURE_STRING = new SecureString(TEST_PASSWORD.toCharArray());
+    private static final String BASIC_AUTH_VALUE_SUPER_USER = basicAuthHeaderValue("x_pack_rest_user", TEST_PASSWORD_SECURE_STRING);
+
+    protected static final String REVIEWS_INDEX_NAME = "reviews";
+
     protected static final String DATAFRAME_ENDPOINT = DataFrameField.REST_BASE_PATH + "transforms/";
+
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
+    }
 
     /**
      * Create a simple dataset for testing with reviewers, ratings and businesses
@@ -62,7 +81,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
             }
             builder.endObject();
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            Request req = new Request("PUT", "reviews");
+            Request req = new Request("PUT", REVIEWS_INDEX_NAME);
             req.setEntity(entity);
             client().performRequest(req);
         }
@@ -71,7 +90,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         final StringBuilder bulk = new StringBuilder();
         int day = 10;
         for (int i = 0; i < numDocs; i++) {
-            bulk.append("{\"index\":{\"_index\":\"reviews\"}}\n");
+            bulk.append("{\"index\":{\"_index\":\"" + REVIEWS_INDEX_NAME + "\"}}\n");
             long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % 27);
             int stars = distributionTable[(i * 33) % distributionTable.length];
             long business = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 13);
@@ -112,10 +131,15 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     }
 
     protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query) throws IOException {
-        final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + transformId);
+        createPivotReviewsTransform(transformId, dataFrameIndex, query, null);
+    }
+
+    protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query, String authHeader)
+        throws IOException {
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId, authHeader);
 
         String config = "{"
-                + " \"source\": \"reviews\","
+                + " \"source\": \"" + REVIEWS_INDEX_NAME + "\","
                 + " \"dest\": \"" + dataFrameIndex + "\",";
 
         if (query != null) {
@@ -138,9 +162,49 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                 + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
+
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
         assertTrue(indexExists(dataFrameIndex));
+    }
+
+    protected void startAndWaitForTransform(String transformId, String dataFrameIndex) throws Exception {
+        startAndWaitForTransform(transformId, dataFrameIndex, null);
+    }
+
+    protected void startAndWaitForTransform(String transformId, String dataFrameIndex, String authHeader) throws Exception {
+        // start the transform
+        final Request startTransformRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + transformId + "/_start", authHeader);
+
+        Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
+        assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
+
+        // wait until the dataframe has been created and all data is available
+        waitForDataFrameGeneration(transformId);
+        refreshIndex(dataFrameIndex);
+    }
+
+    protected Request createRequestWithAuth(final String method, final String endpoint, final String authHeader) {
+        final Request request = new Request(method, endpoint);
+
+        if (authHeader != null) {
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Authorization", authHeader);
+            request.setOptions(options);
+        }
+
+        return request;
+    }
+
+    void waitForDataFrameGeneration(String transformId) throws Exception {
+        assertBusy(() -> {
+            long generation = getDataFrameGeneration(transformId);
+            assertEquals(1, generation);
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    void refreshIndex(String index) throws IOException {
+        assertOK(client().performRequest(new Request("POST", index + "/_refresh")));
     }
 
     @SuppressWarnings("unchecked")
@@ -154,8 +218,11 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
     protected static String getDataFrameIndexerState(String transformId) throws IOException {
         Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + transformId + "/_stats"));
-
-        Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
+        List<?> transforms = ((List<?>) entityAsMap(statsResponse).get("transforms"));
+        if (transforms.isEmpty()) {
+            return null;
+        }
+        Map<?, ?> transformStatsAsMap = (Map<?, ?>) transforms.get(0);
         return (String) XContentMapValues.extractValue("state.transform_state", transformStatsAsMap);
     }
 
@@ -170,7 +237,6 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
     protected static void wipeDataFrameTransforms() throws IOException, InterruptedException {
         List<Map<String, Object>> transformConfigs = getDataFrameTransforms();
-
         for (Map<String, Object> transformConfig : transformConfigs) {
             String transformId = (String) transformConfig.get("id");
             Request request = new Request("POST", DATAFRAME_ENDPOINT + transformId + "/_stop");
@@ -178,7 +244,10 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
             request.addParameter("timeout", "10s");
             request.addParameter("ignore", "404");
             adminClient().performRequest(request);
-            assertEquals("stopped", getDataFrameIndexerState(transformId));
+            String state = getDataFrameIndexerState(transformId);
+            if (state != null) {
+                assertEquals("stopped", getDataFrameIndexerState(transformId));
+            }
         }
 
         for (Map<String, Object> transformConfig : transformConfigs) {
@@ -220,5 +289,35 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                 throw e;
             }
         }
+    }
+
+    static int getDataFrameGeneration(String transformId) throws IOException {
+        Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + transformId + "/_stats"));
+
+        Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
+        return (int) XContentMapValues.extractValue("state.generation", transformStatsAsMap);
+    }
+
+    protected void setupDataAccessRole(String role, String... indices) throws IOException {
+        String indicesStr = Arrays.stream(indices).collect(Collectors.joining("\",\"", "\"", "\""));
+        Request request = new Request("PUT", "/_security/role/" + role);
+        request.setJsonEntity("{"
+            + "  \"indices\" : ["
+            + "    { \"names\": [" + indicesStr + "], \"privileges\": [\"create_index\", \"read\", \"write\", \"view_index_metadata\"] }"
+            + "  ]"
+            + "}");
+        client().performRequest(request);
+    }
+
+    protected void setupUser(String user, List<String> roles) throws IOException {
+        String password = new String(TEST_PASSWORD_SECURE_STRING.getChars());
+
+        String rolesStr = roles.stream().collect(Collectors.joining("\",\"", "\"", "\""));
+        Request request = new Request("PUT", "/_security/user/" + user);
+        request.setJsonEntity("{"
+            + "  \"password\" : \"" + password + "\","
+            + "  \"roles\" : [ " + rolesStr + " ]"
+            + "}");
+        client().performRequest(request);
     }
 }

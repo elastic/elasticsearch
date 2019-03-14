@@ -3,7 +3,7 @@
 //
 
 currentDateKeywordWithDivision
-SELECT YEAR(CURRENT_TIMESTAMP) / 1000 AS result;
+SELECT YEAR(CURRENT_DATE) / 1000 AS result;
 
     result
 ---------------
@@ -11,7 +11,7 @@ SELECT YEAR(CURRENT_TIMESTAMP) / 1000 AS result;
 ;
 
 currentDateFunctionNoArgsWithDivision
-SELECT YEAR(CURRENT_TIMESTAMP()) / 1000 AS result;
+SELECT YEAR(CURRENT_DATE()) / 1000 AS result;
 
     result
 ---------------

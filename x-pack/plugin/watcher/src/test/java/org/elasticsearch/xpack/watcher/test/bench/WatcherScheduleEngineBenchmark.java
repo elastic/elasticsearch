@@ -110,12 +110,12 @@ public class WatcherScheduleEngineBenchmark {
 
                 client.admin().indices().prepareDelete("_all").get();
                 client.admin().indices().prepareCreate("test").get();
-                client.prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
+                client.prepareIndex().setIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
 
                 System.out.println("===============> indexing [" + numWatches + "] watches");
                 for (int i = 0; i < numWatches; i++) {
                     final String id = "_id_" + i;
-                    client.prepareIndex(Watch.INDEX, Watch.DOC_TYPE, id)
+                    client.prepareIndex().setIndex(Watch.INDEX).setId(id)
                             .setSource(new WatchSourceBuilder()
                                             .trigger(schedule(interval(interval + "s")))
                                             .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")))

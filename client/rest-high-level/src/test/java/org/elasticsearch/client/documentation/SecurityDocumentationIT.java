@@ -654,8 +654,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<Role> roles = response.getRoles();
             assertNotNull(response);
-            // 25 system roles plus the three we created
-            assertThat(roles.size(), equalTo(28));
+            // 27 system roles plus the three we created
+            assertThat(roles.size(), equalTo(30));
         }
 
         {
@@ -964,6 +964,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetSslCertificates() throws Exception {
+        assumeFalse("Awaits fix: https://github.com/elastic/elasticsearch/issues/40041", inFipsJvm());
         RestHighLevelClient client = highLevelClient();
         {
             //tag::get-certificates-execute

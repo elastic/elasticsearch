@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 

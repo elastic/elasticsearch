@@ -49,6 +49,7 @@ as long as the following conditions are met:
 
 NOTE: These settings only take effect on a full cluster restart.
 
+[[modules-gateway-dangling-indices]]
 === Dangling indices
 
 When a node joins the cluster, any shards stored in its local data

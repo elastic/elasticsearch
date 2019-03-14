@@ -41,6 +41,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.isNull;
 import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -86,6 +87,10 @@ public class NioSelectorTests extends ESTestCase {
         when(serverChannelContext.isOpen()).thenReturn(true);
         when(serverChannelContext.getSelector()).thenReturn(selector);
         when(serverChannelContext.getSelectionKey()).thenReturn(selectionKey);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(eventHandler).handleTask(any());
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -102,6 +107,23 @@ public class NioSelectorTests extends ESTestCase {
         verify(eventHandler).handleClose(context);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public void testCloseException() throws IOException {
+        IOException ioException = new IOException();
+        NioChannel channel = mock(NioChannel.class);
+        ChannelContext context = mock(ChannelContext.class);
+        when(channel.getContext()).thenReturn(context);
+        when(context.getSelector()).thenReturn(selector);
+
+        selector.queueChannelClose(channel);
+
+        doThrow(ioException).when(eventHandler).handleClose(context);
+
+        selector.singleLoop();
+
+        verify(eventHandler).closeException(context, ioException);
+    }
+
     public void testNioDelayedTasksAreExecuted() throws IOException {
         AtomicBoolean isRun = new AtomicBoolean(false);
         long nanoTime = System.nanoTime() - 1;
@@ -113,9 +135,27 @@ public class NioSelectorTests extends ESTestCase {
         assertTrue(isRun.get());
     }
 
+    public void testTaskExceptionsAreHandled() {
+        RuntimeException taskException = new RuntimeException();
+        long nanoTime = System.nanoTime() - 1;
+        Runnable task = () -> {
+            throw taskException;
+        };
+        selector.getTaskScheduler().scheduleAtRelativeTime(task, nanoTime);
+
+        doAnswer((a) -> {
+            task.run();
+            return null;
+        }).when(eventHandler).handleTask(same(task));
+
+        selector.singleLoop();
+        verify(eventHandler).taskException(taskException);
+    }
+
     public void testDefaultSelectorTimeoutIsUsedIfNoTaskSooner() throws IOException {
         long delay = new TimeValue(15, TimeUnit.MINUTES).nanos();
-        selector.getTaskScheduler().scheduleAtRelativeTime(() -> {}, System.nanoTime() + delay);
+        selector.getTaskScheduler().scheduleAtRelativeTime(() -> {
+        }, System.nanoTime() + delay);
 
         selector.singleLoop();
         verify(rawSelector).select(300);
@@ -127,7 +167,8 @@ public class NioSelectorTests extends ESTestCase {
         assertBusy(() -> {
             ArgumentCaptor<Long> captor = ArgumentCaptor.forClass(Long.class);
             long delay = new TimeValue(50, TimeUnit.MILLISECONDS).nanos();
-            selector.getTaskScheduler().scheduleAtRelativeTime(() -> {}, System.nanoTime() + delay);
+            selector.getTaskScheduler().scheduleAtRelativeTime(() -> {
+            }, System.nanoTime() + delay);
             selector.singleLoop();
             verify(rawSelector).select(captor.capture());
             assertTrue(captor.getValue() > 0);
@@ -454,24 +495,5 @@ public class NioSelectorTests extends ESTestCase {
         verify(listener).accept(isNull(Void.class), any(ClosedSelectorException.class));
         verify(eventHandler).handleClose(channelContext);
         verify(eventHandler).handleClose(unregisteredContext);
-    }
-
-    public void testExecuteListenerWillHandleException() throws Exception {
-        RuntimeException exception = new RuntimeException();
-        doThrow(exception).when(listener).accept(null, null);
-
-        selector.executeListener(listener, null);
-
-        verify(eventHandler).taskException(exception);
-    }
-
-    public void testExecuteFailedListenerWillHandleException() throws Exception {
-        IOException ioException = new IOException();
-        RuntimeException exception = new RuntimeException();
-        doThrow(exception).when(listener).accept(null, ioException);
-
-        selector.executeFailedListener(listener, ioException);
-
-        verify(eventHandler).taskException(exception);
     }
 }

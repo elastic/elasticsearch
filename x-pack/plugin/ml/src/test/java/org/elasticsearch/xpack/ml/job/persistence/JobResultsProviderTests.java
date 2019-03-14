@@ -39,7 +39,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -770,39 +770,38 @@ public class JobResultsProviderTests extends ESTestCase {
 
     public void testViolatedFieldCountLimit() throws Exception {
         Map<String, Object> mapping = new HashMap<>();
-        for (int i = 0; i < 10; i++) {
+
+        int i = 0;
+        for (; i < 10; i++) {
             mapping.put("field" + i, Collections.singletonMap("type", "string"));
         }
 
-        IndexMetaData.Builder indexMetaData1 = new IndexMetaData.Builder("index1")
-                .settings(Settings.builder()
-                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)));
-        MetaData metaData = MetaData.builder()
-                .put(indexMetaData1)
-                .build();
-        boolean result = JobResultsProvider.violatedFieldCountLimit("index1", 0, 10,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
-        assertFalse(result);
-
-        result = JobResultsProvider.violatedFieldCountLimit("index1", 1, 10,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
-        assertTrue(result);
-
-        IndexMetaData.Builder indexMetaData2 = new IndexMetaData.Builder("index1")
+        IndexMetaData indexMetaData1 = new IndexMetaData.Builder("index1")
                 .settings(Settings.builder()
                         .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                 .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)))
-                .putMapping(new MappingMetaData("type2", Collections.singletonMap("properties", mapping)));
-        metaData = MetaData.builder()
-                .put(indexMetaData2)
                 .build();
-        result = JobResultsProvider.violatedFieldCountLimit("index1", 0, 19,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
+        boolean result = JobResultsProvider.violatedFieldCountLimit(0, 10, indexMetaData1);
+        assertFalse(result);
+
+        result = JobResultsProvider.violatedFieldCountLimit(1, 10, indexMetaData1);
+        assertTrue(result);
+
+        for (; i < 20; i++) {
+            mapping.put("field" + i, Collections.singletonMap("type", "string"));
+        }
+
+        IndexMetaData indexMetaData2 = new IndexMetaData.Builder("index1")
+                .settings(Settings.builder()
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)))
+                .build();
+
+        result = JobResultsProvider.violatedFieldCountLimit(0, 19, indexMetaData2);
         assertTrue(result);
     }
 

@@ -16,12 +16,13 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.common.notifications.Auditor;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.DataFrame;
-import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.Map;
@@ -34,10 +35,13 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     private final DataFrameTransformsConfigManager transformsConfigManager;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
-    private final DataFrameAuditor auditor;
+    private final Auditor<DataFrameAuditMessage> auditor;
 
-    public DataFrameTransformPersistentTasksExecutor(Client client, DataFrameTransformsConfigManager transformsConfigManager,
-            SchedulerEngine schedulerEngine, DataFrameAuditor auditor, ThreadPool threadPool) {
+    public DataFrameTransformPersistentTasksExecutor(Client client,
+                                                     DataFrameTransformsConfigManager transformsConfigManager,
+                                                     SchedulerEngine schedulerEngine,
+                                                     Auditor<DataFrameAuditMessage> auditor,
+                                                     ThreadPool threadPool) {
         super(DataFrameField.TASK_NAME, DataFrame.TASK_THREAD_POOL_NAME);
         this.client = client;
         this.transformsConfigManager = transformsConfigManager;

@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.xpack.core.dataframe.notifications;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.junit.Before;
 
 import java.util.Date;
 
-public class DataFrameAuditMessageTests extends AbstractSerializingTestCase<DataFrameAuditMessage> {
+public class DataFrameAuditMessageTests extends AbstractXContentTestCase<DataFrameAuditMessage> {
     private long startMillis;
 
     @Before
@@ -22,7 +21,7 @@ public class DataFrameAuditMessageTests extends AbstractSerializingTestCase<Data
     }
 
     public void testNewInfo() {
-        DataFrameAuditMessage info = DataFrameAuditMessage.messageBuilder().info("foo", "some info", "some_node");
+        DataFrameAuditMessage info = DataFrameAuditMessage.builder().info("foo", "some info", "some_node");
         assertEquals("foo", info.getResourceId());
         assertEquals("some info", info.getMessage());
         assertEquals(Level.INFO, info.getLevel());
@@ -30,7 +29,7 @@ public class DataFrameAuditMessageTests extends AbstractSerializingTestCase<Data
     }
 
     public void testNewWarning() {
-        DataFrameAuditMessage warning = DataFrameAuditMessage.messageBuilder().warning("bar", "some warning", "some_node");
+        DataFrameAuditMessage warning = DataFrameAuditMessage.builder().warning("bar", "some warning", "some_node");
         assertEquals("bar", warning.getResourceId());
         assertEquals("some warning", warning.getMessage());
         assertEquals(Level.WARNING, warning.getLevel());
@@ -39,18 +38,10 @@ public class DataFrameAuditMessageTests extends AbstractSerializingTestCase<Data
 
 
     public void testNewError() {
-        DataFrameAuditMessage error = DataFrameAuditMessage.messageBuilder().error("foo", "some error", "some_node");
+        DataFrameAuditMessage error = DataFrameAuditMessage.builder().error("foo", "some error", "some_node");
         assertEquals("foo", error.getResourceId());
         assertEquals("some error", error.getMessage());
         assertEquals(Level.ERROR, error.getLevel());
-        assertDateBetweenStartAndNow(error.getTimestamp());
-    }
-
-    public void testNewActivity() {
-        DataFrameAuditMessage error = DataFrameAuditMessage.messageBuilder().activity("foo", "some error", "some_node");
-        assertEquals("foo", error.getResourceId());
-        assertEquals("some error", error.getMessage());
-        assertEquals(Level.ACTIVITY, error.getLevel());
         assertDateBetweenStartAndNow(error.getTimestamp());
     }
 
@@ -66,17 +57,17 @@ public class DataFrameAuditMessageTests extends AbstractSerializingTestCase<Data
     }
 
     @Override
-    protected DataFrameAuditMessage createTestInstance() {
-        DataFrameAuditMessage auditMessage = new DataFrameAuditMessage();
-        auditMessage.setLevel(randomFrom(Level.values()));
-        auditMessage.setMessage(randomAlphaOfLengthBetween(1, 20));
-        auditMessage.setNodeName(randomAlphaOfLengthBetween(1, 20));
-        auditMessage.setResourceId(randomAlphaOfLengthBetween(1, 20));
-        return auditMessage;
+    protected boolean supportsUnknownFields() {
+        return true;
     }
 
     @Override
-    protected Reader<DataFrameAuditMessage> instanceReader() {
-        return DataFrameAuditMessage::new;
+    protected DataFrameAuditMessage createTestInstance() {
+        return new DataFrameAuditMessage(
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomAlphaOfLengthBetween(1, 20),
+            randomFrom(Level.values()),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20)
+        );
     }
 }

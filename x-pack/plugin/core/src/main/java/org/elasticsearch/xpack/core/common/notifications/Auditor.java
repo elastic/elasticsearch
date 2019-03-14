@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -19,15 +21,24 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
+public class Auditor<T extends AbstractAuditMessage> {
 
+    private static final Logger logger = LogManager.getLogger(Auditor.class);
     private final Client client;
     private final String nodeName;
-    private final AbstractAuditMessage.AuditMessageBuilder<T> messageBuilder;
+    private final String auditIndex;
+    private final String executionOrigin;
+    private final AbstractAuditMessage.AbstractBuilder<T> messageBuilder;
 
-    public AbstractAuditor(Client client, String nodeName, AbstractAuditMessage.AuditMessageBuilder<T> messageBuilder) {
+    public Auditor(Client client,
+                   String nodeName,
+                   String auditIndex,
+                   String executionOrigin,
+                   AbstractAuditMessage.AbstractBuilder<T> messageBuilder) {
         this.client = Objects.requireNonNull(client);
         this.nodeName = Objects.requireNonNull(nodeName);
+        this.auditIndex = auditIndex;
+        this.executionOrigin = executionOrigin;
         this.messageBuilder = Objects.requireNonNull(messageBuilder);
     }
 
@@ -43,20 +54,20 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         indexDoc(messageBuilder.error(resourceId, message, nodeName));
     }
 
-    protected abstract String getExecutionOrigin();
+    protected void onIndexResponse(IndexResponse response) {
+        logger.trace("Successfully wrote audit message");
+    }
 
-    protected abstract String getAuditIndex();
-
-    protected abstract void onIndexResponse(IndexResponse response);
-
-    protected abstract void onIndexFailure(Exception exception);
+    protected void onIndexFailure(Exception exception) {
+        logger.debug("Failed to write audit message", exception);
+    }
 
     private void indexDoc(ToXContent toXContent) {
-        IndexRequest indexRequest = new IndexRequest(getAuditIndex());
+        IndexRequest indexRequest = new IndexRequest(auditIndex);
         indexRequest.source(toXContentBuilder(toXContent));
         indexRequest.timeout(TimeValue.timeValueSeconds(5));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-            getExecutionOrigin(),
+            executionOrigin,
             indexRequest,
             ActionListener.wrap(
                 this::onIndexResponse,

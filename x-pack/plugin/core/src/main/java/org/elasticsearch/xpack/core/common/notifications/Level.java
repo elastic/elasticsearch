@@ -5,15 +5,10 @@
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-
-import java.io.IOException;
 import java.util.Locale;
 
-public enum Level implements Writeable {
-    INFO, ACTIVITY, WARNING, ERROR;
+public enum Level {
+    INFO, WARNING, ERROR;
 
     /**
      * Case-insensitive from string method.
@@ -24,15 +19,6 @@ public enum Level implements Writeable {
      */
     public static Level fromString(String value) {
         return Level.valueOf(value.toUpperCase(Locale.ROOT));
-    }
-
-    public static Level readFromStream(StreamInput in) throws IOException {
-        return in.readEnum(Level.class);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(this);
     }
 
     @Override

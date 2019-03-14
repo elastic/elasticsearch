@@ -6,35 +6,37 @@
 package org.elasticsearch.xpack.core.dataframe.notifications;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
-import java.io.IOException;
 import java.util.Date;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.dataframe.DataFrameField.DATA_FRAME_TRANSFORM_AUDIT_ID_FIELD;
 
 public class DataFrameAuditMessage extends AbstractAuditMessage {
 
     private static final ParseField TRANSFORM_ID = new ParseField(DATA_FRAME_TRANSFORM_AUDIT_ID_FIELD);
-    public static final ObjectParser<DataFrameAuditMessage, Void> PARSER = new ObjectParser<>("data_frame_audit_message",
+    public static final ConstructingObjectParser<DataFrameAuditMessage, Void> PARSER = new ConstructingObjectParser<>(
+        "data_frame_audit_message",
         true,
-        DataFrameAuditMessage::new);
+        a -> new DataFrameAuditMessage((String)a[0], (String)a[1], (Level)a[2], (Date)a[3], (String)a[4]));
 
     static {
-        PARSER.declareString(AbstractAuditMessage::setResourceId, TRANSFORM_ID);
-        PARSER.declareString(AbstractAuditMessage::setMessage, MESSAGE);
-        PARSER.declareField(AbstractAuditMessage::setLevel, p -> {
+        PARSER.declareString(optionalConstructorArg(), TRANSFORM_ID);
+        PARSER.declareString(constructorArg(), MESSAGE);
+        PARSER.declareField(constructorArg(), p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return Level.fromString(p.text());
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, LEVEL, ObjectParser.ValueType.STRING);
-        PARSER.declareField(AbstractAuditMessage::setTimestamp, parser -> {
+        PARSER.declareField(constructorArg(), parser -> {
             if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 return new Date(parser.longValue());
             } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -43,15 +45,15 @@ public class DataFrameAuditMessage extends AbstractAuditMessage {
             throw new IllegalArgumentException(
                 "unexpected token [" + parser.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
         }, TIMESTAMP, ObjectParser.ValueType.VALUE);
-        PARSER.declareString(AbstractAuditMessage::setNodeName, NODE_NAME);
+        PARSER.declareString(optionalConstructorArg(), NODE_NAME);
     }
 
-    public DataFrameAuditMessage(StreamInput in) throws IOException {
-        super(in);
+    public DataFrameAuditMessage(String resourceId, String message, Level level, String nodeName) {
+        super(resourceId, message, level, nodeName);
     }
 
-    public DataFrameAuditMessage(){
-        super();
+    protected DataFrameAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
+        super(resourceId, message, level, timestamp, nodeName);
     }
 
     @Override
@@ -59,7 +61,12 @@ public class DataFrameAuditMessage extends AbstractAuditMessage {
         return TRANSFORM_ID.getPreferredName();
     }
 
-    public static AbstractAuditMessage.AuditMessageBuilder<DataFrameAuditMessage> messageBuilder() {
-        return new AuditMessageBuilder<>(DataFrameAuditMessage::new);
+    public static AbstractAuditMessage.AbstractBuilder<DataFrameAuditMessage> builder() {
+        return new AbstractBuilder<DataFrameAuditMessage>() {
+            @Override
+            protected DataFrameAuditMessage newMessage(Level level, String resourceId, String message, String nodeName) {
+                return new DataFrameAuditMessage(resourceId, message, level, nodeName);
+            }
+        };
     }
 }

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.common.notifications;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -29,38 +28,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class AbstractAuditorTests extends ESTestCase {
+public class AuditorTests extends ESTestCase {
     private Client client;
     private ArgumentCaptor<IndexRequest> indexRequestCaptor;
     private static final String TEST_ORIGIN = "test_origin";
     private static final String TEST_INDEX = "test_index";
-    
-    static class TestAuditor extends AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> {
-
-        TestAuditor(Client client, String nodeName) {
-            super(client, nodeName, AbstractAuditMessageTests.TestAuditMessage.newBuilder());
-        }
-
-        @Override
-        protected String getExecutionOrigin() {
-            return TEST_ORIGIN;
-        }
-
-        @Override
-        protected String getAuditIndex() {
-            return TEST_INDEX;
-        }
-
-        @Override
-        protected void onIndexResponse(IndexResponse response) {
-
-        }
-
-        @Override
-        protected void onIndexFailure(Exception exception) {
-
-        }
-    }
+    private static final AbstractAuditMessage.AbstractBuilder<AbstractAuditMessageTests.TestAuditMessage> builder = 
+        AbstractAuditMessageTests.TestAuditMessage.newBuilder();
     
     @Before
     public void setUpMocks() {
@@ -73,7 +47,7 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     public void testInfo() throws IOException {
-        TestAuditor auditor = new TestAuditor(client, "node_1");
+        Auditor<AbstractAuditMessageTests.TestAuditMessage> auditor = new Auditor<>(client, "node_1", TEST_INDEX, TEST_ORIGIN, builder);
         auditor.info("foo", "Here is my info");
 
         verify(client).index(indexRequestCaptor.capture(), any());
@@ -87,7 +61,7 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     public void testWarning() throws IOException {
-        TestAuditor auditor = new TestAuditor(client, "node_1");
+        Auditor<AbstractAuditMessageTests.TestAuditMessage> auditor = new Auditor<>(client, "node_1", TEST_INDEX, TEST_ORIGIN, builder);
         auditor.warning("bar", "Here is my warning");
 
         verify(client).index(indexRequestCaptor.capture(), any());
@@ -101,7 +75,7 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     public void testError() throws IOException {
-        TestAuditor auditor = new TestAuditor(client, "node_1");
+        Auditor<AbstractAuditMessageTests.TestAuditMessage> auditor = new Auditor<>(client, "node_1", TEST_INDEX, TEST_ORIGIN, builder);
         auditor.error("foobar", "Here is my error");
 
         verify(client).index(indexRequestCaptor.capture(), any());

@@ -208,7 +208,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         if (routingTable != null && routingTable.allPrimaryShardsActive()) {
             return true;
         }
-        logger.debug("Security index [{}] is not yet active", aliasName);
+        logger.debug("Index [{}] is not yet active", aliasName);
         return false;
     }
 

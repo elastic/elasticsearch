@@ -24,8 +24,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 
-import java.util.List;
-
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -38,12 +36,13 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         final String indexName = "test-repurpose";
 
         logger.info("--> starting two nodes");
-        final List<String> nodes = internalCluster().startNodes(2);
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
 
         logger.info("--> creating index");
         prepareCreate(indexName, Settings.builder()
             .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 1)
+            .put("index.number_of_replicas", 0)
         ).get();
         final String indexUUID = resolveIndex(indexName).getUUID();
 
@@ -65,27 +64,25 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         logger.info("--> restarting node with node.data=false and node.master=false");
         IllegalStateException ex = expectThrows(IllegalStateException.class,
             "Node started with node.data=false and node.master=false while having existing index metadata must fail",
-            () -> internalCluster().startNode(noMasterNoDataSettings)
+            () -> internalCluster().startCoordinatingOnlyNode(Settings.EMPTY)
         );
 
-        int runningOrdinal = nodes.indexOf(internalCluster().getNodeNames()[0]);
-        int stoppedOrdinal = 1-runningOrdinal;
-
-        logger.info("--> Repurposing node");
-        executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, stoppedOrdinal);
+        logger.info("--> Repurposing node 1");
+        executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, 1);
 
         ElasticsearchException lockedException = expectThrows(ElasticsearchException.class,
-            () -> executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, runningOrdinal)
+            () -> executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, 0)
         );
 
         assertThat(lockedException.getMessage(), containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG));
 
         logger.info("--> Starting node after repurpose");
-        nodes.set(stoppedOrdinal, internalCluster().startNode(noMasterNoDataSettings));
+        internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
-        ensureYellow();
+        ensureGreen();
 
-        assertTrue(client().prepareGet(indexName, "type1", "1").get().isExists());
+        // docs gone
+        assertFalse(client().prepareGet(indexName, "type1", "1").get().isExists());
         assertTrue(indexExists(indexName));
 
         logger.info("--> Restarting and repurposing other node");
@@ -93,12 +90,14 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(s -> true);
         internalCluster().stopRandomNode(s -> true);
 
-        executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, runningOrdinal);
+        executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, 0);
 
-        internalCluster().startNodes(2);
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
         ensureGreen();
 
-        // indexes and docs gone.
+        // indexes gone.
         assertFalse(indexExists(indexName));
     }
 

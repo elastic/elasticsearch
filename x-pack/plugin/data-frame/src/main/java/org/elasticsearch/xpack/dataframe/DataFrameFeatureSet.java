@@ -79,7 +79,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
 
         GetDataFrameTransformsAction.Request transformsRequest = new GetDataFrameTransformsAction.Request(MetaData.ALL);
         // TODO Before 7.1, see https://github.com/elastic/elasticsearch/issues/39994
-        transformsRequest.setPageParams(new PageParams(0, 10_000));
+        transformsRequest.setPageParams(new PageParams(0, 1000));
         client.execute(GetDataFrameTransformsAction.INSTANCE, transformsRequest, ActionListener.wrap(
             transforms -> {
                 Set<String> transformIds = transforms.getTransformConfigurations()

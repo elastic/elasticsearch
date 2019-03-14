@@ -22,11 +22,6 @@
           "type": "int",
           "required": false,
           "description": "specifies a max number of transforms to get, defaults to 100"
-        },
-        "allow_no_transforms": {
-          "type": "boolean",
-          "required": false,
-          "description": "Whether to ignore if a wildcard expression matches no transforms. Defaults to true (This includes `_all` string or when no jobs have been specified)"
         }
       }
     },

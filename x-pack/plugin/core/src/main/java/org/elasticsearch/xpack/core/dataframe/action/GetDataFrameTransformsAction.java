@@ -48,7 +48,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
 
     public static class Request extends AbstractGetResourcesRequest implements ToXContent {
 
-        public static final String ALLOW_NO_TRANSFORMS = "allow_no_transforms";
+
 
         public Request(String id) {
             super(id, PageParams.defaultParams(), true);

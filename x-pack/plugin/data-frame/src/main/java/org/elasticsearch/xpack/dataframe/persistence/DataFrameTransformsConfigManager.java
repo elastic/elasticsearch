@@ -89,6 +89,7 @@ public class DataFrameTransformsConfigManager {
         }
     }
 
+    // For transforms returned via GET data_frame/transforms, see the TransportGetDataFrameTransformsAction
     public void getTransformConfiguration(String transformId, ActionListener<DataFrameTransformConfig> resultListener) {
         GetRequest getRequest = new GetRequest(DataFrameInternalIndex.INDEX_NAME, DataFrameTransformConfig.documentId(transformId));
         executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {

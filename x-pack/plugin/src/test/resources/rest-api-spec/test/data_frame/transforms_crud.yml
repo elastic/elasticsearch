@@ -135,18 +135,3 @@ setup:
         size: 1
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-dos" }
-
----
-"Test basic transform crud when allow no transforms is false":
-
-  - do:
-      data_frame.get_data_frame_transform:
-        transform_id: "airline-transform*"
-        allow_no_transforms: true
-  - match: { count: 0 }
-
-  - do:
-      catch: missing
-      data_frame.get_data_frame_transform:
-        transform_id: "airline-transform*"
-        allow_no_transforms: false

@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
 
-import static org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction.Request.ALLOW_NO_TRANSFORMS;
-
 public class RestGetDataFrameTransformsAction extends BaseRestHandler {
 
     public RestGetDataFrameTransformsAction(Settings settings, RestController controller) {
@@ -37,7 +35,6 @@ public class RestGetDataFrameTransformsAction extends BaseRestHandler {
                 new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
-        request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_TRANSFORMS, request.isAllowNoResources()));
         return channel -> client.execute(GetDataFrameTransformsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

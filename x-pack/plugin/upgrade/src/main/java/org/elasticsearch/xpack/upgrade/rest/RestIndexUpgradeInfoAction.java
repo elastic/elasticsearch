@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.xpack.upgrade.rest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -19,11 +22,17 @@ import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
 import java.io.IOException;
 
 public class RestIndexUpgradeInfoAction extends BaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestIndexUpgradeInfoAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public RestIndexUpgradeInfoAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_xpack/migration/assistance", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_xpack/migration/assistance/{index}", this);
+        controller.registerAsDeprecatedHandler(RestRequest.Method.GET, "/_xpack/migration/assistance", this,
+            "[GET _xpack/migration/assistance] is deprecated. " +
+                "Use [GET _xpack/migration/deprecations] instead.", deprecationLogger);
+        controller.registerAsDeprecatedHandler(RestRequest.Method.GET, "/_xpack/migration/assistance/{index}", this,
+            "[GET _xpack/migration/assistance/{index}] is deprecated. " +
+                "Use [GET _xpack/migration/deprecations?index={index}] instead.", deprecationLogger);
     }
 
     @Override

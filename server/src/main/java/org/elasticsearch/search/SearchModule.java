@@ -299,6 +299,16 @@ public class SearchModule {
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
 
+    /**
+     * Constructs a new SearchModule object
+     *
+     * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
+     *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
+     *
+     * @param settings Current settings
+     * @param transportClient Is this being constructed in the TransportClient or not
+     * @param plugins List of included {@link SearchPlugin} objects.
+     */
     public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins) {
         this.settings = settings;
         this.transportClient = transportClient;

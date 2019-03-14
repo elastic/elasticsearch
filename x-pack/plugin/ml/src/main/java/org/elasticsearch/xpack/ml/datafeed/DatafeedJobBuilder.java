@@ -11,7 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -54,7 +54,7 @@ public class DatafeedJobBuilder {
     void build(String datafeedId, ActionListener<DatafeedJob> listener) {
 
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
-        JobConfigProvider jobConfigProvider = new JobConfigProvider(client);
+        JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
 
         build(datafeedId, jobResultsProvider, jobConfigProvider, datafeedConfigProvider, listener);
@@ -72,10 +72,10 @@ public class DatafeedJobBuilder {
 
         // Step 5. Build datafeed job object
         Consumer<Context> contextHanlder = context -> {
-            TimeValue frequency = getFrequencyOrDefault(datafeedConfigHolder.get(), jobHolder.get());
+            TimeValue frequency = getFrequencyOrDefault(datafeedConfigHolder.get(), jobHolder.get(), xContentRegistry);
             TimeValue queryDelay = datafeedConfigHolder.get().getQueryDelay();
             DelayedDataDetector delayedDataDetector =
-                    DelayedDataDetectorFactory.buildDetector(jobHolder.get(), datafeedConfigHolder.get(), client);
+                    DelayedDataDetectorFactory.buildDetector(jobHolder.get(), datafeedConfigHolder.get(), client, xContentRegistry);
             DatafeedJob datafeedJob = new DatafeedJob(jobHolder.get().getId(), buildDataDescription(jobHolder.get()),
                     frequency.millis(), queryDelay.millis(),
                     context.dataExtractorFactory, client, auditor, currentTimeSupplier, delayedDataDetector,
@@ -102,7 +102,7 @@ public class DatafeedJobBuilder {
             if (dataCounts.getLatestRecordTimeStamp() != null) {
                 context.latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();
             }
-            DataExtractorFactory.create(client, datafeedConfigHolder.get(), jobHolder.get(), dataExtractorFactoryHandler);
+            DataExtractorFactory.create(client, datafeedConfigHolder.get(), jobHolder.get(), xContentRegistry, dataExtractorFactoryHandler);
         };
 
         // Collect data counts
@@ -137,7 +137,7 @@ public class DatafeedJobBuilder {
                 jobBuilder -> {
                     try {
                         jobHolder.set(jobBuilder.build());
-                        DatafeedJobValidator.validate(datafeedConfigHolder.get(), jobHolder.get());
+                        DatafeedJobValidator.validate(datafeedConfigHolder.get(), jobHolder.get(), xContentRegistry);
                         jobIdConsumer.accept(jobHolder.get().getId());
                     } catch (Exception e) {
                         listener.onFailure(e);
@@ -162,11 +162,11 @@ public class DatafeedJobBuilder {
         datafeedConfigProvider.getDatafeedConfig(datafeedId, datafeedConfigListener);
     }
 
-    private static TimeValue getFrequencyOrDefault(DatafeedConfig datafeed, Job job) {
+    private static TimeValue getFrequencyOrDefault(DatafeedConfig datafeed, Job job, NamedXContentRegistry xContentRegistry) {
         TimeValue frequency = datafeed.getFrequency();
         if (frequency == null) {
             TimeValue bucketSpan = job.getAnalysisConfig().getBucketSpan();
-            return datafeed.defaultFrequency(bucketSpan);
+            return datafeed.defaultFrequency(bucketSpan, xContentRegistry);
         }
         return frequency;
     }

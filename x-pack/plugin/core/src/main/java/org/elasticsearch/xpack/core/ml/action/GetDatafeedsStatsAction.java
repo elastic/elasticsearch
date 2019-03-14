@@ -8,20 +8,19 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -124,7 +123,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends AbstractGetResourcesResponse<Response.DatafeedStats> implements ToXContentObject {
 
         public static class DatafeedStats implements ToXContentObject, Writeable {
 
@@ -223,58 +222,19 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Resp
             }
         }
 
-        private QueryPage<DatafeedStats> datafeedsStats;
-
         public Response(QueryPage<DatafeedStats> datafeedsStats) {
-            this.datafeedsStats = datafeedsStats;
+            super(datafeedsStats);
         }
 
         public Response() {}
 
         public QueryPage<DatafeedStats> getResponse() {
-            return datafeedsStats;
+            return getResources();
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeedsStats = new QueryPage<>(in, DatafeedStats::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            datafeedsStats.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            datafeedsStats.doXContentBody(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(datafeedsStats);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return Objects.equals(datafeedsStats, other.datafeedsStats);
-        }
-
-        @Override
-        public final String toString() {
-            return Strings.toString(this);
+        protected Reader<DatafeedStats> getReader() {
+            return DatafeedStats::new;
         }
     }
 

@@ -822,6 +822,7 @@ public class TransportSearchActionTests extends ESTestCase {
             searchRequestTests.setUp();
             SearchRequest searchRequest = searchRequestTests.createSearchRequest();
             searchRequest.scroll((Scroll)null);
+            searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
             SearchSourceBuilder source = searchRequest.source();
             if (source != null) {
                 CollapseBuilder collapse = source.collapse();

@@ -34,6 +34,7 @@ import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.protocol.HttpCoreContext;
 import org.apache.http.util.CharArrayBuffer;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.SuppressForbidden;
@@ -367,16 +368,16 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     private URI submitLoginForm(CloseableHttpClient client, BasicHttpContext context, URI formUri) throws IOException {
         final HttpPost form = new HttpPost(formUri);
         List<NameValuePair> params = new ArrayList<>();
-        params.add(new BasicNameValuePair("j_username", "Thor"));
+        params.add(new BasicNameValuePair("j_username", "thor"));
         params.add(new BasicNameValuePair("j_password", "NickFuryHeartsES"));
         params.add(new BasicNameValuePair("_eventId_proceed", ""));
         form.setEntity(new UrlEncodedFormEntity(params));
 
         final String redirect = execute(client, form, context, response -> {
+            logger.debug(EntityUtils.toString(response.getEntity()));
             assertThat(response.getStatusLine().getStatusCode(), equalTo(302));
             return response.getFirstHeader("Location").getValue();
         });
-        assertThat(redirect, startsWith("/"));
 
         String target = execute(client, new HttpGet(formUri.resolve(redirect)), context, response -> {
             assertHttpOk(response.getStatusLine());
@@ -620,7 +621,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     private SSLContext getClientSslContext() throws Exception {
-        final Path pem = getDataPath("/ca.crt");
+        final Path pem = getDataPath("/idp-browser.pem");
         final Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(pem));
         final X509ExtendedTrustManager trustManager = CertParsingUtils.trustManager(certificates);
         SSLContext context = SSLContext.getInstance("TLS");

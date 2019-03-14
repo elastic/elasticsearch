@@ -73,13 +73,6 @@ public enum Recyclers {
             }
 
             @Override
-            public Recycler.V<T> obtain(int sizing) {
-                synchronized (lock) {
-                    return super.obtain(sizing);
-                }
-            }
-
-            @Override
             public Recycler.V<T> obtain() {
                 synchronized (lock) {
                     return super.obtain();

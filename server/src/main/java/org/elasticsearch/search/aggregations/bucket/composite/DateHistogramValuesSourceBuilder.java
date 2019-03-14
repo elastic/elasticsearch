@@ -19,12 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -95,22 +93,14 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         super(in);
         this.interval = in.readLong();
         this.dateHistogramInterval = in.readOptionalWriteable(DateHistogramInterval::new);
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            this.timeZone = DateUtils.dateTimeZoneToZoneId(in.readOptionalTimeZone());
-        } else {
-            this.timeZone = in.readOptionalZoneId();
-        }
+        this.timeZone = in.readOptionalZoneId();
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeLong(interval);
         out.writeOptionalWriteable(dateHistogramInterval);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
-        } else {
-            out.writeOptionalZoneId(timeZone);
-        }
+        out.writeOptionalZoneId(timeZone);
     }
 
     @Override

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -72,37 +71,25 @@ public class InternalComposite
         this.sourceNames = in.readStringList();
         this.formats = new ArrayList<>(sourceNames.size());
         for (int i = 0; i < sourceNames.size(); i++) {
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-                formats.add(in.readNamedWriteable(DocValueFormat.class));
-            } else {
-                formats.add(DocValueFormat.RAW);
-            }
+            formats.add(in.readNamedWriteable(DocValueFormat.class));
         }
         this.reverseMuls = in.readIntArray();
         this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls));
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            this.afterKey = in.readBoolean() ? new CompositeKey(in) : null;
-        } else {
-            this.afterKey = buckets.size() > 0 ? buckets.get(buckets.size()-1).key : null;
-        }
+        this.afterKey = in.readBoolean() ? new CompositeKey(in) : null;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(size);
         out.writeStringCollection(sourceNames);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            for (DocValueFormat format : formats) {
-                out.writeNamedWriteable(format);
-            }
+        for (DocValueFormat format : formats) {
+            out.writeNamedWriteable(format);
         }
         out.writeIntArray(reverseMuls);
         out.writeList(buckets);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeBoolean(afterKey != null);
-            if (afterKey != null) {
-                afterKey.writeTo(out);
-            }
+        out.writeBoolean(afterKey != null);
+        if (afterKey != null) {
+            afterKey.writeTo(out);
         }
     }
 

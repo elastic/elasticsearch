@@ -227,13 +227,6 @@ public class RestoreService implements ClusterStateApplier {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
-                    if (currentState.getNodes().getMinNodeVersion().before(Version.V_7_0_0)) {
-                        // Check if another restore process is already running - cannot run two restore processes at the
-                        // same time in versions prior to 7.0
-                        if (restoreInProgress != null && restoreInProgress.isEmpty() == false) {
-                            throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process is already running in this cluster");
-                        }
-                    }
                     // Check if the snapshot to restore is currently being deleted
                     SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
                     if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {

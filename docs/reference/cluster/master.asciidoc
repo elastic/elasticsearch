@@ -1,0 +1,16 @@
+[[cluster-master]]
+== Cluster master
+
+The cluster master API returns the identity of the currently elected master
+node.
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/master
+--------------------------------------------------
+// CONSOLE
+
+By default the coordinating node asks the master for its own identity to verify
+that it is still the master. The timeout for this can be set with the
+`?master_timeout` <<time-units,time value>> query parameter, which defaults to
+`30s`. This check can be skipped by setting the `?local` query parameter.

@@ -1,0 +1,10 @@
+---
+"get cluster master":
+  - skip:
+      version: " - 7.99.99"
+      reason: Get cluster master API was introduced in 8.0
+
+  - do:
+      cluster.master: {}
+
+  - is_true: master_node_id

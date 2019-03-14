@@ -81,6 +81,8 @@ include::cluster/health.asciidoc[]
 
 include::cluster/state.asciidoc[]
 
+include::cluster/master.asciidoc[]
+
 include::cluster/stats.asciidoc[]
 
 include::cluster/pending.asciidoc[]

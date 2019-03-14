@@ -321,7 +321,6 @@ public class CCSDuelIT extends ESRestTestCase {
         });
     }
 
-
     public void testExplain() throws Exception  {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();

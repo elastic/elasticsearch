@@ -532,7 +532,7 @@ public class KeyStoreWrapper implements SecureSettings {
         }
         ByteBuffer byteBuffer = ByteBuffer.wrap(entry.bytes);
         CharBuffer charBuffer = StandardCharsets.UTF_8.decode(byteBuffer);
-        return new SecureString(charBuffer.array());
+        return new SecureString(Arrays.copyOfRange(charBuffer.array(), charBuffer.position(), charBuffer.limit()));
     }
 
     @Override

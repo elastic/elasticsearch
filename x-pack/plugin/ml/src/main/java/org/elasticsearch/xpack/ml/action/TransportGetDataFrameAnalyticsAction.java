@@ -12,22 +12,28 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+
 public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetResourcesAction<DataFrameAnalyticsConfig,
         GetDataFrameAnalyticsAction.Request, GetDataFrameAnalyticsAction.Response> {
 
     @Inject
-    public TransportGetDataFrameAnalyticsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(GetDataFrameAnalyticsAction.NAME, transportService, actionFilters, GetDataFrameAnalyticsAction.Request::new, client);
+    public TransportGetDataFrameAnalyticsAction(TransportService transportService, ActionFilters actionFilters, Client client,
+                                                NamedXContentRegistry xContentRegistry) {
+        super(GetDataFrameAnalyticsAction.NAME, transportService, actionFilters, GetDataFrameAnalyticsAction.Request::new, client,
+            xContentRegistry);
     }
 
     @Override
@@ -62,5 +68,15 @@ public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetRe
     @Nullable
     protected QueryBuilder additionalQuery() {
         return QueryBuilders.termQuery(DataFrameAnalyticsConfig.CONFIG_TYPE.getPreferredName(), DataFrameAnalyticsConfig.TYPE);
+    }
+
+    @Override
+    protected String executionOrigin() {
+        return ML_ORIGIN;
+    }
+
+    @Override
+    protected String extractIdFromResource(DataFrameAnalyticsConfig config) {
+        return config.getId();
     }
 }

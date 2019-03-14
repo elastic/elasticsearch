@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.datafeed;
+package org.elasticsearch.xpack.core.ml.utils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,9 +19,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,22 +26,22 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-class QueryProvider implements Writeable, ToXContentObject {
+public class QueryProvider implements Writeable, ToXContentObject {
 
-    private static final Logger logger = LogManager.getLogger(AggProvider.class);
+    private static final Logger logger = LogManager.getLogger(QueryProvider.class);
 
     private Exception parsingException;
     private QueryBuilder parsedQuery;
     private Map<String, Object> query;
 
-    static QueryProvider defaultQuery() {
+    public static QueryProvider defaultQuery() {
         return new QueryProvider(
             Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap()),
             QueryBuilders.matchAllQuery(),
             null);
     }
 
-    static QueryProvider fromXContent(XContentParser parser, boolean lenient) throws IOException {
+    public static QueryProvider fromXContent(XContentParser parser, boolean lenient, String failureMessage) throws IOException {
         Map<String, Object> query = parser.mapOrdered();
         QueryBuilder parsedQuery = null;
         Exception exception = null;
@@ -56,15 +53,15 @@ class QueryProvider implements Writeable, ToXContentObject {
             }
             exception = ex;
             if (lenient) {
-                logger.warn(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT, ex);
+                logger.warn(failureMessage, ex);
             } else {
-                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT, ex);
+                throw ExceptionsHelper.badRequestException(failureMessage, ex);
             }
         }
         return new QueryProvider(query, parsedQuery, exception);
     }
 
-    static QueryProvider fromParsedQuery(QueryBuilder parsedQuery) throws IOException {
+    public static QueryProvider fromParsedQuery(QueryBuilder parsedQuery) throws IOException {
         return parsedQuery == null ?
             null :
             new QueryProvider(
@@ -73,7 +70,7 @@ class QueryProvider implements Writeable, ToXContentObject {
                 null);
     }
 
-    static QueryProvider fromStream(StreamInput in) throws IOException {
+    public static QueryProvider fromStream(StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(Version.V_6_7_0)) { // Has our bug fix for query/agg providers
             return new QueryProvider(in.readMap(), in.readOptionalNamedWriteable(QueryBuilder.class), in.readException());
         } else if (in.getVersion().onOrAfter(Version.V_6_6_0)) { // Has the bug, but supports lazy objects
@@ -89,7 +86,7 @@ class QueryProvider implements Writeable, ToXContentObject {
         this.parsingException = parsingException;
     }
 
-    QueryProvider(QueryProvider other) {
+    public QueryProvider(QueryProvider other) {
         this(other.query, other.parsedQuery, other.parsingException);
     }
 

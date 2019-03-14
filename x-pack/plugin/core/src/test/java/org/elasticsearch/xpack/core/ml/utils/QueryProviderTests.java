@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.datafeed;
+package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -26,7 +26,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -68,7 +68,7 @@ public class QueryProviderTests extends AbstractSerializingTestCase<QueryProvide
 
     @Override
     protected QueryProvider doParseInstance(XContentParser parser) throws IOException {
-        return QueryProvider.fromXContent(parser, false);
+        return QueryProvider.fromXContent(parser, false, Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT);
     }
 
     public static QueryProvider createRandomValidQueryProvider() {
@@ -91,7 +91,7 @@ public class QueryProviderTests extends AbstractSerializingTestCase<QueryProvide
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
             .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, "{}");
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> QueryProvider.fromXContent(parser, false));
+            () -> QueryProvider.fromXContent(parser, false, Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("Datafeed query is not parsable"));
     }

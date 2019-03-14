@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction.Request;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 
 public class GetDataFrameAnalyticsStatsRequestTests extends AbstractWireSerializingTestCase<Request> {
 

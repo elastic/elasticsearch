@@ -27,11 +27,11 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction.Response.Stats;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask;
@@ -68,7 +68,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
 
     @Override
     protected GetDataFrameAnalyticsStatsAction.Response newResponse(GetDataFrameAnalyticsStatsAction.Request request,
-                                                                    List<QueryPage<GetDataFrameAnalyticsStatsAction.Response.Stats>> tasks,
+                                                                    List<QueryPage<Stats>> tasks,
                                                                     List<TaskOperationFailure> taskFailures,
                                                                     List<FailedNodeException> nodeFailures) {
         List<Stats> stats = new ArrayList<>();

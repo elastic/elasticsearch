@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -70,13 +71,15 @@ public class DataFrameAnalyticsManager {
     private final NodeClient client;
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final AnalyticsProcessManager processManager;
+    private final NamedXContentRegistry xContentRegistry;
 
     public DataFrameAnalyticsManager(ClusterService clusterService, NodeClient client, DataFrameAnalyticsConfigProvider configProvider,
-                                     AnalyticsProcessManager processManager) {
+                                     AnalyticsProcessManager processManager, NamedXContentRegistry xContentRegistry) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = Objects.requireNonNull(client);
         this.configProvider = Objects.requireNonNull(configProvider);
         this.processManager = Objects.requireNonNull(processManager);
+        this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
     }
 
     public void execute(DataFrameAnalyticsTask task, DataFrameAnalyticsState currentState) {
@@ -160,7 +163,7 @@ public class DataFrameAnalyticsManager {
                 ReindexRequest reindexRequest = new ReindexRequest();
                 reindexRequest.setSourceIndices(config.getSource());
                 // we default to match_all
-                reindexRequest.setSourceQuery(config.getParsedQuery());
+                reindexRequest.setSourceQuery(config.getParsedQuery(xContentRegistry));
                 reindexRequest.setDestIndex(config.getDest());
                 reindexRequest.setScript(new Script("ctx._source." + DataFrameAnalyticsFields.ID + " = ctx._id"));
 

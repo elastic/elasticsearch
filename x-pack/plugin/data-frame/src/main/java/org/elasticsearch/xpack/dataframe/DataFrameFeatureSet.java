@@ -21,10 +21,12 @@ import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsActio
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -78,31 +80,38 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
 
         GetDataFrameTransformsAction.Request transformsRequest = new GetDataFrameTransformsAction.Request(MetaData.ALL);
         client.execute(GetDataFrameTransformsAction.INSTANCE, transformsRequest, ActionListener.wrap(
-            transforms -> {
-                Set<String> transformIds = transforms.getTransformConfigurations()
-                    .stream()
-                    .map(DataFrameTransformConfig::getId)
-                    .collect(Collectors.toSet());
-                GetDataFrameTransformsStatsAction.Request transformStatsRequest =
-                    new GetDataFrameTransformsStatsAction.Request(MetaData.ALL);
-                client.execute(GetDataFrameTransformsStatsAction.INSTANCE,
-                    transformStatsRequest,
-                    ActionListener.wrap(transformStatsResponse -> {
-                        Map<String, Long> transformsCountByState = new HashMap<>();
-                        DataFrameIndexerTransformStats accumulatedStats = new DataFrameIndexerTransformStats();
-
-                        transformStatsResponse.getTransformsStateAndStats().forEach(singleResult -> {
-                            transformIds.remove(singleResult.getId());
-                            transformsCountByState.merge(singleResult.getTransformState().getIndexerState().value(), 1L, Long::sum);
-                            accumulatedStats.merge(singleResult.getTransformStats());
-                        });
-                        // If there is no state returned, assumed stopped
-                        transformIds.forEach(ignored -> transformsCountByState.merge(IndexerState.STOPPED.value(), 1L, Long::sum));
-
-                    listener.onResponse(new DataFrameFeatureSetUsage(available(), enabled(), transformsCountByState, accumulatedStats));
-                }, listener::onFailure));
-            },
-            listener::onFailure
+                transforms -> {
+                    GetDataFrameTransformsStatsAction.Request transformStatsRequest =
+                            new GetDataFrameTransformsStatsAction.Request(MetaData.ALL);
+                    client.execute(GetDataFrameTransformsStatsAction.INSTANCE, transformStatsRequest,
+                            ActionListener.wrap(transformStatsResponse -> {
+                                listener.onResponse(createUsage(available(), enabled(), transforms.getTransformConfigurations(),
+                                        transformStatsResponse.getTransformsStateAndStats()));
+                            }, listener::onFailure));
+                },
+                listener::onFailure
         ));
+    }
+
+    static DataFrameFeatureSetUsage createUsage(boolean available, boolean enabled,
+                                                List<DataFrameTransformConfig> transforms,
+                                                List<DataFrameTransformStateAndStats> transformsStateAndStats) {
+
+        Set<String> transformIds = transforms.stream()
+                .map(DataFrameTransformConfig::getId)
+                .collect(Collectors.toSet());
+
+        Map<String, Long> transformsCountByState = new HashMap<>();
+        DataFrameIndexerTransformStats accumulatedStats = new DataFrameIndexerTransformStats();
+
+        transformsStateAndStats.forEach(singleResult -> {
+            transformIds.remove(singleResult.getId());
+            transformsCountByState.merge(singleResult.getTransformState().getIndexerState().value(), 1L, Long::sum);
+            accumulatedStats.merge(singleResult.getTransformStats());
+        });
+        // If there is no state returned, assumed stopped
+        transformIds.forEach(ignored -> transformsCountByState.merge(IndexerState.STOPPED.value(), 1L, Long::sum));
+
+        return new DataFrameFeatureSetUsage(available, enabled, transformsCountByState, accumulatedStats);
     }
 }

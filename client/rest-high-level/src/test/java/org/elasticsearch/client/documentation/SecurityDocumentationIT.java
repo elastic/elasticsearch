@@ -964,6 +964,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetSslCertificates() throws Exception {
+        assumeFalse("Awaits fix: https://github.com/elastic/elasticsearch/issues/40041", inFipsJvm());
         RestHighLevelClient client = highLevelClient();
         {
             //tag::get-certificates-execute

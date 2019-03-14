@@ -102,7 +102,14 @@ public class ObjectPath {
         }
 
         if (object instanceof Map) {
-            return ((Map<String, Object>) object).get(key);
+            final Map<String, Object> objectAsMap = (Map<String, Object>) object;
+            if ("_unique_key_".equals(key)) {
+                if (objectAsMap.size() != 1) {
+                    throw new IllegalArgumentException("requested [" + key + "] but the map had keys " + objectAsMap.keySet());
+                }
+                return objectAsMap.keySet().iterator().next();
+            }
+            return objectAsMap.get(key);
         }
         if (object instanceof List) {
             List<Object> list = (List<Object>) object;

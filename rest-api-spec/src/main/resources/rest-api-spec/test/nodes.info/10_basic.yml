@@ -1,10 +1,13 @@
+setup:
+  - skip:
+      features: [unique_key]
 ---
 "node_info test":
   - do:
-      cluster.state: {}
-
-  # Get master node id
-  - set: { master_node: master }
+      nodes.info:
+        node_id: _master
+        metric: process
+  - set: { nodes._unique_key_: master }
 
   - do:
       nodes.info: {}

@@ -36,6 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ObjectPathTests extends ESTestCase {
 
@@ -179,6 +180,34 @@ public class ObjectPathTests extends ESTestCase {
         assertThat(map.size(), equalTo(2));
         Set<String> strings = map.keySet();
         assertThat(strings, contains("template_1", "template_2"));
+    }
+
+    public void testEvaluateUniqueKey() throws Exception {
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("metadata");
+        xContentBuilder.startObject("templates");
+        xContentBuilder.startObject("template_1");
+        xContentBuilder.field("field1", "value");
+        xContentBuilder.endObject();
+        xContentBuilder.startObject("template_2");
+        xContentBuilder.field("field2", "value");
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(),
+            BytesReference.bytes(xContentBuilder));
+        Object object = objectPath.evaluate("metadata.templates.template_1._unique_key_");
+        assertThat(object, instanceOf(String.class));
+        String key = (String)object;
+        assertThat(key, equalTo("field1"));
+
+        final IllegalArgumentException exception
+            = expectThrows(IllegalArgumentException.class, () -> objectPath.evaluate("metadata.templates._unique_key_"));
+        assertThat(exception.getMessage(), startsWith("requested [_unique_key_] but the map had keys ["));
+        assertThat(exception.getMessage(), containsString("template_1"));
+        assertThat(exception.getMessage(), containsString("template_2"));
     }
 
     public void testEvaluateStashInPropertyName() throws Exception {

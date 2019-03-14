@@ -47,7 +47,8 @@ public final class Features {
             "warnings",
             "yaml",
             "contains",
-            "transform_and_set"
+            "transform_and_set",
+            "unique_key"
     ));
 
     private Features() {

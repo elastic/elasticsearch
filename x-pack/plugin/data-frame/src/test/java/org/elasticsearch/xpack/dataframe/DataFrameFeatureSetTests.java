@@ -20,13 +20,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStatsTests;
-import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
-import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.junit.Before;
 
@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
 import static java.lang.Math.toIntExact;
@@ -81,12 +80,14 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         DataFrameFeatureSet featureSet = new DataFrameFeatureSet(Settings.EMPTY, client, licenseState);
 
         List<DataFrameTransformStateAndStats> transformsStateAndStats = new ArrayList<>();
-        for (int i = 0; i < randomIntBetween(0, 10); ++i) {
+        int count = randomIntBetween(0, 10);
+        for (int i = 0; i < count; ++i) {
             transformsStateAndStats.add(DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats());
         }
 
+        count = randomIntBetween(0, 10);
         List<DataFrameTransformConfig> transformConfigWithoutTasks = new ArrayList<>();
-        for (int i = 0; i < randomIntBetween(0, 10); ++i) {
+        for (int i = 0; i < count; ++i) {
             transformConfigWithoutTasks.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
         }
 
@@ -142,19 +143,20 @@ public class DataFrameFeatureSetTests extends ESTestCase {
                 transformConfigWithoutTasks.forEach(ignored -> stateCounts.merge(IndexerState.STOPPED.value(), 1, Integer::sum));
                 stateCounts.forEach((k, v) -> assertEquals(v, XContentMapValues.extractValue("transforms." + k, usageAsMap)));
 
-                Optional<DataFrameIndexerTransformStats> combinedStats = transformsStateAndStats.stream().map(x -> x.getTransformStats())
-                        .reduce((l, r) -> l.merge(r));
-
-                if (combinedStats.isPresent()) {
-                    assertEquals(toIntExact(combinedStats.get().getIndexFailures()),
-                            XContentMapValues.extractValue("stats.index_failures", usageAsMap));
-                    assertEquals(toIntExact(combinedStats.get().getIndexTotal()),
-                            XContentMapValues.extractValue("stats.index_total", usageAsMap));
-                    assertEquals(toIntExact(combinedStats.get().getSearchTime()),
-                            XContentMapValues.extractValue("stats.search_time_in_ms", usageAsMap));
-                    assertEquals(toIntExact(combinedStats.get().getNumDocuments()),
-                            XContentMapValues.extractValue("stats.documents_processed", usageAsMap));
+                // use default constructed stats object for assertions if transformsStateAndStats is empty
+                DataFrameIndexerTransformStats combinedStats = new DataFrameIndexerTransformStats();
+                if (transformsStateAndStats.isEmpty() == false) {
+                    combinedStats = transformsStateAndStats.stream().map(x -> x.getTransformStats()).reduce((l, r) -> l.merge(r)).get();
                 }
+
+                assertEquals(toIntExact(combinedStats.getIndexFailures()),
+                        XContentMapValues.extractValue("stats.index_failures", usageAsMap));
+                assertEquals(toIntExact(combinedStats.getIndexTotal()),
+                        XContentMapValues.extractValue("stats.index_total", usageAsMap));
+                assertEquals(toIntExact(combinedStats.getSearchTime()),
+                        XContentMapValues.extractValue("stats.search_time_in_ms", usageAsMap));
+                assertEquals(toIntExact(combinedStats.getNumDocuments()),
+                        XContentMapValues.extractValue("stats.documents_processed", usageAsMap));
             }
         }
     }

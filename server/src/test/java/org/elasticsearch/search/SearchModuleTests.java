@@ -315,6 +315,7 @@ public class SearchModuleTests extends ESTestCase {
 
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {
             "bool",
+            "bool_prefix",
             "boosting",
             "common",
             "constant_score",

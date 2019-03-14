@@ -783,10 +783,10 @@ public class JobResultsProviderTests extends ESTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                 .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)))
                 .build();
-        boolean result = JobResultsProvider.violatedFieldCountLimit(0, 10, indexMetaData1);
+        boolean result = JobResultsProvider.violatedFieldCountLimit(0, 10, indexMetaData1.mapping());
         assertFalse(result);
 
-        result = JobResultsProvider.violatedFieldCountLimit(1, 10, indexMetaData1);
+        result = JobResultsProvider.violatedFieldCountLimit(1, 10, indexMetaData1.mapping());
         assertTrue(result);
 
         for (; i < 20; i++) {
@@ -801,7 +801,7 @@ public class JobResultsProviderTests extends ESTestCase {
                 .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)))
                 .build();
 
-        result = JobResultsProvider.violatedFieldCountLimit(0, 19, indexMetaData2);
+        result = JobResultsProvider.violatedFieldCountLimit(0, 19, indexMetaData2.mapping());
         assertTrue(result);
     }
 

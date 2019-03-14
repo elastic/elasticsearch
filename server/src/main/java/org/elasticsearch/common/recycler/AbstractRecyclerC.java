@@ -22,7 +22,7 @@ package org.elasticsearch.common.recycler;
 public abstract class AbstractRecyclerC<T> implements Recycler.C<T> {
 
     @Override
-    public abstract T newInstance(int sizing);
+    public abstract T newInstance();
 
     @Override
     public abstract void recycle(T value);

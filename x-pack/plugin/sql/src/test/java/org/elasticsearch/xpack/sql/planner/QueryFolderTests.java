@@ -302,7 +302,7 @@ public class QueryFolderTests extends ESTestCase {
                 "\"source\":\"InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0)," +
                 "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2))\",\"lang\":\"painless\",\"params\":{" +
                 "\"v0\":\"date\",\"v1\":\"P1Y2M\",\"v2\":\"INTERVAL_YEAR_TO_MONTH\"}},\"missing_bucket\":true," +
-                "\"value_type\":\"date\",\"order\":\"asc\"}}}]}}}"));
+                "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("count(*){a->"));
         assertThat(ee.output().get(1).toString(), startsWith("a{s->"));

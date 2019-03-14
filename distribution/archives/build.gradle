@@ -97,7 +97,7 @@ tasks.withType(AbstractArchiveTask) {
   dependsOn createLogsDir, createPluginsDir
   String subdir = it.name.substring('build'.size()).replaceAll(/[A-Z]/) { '-' + it.toLowerCase() }.substring(1)
   destinationDir = file("${subdir}/build/distributions")
-  baseName = "elasticsearch${ subdir.contains('oss') ? '-oss' : ''}"
+  baseName = "elasticsearch${subdir.contains('oss') ? '-oss' : ''}"
 }
 
 Closure commonZipConfig = {

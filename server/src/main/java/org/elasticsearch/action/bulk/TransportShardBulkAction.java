@@ -261,16 +261,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     context.getPrimary().shardId(), docWriteRequest.opType().getLowercase(), docWriteRequest), failure);
             }
 
-            final BulkItemResponse primaryResponse;
-            // if it's a conflict failure, and we already executed the request on a primary (and we execute it
-            // again, due to primary relocation and only processing up to N bulk items when the shard gets closed)
-            // then just use the response we got from the failed execution
-            if (TransportShardBulkAction.isConflictException(failure) && context.getPreviousPrimaryResponse() != null) {
-                primaryResponse = context.getPreviousPrimaryResponse();
-            } else {
-                primaryResponse = executionResult;
-            }
-            context.markAsCompleted(primaryResponse);
+            context.markAsCompleted(executionResult);
         } else {
             context.markAsCompleted(executionResult);
         }
@@ -483,25 +474,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         throws IOException {
         T result = toExecute.get();
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
-            // try to update the mappings and try again.
+            // try to update the mappings and mark the context as needing to try again.
             try {
                 mappingUpdater.accept(result.getRequiredMappingUpdate());
+                context.markAsRequiringMappingUpdate();
             } catch (Exception e) {
                 // failure to update the mapping should translate to a failure of specific requests. Other requests
                 // still need to be executed and replicated.
                 onComplete.accept(exceptionToResult.apply(e));
                 return;
-            }
-
-            // TODO - we can fall back to a wait for cluster state update but I'm keeping the logic the same for now
-            result = toExecute.get();
-
-            if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
-                // double mapping update. We assume that the successful mapping update wasn't yet processed on the node
-                // and retry the entire request again.
-                context.markAsRequiringMappingUpdate();
-            } else {
-                onComplete.accept(result);
             }
         } else {
             onComplete.accept(result);

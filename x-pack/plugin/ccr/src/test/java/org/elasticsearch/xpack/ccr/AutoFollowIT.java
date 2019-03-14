@@ -35,7 +35,9 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AutoFollowIT extends CcrIntegTestCase {
 
@@ -131,47 +133,75 @@ public class AutoFollowIT extends CcrIntegTestCase {
             .build();
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
-        int numIndices = randomIntBetween(4, 32);
+        long numIndices = randomIntBetween(4, 8);
         for (int i = 0; i < numIndices; i++) {
             createLeaderIndex("logs-" + i, leaderIndexSettings);
         }
-        int expectedVal1 = numIndices;
-        assertBusy(() -> {
-            AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo((long) expectedVal1));
-        });
-
-        // Delete auto follow pattern and make sure that in the background the auto follower has stopped
-        // then the leader index created after that should never be auto followed:
-        deleteAutoFollowPatternSetting();
-        assertBusy(() -> {
-            AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getAutoFollowedClusters().size(), equalTo(0));
-        });
-        createLeaderIndex("logs-does-not-count", leaderIndexSettings);
-
-        putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
-        int i = numIndices;
-        numIndices = numIndices + randomIntBetween(4, 32);
-        for (; i < numIndices; i++) {
-            createLeaderIndex("logs-" + i, leaderIndexSettings);
-        }
-        int expectedVal2 = numIndices;
-
+        long expectedVal1 = numIndices;
         MetaData[] metaData = new MetaData[1];
         AutoFollowStats[] autoFollowStats = new AutoFollowStats[1];
         try {
             assertBusy(() -> {
-                metaData[0] = followerClient().admin().cluster().prepareState().get().getState().metaData();
+                metaData[0] = getFollowerCluster().clusterService().state().metaData();
                 autoFollowStats[0] = getAutoFollowStats();
-                int count = (int) Arrays.stream(metaData[0].getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
+
+                assertThat(metaData[0].indices().size(), equalTo((int) expectedVal1));
+                AutoFollowMetadata autoFollowMetadata = metaData[0].custom(AutoFollowMetadata.TYPE);
+                assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern"), hasSize((int) expectedVal1));
+                assertThat(autoFollowStats[0].getNumberOfSuccessfulFollowIndices(), equalTo(expectedVal1));
+            });
+        } catch (AssertionError ae) {
+            logger.warn("indices={}", Arrays.toString(metaData[0].indices().keys().toArray(String.class)));
+            logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
+            throw ae;
+        }
+
+        // Delete auto follow pattern and make sure that in the background the auto follower has stopped
+        // then the leader index created after that should never be auto followed:
+        deleteAutoFollowPatternSetting();
+        try {
+            assertBusy(() -> {
+                metaData[0] = getFollowerCluster().clusterService().state().metaData();
+                autoFollowStats[0] = getAutoFollowStats();
+
+                assertThat(metaData[0].indices().size(), equalTo((int )expectedVal1));
+                AutoFollowMetadata autoFollowMetadata = metaData[0].custom(AutoFollowMetadata.TYPE);
+                assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern"), nullValue());
+                assertThat(autoFollowStats[0].getAutoFollowedClusters().size(), equalTo(0));
+            });
+        } catch (AssertionError ae) {
+            logger.warn("indices={}", Arrays.toString(metaData[0].indices().keys().toArray(String.class)));
+            logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
+            throw ae;
+        }
+        createLeaderIndex("logs-does-not-count", leaderIndexSettings);
+
+        putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
+        long i = numIndices;
+        numIndices = numIndices + randomIntBetween(4, 8);
+        for (; i < numIndices; i++) {
+            createLeaderIndex("logs-" + i, leaderIndexSettings);
+        }
+        long expectedVal2 = numIndices;
+
+        try {
+            assertBusy(() -> {
+                metaData[0] = getFollowerCluster().clusterService().state().metaData();
+                autoFollowStats[0] = getAutoFollowStats();
+
+                assertThat(metaData[0].indices().size(), equalTo((int) expectedVal2));
+                AutoFollowMetadata autoFollowMetadata = metaData[0].custom(AutoFollowMetadata.TYPE);
+                // expectedVal2 + 1, because logs-does-not-count is also marked as auto followed.
+                // (This is because indices created before a pattern exists are not auto followed and are just marked as such.)
+                assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern"), hasSize((int) expectedVal2 + 1));
+                long count = Arrays.stream(metaData[0].getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
                 assertThat(count, equalTo(expectedVal2));
                 // Ensure that there are no auto follow errors:
                 // (added specifically to see that there are no leader indices auto followed multiple times)
                 assertThat(autoFollowStats[0].getRecentAutoFollowErrors().size(), equalTo(0));
             });
         } catch (AssertionError ae) {
-            logger.warn("metadata={}", Strings.toString(metaData[0]));
+            logger.warn("indices={}", Arrays.toString(metaData[0].indices().keys().toArray(String.class)));
             logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
             throw ae;
         }

@@ -26,8 +26,11 @@ recovery.
 include::synced-flush.asciidoc[]
 --
 
-. *Stop any machine learning jobs that are running.* See
-{xpack-ref}/stopping-ml.html[Stopping Machine Learning].
+. *Stop any machine learning jobs that are running.* 
++
+--
+include::close-ml.asciidoc[]
+--
 
 . *Shutdown all nodes.*
 +
@@ -51,6 +54,11 @@ include::set-paths-tip.asciidoc[]
 Use the `elasticsearch-plugin` script to install the upgraded version of each
 installed Elasticsearch plugin. All plugins must be upgraded when you upgrade
 a node.
+
+. If you use {es} {security-features} to define realms, verify that your realm
+settings are up-to-date. The format of realm settings changed in version 7.0, in
+particular, the placement of the realm type changed. See
+<<realm-settings,Realm settings>>. 
 
 . *Start each upgraded node.*
 +
@@ -132,3 +140,7 @@ GET _cat/recovery
 --
 
 . *Restart machine learning jobs.*
++
+--
+include::open-ml.asciidoc[]
+--

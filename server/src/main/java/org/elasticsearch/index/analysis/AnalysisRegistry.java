@@ -20,11 +20,11 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.Version;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -456,6 +456,7 @@ public final class AnalysisRegistry implements Closeable {
         if (defaultAnalyzer == null) {
             throw new IllegalArgumentException("no default analyzer configured");
         }
+        defaultAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
         if (analyzers.containsKey("default_index")) {
             throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use " +
                 "[index.analysis.analyzer.default] instead for index [" + index.getName() + "]");

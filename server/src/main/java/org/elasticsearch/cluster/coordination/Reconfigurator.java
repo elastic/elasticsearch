@@ -97,7 +97,6 @@ public class Reconfigurator {
      */
     public VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds, DiscoveryNode currentMaster,
                                            VotingConfiguration currentConfig) {
-        assert liveNodes.stream().noneMatch(Coordinator::isZen1Node) : liveNodes;
         assert liveNodes.contains(currentMaster) : "liveNodes = " + liveNodes + " master = " + currentMaster;
         logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentMaster={}",
             this, currentConfig, liveNodes, retiredNodeIds, currentMaster);

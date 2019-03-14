@@ -23,8 +23,6 @@ import org.gradle.api.Project;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -63,14 +61,8 @@ public class PluginPropertiesExtension {
     private final Project project;
 
     public PluginPropertiesExtension(Project project) {
-        Object version = project.getVersion();
-
         this.name = project.getName();
-
-        if(version != null && version instanceof String) {
-            this.version = String.valueOf(version);
-        }
-
+        this.version = project.getVersion().toString();
         this.project = project;
     }
 
@@ -106,11 +98,11 @@ public class PluginPropertiesExtension {
         this.classname = classname;
     }
 
-    public Collection<String> getExtendedPlugins() {
-        return Collections.unmodifiableCollection(extendedPlugins);
+    public List<String> getExtendedPlugins() {
+        return this.extendedPlugins;
     }
 
-    public boolean isHasNativeController() {
+    public boolean hasNativeController() {
         return hasNativeController;
     }
 
@@ -157,8 +149,6 @@ public class PluginPropertiesExtension {
     }
 
     public void setExtendedPlugins(List<String> extendedPlugins) {
-        if(extendedPlugins != null) {
-            this.extendedPlugins = extendedPlugins;
-        }
+        this.extendedPlugins = extendedPlugins;
     }
 }

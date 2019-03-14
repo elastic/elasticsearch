@@ -18,20 +18,19 @@
  */
 package org.elasticsearch.gradle.plugin;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
-import org.gradle.api.file.CopySpec;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -52,15 +51,23 @@ public class PluginPropertiesTask extends DefaultTask {
     }
 
     @TaskAction
-    public void configurePluginPropertiesTask() {
+    public void performAction() {
         Project project = this.getProject();
 
-        File templateFile = new File(project.getBuildDir(), "templates");
+        File templateFile = new File(project.getBuildDir(), "templates/" + descriptorOutput.getName());
         templateFile.getParentFile().mkdirs();
 
-        project.copy((cp) -> {
-            cp.from(getClass().getClassLoader().getResource(this.descriptorOutput.getName())).into(templateFile);
-            cp.expand(this.generateSubstitutions());
+        InputStream resourceTemplate = this.getClass().getResourceAsStream("/" + descriptorOutput.getName());
+
+        try {
+            Files.copy(resourceTemplate, templateFile.toPath());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        project.copy(copyArg -> {
+            copyArg.from(templateFile.getParentFile()).include(descriptorOutput.getName())
+                .into(descriptorOutput.getParentFile()).expand(this.generateSubstitutions());
             this.getInputs().properties(this.generateSubstitutions());
         });
     }
@@ -70,12 +77,12 @@ public class PluginPropertiesTask extends DefaultTask {
         substitutions.put("name", this.extension.getName());
         substitutions.put("description", this.extension.getDescription());
         substitutions.put("version", this.extension.getVersion());
-        substitutions.put("elasticsearchVersion", Version.fromString(VersionProperties.getElasticsearch()).toString());
+        substitutions.put("elasticsearchVersion", VersionProperties.getElasticsearch());
         substitutions.put("javaVersion", getProject().getConvention().getPlugin(JavaPluginConvention.class)
                 .getTargetCompatibility().toString());
         substitutions.put("classname", this.extension.getClassname());
         substitutions.put("extendedPlugins", this.extension.getExtendedPlugins().stream().collect(Collectors.joining(",")));
-        substitutions.put("hasNativeController", String.valueOf(this.extension.isHasNativeController()));
+        substitutions.put("hasNativeController", String.valueOf(this.extension.hasNativeController()));
         substitutions.put("requiresKeystore", String.valueOf(this.extension.isRequiresKeystore()));
 
         return substitutions;

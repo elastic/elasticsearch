@@ -23,13 +23,13 @@ import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,6 +51,7 @@ import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -184,7 +185,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test53JavaHomeContainParansAndSpace() throws Exception {
+    public void test53JavaHomeWithSpecialCharacters() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         Platforms.onWindows(() -> {
@@ -196,23 +197,57 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 final String newPath = Arrays.stream(originalPath.split(";"))
                                              .filter(path -> path.contains("Java") == false)
                                              .collect(joining(";"));
-
+                // one windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
                 sh.runIgnoreExitCode("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:JAVA_HOME");
 
                 sh.getEnv().put("PATH", newPath);
                 sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
 
+                //verify ES can start, stop and run plugin list
                 Archives.runElasticsearch(installation, sh);
 
                 Archives.stopElasticsearch(installation);
-            } catch (IOException e) {
-                logger.error("Test failed with exception", e);
-            }finally {
+
+                String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
+                Result result = sh.run(pluginListCommand);
+                assertThat(result.exitCode, equalTo(0));
+
+            } finally {
                 //clean up sym link
                 sh.runIgnoreExitCode("cmd /c del /F /Q 'C:\\Program Files (x86)\\java' ");
                 sh.getEnv().put("PATH", originalPath);
                 sh.getEnv().put("JAVA_HOME", javaHome);
 
+            }
+        });
+
+        Platforms.onLinux(() -> {
+            final Shell sh = new Shell();
+            final String javaHome = sh.run("echo $JAVA_HOME").stdout.trim();
+
+            try {
+
+                // Create temporary directory with a space and linke to java binary.
+                // Use it as java_home
+                final String java = sh.runIgnoreExitCode("mktemp -d --sufix=\"java home\"").stdout.trim();
+                final String temp = sh.runIgnoreExitCode("which java").stdout.trim();
+                sh.runIgnoreExitCode("mktemp -p " + temp + "/bin");
+                sh.runIgnoreExitCode("ln -s " + java + " " + temp + "/bin/java");
+                sh.getEnv().put("JAVA_HOME", temp);
+
+                //verify ES can start, stop and run plugin list
+                Archives.runElasticsearch(installation, sh);
+
+                Archives.stopElasticsearch(installation);
+
+                String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
+                Result result = sh.run(pluginListCommand);
+                assertThat(result.exitCode, equalTo(0));
+
+
+                FileUtils.rm(Path.of(temp));
+            } finally {
+                sh.getEnv().put("JAVA_HOME", javaHome);
             }
         });
     }

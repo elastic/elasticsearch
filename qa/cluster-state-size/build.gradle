@@ -17,6 +17,8 @@
  * under the License.
  */
 
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
 apply plugin: 'elasticsearch.standalone-test'
 
 task integTest(type: RestIntegTestTask) {

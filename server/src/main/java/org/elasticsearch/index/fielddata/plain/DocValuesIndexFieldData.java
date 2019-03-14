@@ -30,6 +30,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Set;
@@ -87,7 +88,7 @@ public abstract class DocValuesIndexFieldData {
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore Circuit Breaker
             final String fieldName = fieldType.name();
-            if (BINARY_INDEX_FIELD_NAMES.contains(fieldName)) {
+            if (BINARY_INDEX_FIELD_NAMES.contains(fieldName)|| fieldType.getClass() == RangeFieldMapper.RangeFieldType.class) {
                 assert numericType == null;
                 return new BinaryDVIndexFieldData(indexSettings.getIndex(), fieldName);
             } else if (numericType != null) {

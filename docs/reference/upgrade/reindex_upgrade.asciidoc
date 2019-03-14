@@ -2,10 +2,10 @@
 == Reindex before upgrading
 
 {es} can read indices created in the previous major version. If you
-have indices created in 5.x or before, you must reindex or delete them
+have indices created in 6.x or before, you must reindex or delete them
 before upgrading to {version}. {es} nodes will fail to start if
-incompatible indices are present. Snapshots of 5.x or earlier indices cannot be
-restored to a 7.x cluster even if they were created by a 6.x cluster.
+incompatible indices are present. Snapshots of 6.x or earlier indices cannot be
+restored to a 8.x cluster even if they were created by a 8.x cluster.
 
 This restriction also applies to the internal indices that are used by
 {kib} and the {xpack} features. Therefore, before you can use {kib} and
@@ -14,7 +14,7 @@ compatible index structure.
 
 You have two options for reindexing old indices:
 
-* <<reindex-upgrade-inplace, Reindex in place>> on your 6.x cluster before upgrading.
+* <<reindex-upgrade-inplace, Reindex in place>> on your 7.x cluster before upgrading.
 * Create a new {version} cluster and <<reindex-upgrade-remote, Reindex from remote>>.
 This enables you to reindex indices that reside on clusters running any version of {es}.
 
@@ -22,12 +22,12 @@ This enables you to reindex indices that reside on clusters running any version 
 *******************************************
 
 If you use time-based indices, you likely won't need to carry
-pre-6.x indices forward to {version}. Data in time-based indices
+pre-7.x indices forward to {version}. Data in time-based indices
 generally becomes less useful as time passes and are
 deleted as they age past your retention period.
 
 Unless you have an unusually long retention period, you can just
-wait to upgrade to 6.x until all of your pre-6.x indices have
+wait to upgrade to 7.x until all of your pre-7.x indices have
 been deleted.
 
 *******************************************
@@ -59,9 +59,9 @@ ifdef::include-xpack[]
 [TIP]
 ====
 If you use {ml-features} and your {ml} indices were created before
-{prev-major-version}, you must
-{stack-ov}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs] before
-you reindex the indices.
+{prev-major-version}, you must temporarily halt the tasks associated with your {ml} jobs and {dfeeds} and prevent new jobs from opening during the reindex. Use
+the <<ml-set-upgrade-mode,set upgrade mode API>> or 
+{stack-ov}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs].
 
 If you use {es} {security-features}, before you reindex `.security*` internal
 indices it is a good idea to create a temporary superuser account in the `file`

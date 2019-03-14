@@ -11,8 +11,7 @@ POST _ml/set_upgrade_mode?enabled=false
 // TEARDOWN
 ////////////
 
-If your {ml} indices were created before {prev-major-version}, you must stop
-all {dfeeds} and close all {ml} jobs then
+If your {ml} indices were created before {prev-major-version}, you must
 <<reindex-upgrade,reindex the indices>>.
 
 If your {ml} indices were created in {prev-major-version}, you can:

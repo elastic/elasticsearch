@@ -185,7 +185,7 @@ public class MultiMatchQuery extends MatchQuery {
         }
 
         @Override
-        protected Query newPrefixQuery(Term term) {
+        protected Query newPrefixQuery(String field, Term term) {
             List<Query> disjunctions = new ArrayList<>();
             for (FieldAndBoost fieldType : blendedFields) {
                 Query query = fieldType.fieldType.prefixQuery(term.text(), null, context);

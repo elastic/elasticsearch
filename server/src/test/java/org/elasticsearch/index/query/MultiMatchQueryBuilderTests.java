@@ -54,6 +54,7 @@ import java.util.Map;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDisjunctionSubQuery;
+import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -146,15 +147,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         return query;
     }
 
-    // todo remove when this is fixed
-    // when we build a random query without specifying a field (e.g. use all fields)
-    // it tries to apply a prefix query to field types that don't support it
-    //@Seed("4E17C992E9209A7A")
-    @Override
-    public void testToQuery() throws IOException {
-        super.testToQuery();
-    }
-
     @Override
     protected Map<String, MultiMatchQueryBuilder> getAlternateVersions() {
         Map<String, MultiMatchQueryBuilder> alternateVersions = new HashMap<>();
@@ -171,12 +163,21 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     @Override
     protected void doAssertLuceneQuery(MultiMatchQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         // we rely on integration tests for deeper checks here
-        assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(TermQuery.class))
-                .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
-                .or(instanceOf(FuzzyQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
-                .or(instanceOf(MatchAllDocsQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
-                .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(PhraseQuery.class))
-                .or(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
+        assertThat(query, anyOf(Arrays.asList(
+            instanceOf(BoostQuery.class),
+            instanceOf(TermQuery.class),
+            instanceOf(BooleanQuery.class),
+            instanceOf(DisjunctionMaxQuery.class),
+            instanceOf(FuzzyQuery.class),
+            instanceOf(MultiPhrasePrefixQuery.class),
+            instanceOf(MatchAllDocsQuery.class),
+            instanceOf(ExtendedCommonTermsQuery.class),
+            instanceOf(MatchNoDocsQuery.class),
+            instanceOf(PhraseQuery.class),
+            instanceOf(PointRangeQuery.class),
+            instanceOf(IndexOrDocValuesQuery.class),
+            instanceOf(PrefixQuery.class)
+        )));
     }
 
     public void testIllegaArguments() {

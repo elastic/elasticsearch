@@ -16,6 +16,19 @@ command line option to <<setup-installation-daemon,write the PID to a file>>.
 The `_upgrade` API is no longer useful and will be removed.  Instead, see
 <<reindex-upgrade>>.
 
+[role="exclude",id="migration-api-assistance"]
+=== Migration Assistance API
+
+The Migration Assistance API has been replaced with the
+<<migration-api-deprecation, Deprecation Info API>>.
+
+[role="exclude",id="migration-api-upgrade"]
+=== Migration Upgrade API
+
+The Migration Upgrade API has been removed. Use the
+{kibana-ref}/upgrade-assistant.html[{kib} Upgrade Assistant] or
+<<reindex-upgrade,Reindex manually>> instead.
+
 [role="exclude",id="docs-bulk-udp"]
 === Bulk UDP API
 

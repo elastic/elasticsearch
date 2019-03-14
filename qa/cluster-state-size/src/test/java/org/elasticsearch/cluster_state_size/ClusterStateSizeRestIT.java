@@ -53,4 +53,10 @@ public class ClusterStateSizeRestIT extends ESClientYamlSuiteTestCase {
         return true;
     }
 
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        // we did not add any templates, we are the only test using this cluster, and trying to clean these will trigger a warning
+        return true;
+    }
+
 }

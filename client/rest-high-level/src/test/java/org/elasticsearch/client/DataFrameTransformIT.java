@@ -24,6 +24,7 @@ import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.AggregationConfig;
@@ -118,8 +119,11 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertTrue(ack.isAcknowledged());
 
         StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id);
-        execute(stopRequest, client::stopDataFrameTransform, client::stopDataFrameTransformAsync);
-        assertTrue(ack.isAcknowledged());
+        StopDataFrameTransformResponse stopResponse =
+                execute(stopRequest, client::stopDataFrameTransform, client::stopDataFrameTransformAsync);
+        assertTrue(stopResponse.isStopped());
+        assertNull(stopResponse.getNodeFailures());
+        assertNull(stopResponse.getTaskFailures());
     }
 }
 

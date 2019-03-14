@@ -24,6 +24,7 @@ import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -128,12 +129,12 @@ public final class DataFrameClient {
      * @return An AcknowledgedResponse object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public AcknowledgedResponse stopDataFrameTransform(StopDataFrameTransformRequest request, RequestOptions options)
+    public StopDataFrameTransformResponse stopDataFrameTransform(StopDataFrameTransformRequest request, RequestOptions options)
             throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
                 DataFrameRequestConverters::stopDataFrameTransform,
                 options,
-                AcknowledgedResponse::fromXContent,
+                StopDataFrameTransformResponse::fromXContent,
                 Collections.emptySet());
     }
 
@@ -148,11 +149,11 @@ public final class DataFrameClient {
      * @param listener Listener to be notified upon request completion
      */
     public void stopDataFrameTransformAsync(StopDataFrameTransformRequest request, RequestOptions options,
-                                              ActionListener<AcknowledgedResponse> listener) {
+                                              ActionListener<StopDataFrameTransformResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 DataFrameRequestConverters::stopDataFrameTransform,
                 options,
-                AcknowledgedResponse::fromXContent,
+                StopDataFrameTransformResponse::fromXContent,
                 listener,
                 Collections.emptySet());
     }

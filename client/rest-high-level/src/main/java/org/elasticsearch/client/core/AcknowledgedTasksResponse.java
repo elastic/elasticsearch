@@ -21,6 +21,7 @@ package org.elasticsearch.client.core;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -38,6 +39,7 @@ public class AcknowledgedTasksResponse {
     protected static final ParseField TASK_FAILURES = new ParseField("task_failures");
     protected static final ParseField NODE_FAILURES = new ParseField("node_failures");
 
+    @SuppressWarnings("unchecked")
     protected static <T extends AcknowledgedTasksResponse> ConstructingObjectParser<T, Void> generateParser(
             String name,
             TriFunction<Boolean, List<TaskOperationFailure>, List<? extends ElasticsearchException>, T> ctor,
@@ -55,14 +57,14 @@ public class AcknowledgedTasksResponse {
     private List<TaskOperationFailure> taskFailures;
     private List<ElasticsearchException> nodeFailures;
 
-    AcknowledgedTasksResponse(boolean acknowledged, List<TaskOperationFailure> taskFailures,
-                                     List<? extends ElasticsearchException> nodeFailures) {
+    public AcknowledgedTasksResponse(boolean acknowledged, @Nullable List<TaskOperationFailure> taskFailures,
+                                     @Nullable List<? extends ElasticsearchException> nodeFailures) {
         this.acknowledged = acknowledged;
         this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(taskFailures));
         this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(nodeFailures));
     }
 
-    boolean isAcknowledged() {
+    public boolean isAcknowledged() {
         return acknowledged;
     }
 

@@ -1,7 +1,7 @@
 --
 :api: stop-data-frame-transform
 :request: StopDataFrameTransformRequest
-:response: AcknowledgedResponse
+:response: StopDataFrameTransformResponse
 --
 [id="{upid}-{api}"]
 === Stop Data Frame Transform API
@@ -18,7 +18,7 @@ A +{request}+ object requires a non-null `id`.
 ---------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 ---------------------------------------------------
-<1> Constructing a new request referencing an existing {dataframe-job}
+<1> Constructing a new stop request referencing an existing {dataframe-job}
 
 ==== Optional Arguments
 

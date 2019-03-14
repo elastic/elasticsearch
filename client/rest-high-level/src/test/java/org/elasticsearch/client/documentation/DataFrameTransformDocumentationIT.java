@@ -27,7 +27,10 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.AggregationConfig;
@@ -151,13 +154,113 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
 
-        // Stop the Data Frame
-        // tag::stop-data-frame-transform-request
-        StopDataFrameTransformRequest stopRequest =
-                new StopDataFrameTransformRequest("reviewer-avg-rating");
-        // end::stop-data-frame-transform-request
+    public void testStartStop() throws IOException, InterruptedException {
+        createIndex("source-data");
 
+        RestHighLevelClient client = highLevelClient();
+
+        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
+        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
+        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
+        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+
+        DataFrameTransformConfig transformConfig = new DataFrameTransformConfig("mega-transform",
+                "source-data", "pivot-dest", queryConfig, pivotConfig);
+
+        client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
+
+        {
+            // tag::start-data-frame-transform-request
+            StartDataFrameTransformRequest request =
+                    new StartDataFrameTransformRequest("mega-transform");
+            // end::start-data-frame-transform-request
+
+            // tag::start-data-frame-transform-execute
+            StartDataFrameTransformResponse response =
+                    client.dataFrame().startDataFrameTransform(
+                            request, RequestOptions.DEFAULT);
+            // end::start-data-frame-transform-execute
+
+            assertTrue(response.isStarted());
+        }
+        {
+            // tag::stop-data-frame-transform-request
+            StopDataFrameTransformRequest request =
+                    new StopDataFrameTransformRequest("mega-transform");
+            // end::stop-data-frame-transform-request
+
+            // tag::stop-data-frame-transform-execute
+            StopDataFrameTransformResponse response =
+                    client.dataFrame().stopDataFrameTransform(
+                            request, RequestOptions.DEFAULT);
+            // end::stop-data-frame-transform-execute
+
+            assertTrue(response.isStopped());
+        }
+        {
+            // tag::start-data-frame-transform-execute-listener
+            ActionListener<StartDataFrameTransformResponse> listener =
+                    new ActionListener<StartDataFrameTransformResponse>() {
+                        @Override
+                        public void onResponse(
+                                StartDataFrameTransformResponse response) {
+                            // <1>
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+                    };
+            // end::start-data-frame-transform-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            ActionListener<StartDataFrameTransformResponse> ackListener = listener;
+            listener = new LatchedActionListener<>(listener, latch);
+
+            StartDataFrameTransformRequest request = new StartDataFrameTransformRequest("mega-transform");
+            // tag::start-data-frame-transform-execute-async
+            client.dataFrame().startDataFrameTransformAsync(
+                    request, RequestOptions.DEFAULT, listener); // <1>
+            // end::start-data-frame-transform-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+        {
+            // tag::stop-data-frame-transform-execute-listener
+            ActionListener<StopDataFrameTransformResponse> listener =
+                    new ActionListener<StopDataFrameTransformResponse>() {
+                        @Override
+                        public void onResponse(
+                                StopDataFrameTransformResponse response) {
+                            // <1>
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+                    };
+            // end::stop-data-frame-transform-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            ActionListener<StopDataFrameTransformResponse> ackListener = listener;
+            listener = new LatchedActionListener<>(listener, latch);
+
+            StopDataFrameTransformRequest request = new StopDataFrameTransformRequest("mega-transform");
+            // tag::stop-data-frame-transform-execute-async
+            client.dataFrame().stopDataFrameTransformAsync(
+                    request, RequestOptions.DEFAULT, listener); // <1>
+            // end::stop-data-frame-transform-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
 
     public void testDeleteDataFrameTransform() throws IOException, InterruptedException {

@@ -23,6 +23,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
@@ -43,6 +45,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 
 public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
@@ -99,7 +102,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertThat(deleteError.getMessage(), containsString("Transform with id [test-crud] could not be found"));
     }
 
-    public void testStop() throws IOException {
+    public void testStartStop() throws IOException {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);
 
@@ -110,7 +113,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
-        String id = "test-stop";
+        String id = "test-stop-start";
         DataFrameTransformConfig transform = new DataFrameTransformConfig(id, sourceIndex, "pivot-dest", queryConfig, pivotConfig);
 
         DataFrameClient client = highLevelClient().dataFrame();
@@ -118,12 +121,21 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
                 client::putDataFrameTransformAsync);
         assertTrue(ack.isAcknowledged());
 
+        StartDataFrameTransformRequest startRequest = new StartDataFrameTransformRequest(id);
+        StartDataFrameTransformResponse startResponse =
+                execute(startRequest, client::startDataFrameTransform, client::startDataFrameTransformAsync);
+        assertTrue(startResponse.isStarted());
+        assertThat(startResponse.getNodeFailures(), empty());
+        assertThat(startResponse.getTaskFailures(), empty());
+
+        // TODO once get df stats is implemented assert the df has started
+
         StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id);
         StopDataFrameTransformResponse stopResponse =
                 execute(stopRequest, client::stopDataFrameTransform, client::stopDataFrameTransformAsync);
         assertTrue(stopResponse.isStopped());
-        assertNull(stopResponse.getNodeFailures());
-        assertNull(stopResponse.getTaskFailures());
+        assertThat(stopResponse.getNodeFailures(), empty());
+        assertThat(stopResponse.getTaskFailures(), empty());
     }
 }
 

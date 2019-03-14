@@ -29,23 +29,23 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
-public class StopDataFrameTransformResponse extends AcknowledgedTasksResponse {
+public class StartDataFrameTransformResponse extends AcknowledgedTasksResponse {
 
-    private static final String STOPPED = "stopped";
+    private static final String STARTED = "started";
 
-    private static final ConstructingObjectParser<StopDataFrameTransformResponse, Void> PARSER =
-            AcknowledgedTasksResponse.generateParser("stop_data_frame_transform_response", StopDataFrameTransformResponse::new, STOPPED);
+    private static final ConstructingObjectParser<StartDataFrameTransformResponse, Void> PARSER =
+            AcknowledgedTasksResponse.generateParser("stop_data_frame_transform_response", StartDataFrameTransformResponse::new, STARTED);
 
-    public static StopDataFrameTransformResponse fromXContent(final XContentParser parser) throws IOException {
+    public static StartDataFrameTransformResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public StopDataFrameTransformResponse(boolean stopped, @Nullable List<TaskOperationFailure> taskFailures,
+    public StartDataFrameTransformResponse(boolean started, @Nullable List<TaskOperationFailure> taskFailures,
                                           @Nullable List<? extends ElasticsearchException> nodeFailures) {
-        super(stopped, taskFailures, nodeFailures);
+        super(started, taskFailures, nodeFailures);
     }
 
-    public boolean isStopped() {
+    public boolean isStarted() {
         return isAcknowledged();
     }
 }

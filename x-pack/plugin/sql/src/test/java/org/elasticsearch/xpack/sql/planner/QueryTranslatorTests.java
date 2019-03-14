@@ -446,7 +446,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(" +
-                "InternalSqlScriptUtils.aswkt(InternalSqlScriptUtils.geoDocValue(doc,params.v0))," +
+                "InternalSqlScriptUtils.stAswkt(InternalSqlScriptUtils.geoDocValue(doc,params.v0))," +
                 "params.v1)" +
                 ")",
             aggFilter.scriptTemplate().toString());
@@ -464,7 +464,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(" +
-                "InternalSqlScriptUtils.aswkt(InternalSqlScriptUtils.geoDocValue(doc,params.v0))," +
+                "InternalSqlScriptUtils.stAswkt(InternalSqlScriptUtils.geoDocValue(doc,params.v0))," +
                 "params.v1)" +
                 ")",
             aggFilter.scriptTemplate().toString());
@@ -481,8 +481,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(" +
-                "InternalSqlScriptUtils.eq(InternalSqlScriptUtils.wktToSql(" +
-                "InternalSqlScriptUtils.docValue(doc,params.v0)),InternalSqlScriptUtils.wktToSql(params.v1)))",
+                "InternalSqlScriptUtils.eq(InternalSqlScriptUtils.stWktToSql(" +
+                "InternalSqlScriptUtils.docValue(doc,params.v0)),InternalSqlScriptUtils.stWktToSql(params.v1)))",
             aggFilter.scriptTemplate().toString());
         assertEquals("[{v=keyword}, {v=point (10.0 20.0)}]", aggFilter.scriptTemplate().params().toString());
     }
@@ -499,8 +499,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(" +
                 "InternalSqlScriptUtils.gt(" +
-                "InternalSqlScriptUtils.distance(" +
-                "InternalSqlScriptUtils.geoDocValue(doc,params.v0),InternalSqlScriptUtils.wktToSql(params.v1)),params.v2))",
+                "InternalSqlScriptUtils.stDistance(" +
+                "InternalSqlScriptUtils.geoDocValue(doc,params.v0),InternalSqlScriptUtils.stWktToSql(params.v1)),params.v2))",
             aggFilter.scriptTemplate().toString());
         assertEquals("[{v=shape}, {v=point (10.0 20.0)}, {v=20}]", aggFilter.scriptTemplate().params().toString());
     }

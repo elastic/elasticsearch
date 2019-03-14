@@ -160,6 +160,17 @@ Americas       |Phoenix        |3692895.0346903414
 Americas       |San Francisco  |4343565.010996301
 ;
 
+selectCitiesByDistanceFloored
+SELECT region, city, FLOOR(ST_Distance(location, ST_WktToSQL('POINT (-71 42)'))) distance FROM geo WHERE distance < 5000000 ORDER BY region, city;
+
+   region:s    |    city:s     |    distance:l
+Americas       |Chicago        |1373941
+Americas       |Mountain View  |4335936
+Americas       |New York       |285839
+Americas       |Phoenix        |3692895
+Americas       |San Francisco  |4343565
+;
+
 selectCitiesOrderByDistance
 SELECT region, city FROM geo ORDER BY ST_Distance(location, ST_WktToSQL('POINT (-71 42)')) ;
 
@@ -179,4 +190,14 @@ Asia           |Seoul
 Asia           |Hong Kong
 Asia           |Singapore
 Asia           |Sydney
+;
+
+groupCitiesByDistance
+SELECT COUNT(*) count, FIRST(region) region FROM geo GROUP BY FLOOR(ST_Distance(location, ST_WktToSQL('POINT (-71 42)'))/5000000);
+
+    count:l    |   region:s
+5              |Americas
+5              |Europe
+3              |Asia
+2              |Asia
 ;

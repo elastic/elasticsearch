@@ -141,9 +141,9 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 #
 # Geo Functions
 #
-  String   aswkt(Object)
-  GeoShape wktToSql(String)
-  Double   distance(Object, Object)
+  String   stAswkt(Object)
+  GeoShape stWktToSql(String)
+  Double   stDistance(Object, Object)
   GeoShape geoDocValue(java.util.Map, String)
 
 #

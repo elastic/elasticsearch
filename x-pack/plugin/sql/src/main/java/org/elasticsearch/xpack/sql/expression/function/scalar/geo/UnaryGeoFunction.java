@@ -64,7 +64,7 @@ public abstract class UnaryGeoFunction extends UnaryScalarFunction {
         // basically, transform the script to InternalSqlScriptUtils.[function_name](other_function_or_field_name)
         return super.processScript(
             format(Locale.ROOT, "{sql}.%s(%s)",
-                StringUtils.underscoreToLowerCamelCase(operation().name()),
+                StringUtils.underscoreToLowerCamelCase("ST_" + operation().name()),
                 template));
     }
 

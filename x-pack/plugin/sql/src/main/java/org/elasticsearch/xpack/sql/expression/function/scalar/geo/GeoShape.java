@@ -63,7 +63,7 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
             throw new SqlIllegalArgumentException("distance calculation is only supported for points; received [{}]", shape1);
         }
         if (shape2.shapeBuilder instanceof PointBuilder == false) {
-            throw new SqlIllegalArgumentException("distance calculation is only supported for points; received [{}]", shape1);
+            throw new SqlIllegalArgumentException("distance calculation is only supported for points; received [{}]", shape2);
         }
         double srcLat = ((PointBuilder) shape1.shapeBuilder).latitude();
         double srcLon = ((PointBuilder) shape1.shapeBuilder).longitude();
@@ -74,8 +74,12 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         GeoShape geoShape = (GeoShape) o;
         return shapeBuilder.equals(geoShape.shapeBuilder);
     }

@@ -82,7 +82,7 @@ public interface ScriptWeaver {
 
         if (fold instanceof GeoShape) {
             GeoShape geoShape = (GeoShape) fold;
-            return new ScriptTemplate(processScript("{sql}.wktToSql({})"),
+            return new ScriptTemplate(processScript("{sql}.stWktToSql({})"),
                 paramsBuilder().variable(geoShape.toString()).build(),
                 dataType());
         }

@@ -77,6 +77,6 @@ public class StDistance extends BinaryScalarFunction {
 
     @Override
     protected String scriptMethodName() {
-        return "distance";
+        return "stDistance";
     }
 }

@@ -479,15 +479,15 @@ public final class InternalSqlScriptUtils {
         return (String) StringOperation.UCASE.apply(s);
     }
 
-    public static String aswkt(Object v) {
+    public static String stAswkt(Object v) {
         return GeoProcessor.GeoOperation.ASWKT.apply(v).toString();
     }
 
-    public static GeoShape wktToSql(String wktString) {
+    public static GeoShape stWktToSql(String wktString) {
         return StWkttosqlProcessor.apply(wktString);
     }
 
-    public static Double distance(Object v1, Object v2) {
+    public static Double stDistance(Object v1, Object v2) {
         return StDistanceProcessor.process(v1, v2);
     }
 

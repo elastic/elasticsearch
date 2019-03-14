@@ -54,6 +54,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -102,9 +103,11 @@ public class JobConfigProvider {
     }
 
     private final Client client;
+    private final NamedXContentRegistry xContentRegistry;
 
-    public JobConfigProvider(Client client) {
+    public JobConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {
         this.client = client;
+        this.xContentRegistry = xContentRegistry;
     }
 
     /**
@@ -737,7 +740,7 @@ public class JobConfigProvider {
         getJob(config.getJobId(), ActionListener.wrap(
                 jobBuilder -> {
                     try {
-                        DatafeedJobValidator.validate(config, jobBuilder.build());
+                        DatafeedJobValidator.validate(config, jobBuilder.build(), xContentRegistry);
                         listener.onResponse(Boolean.TRUE);
                     } catch (Exception e) {
                         listener.onFailure(e);

@@ -124,7 +124,7 @@ The Azure repository supports following settings:
 
     When set to `true` metadata files are stored in compressed format. This
     setting doesn't affect index files that are already compressed by default.
-    Defaults to `false`.
+    Defaults to `true`.
 
 `readonly`::
 

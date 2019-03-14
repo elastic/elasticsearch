@@ -502,3 +502,14 @@ M              |8905.0
 null           |10789.0        
 F              |12719.0         
 ;
+
+
+medianAbsoluteDeviationOnSecondaryFieldWithOrderAndHaving
+schema::gender:s|mad:d
+SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender HAVING mad > 10000 ORDER BY mad ASC;
+
+    gender     |      mad      
+---------------+---------------
+null           |10789.0        
+F              |12719.0         
+;

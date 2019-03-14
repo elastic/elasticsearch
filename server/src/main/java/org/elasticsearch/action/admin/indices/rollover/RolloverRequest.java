@@ -135,9 +135,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeBoolean(dryRun);
         out.writeVInt(conditions.size());
         for (Condition<?> condition : conditions.values()) {
-            if (condition.includedInVersion(out.getVersion())) {
-                out.writeNamedWriteable(condition);
-            }
+            out.writeNamedWriteable(condition);
         }
         createIndexRequest.writeTo(out);
     }

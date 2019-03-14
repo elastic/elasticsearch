@@ -143,6 +143,10 @@ public class ElasticsearchNode {
         plugin(plugin.toURI());
     }
 
+    public Path getConfigDir() {
+        return configFile.getParent();
+    }
+
     public void freeze() {
         requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
@@ -196,6 +200,7 @@ public class ElasticsearchNode {
         logger.info("Starting `{}`", this);
 
         Path distroArtifact = artifactsExtractDir
+            .resolve(distribution.getGroup())
             .resolve(distribution.getArtifactName() + "-" + getVersion());
 
         if (Files.exists(distroArtifact) == false) {
@@ -205,8 +210,8 @@ public class ElasticsearchNode {
             throw new TestClustersException("Can not start " + this + ", is not a directory: " + distroArtifact);
         }
         services.sync(spec -> {
-            spec.from(distroArtifact.resolve("config").toFile());
-            spec.into(configFile.getParent());
+            spec.from(distroArtifact);
+            spec.into(workingDir);
         });
 
         try {
@@ -295,6 +300,16 @@ public class ElasticsearchNode {
     public String getTransportPortURI() {
         waitForAllConditions();
         return getTransportPortInternal().get(0);
+    }
+
+    public List<String> getAllHttpSocketURI() {
+        waitForAllConditions();
+        return getHttpPortInternal();
+    }
+
+    public List<String> getAllTransportPortURI() {
+        waitForAllConditions();
+        return getTransportPortInternal();
     }
 
     synchronized void stop(boolean tailLogs) {

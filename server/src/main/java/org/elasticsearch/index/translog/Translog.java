@@ -936,17 +936,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         /**
          * The number of operations have been skipped (overridden or trimmed) in the snapshot so far.
+         * Unlike {@link #totalOperations()}, this value is updated each time after {@link #next()}) is called.
          */
         default int skippedOperations() {
-            return 0;
-        }
-
-        /**
-         * The number of operations have been overridden (eg. superseded) in the snapshot so far.
-         * If two operations have the same sequence number, the operation with a lower term will be overridden by the operation
-         * with a higher term. Unlike {@link #totalOperations()}, this value is updated each time after {@link #next()}) is called.
-         */
-        default int overriddenOperations() {
             return 0;
         }
 
@@ -983,11 +975,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public int skippedOperations() {
             return filteredOpsCount + delegate.skippedOperations();
-        }
-
-        @Override
-        public int overriddenOperations() {
-            return delegate.overriddenOperations();
         }
 
         @Override
@@ -1115,8 +1102,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     public static class Index implements Operation {
 
-        public static final int FORMAT_6_0 = 8; // since 6.0.0
-        public static final int FORMAT_NO_PARENT = FORMAT_6_0 + 1; // since 7.0
+        public static final int FORMAT_NO_PARENT = 9; // since 7.0
         public static final int FORMAT_NO_VERSION_TYPE = FORMAT_NO_PARENT + 1;
         public static final int SERIALIZATION_FORMAT = FORMAT_NO_VERSION_TYPE;
 
@@ -1131,7 +1117,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         private Index(final StreamInput in) throws IOException {
             final int format = in.readVInt(); // SERIALIZATION_FORMAT
-            assert format >= FORMAT_6_0 : "format was: " + format;
+            assert format >= FORMAT_NO_PARENT : "format was: " + format;
             id = in.readString();
             type = in.readString();
             source = in.readBytesReference();
@@ -1221,7 +1207,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(Version.V_7_0_0) ? SERIALIZATION_FORMAT : FORMAT_6_0;
+            final int format = SERIALIZATION_FORMAT;
             out.writeVInt(format);
             out.writeString(id);
             out.writeString(type);
@@ -1384,7 +1370,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(Version.V_7_0_0) ? SERIALIZATION_FORMAT : FORMAT_6_0;
+            final int format = SERIALIZATION_FORMAT;
             out.writeVInt(format);
             out.writeString(type);
             out.writeString(id);

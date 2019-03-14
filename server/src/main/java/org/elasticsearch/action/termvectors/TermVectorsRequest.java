@@ -21,13 +21,11 @@ package org.elasticsearch.action.termvectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -116,22 +114,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         public Integer maxDocFreq;
         public Integer minWordLength;
         public Integer maxWordLength;
-
-        public FilterSettings() {
-
-        }
-
-        public FilterSettings(@Nullable Integer maxNumTerms, @Nullable Integer minTermFreq, @Nullable Integer maxTermFreq,
-                              @Nullable Integer minDocFreq, @Nullable Integer maxDocFreq, @Nullable Integer minWordLength,
-                              @Nullable Integer maxWordLength) {
-            this.maxNumTerms = maxNumTerms;
-            this.minTermFreq = minTermFreq;
-            this.maxTermFreq = maxTermFreq;
-            this.minDocFreq = minDocFreq;
-            this.maxDocFreq = maxDocFreq;
-            this.minWordLength = minWordLength;
-            this.maxWordLength = maxWordLength;
-        }
 
         public void readFrom(StreamInput in) throws IOException {
             maxNumTerms = in.readOptionalVInt();
@@ -506,10 +488,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             xContentType = in.readEnum(XContentType.class);
         }
         routing = in.readOptionalString();
-
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readOptionalString(); // _parent
-        }
         preference = in.readOptionalString();
         long flags = in.readVLong();
 
@@ -550,9 +528,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             out.writeEnum(xContentType);
         }
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalString(null); // _parent
-        }
         out.writeOptionalString(preference);
         long longFlags = 0;
         for (Flag flag : flagsEnum) {

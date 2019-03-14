@@ -104,8 +104,8 @@
 "Implicitly create a typeless index while there is a typed template":
 
  - skip:
-      version: "all"
-      reason: "awaits fix in #39198"
+      version: " - 6.99.99"
+      reason: needs typeless index operations to work on typed indices
 
  - do:
       indices.put_template:
@@ -123,6 +123,11 @@
       index:
           index: test-1
           body: { bar: 42 }
+
+# ensures dynamic mapping update is visible to get_mapping
+ - do:
+     cluster.health:
+         wait_for_events: normal
 
  - do:
       indices.get_mapping:

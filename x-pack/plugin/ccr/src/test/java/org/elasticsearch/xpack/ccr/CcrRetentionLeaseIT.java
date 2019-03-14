@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -53,6 +54,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
+import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
@@ -80,6 +82,7 @@ import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -611,6 +614,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39509")
     @TestLogging(value = "org.elasticsearch.xpack.ccr:trace")
     public void testRetentionLeaseRenewalIsCancelledWhenFollowingIsPaused() throws Exception {
         final String leaderIndex = "leader";
@@ -915,6 +919,48 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                         (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
                 senderTransportService.clearAllRules();
             }
+        }
+    }
+
+    public void testForgetFollower() throws Exception {
+        final String leaderIndex = "leader";
+        final String followerIndex = "follower";
+        final int numberOfShards = randomIntBetween(1, 4);
+        final String leaderIndexSettings =
+                getIndexSettings(numberOfShards, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
+        ensureLeaderYellow(leaderIndex);
+        final PutFollowAction.Request followRequest = putFollow(leaderIndex, followerIndex);
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        ensureFollowerGreen(true, followerIndex);
+
+        pauseFollow(followerIndex);
+        followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet();
+
+        final ClusterStateResponse followerIndexClusterState =
+                followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
+        final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
+
+        final BroadcastResponse forgetFollowerResponse = leaderClient().execute(
+                ForgetFollowerAction.INSTANCE,
+                new ForgetFollowerAction.Request(
+                        getFollowerCluster().getClusterName(),
+                        followerIndex,
+                        followerUUID,
+                        "leader_cluster",
+                        leaderIndex)).actionGet();
+
+        assertThat(forgetFollowerResponse.getTotalShards(), equalTo(numberOfShards));
+        assertThat(forgetFollowerResponse.getSuccessfulShards(), equalTo(numberOfShards));
+        assertThat(forgetFollowerResponse.getFailedShards(), equalTo(0));
+        assertThat(forgetFollowerResponse.getShardFailures(), emptyArray());
+
+        final IndicesStatsResponse afterForgetFollowerStats =
+                leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
+        final List<ShardStats> afterForgetFollowerShardsStats = getShardsStats(afterForgetFollowerStats);
+        for (final ShardStats shardStats : afterForgetFollowerShardsStats) {
+            assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
         }
     }
 

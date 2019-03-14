@@ -502,6 +502,7 @@ The Java High Level REST Client supports the following CCR APIs:
 * <<{upid}-ccr-pause-follow>>
 * <<{upid}-ccr-resume-follow>>
 * <<{upid}-ccr-unfollow>>
+* <<{upid}-ccr-forget-follower>>
 * <<{upid}-ccr-put-auto-follow-pattern>>
 * <<{upid}-ccr-delete-auto-follow-pattern>>
 * <<{upid}-ccr-get-auto-follow-pattern>>
@@ -513,6 +514,7 @@ include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
 include::ccr/resume_follow.asciidoc[]
 include::ccr/unfollow.asciidoc[]
+include::ccr/forget_follower.asciidoc[]
 include::ccr/put_auto_follow_pattern.asciidoc[]
 include::ccr/delete_auto_follow_pattern.asciidoc[]
 include::ccr/get_auto_follow_pattern.asciidoc[]
@@ -548,3 +550,16 @@ include::ilm/stop_lifecycle_management.asciidoc[]
 include::ilm/lifecycle_management_status.asciidoc[]
 include::ilm/retry_lifecycle_policy.asciidoc[]
 include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
+
+== Data Frame APIs
+
+:upid: {mainid}-dataframe
+:doc-tests-file: {doc-tests}/DataFrameTransformDocumentationIT.java
+
+The Java High Level REST Client supports the following Data Frame APIs:
+
+* <<{upid}-put-data-frame-transform>>
+* <<{upid}-delete-data-frame-transform>>
+
+include::dataframe/put_data_frame.asciidoc[]
+include::dataframe/delete_data_frame.asciidoc[]

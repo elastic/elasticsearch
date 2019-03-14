@@ -19,7 +19,6 @@
 package org.elasticsearch.action.resync;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
@@ -94,12 +93,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         final ConcreteReplicaRequest<ResyncReplicationRequest> replicaRequest,
         final DiscoveryNode node,
         final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-        if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            super.sendReplicaRequest(replicaRequest, node, listener);
-        } else {
-            final long pre60NodeCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
-            listener.onResponse(new ReplicaResponse(pre60NodeCheckpoint, pre60NodeCheckpoint));
-        }
+        super.sendReplicaRequest(replicaRequest, node, listener);
     }
 
     @Override
@@ -116,12 +110,12 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
     @Override
     protected WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> shardOperationOnPrimary(
-        ResyncReplicationRequest request, IndexShard primary) throws Exception {
-        final ResyncReplicationRequest replicaRequest = performOnPrimary(request, primary);
+        ResyncReplicationRequest request, IndexShard primary) {
+        final ResyncReplicationRequest replicaRequest = performOnPrimary(request);
         return new WritePrimaryResult<>(replicaRequest, new ResyncReplicationResponse(), null, null, primary, logger);
     }
 
-    public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request, IndexShard primary) {
+    public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request) {
         return request;
     }
 

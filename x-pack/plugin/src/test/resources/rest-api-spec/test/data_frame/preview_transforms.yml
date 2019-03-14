@@ -88,3 +88,17 @@ setup:
   - match: { preview.2.airline: foo }
   - match: { preview.2.by-hour: "2017-02-49 01" }
   - match: { preview.2.avg_response: 42.0 }
+
+---
+"Test preview transform with invalid config":
+  - do:
+      catch: /\[data_frame_terms_group\] unknown field \[not_a_terms_param\]/
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": "airline-data",
+            "pivot": {
+              "group_by": {"airline": {"terms": {"not_a_terms_param": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }

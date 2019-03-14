@@ -19,14 +19,9 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryFactory;
-
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
@@ -35,6 +30,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 import org.locationtech.spatial4j.shape.Shape;
@@ -113,10 +111,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
     protected static Coordinate readFromStream(StreamInput in) throws IOException {
         double x = in.readDouble();
         double y = in.readDouble();
-        Double z = null;
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            z = in.readOptionalDouble();
-        }
+        Double z = in.readOptionalDouble();
         return z == null ? new Coordinate(x, y) : new Coordinate(x, y, z);
     }
 
@@ -131,9 +126,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
     protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {
         out.writeDouble(coordinate.x);
         out.writeDouble(coordinate.y);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeOptionalDouble(Double.isNaN(coordinate.z) ? null : coordinate.z);
-        }
+        out.writeOptionalDouble(Double.isNaN(coordinate.z) ? null : coordinate.z);
     }
 
     @SuppressWarnings("unchecked")

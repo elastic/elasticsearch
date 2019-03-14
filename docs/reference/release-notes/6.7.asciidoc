@@ -152,6 +152,7 @@ Authorization::
 * Create snapshot role {pull}35820[#35820] (issue: {issue}34454[#34454])
 
 CCR::
+* Introduce forget follower API {pull}39718[#39718] (issue: {issue}37165[#37165])
 * Renew retention leases while following {pull}39335[#39335] (issues: {issue}37165[#37165], {issue}38718[#38718])
 * Reduce refresh when lookup term in FollowingEngine {pull}39184[#39184]
 * Integrate retention leases to recovery from remote {pull}38829[#38829] (issue: {issue}37165[#37165])
@@ -175,6 +176,7 @@ Client::
 * Fixed required fields and paths list {pull}39358[#39358]
 
 Distributed::
+* Add BWC for retention leases {pull}39482[#39482] (issue: {issue}37165[#37165])
 * Allow retention lease operations under blocks {pull}39089[#39089] (issues: {issue}34648[#34648], {issue}37165[#37165])
 * Remove retention leases when unfollowing {pull}39088[#39088] (issues: {issue}34648[#34648], {issue}37165[#37165])
 * Introduce retention lease state file {pull}39004[#39004] (issues: {issue}37165[#37165], {issue}38588[#38588], {issue}39032[#39032])
@@ -376,6 +378,7 @@ Audit::
 * Fix NPE in Logfile Audit Filter {pull}38120[#38120] (issue: {issue}38097[#38097])
 
 Authentication::
+* Correct authenticate response for API key {pull}39684[#39684]
 * Fix security index auto-create and state recovery race {pull}39582[#39582]
 * Use consistent view of realms for authentication {pull}38815[#38815] (issue: {issue}30301[#30301])
 *  Enhance parsing of StatusCode in SAML Responses {pull}38628[#38628]
@@ -404,6 +407,8 @@ CRUD::
 * Fix Reindex from remote query logic {pull}36908[#36908]
 
 Distributed::
+* Enforce retention leases require soft deletes {pull}39922[#39922] (issue: {issue}39914[#39914])
+* Treat TransportService stopped error as node is closing {pull}39800[#39800] (issue: {issue}39584[#39584])
 * Use cause to determine if node with primary is closing {pull}39723[#39723] (issue: {issue}39584[#39584])
 * Don’t ack if unable to remove failing replica {pull}39584[#39584] (issue: {issue}39467[#39467])
 * Ignore waitForActiveShards when syncing leases {pull}39224[#39224] (issue: {issue}39089[#39089])
@@ -420,6 +425,7 @@ Engine::
 * Advance max_seq_no before add operation to Lucene {pull}38879[#38879] (issue: {issue}31629[#31629])
 
 Features/Features::
+* Deprecation check for indices with very large numbers of fields {pull}39869[#39869] (issue: {issue}39851[#39851])
 * Check for .watches that wasn't upgraded properly {pull}39609[#39609]
 * Link to 7.0 documentation in deprecation checks {pull}39194[#39194]
 * Handle Null in FetchSourceContext#fetchSource {pull}36839[#36839] (issue: {issue}29293[#29293])
@@ -431,14 +437,17 @@ Features/ILM::
 * Remove `indexing_complete` when removing policy {pull}36620[#36620]
 
 Features/Indices APIs::
+* Add pre-upgrade check to test cluster routing allocation is enabled {pull}39340[#39340] (issue: {issue}39339[#39339])
 * Reject delete index requests with a body {pull}37501[#37501] (issue: {issue}8217[#8217])
 * Get Aliases with wildcard exclusion expression {pull}34230[#34230] (issues: {issue}33518[#33518], {issue}33805[#33805], {issue}34144[#34144])
 
 Features/Ingest::
+* Ingest ingest then create index {pull}39607[#39607] (issues: {issue}32758[#32758], {issue}32786[#32786], {issue}36545[#36545])
 * Support unknown fields in ingest pipeline map configuration {pull}38352[#38352] (issue: {issue}36938[#36938])
 * Ingest node - user_agent, move device parsing to an object {pull}38115[#38115] (issues: {issue}37329[#37329], {issue}38094[#38094])
 
 Features/Java High Level REST Client::
+* Allow setting of `copy_settings` in the HLRC {pull}39752[#39752] (issue: {issue}30255[#30255])
 * Update IndexTemplateMetaData to allow unknown fields {pull}38448[#38448] (issue: {issue}36938[#36938])
 * `if_seq_no` and `if_primary_term` parameters aren't wired correctly in REST Client's CRUD API {pull}38411[#38411]
 * Update Rollup Caps to allow unknown fields {pull}38339[#38339] (issue: {issue}36938[#36938])
@@ -458,6 +467,7 @@ Features/Monitoring::
 * Allow built-in monitoring_user role to call GET _xpack API {pull}38060[#38060] (issue: {issue}37970[#37970])
 
 Features/Watcher::
+* Fix Watcher stats class cast exception {pull}39821[#39821] (issue: {issue}39780[#39780])
 * Use any index specified by .watches for Watcher {pull}39541[#39541] (issue: {issue}39478[#39478])
 * Resolve concurrency with watcher trigger service {pull}39092[#39092] (issue: {issue}39087[#39087])
 * Only flush Watcher's bulk processor if Watcher is enabled {pull}38803[#38803] (issue: {issue}38798[#38798])
@@ -490,6 +500,8 @@ Infra/Settings::
 * Fix handling of fractional time value settings {pull}37171[#37171]
 
 Machine Learning::
+* [ML] Fix datafeed skipping first bucket after lookback when aggs are … {pull}39859[#39859] (issue: {issue}39842[#39842])
+* [ML] refactoring lazy query and agg parsing {pull}39776[#39776] (issue: {issue}39528[#39528])
 * [ML] Stop the ML memory tracker before closing node {pull}39111[#39111] (issue: {issue}37117[#37117])
 * ML allow aliased .ml-anomalies* index on PUT Job {pull}38821[#38821] (issue: {issue}38773[#38773])
 * [ML] Report index unavailable instead of waiting for lazy node {pull}38423[#38423]
@@ -522,6 +534,9 @@ Recovery::
 * RecoveryMonitor#lastSeenAccessTime should be volatile {pull}36781[#36781]
 
 SQL::
+* SQL: Wrap ZonedDateTime parameters inside scripts {pull}39911[#39911] (issue: {issue}39877[#39877])
+* SQL: ConstantProcessor can now handle NamedWriteable {pull}39876[#39876] (issue: {issue}39875[#39875])
+* SQL: values in datetime script aggs should be treated as long {pull}39773[#39773] (issue: {issue}37042[#37042])
 * SQL: Don't allow inexact fields for MIN/MAX {pull}39563[#39563] (issue: {issue}39427[#39427])
 * SQL: Fix merging of incompatible multi-fields {pull}39560[#39560] (issue: {issue}39547[#39547])
 * SQL: fix COUNT DISTINCT column name {pull}39537[#39537] (issue: {issue}39511[#39511])
@@ -603,6 +618,9 @@ Discovery-Plugins::
 
 Features/Ingest::
 * Bump jackson-databind version for ingest-geoip {pull}39182[#39182]
+
+Snapshot/Restore::
+* plugins/repository-gcs: Update google-cloud-storage/core to 1.59.0 {pull}39748[#39748] (issue: {issue}39366[#39366])
 
 
 

@@ -1,0 +1,15 @@
+---
+"get cluster state returns cluster state size with human readable format":
+  - skip:
+      reason: deprecation was added in 6.7.0
+      features: "warnings"
+
+  - do:
+      warnings:
+        - 'es.cluster_state.size is deprecated and will be removed in 7.0.0'
+      cluster.state:
+        human: true
+
+  - is_true: master_node
+  - gte: { compressed_size_in_bytes: 50 }
+  - is_true: compressed_size

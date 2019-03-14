@@ -33,6 +33,7 @@ import org.elasticsearch.packaging.util.Shell.Result;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.stream.Stream;
 
@@ -245,7 +246,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 assertThat(result.exitCode, equalTo(0));
 
 
-                FileUtils.rm(Path.of(temp));
+                FileUtils.rm(Paths.get(temp));
             } finally {
                 sh.getEnv().put("JAVA_HOME", javaHome);
             }

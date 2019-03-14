@@ -784,8 +784,9 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("security.") == false &&
                                 apiName.startsWith("index_lifecycle.") == false &&
                                 apiName.startsWith("ccr.") == false &&
+                                apiName.startsWith("data_frame") == false &&
                                 apiName.endsWith("freeze") == false &&
-                                // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we 
+                                // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we
                                 // can get rid of 7.0's deprecated "getTemplate"
                                 apiName.equals("indices.get_index_template") == false) {
                                 apiNotFound.add(apiName);

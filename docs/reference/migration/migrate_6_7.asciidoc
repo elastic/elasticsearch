@@ -10,6 +10,7 @@ your application to Elasticsearch 6.7.
 * <<breaking_67_indexing_changes>>
 * <<breaking_67_plugin_changes>>
 * <<breaking_67_settings_changes>>
+* <<breaking_67_api_changes>>
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
@@ -71,3 +72,25 @@ expected database [GeoLite2-ASN.mmdb] to not exist in [/etc/elasticsearch/ingest
 
 The setting `node.store.allow_mmapfs` has been deprecated. Use
 `node.store.allow_mmap` instead.
+
+[float]
+[[breaking_67_api_changes]]
+=== API changes
+
+[float]
+==== Removing compressed size of cluster state
+
+Since 6.0.0, the `/_cluster/state` REST endpoint and cluster state API on the
+transport client would compute and return the compressed size of the cluster
+state as if it were serialized for inter-node communication. This metric would
+be returned in the `compressed_size` or `compressed_size_in_bytes` fields in the
+REST endpoint, or `ClusterStateResponse#getTotalCompressedSize` via the
+transport client. Computing this field is expensive, and has dubious reporting
+value as it does not reflect the actual size of the cluster state on disk. The
+expense of computing this field is such that in some situations it can disrupt
+all activity on a node including indexing activity. Therefore we have elected to
+by default stop computing this field in a minor release. We are providing a
+backwards compatibility flag via the system property
+`-Des.cluster_state.size=true` which will return to the previous 6.0.0--6.6.2
+behavior.  Computing this metric and displaying this field will be completely
+removed in 7.0.0, and using this backwards compatibility flag will fail.

@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -34,6 +36,7 @@ import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
@@ -47,6 +50,24 @@ import static org.elasticsearch.discovery.zen.PublishClusterStateAction.serializ
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
+    private final Logger logger = LogManager.getLogger(getClass());
+    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
+    public static final boolean CLUSTER_STATE_SIZE;
+
+    static {
+        final String property = System.getProperty("es.cluster_state.size");
+        if (property == null) {
+            CLUSTER_STATE_SIZE = false;
+        } else {
+            final boolean clusterStateSize = Boolean.parseBoolean(property);
+            if (clusterStateSize) {
+                CLUSTER_STATE_SIZE = true;
+            } else {
+                throw new IllegalArgumentException("es.cluster_state.size can only be unset or [true] but was [" + property + "]");
+            }
+        }
+    }
 
     @Inject
     public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -184,8 +205,16 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 }
             }
         }
-        listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(),
-            serializeFullClusterState(currentState, Version.CURRENT).length(), false));
+
+        final long sizeInBytes;
+        if (CLUSTER_STATE_SIZE) {
+            deprecationLogger.deprecated("es.cluster_state.size is deprecated and will be removed in 7.0.0");
+            sizeInBytes = serializeFullClusterState(currentState, Version.CURRENT).length();
+        } else {
+            sizeInBytes = 0;
+        }
+
+        listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(), sizeInBytes, false));
     }
 
 

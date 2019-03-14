@@ -37,6 +37,9 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.JsonFieldMapper;
+import org.elasticsearch.index.mapper.JsonFieldMapper.KeyedJsonIndexFieldData;
+import org.elasticsearch.index.mapper.JsonFieldMapper.KeyedJsonFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -210,6 +213,27 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertEquals(1, onCacheCalled.get());
         assertEquals(1, onRemovalCalled.get());
         ifdService.clear();
+    }
+
+    public void testJsonFields() {
+        IndexService indexService = createIndex("test");
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
+            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
+        ifdService.clear();
+
+        BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        JsonFieldMapper fieldMapper = new JsonFieldMapper.Builder("json").build(ctx);
+
+        KeyedJsonFieldType fieldType1 = fieldMapper.keyedFieldType("key");
+        IndexFieldData<?> fd1 = ifdService.getForField(fieldType1);
+        assertTrue(fd1 instanceof KeyedJsonIndexFieldData);
+        assertEquals("key", ((KeyedJsonIndexFieldData) fd1).getKey());
+
+        KeyedJsonFieldType fieldType2 = fieldMapper.keyedFieldType("other_key");
+        IndexFieldData<?> fd2 = ifdService.getForField(fieldType2);
+        assertTrue(fd2 instanceof KeyedJsonIndexFieldData);
+        assertEquals("other_key", ((KeyedJsonIndexFieldData) fd2).getKey());
     }
 
     public void testSetCacheListenerTwice() {

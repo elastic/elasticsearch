@@ -42,7 +42,6 @@ import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -71,6 +70,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -581,7 +581,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 ElasticsearchException rootCause = rootCauses[0];
                 if (rootCause instanceof AggregationExecutionException) {
                     AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
-                    assertThat(aggException.getMessage(), Matchers.startsWith("Invalid aggregation order path"));
+                    assertThat(aggException.getMessage(), startsWith("Invalid aggregation order path"));
                 } else {
                     throw e;
                 }
@@ -1137,21 +1137,51 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertEquals(5, bucket1.getDocCount());
 
         Bucket bucket2 = terms.getBuckets().get(1);
-        assertEquals("v1.2.0", bucket2.getKey());
+        assertThat(bucket2.getKeyAsString(), startsWith("v1.2."));
         assertEquals(1, bucket2.getDocCount());
     }
 
     public void testKeyedJsonField() {
-        TermsAggregationBuilder builder =  terms("terms")
+        // Aggregate on the 'priority' subfield.
+        TermsAggregationBuilder priorityAgg = terms("terms")
             .field(JSON_FIELD_NAME + ".priority")
             .collectMode(randomFrom(SubAggCollectionMode.values()))
             .executionHint(randomExecutionHint());
 
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
-            () -> client().prepareSearch("idx")
-                .addAggregation(builder)
-                .get());
-        assertEquals("Aggregations are not supported on keyed [json] fields.", e.getCause().getMessage());
+        SearchResponse priorityResponse = client().prepareSearch("idx")
+            .addAggregation(priorityAgg)
+            .get();
+        assertSearchResponse(priorityResponse);
+
+        Terms priorityTerms = priorityResponse.getAggregations().get("terms");
+        assertThat(priorityTerms, notNullValue());
+        assertThat(priorityTerms.getName(), equalTo("terms"));
+        assertThat(priorityTerms.getBuckets().size(), equalTo(1));
+
+        Bucket priorityBucket = priorityTerms.getBuckets().get(0);
+        assertEquals("urgent", priorityBucket.getKey());
+        assertEquals(5, priorityBucket.getDocCount());
+
+        // Aggregate on the 'release' subfield.
+        TermsAggregationBuilder releaseAgg = terms("terms")
+            .field(JSON_FIELD_NAME + ".release")
+            .collectMode(randomFrom(SubAggCollectionMode.values()))
+            .executionHint(randomExecutionHint());
+
+        SearchResponse releaseResponse = client().prepareSearch("idx")
+            .addAggregation(releaseAgg)
+            .get();
+        assertSearchResponse(releaseResponse);
+
+        Terms releaseTerms = releaseResponse.getAggregations().get("terms");
+        assertThat(releaseTerms, notNullValue());
+        assertThat(releaseTerms.getName(), equalTo("terms"));
+        assertThat(releaseTerms.getBuckets().size(), equalTo(5));
+
+        for (Bucket bucket : releaseTerms.getBuckets()) {
+            assertThat(bucket.getKeyAsString(), startsWith("v1.2."));
+            assertEquals(1, bucket.getDocCount());
+        }
     }
 
     public void testOtherDocCount() {

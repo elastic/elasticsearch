@@ -21,13 +21,17 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,11 +43,20 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -210,7 +223,7 @@ public final class JsonFieldMapper extends FieldMapper {
         private final String key;
         private boolean splitQueriesOnWhitespace;
 
-        KeyedJsonFieldType(String key) {
+        public KeyedJsonFieldType(String key) {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.key = key;
@@ -327,7 +340,94 @@ public final class JsonFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            throw new IllegalArgumentException("Aggregations are not supported on keyed [" + typeName() + "] fields.");
+            failIfNoDocValues();
+            return new KeyedJsonIndexFieldData.Builder(key);
+        }
+    }
+
+    public static class KeyedJsonIndexFieldData implements IndexOrdinalsFieldData {
+        private final String key;
+        private final IndexOrdinalsFieldData delegate;
+
+        private KeyedJsonIndexFieldData(String key, IndexOrdinalsFieldData delegate) {
+            this.delegate = delegate;
+            this.key = key;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        @Override
+        public String getFieldName() {
+            return delegate.getFieldName();
+        }
+
+        @Override
+        public SortField sortField(Object missingValue,
+                                   MultiValueMode sortMode,
+                                   XFieldComparatorSource.Nested nested,
+                                   boolean reverse) {
+            return delegate.sortField(missingValue, sortMode, nested, reverse);
+        }
+
+        @Override
+        public void clear() {
+            delegate.clear();
+        }
+
+        @Override
+        public AtomicOrdinalsFieldData load(LeafReaderContext context) {
+            AtomicOrdinalsFieldData fieldData = delegate.load(context);
+            return new KeyedJsonAtomicFieldData(key, fieldData);
+        }
+
+        @Override
+        public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+            AtomicOrdinalsFieldData fieldData = delegate.loadDirect(context);
+            return new KeyedJsonAtomicFieldData(key, fieldData);
+        }
+
+        @Override
+        public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
+            IndexOrdinalsFieldData fieldData = delegate.loadGlobal(indexReader);
+            return new KeyedJsonIndexFieldData(key, fieldData);
+        }
+
+        @Override
+        public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+            IndexOrdinalsFieldData fieldData = delegate.localGlobalDirect(indexReader);
+            return new KeyedJsonIndexFieldData(key, fieldData);
+        }
+
+        @Override
+        public OrdinalMap getOrdinalMap() {
+            return delegate.getOrdinalMap();
+        }
+
+        @Override
+        public Index index() {
+            return delegate.index();
+        }
+
+        public static class Builder implements IndexFieldData.Builder {
+            private final String key;
+
+            Builder(String key) {
+                this.key = key;
+            }
+
+            @Override
+            public IndexFieldData<?> build(IndexSettings indexSettings,
+                                           MappedFieldType fieldType,
+                                           IndexFieldDataCache cache,
+                                           CircuitBreakerService breakerService,
+                                           MapperService mapperService) {
+                String fieldName = fieldType.name();
+                IndexOrdinalsFieldData delegate = new SortedSetDVOrdinalsIndexFieldData(indexSettings,
+                    cache, fieldName, breakerService, AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+                return new KeyedJsonIndexFieldData(key, delegate);
+            }
         }
     }
 

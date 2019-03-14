@@ -813,6 +813,11 @@ public class TransportSearchActionTests extends ESTestCase {
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
         }
         {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+            assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+        {
             SearchRequestTests searchRequestTests = new SearchRequestTests();
             searchRequestTests.setUp();
             SearchRequest searchRequest = searchRequestTests.createSearchRequest();

@@ -19,20 +19,22 @@
 
 package org.elasticsearch.gradle.plugin;
 
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Properties;
+import java.util.stream.Collectors;
 
 public class PluginPropertiesTaskTests extends GradleUnitTestCase {
 
@@ -66,43 +68,34 @@ public class PluginPropertiesTaskTests extends GradleUnitTestCase {
     public void testCheckValidPluginPropertiesTaskPropertySubstitution() throws IOException {
         Project project = createProject();
         PluginPropertiesTask pluginPropertiesTask = createTask(project, "plugin-name", "plugin-description",
-                "plugin-classname");
+                "PluginClassname");
 
-        String descriptorFilename = pluginPropertiesTask.getDescriptorOutput().getName();
+        pluginPropertiesTask.performAction();
 
-        File file = new File(getClass().getClassLoader().getResource(descriptorFilename).getPath());
-        file.getParentFile().mkdirs();
-        file.createNewFile();
-        Files.write(file.toPath(), this.builProperties(), StandardCharsets.UTF_8);
+        PluginPropertiesExtension pluginPropertiesTaskExtension = pluginPropertiesTask.getProject().getExtensions()
+                .getByType(PluginPropertiesExtension.class);
 
-        pluginPropertiesTask.configurePluginPropertiesTask();
+        File generatedPluginDescriptorFile = new File(project.getBuildDir(), "generated-resources/plugin-descriptor.properties");
 
-        File copiedFile = new File(project.getBuildDir(), "templates/" + descriptorFilename);
+        assertTrue(generatedPluginDescriptorFile.exists());
 
-        String content = new String(Files.readAllBytes(copiedFile.toPath()));
+        Properties generatedPluginDescriptorProps = new Properties();
+        generatedPluginDescriptorProps.load(new FileInputStream(generatedPluginDescriptorFile));
 
-        assertEquals(
-                "description=plugin-description\n" +
-                "version=unspecified\n" +
-                "name=plugin-name\n" +
-                "classname=plugin-classname\n" +
-                "java.version=11\n" +
-                "elasticsearch.version=8.0.0\n" +
-                "extended.plugins=\n" +
-                "has.native.controller=false\n", content);
-    }
+        assertEquals(pluginPropertiesTaskExtension.getName(), generatedPluginDescriptorProps.getProperty("name"));
+        assertEquals(pluginPropertiesTaskExtension.getDescription(), generatedPluginDescriptorProps.getProperty("description"));
+        assertEquals(pluginPropertiesTaskExtension.getClassname(), generatedPluginDescriptorProps.getProperty("classname"));
+        assertEquals(pluginPropertiesTaskExtension.getVersion(), generatedPluginDescriptorProps.getProperty("version"));
+        assertEquals(VersionProperties.getElasticsearch(), generatedPluginDescriptorProps.getProperty("elasticsearch.version"));
 
-    private List<String> builProperties() {
-        return Arrays.asList(
-                "description=${description}",
-                "version=${version}",
-                "name=${name}",
-                "classname=${classname}",
-                "java.version=${javaVersion}",
-                "elasticsearch.version=${elasticsearchVersion}",
-                "extended.plugins=${extendedPlugins}",
-                "has.native.controller=${hasNativeController}"
-                );
+        assertEquals(pluginPropertiesTaskExtension.getExtendedPlugins().stream().collect(Collectors.joining(",")),
+                generatedPluginDescriptorProps.getProperty("extended.plugins"));
+
+        assertEquals(project.getConvention().getPlugin(JavaPluginConvention.class).getTargetCompatibility().toString(),
+                generatedPluginDescriptorProps.getProperty("java.version"));
+
+        assertEquals(String.valueOf(pluginPropertiesTaskExtension.hasNativeController()),
+                generatedPluginDescriptorProps.getProperty("has.native.controller"));
     }
 
     private Project createProject() {
@@ -119,6 +112,8 @@ public class PluginPropertiesTaskTests extends GradleUnitTestCase {
         extension.setName(name);
         extension.setDescription(description);
         extension.setClassname(classname);
+        extension.setVersion("4.2.0");
+        extension.setExtendedPlugins(Arrays.asList("plugin1", "plugin2"));
 
         return task;
     }

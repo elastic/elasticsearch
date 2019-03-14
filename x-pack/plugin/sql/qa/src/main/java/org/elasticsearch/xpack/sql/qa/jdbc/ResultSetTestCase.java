@@ -821,10 +821,6 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             
             assertEquals(results.getDate("test_date"), new java.sql.Date(connCalendar.getTimeInMillis()));
             assertEquals(results.getDate(9), new java.sql.Date(connCalendar.getTimeInMillis()));
-            assertEquals(results.getObject("test_date", java.sql.Date.class),
-                    new java.sql.Date(randomLongDate - (randomLongDate % 86400000L)));
-            assertEquals(results.getObject(9, java.sql.Date.class),
-                    new java.sql.Date(randomLongDate - (randomLongDate % 86400000L)));
 
             // bulk validation for all fields which are not of type date
             validateErrorsForDateTimeTestsWithoutCalendar(results::getDate);

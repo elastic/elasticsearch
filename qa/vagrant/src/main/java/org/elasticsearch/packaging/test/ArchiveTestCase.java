@@ -64,7 +64,7 @@ import static org.junit.Assume.assumeThat;
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
 public abstract class ArchiveTestCase extends PackagingTestCase {
 
-    public void test10Install() {
+    public void test10Install() throws Exception {
         installation = installArchive(distribution());
         verifyArchiveInstallation(installation, distribution());
     }
@@ -98,7 +98,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test40CreateKeystoreManually() {
+    public void test40CreateKeystoreManually() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
@@ -131,7 +131,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         });
     }
 
-    public void test50StartAndStop() throws IOException {
+    public void test50StartAndStop() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         // cleanup from previous test
@@ -145,7 +145,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         Archives.stopElasticsearch(installation);
     }
 
-    public void assertRunsWithJavaHome() throws IOException {
+    public void assertRunsWithJavaHome() throws Exception {
         Shell sh = new Shell();
 
         Platforms.onLinux(() -> {
@@ -166,13 +166,13 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         assertThat(new String(Files.readAllBytes(log), StandardCharsets.UTF_8), containsString(systemJavaHome));
     }
 
-    public void test51JavaHomeOverride() throws IOException {
+    public void test51JavaHomeOverride() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         assertRunsWithJavaHome();
     }
 
-    public void test52BundledJdkRemoved() throws IOException {
+    public void test52BundledJdkRemoved() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
@@ -184,7 +184,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test53JavaHomeContainParansAndSpace() throws IOException {
+    public void test53JavaHomeContainParansAndSpace() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         Platforms.onWindows(() -> {
@@ -217,7 +217,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         });
     }
 
-    public void test60AutoCreateKeystore() {
+    public void test60AutoCreateKeystore() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
@@ -236,7 +236,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         });
     }
 
-    public void test70CustomPathConfAndJvmOptions() throws IOException {
+    public void test70CustomPathConfAndJvmOptions() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Path tempConf = getTempDir().resolve("esconf-alternate");
@@ -285,7 +285,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test80RelativePathConf() throws IOException {
+    public void test80RelativePathConf() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Path temp = getTempDir().resolve("esconf-alternate");
@@ -328,7 +328,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test90SecurityCliPackaging() {
+    public void test90SecurityCliPackaging() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
@@ -352,7 +352,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test100ElasticsearchShardCliPackaging() {
+    public void test100ElasticsearchShardCliPackaging() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
@@ -369,7 +369,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test110ElasticsearchNodeCliPackaging() {
+    public void test110ElasticsearchNodeCliPackaging() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();

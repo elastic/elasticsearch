@@ -62,7 +62,7 @@ public abstract class PackagingTestCase extends Assert {
     protected static Installation installation;
 
     @BeforeClass
-    public static void cleanup() {
+    public static void cleanup() throws Exception {
         installation = null;
         cleanEverything();
     }

@@ -61,7 +61,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    public void test10InstallPackage() {
+    public void test10InstallPackage() throws Exception {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
@@ -127,7 +127,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution()); // check startup script didn't change permissions
     }
 
-    public void test50Remove() {
+    public void test50Remove() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         remove(distribution());
@@ -178,7 +178,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         assertFalse(Files.exists(SYSTEMD_SERVICE));
     }
 
-    public void test60Reinstall() {
+    public void test60Reinstall() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         installation = install(distribution());

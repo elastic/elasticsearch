@@ -68,10 +68,10 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         );
 
         logger.info("--> Repurposing node 1");
-        executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, 1);
+        executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, 1, 1);
 
         ElasticsearchException lockedException = expectThrows(ElasticsearchException.class,
-            () -> executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, 0)
+            () -> executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, 0, 1)
         );
 
         assertThat(lockedException.getMessage(), containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG));
@@ -79,10 +79,6 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         logger.info("--> Starting node after repurpose");
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
-        ensureGreen();
-
-        // docs gone
-        assertFalse(client().prepareGet(indexName, "type1", "1").get().isExists());
         assertTrue(indexExists(indexName));
 
         logger.info("--> Restarting and repurposing other node");
@@ -90,7 +86,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(s -> true);
         internalCluster().stopRandomNode(s -> true);
 
-        executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, 0);
+        executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, 0, 0);
 
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -101,12 +97,13 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         assertFalse(indexExists(indexName));
     }
 
-    private void executeRepurposeCommandForOrdinal(Settings settings, String indexUUID, int ordinal) throws Exception {
+    private void executeRepurposeCommandForOrdinal(Settings settings, String indexUUID, int ordinal,
+                                                   int expectedShardCount) throws Exception {
         boolean verbose = randomBoolean();
         Settings settingsWithPath = Settings.builder().put(internalCluster().getDefaultSettings()).put(settings).build();
         int expectedIndexCount = TestEnvironment.newEnvironment(settingsWithPath).dataFiles().length;
         Matcher<String> matcher = allOf(
-            containsString(NodeRepurposeCommand.noMasterMessage(1, 1, expectedIndexCount)),
+            containsString(NodeRepurposeCommand.noMasterMessage(1, expectedShardCount, expectedIndexCount)),
             not(contains(NodeRepurposeCommand.PRE_V7_MESSAGE)),
             NodeRepurposeCommandTests.conditionalNot(containsString(indexUUID), verbose == false));
         NodeRepurposeCommandTests.verifySuccess(settingsWithPath, matcher,

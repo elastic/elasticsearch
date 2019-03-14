@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.action.token;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;

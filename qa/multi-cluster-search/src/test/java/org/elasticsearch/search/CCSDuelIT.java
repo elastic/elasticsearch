@@ -96,6 +96,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -222,7 +223,7 @@ public class CCSDuelIT extends ESRestTestCase {
             }
         }
         String[] tagsArray = tags.toArray(new String[0]);
-        String date = LocalDate.of(2019, 1, randomIntBetween(1, 31)).format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
+        String date = LocalDate.of(2019, 1, randomIntBetween(1, 31)).format(DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.ROOT));
         Map<String, String> joinField = new HashMap<>();
         joinField.put("name", type);
         if (questionId != null) {

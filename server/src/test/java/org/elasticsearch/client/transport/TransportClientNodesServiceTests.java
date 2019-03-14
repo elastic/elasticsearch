@@ -427,7 +427,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
             DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(transportService.getLocalDiscoNode()).build();
             ClusterState build = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
-            channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build, 0L, false));
+            channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build, false));
         }
 
         void failToRespond() {

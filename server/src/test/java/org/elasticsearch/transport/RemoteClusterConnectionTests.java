@@ -164,7 +164,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         builder.add(node);
                     }
                     ClusterState build = ClusterState.builder(clusterName).nodes(builder.build()).build();
-                    channel.sendResponse(new ClusterStateResponse(clusterName, build, 0L, false));
+                    channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
                 });
             newService.start();
             newService.acceptIncomingRequests();

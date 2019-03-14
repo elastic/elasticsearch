@@ -6,19 +6,6 @@
   - is_true: master_node
 
 ---
-"get cluster state does not return cluster state size by default":
-  - skip:
-      version: " - 6.6.99"
-      reason: "backwards compatibility break in 6.7.0 removes compressed_size* from the response"
-  - do:
-      cluster.state:
-        human: true
-
-  - is_true: master_node
-  - is_false: compressed_size_in_bytes
-  - is_false: compressed_size
-
----
 "get cluster state returns cluster_uuid at the top level":
   - skip:
       version:  " - 6.3.99"

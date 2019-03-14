@@ -129,7 +129,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
     private volatile BoundTransportAddress boundAddress;
-    private final String transportName;
 
     private final MeanMetric readBytesMetric = new MeanMetric();
     private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
@@ -141,9 +140,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final OutboundHandler outboundHandler;
     private final String nodeName;
 
-    public TcpTransport(String transportName, Settings settings, Version version, ThreadPool threadPool,
-                        PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService,
-                        NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
+    public TcpTransport(Settings settings, Version version, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
+                        CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
+                        NetworkService networkService) {
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
         this.version = version;
@@ -152,7 +151,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
-        this.transportName = transportName;
         this.transportLogger = new TransportLogger();
         this.outboundHandler = new OutboundHandler(threadPool, bigArrays, transportLogger);
         this.handshaker = new TransportHandshaker(version, threadPool,
@@ -1023,7 +1021,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 } else {
                     getInFlightRequestBreaker().addWithoutBreaking(messageLengthBytes);
                 }
-                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, features, profileName,
+                transportChannel = new TcpTransportChannel(this, channel, action, requestId, version, features, profileName,
                     messageLengthBytes, message.isCompress());
                 final TransportRequest request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
@@ -1034,7 +1032,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             // the circuit breaker tripped
             if (transportChannel == null) {
-                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, features,
+                transportChannel = new TcpTransportChannel(this, channel, action, requestId, version, features,
                     profileName, 0, message.isCompress());
             }
             try {

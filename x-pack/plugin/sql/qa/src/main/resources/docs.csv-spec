@@ -193,7 +193,8 @@ LAST_VALUE       |AGGREGATE
 MAX              |AGGREGATE      
 MIN              |AGGREGATE      
 SUM              |AGGREGATE      
-KURTOSIS         |AGGREGATE      
+KURTOSIS         |AGGREGATE
+MAD              |AGGREGATE      
 PERCENTILE       |AGGREGATE      
 PERCENTILE_RANK  |AGGREGATE      
 SKEWNESS         |AGGREGATE      
@@ -1181,6 +1182,16 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, KURTOSIS(salary) AS k FROM emp;
 ---------------+---------------+------------------
 25324          |74999          |2.0444718929142986
 // end::aggKurtosis
+;
+
+aggMad
+// tag::aggMad
+SELECT MIN(salary) AS min, MAX(salary) AS max, AVG(salary) AS avg, MAD(salary) AS mad FROM emp;
+
+      min      |      max      |      avg      |      mad      
+---------------+---------------+---------------+---------------
+25324          |74999          |48248.55       |10096.5   
+// end::aggMad
 ;
 
 aggPercentile

@@ -16,7 +16,8 @@ LAST_VALUE       |AGGREGATE
 MAX              |AGGREGATE
 MIN              |AGGREGATE      
 SUM              |AGGREGATE      
-KURTOSIS         |AGGREGATE      
+KURTOSIS         |AGGREGATE
+MAD              |AGGREGATE      
 PERCENTILE       |AGGREGATE      
 PERCENTILE_RANK  |AGGREGATE      
 SKEWNESS         |AGGREGATE      

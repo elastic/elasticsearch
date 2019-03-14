@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Locale;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.stopElasticsearch;
@@ -169,8 +170,8 @@ public abstract class ServiceManagerTestCase extends PackagingTestCase {
         stopElasticsearch(installation);
     }
 
-    private String run(Shell sh, String command, String... args) {
-        String formattedCommand = String.format(command, args);
+    private String run(Shell sh, String command, Object ... args) {
+        String formattedCommand = String.format(Locale.ROOT, command, args);
         return sh.run(formattedCommand).stdout.trim();
     }
 

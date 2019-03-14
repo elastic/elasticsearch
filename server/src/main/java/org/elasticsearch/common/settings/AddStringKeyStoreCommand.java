@@ -21,7 +21,6 @@ package org.elasticsearch.common.settings;
 
 import java.io.BufferedReader;
 import java.io.CharArrayWriter;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -95,8 +94,6 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
                     writer.write((char) charInt);
                 }
                 value = writer.toCharArray();
-            } catch (IOException e) {
-                throw new UserException(ExitCodes.DATA_ERROR, "Error reading the value from stdin", e);
             }
         } else {
             value = terminal.readSecret("Enter value for " + setting + ": ");

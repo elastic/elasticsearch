@@ -23,15 +23,16 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -41,11 +42,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 
 public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<DataFrameAnalyticsConfig> {
 
@@ -90,9 +88,13 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
             .setSource(source)
             .setDest(dest);
         if (randomBoolean()) {
-            builder.setQuery(
-                Collections.singletonMap(TermQueryBuilder.NAME,
-                    Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10))), true);
+            try {
+                builder.setQueryProvider(
+                    QueryProvider.fromParsedQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10))));
+            } catch (IOException e) {
+                // Should never happen
+                throw new UncheckedIOException(e);
+            }
         }
         if (randomBoolean()) {
             builder.setAnalysesFields(new FetchSourceContext(true,
@@ -155,7 +157,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                 ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS)) {
 
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
-            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> config.getParsedQuery());
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> config.getParsedQuery(xContentRegistry()));
             assertEquals("[match] query doesn't support multiple fields, found [query] and [type]", e.getMessage());
         }
 
@@ -195,20 +197,6 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
 
         parsedConfig = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
         assertThat(parsedConfig.getHeaders().entrySet(), hasSize(0));
-    }
-
-    public void testGetQueryDeprecations() {
-        DataFrameAnalyticsConfig dataFrame = createTestInstance();
-        String deprecationWarning = "Warning";
-        List<String> deprecations = dataFrame.getQueryDeprecations((map, id, deprecationlist) -> {
-            deprecationlist.add(deprecationWarning);
-            return new BoolQueryBuilder();
-        });
-        assertThat(deprecations, hasItem(deprecationWarning));
-
-        DataFrameAnalyticsConfig spiedConfig = spy(dataFrame);
-        spiedConfig.getQueryDeprecations();
-        verify(spiedConfig).getQueryDeprecations(DataFrameAnalyticsConfig.lazyQueryParser);
     }
 
     public void testInvalidModelMemoryLimits() {

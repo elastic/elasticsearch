@@ -14,6 +14,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -115,16 +116,18 @@ public class DataFrameDataExtractorFactory {
      *
      * @param client ES Client to make calls
      * @param config Analytics config to validate
+     * @param xContentRegistry The XContent registry that knows valid names in search DSL
      * @param listener The listener to notify on failure or completion
      */
     public static void validateConfigAndSourceIndex(Client client,
                                                     DataFrameAnalyticsConfig config,
+                                                    NamedXContentRegistry xContentRegistry,
                                                     ActionListener<Boolean> listener) {
         Set<String> resultFields = resolveResultsFields(config);
         validateIndexAndExtractFields(client, config.getHeaders(), config.getSource(), config.getAnalysesFields(), resultFields,
             ActionListener.wrap(
                 fields -> {
-                    config.getParsedQuery(); // validate query is acceptable
+                    config.getParsedQuery(xContentRegistry); // validate query is acceptable
                     listener.onResponse(true);
                 },
                 listener::onFailure

@@ -148,7 +148,8 @@ public class DataFrameFeatureSetTests extends ESTestCase {
                 if (combinedStats.isPresent()) {
                     assertEquals(toIntExact(combinedStats.get().getIndexFailures()),
                             XContentMapValues.extractValue("stats.index_failures", usageAsMap));
-                    assertEquals(toIntExact(combinedStats.get().getIndexTotal()), XContentMapValues.extractValue("stats.index_total", usageAsMap));
+                    assertEquals(toIntExact(combinedStats.get().getIndexTotal()),
+                            XContentMapValues.extractValue("stats.index_total", usageAsMap));
                     assertEquals(toIntExact(combinedStats.get().getSearchTime()),
                             XContentMapValues.extractValue("stats.search_time_in_ms", usageAsMap));
                     assertEquals(toIntExact(combinedStats.get().getNumDocuments()),

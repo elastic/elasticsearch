@@ -11,19 +11,20 @@ POST _ml/set_upgrade_mode?enabled=false
 // TEARDOWN
 ////////////
 
-If your {ml} indices were created before {prev-major-version}, they
-must be reindexed. To reindex, you must {stack-ov}/stopping-ml.html[stop
-all {dfeeds} and close all {ml} jobs].
+If your {ml} indices were created before {prev-major-version}, you must stop
+all {dfeeds} and close all {ml} jobs then
+<<reindex-upgrade,reindex the indices>>.
 
 If your {ml} indices were created in {prev-major-version}, you can:
 
-* Opt to leave your {ml} jobs running during the upgrade. When you shut down an
-{ml} node, its jobs automatically move to another node. This enables your jobs
-to continue running during the upgrade, but puts increased load on the cluster.
+* Leave your {ml} jobs running during the upgrade. When you shut down a
+{ml} node, its jobs automatically move to another node and restore the model
+states. This option enables your jobs to continue running during the upgrade but
+it puts increased load on the cluster.
 
-* Use the <<ml-set-upgrade-mode,set upgrade mode API>> to temporarily halt the
-tasks associated with your {ml} jobs and {dfeeds} and prevent new jobs from
-opening:
+* Temporarily halt the tasks associated with your {ml} jobs and {dfeeds} and
+prevent new jobs from opening by using the
+<<ml-set-upgrade-mode,set upgrade mode API>>:
 +
 --
 [source,js]
@@ -33,13 +34,13 @@ POST _ml/set_upgrade_mode?enabled=true
 // CONSOLE
 
 When you disable upgrade mode, the jobs resume using the last model
-state that was automatically saved. This reduces the overhead of running {ml}
-jobs during the upgrade and is faster than explicitly stopping {dfeeds} and
-closing jobs.
+state that was automatically saved. This option avoids the overhead of managing
+active jobs during the upgrade and is faster than explicitly stopping {dfeeds}
+and closing jobs.
 --
 
-* Explicitly {stack-ov}/stopping-ml.html[stop all {dfeeds} and close all jobs].
-This saves the model state at the time of closure. When you reopen the jobs,
-they use the exact same model. However, saving the latest model state takes
-longer than enabling upgrade mode, especially if you have a lot of jobs or jobs
-with large model states.
+* {stack-ov}/stopping-ml.html[Stop all {dfeeds} and close all jobs]. This option
+saves the model state at the time of closure. When you reopen the jobs after the
+upgrade, they use the exact same model. However, saving the latest model state
+takes longer than using upgrade mode, especially if you have a lot of jobs or
+jobs with large model states.

@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
 
 /*
  * Licensed to Elasticsearch under one or more contributor

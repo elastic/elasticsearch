@@ -58,7 +58,7 @@ Further more, an {es} `cluster` can be connected to other ++cluster++s in a _fed
 single cluster::
 Multiple {es} instances typically distributed across machines, running within the same namespace.
 multiple clusters::
-Multiple clusters, each with its own namespace, connected to each other in a federated setup (see <<modules-cross-cluster-search, Cross cluster Search>>).
+Multiple clusters, each with its own namespace, connected to each other in a federated setup (see <<modules-cross-cluster-search, {ccs-cap}>>).
 
 |===
 

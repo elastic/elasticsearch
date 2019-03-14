@@ -1168,22 +1168,22 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         authorize(authentication, action, request);
 
-        verify(auditTrail).explicitAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
+        verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
                 eq(DeleteAction.NAME), eq("concrete-index"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
-        verify(auditTrail).explicitAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
+        verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
                 eq(DeleteAction.NAME), eq("alias-2"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
-        verify(auditTrail).explicitAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
+        verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
                 eq(IndexAction.NAME), eq("concrete-index"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
-        verify(auditTrail).explicitAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
+        verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
                 eq(IndexAction.NAME), eq("alias-1"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
-        verify(auditTrail).explicitAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_DENIED), eq(authentication),
+        verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_DENIED), eq(authentication),
                 eq(DeleteAction.NAME), eq("alias-1"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
-        verify(auditTrail).explicitAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_DENIED), eq(authentication),
+        verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_DENIED), eq(authentication),
                 eq(IndexAction.NAME), eq("alias-2"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
@@ -1214,10 +1214,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorize(authentication, action, request);
 
         // both deletes should fail
-        verify(auditTrail, times(2)).explicitAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_DENIED), eq(authentication),
+        verify(auditTrail, times(2)).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_DENIED), eq(authentication),
                 eq(DeleteAction.NAME), Matchers.startsWith("datemath-"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
-        verify(auditTrail, times(2)).explicitAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
+        verify(auditTrail, times(2)).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
                 eq(IndexAction.NAME), Matchers.startsWith("datemath-"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
         // bulk request is allowed

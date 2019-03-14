@@ -500,11 +500,11 @@ public class AuthorizationService {
                             final IndicesAccessControl.IndexAccessControl indexAccessControl
                                 = indicesAccessControl.getIndexPermissions(resolvedIndex);
                             if (indexAccessControl == null || indexAccessControl.isGranted() == false) {
-                                auditTrail.explicitAccessEvent(requestId, AuditLevel.ACCESS_DENIED, authentication, itemAction,
+                                auditTrail.explicitIndexAccessEvent(requestId, AuditLevel.ACCESS_DENIED, authentication, itemAction,
                                         resolvedIndex, item.getClass().getSimpleName(), request.remoteAddress(), authzInfo);
                                 item.abort(resolvedIndex, denialException(authentication, itemAction, null));
                             } else if (audit.get()) {
-                                auditTrail.explicitAccessEvent(requestId, AuditLevel.ACCESS_GRANTED, authentication, itemAction,
+                                auditTrail.explicitIndexAccessEvent(requestId, AuditLevel.ACCESS_GRANTED, authentication, itemAction,
                                         resolvedIndex, item.getClass().getSimpleName(), request.remoteAddress(), authzInfo);
                             }
                         }

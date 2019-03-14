@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -43,11 +42,7 @@ public class DocsStats implements Streamable, Writeable, ToXContentFragment {
     public DocsStats(StreamInput in) throws IOException {
         count = in.readVLong();
         deleted = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            totalSizeInBytes = in.readVLong();
-        } else {
-            totalSizeInBytes = -1;
-        }
+        totalSizeInBytes = in.readVLong();
     }
 
     public DocsStats(long count, long deleted, long totalSizeInBytes) {

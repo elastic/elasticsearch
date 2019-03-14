@@ -21,7 +21,6 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -304,13 +303,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
         terminatedEarly = in.readOptionalBoolean();
         profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
         hasProfileResults = profileShardResults != null;
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            serviceTimeEWMA = in.readZLong();
-            nodeQueueSize = in.readInt();
-        } else {
-            serviceTimeEWMA = -1;
-            nodeQueueSize = -1;
-        }
+        serviceTimeEWMA = in.readZLong();
+        nodeQueueSize = in.readInt();
     }
 
     @Override
@@ -348,10 +342,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeBoolean(searchTimedOut);
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileShardResults);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeZLong(serviceTimeEWMA);
-            out.writeInt(nodeQueueSize);
-        }
+        out.writeZLong(serviceTimeEWMA);
+        out.writeInt(nodeQueueSize);
     }
 
     public TotalHits getTotalHits() {

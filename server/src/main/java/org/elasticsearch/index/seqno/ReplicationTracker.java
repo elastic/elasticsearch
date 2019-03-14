@@ -21,7 +21,6 @@ package org.elasticsearch.index.seqno;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -388,16 +387,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             this.localCheckpoint = in.readZLong();
             this.globalCheckpoint = in.readZLong();
             this.inSync = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-                this.tracked = in.readBoolean();
-            } else {
-                // Every in-sync shard copy is also tracked (see invariant). This was the case even in earlier ES versions.
-                // Non in-sync shard copies might be tracked or not. As this information here is only serialized during relocation hand-off,
-                // after which replica recoveries cannot complete anymore (i.e. they cannot move from in-sync == false to in-sync == true),
-                // we can treat non in-sync replica shard copies as untracked. They will go through a fresh recovery against the new
-                // primary and will become tracked again under this primary before they are marked as in-sync.
-                this.tracked = inSync;
-            }
+            this.tracked = in.readBoolean();
         }
 
         @Override
@@ -405,9 +395,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             out.writeZLong(localCheckpoint);
             out.writeZLong(globalCheckpoint);
             out.writeBoolean(inSync);
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-                out.writeBoolean(tracked);
-            }
+            out.writeBoolean(tracked);
         }
 
         /**

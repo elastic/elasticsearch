@@ -233,7 +233,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 final String java = sh.runIgnoreExitCode("mktemp -d --sufix=\"java home\"").stdout.trim();
                 final String temp = sh.runIgnoreExitCode("which java").stdout.trim();
                 sh.runIgnoreExitCode("mktemp -p " + temp + "/bin");
-                sh.runIgnoreExitCode("ln -s " + java + " " + temp + "/bin/java");
+                sh.runIgnoreExitCode("ln -s \"" + java + "\" " + temp + "/bin/java");
                 sh.getEnv().put("JAVA_HOME", temp);
 
                 //verify ES can start, stop and run plugin list

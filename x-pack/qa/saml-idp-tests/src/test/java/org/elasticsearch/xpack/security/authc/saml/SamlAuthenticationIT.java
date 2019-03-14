@@ -34,6 +34,7 @@ import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.protocol.HttpCoreContext;
 import org.apache.http.util.CharArrayBuffer;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.SuppressForbidden;
@@ -373,6 +374,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         form.setEntity(new UrlEncodedFormEntity(params));
 
         final String redirect = execute(client, form, context, response -> {
+            logger.debug(EntityUtils.toString(response.getEntity()));
             assertThat(response.getStatusLine().getStatusCode(), equalTo(302));
             return response.getFirstHeader("Location").getValue();
         });

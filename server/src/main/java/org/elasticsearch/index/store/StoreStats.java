@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.store;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -40,9 +39,6 @@ public class StoreStats implements Streamable, Writeable, ToXContentFragment {
 
     public StoreStats(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
-        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-            in.readVLong(); // throttleTimeInNanos
-        }
     }
 
     public StoreStats(long sizeInBytes) {
@@ -81,9 +77,6 @@ public class StoreStats implements Streamable, Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-            out.writeVLong(0L); // throttleTimeInNanos
-        }
     }
 
     @Override

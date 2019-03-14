@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -148,11 +147,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         }
 
         private ExistingStoreRecoverySource(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
-                bootstrapNewHistoryUUID = in.readBoolean();
-            } else {
-                bootstrapNewHistoryUUID = false;
-            }
+            bootstrapNewHistoryUUID = in.readBoolean();
         }
 
         @Override
@@ -162,9 +157,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
-                out.writeBoolean(bootstrapNewHistoryUUID);
-            }
+            out.writeBoolean(bootstrapNewHistoryUUID);
         }
 
         @Override
@@ -222,11 +215,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         }
 
         SnapshotRecoverySource(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-                restoreUUID = in.readString();
-            } else {
-                restoreUUID = RestoreInProgress.BWC_UUID;
-            }
+            restoreUUID = in.readString();
             snapshot = new Snapshot(in);
             version = Version.readVersion(in);
             index = in.readString();
@@ -250,9 +239,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-                out.writeString(restoreUUID);
-            }
+            out.writeString(restoreUUID);
             snapshot.writeTo(out);
             Version.writeVersion(version, out);
             out.writeString(index);

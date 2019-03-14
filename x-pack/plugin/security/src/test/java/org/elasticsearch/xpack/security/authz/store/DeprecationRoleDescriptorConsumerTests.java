@@ -175,12 +175,12 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
                 null);
         final DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(mockClusterService(metaData),
                 threadPool, deprecationLogger);
-        final String cacheKeyBefore = DeprecationRoleDescriptorConsumer.buildCacheKey(someRole.getName());
+        final String cacheKeyBefore = DeprecationRoleDescriptorConsumer.buildCacheKey(someRole);
         deprecationConsumer.accept(Arrays.asList(someRole));
         verifyLogger(deprecationLogger, "someRole", "bar", "foo");
         verifyNoMoreInteractions(deprecationLogger);
         deprecationConsumer.accept(Arrays.asList(someRole));
-        final String cacheKeyAfter = DeprecationRoleDescriptorConsumer.buildCacheKey(someRole.getName());
+        final String cacheKeyAfter = DeprecationRoleDescriptorConsumer.buildCacheKey(someRole);
         // we don't do this test if it crosses days
         if (false == cacheKeyBefore.equals(cacheKeyAfter)) {
             return;
@@ -191,7 +191,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
                         indexPrivileges("write", "i*", "baz")},
                 null);
         deprecationConsumer.accept(Arrays.asList(differentRoleSameName));
-        final String cacheKeyAfterParty = DeprecationRoleDescriptorConsumer.buildCacheKey(differentRoleSameName.getName());
+        final String cacheKeyAfterParty = DeprecationRoleDescriptorConsumer.buildCacheKey(differentRoleSameName);
         // we don't do this test if it crosses days
         if (false == cacheKeyBefore.equals(cacheKeyAfterParty)) {
             return;

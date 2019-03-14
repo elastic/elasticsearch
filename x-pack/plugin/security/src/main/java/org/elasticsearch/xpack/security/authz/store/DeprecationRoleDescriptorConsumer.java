@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -31,25 +31,25 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
- * Inspects for aliases that have greater privileges than the indices that they point to and logs the role descriptor as deprecated.
- * This is done in preparation for the removal of the ability to define privileges over aliases.
- * The log messages are generated asynchronously and do not generate deprecation response headers.
- * One log entry is generated for each role descriptor and alias pair, and it contains all the indices for which
- * privileges are a subset of those of the alias. In this case, the administrator has to adjust the index privileges
- * definition such that name patterns do not cover aliases.
- * If no logging is generated then the roles used for the current indices and aliases are not vulnerable to the
- * ensuing breaking change. However, there could be role descriptors that are never used and are invisible to this check. Moreover,
- * role descriptors can be dynamically added by role providers. In addition, role descriptors are merged when building the effective
- * role, so a role name reported as deprecated might not actually have an impact (if other role descriptors cover its indices).
- * The check iterates over all indices and aliases for each role descriptor so it is quite expensive computationally.
- * For this reason the check is done only once a day for each role. If the role definitions stay the same, the deprecations
- * can change from one day to another only if aliases or indices are added.
+ * Inspects all aliases that have greater privileges than the indices that they point to and logs the role descriptor, granting privileges
+ * in this manner, as deprecated and requiring changes. This is done in preparation for the removal of the ability to define privileges over
+ * aliases. The log messages are generated asynchronously and do not generate deprecation response headers. One log entry is generated for
+ * each role descriptor and alias pair, and it contains all the indices for which privileges are a subset of those of the alias. In this
+ * case, the administrator has to adjust the index privileges definition of the respective role such that name patterns do not cover aliases
+ * (or rename aliases). If no logging is generated then the roles used for the current indices and aliases are not vulnerable to the
+ * subsequent breaking change. However, there could be role descriptors that are not used (not mapped to a user that is currently using the
+ * system) which are invisible to this check. Moreover, role descriptors can be dynamically added by role providers. In addition, role
+ * descriptors are merged when building the effective role, so a role-alias pair reported as deprecated might not actually have an impact if
+ * other role descriptors cover its indices. The check iterates over all indices and aliases for each role descriptor so it is quite
+ * expensive computationally. For this reason the check is done only once a day for each role. If the role definitions stay the same, the
+ * deprecations can change from one day to another only if aliases or indices are added.
  */
 public final class DeprecationRoleDescriptorConsumer implements Consumer<Collection<RoleDescriptor>> {
 
@@ -63,16 +63,15 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     private final ThreadPool threadPool;
     private final Set<String> dailyRoleCache;
 
-    public DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool,
-                                             DeprecationLogger deprecationLogger) {
+    public DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool, DeprecationLogger deprecationLogger) {
         this.deprecationLogger = deprecationLogger;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        // this String Set keeps "<role>-<date>" pairs so that we only log a role once a day.
+        // this String Set keeps "<date>-<role>" pairs so that we only log a role once a day.
         this.dailyRoleCache = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<String, Boolean>() {
             @Override
             protected boolean removeEldestEntry(final Map.Entry<String, Boolean> eldest) {
-                return size() > 128;
+                return false == eldest.getKey().startsWith(todayISODate());
             }
         }));
     }
@@ -89,10 +88,9 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     }
 
     private void logDeprecatedPermission(Collection<RoleDescriptor> effectiveRoleDescriptors,
-                                         SortedMap<String, AliasOrIndex> aliasOrIndexMap) {
-        for (final RoleDescriptor roleDescriptor : effectiveRoleDescriptors) {
-            final String cacheKey = buildCacheKey(roleDescriptor.getName());
-            if (false == isCached(cacheKey)) {
+            SortedMap<String, AliasOrIndex> aliasOrIndexMap) {
+        for (RoleDescriptor roleDescriptor : effectiveRoleDescriptors) {
+            if (dailyRoleCache.add(buildCacheKey(roleDescriptor))) {
                 final Map<String, Set<String>> privilegesByAliasMap = new HashMap<>();
                 // sort answer by alias for tests
                 final SortedMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();
@@ -117,13 +115,13 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                 }
                 // compute privileges Automaton for each alias and for each of the indices it points to
                 final Map<String, Automaton> indexAutomatonMap = new HashMap<>();
-                for (final Map.Entry<String, Set<String>> privilegesByAlias : privilegesByAliasMap.entrySet()) {
+                for (Map.Entry<String, Set<String>> privilegesByAlias : privilegesByAliasMap.entrySet()) {
                     final String aliasName = privilegesByAlias.getKey();
                     final Set<String> aliasPrivilegeNames = privilegesByAlias.getValue();
                     final Automaton aliasPrivilegeAutomaton = IndexPrivilege.get(aliasPrivilegeNames).getAutomaton();
-                    final TreeSet<String> inferiorIndexNames = new TreeSet<>();
+                    final SortedSet<String> inferiorIndexNames = new TreeSet<>();
                     // check if the alias grants superiors privileges than the indices it points to
-                    for (final IndexMetaData indexMetadata : aliasOrIndexMap.get(aliasName).getIndices()) {
+                    for (IndexMetaData indexMetadata : aliasOrIndexMap.get(aliasName).getIndices()) {
                         final String indexName = indexMetadata.getIndex().getName();
                         final Set<String> indexPrivileges = privilegesByIndexMap.get(indexName);
                         // null iff the index does not have *any* privilege
@@ -131,7 +129,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                             // compute automaton once per index no matter how many times it is pointed to
                             final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(indexName,
                                     i -> IndexPrivilege.get(indexPrivileges).getAutomaton());
-                            if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
+                            if (Operations.subsetOf(aliasPrivilegeAutomaton, indexPrivilegeAutomaton)) {
                                 inferiorIndexNames.add(indexName);
                             }
                         } else {
@@ -145,24 +143,16 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                         deprecationLogger.deprecated(logMessage);
                     }
                 }
-                // mark role as checked for "today"
-                addToCache(cacheKey);
             }
         }
     }
 
-    private boolean isCached(String cacheKey) {
-        return dailyRoleCache.contains(cacheKey);
-    }
-
-    private boolean addToCache(String cacheKey) {
-        return dailyRoleCache.add(cacheKey);
+    private static String todayISODate() {
+        return ZonedDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE);
     }
 
     // package-private for testing
-    static String buildCacheKey(String roleName) {
-        final String daysSinceEpoch =  ZonedDateTime.now(ZoneId.of("UTC")).format(DateTimeFormatter.BASIC_ISO_DATE);
-        final StringBuilder sb = new StringBuilder();
-        return sb.append(roleName).append('-').append(daysSinceEpoch).toString();
+    static String buildCacheKey(RoleDescriptor roleDescriptor) {
+        return todayISODate() + "-" + roleDescriptor.getName();
     }
 }

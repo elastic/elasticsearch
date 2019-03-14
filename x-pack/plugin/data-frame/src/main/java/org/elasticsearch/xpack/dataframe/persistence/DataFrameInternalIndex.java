@@ -30,7 +30,10 @@ public final class DataFrameInternalIndex {
     public static final String INDEX_TEMPLATE_PATTERN = ".data-frame-internal-";
     public static final String INDEX_TEMPLATE_NAME = INDEX_TEMPLATE_PATTERN + INDEX_TEMPLATE_VERSION;
     public static final String INDEX_NAME = INDEX_TEMPLATE_NAME;
-    public static final String AUDIT_INDEX = ".data-frame-notifications";
+
+    public static final String AUDIT_TEMPLATE_VERSION = "1";
+    public static final String AUDIT_INDEX_PREFIX = ".data-frame-notifications-";
+    public static final String AUDIT_INDEX = AUDIT_INDEX_PREFIX + AUDIT_TEMPLATE_VERSION;
 
     // constants for mappings
     public static final String DYNAMIC = "dynamic";
@@ -60,10 +63,10 @@ public final class DataFrameInternalIndex {
 
     public static IndexTemplateMetaData getAuditIndexTemplateMetaData() throws IOException {
         IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(AUDIT_INDEX)
-            .patterns(Collections.singletonList(AUDIT_INDEX))
+            .patterns(Collections.singletonList(AUDIT_INDEX_PREFIX + "*"))
             .version(Version.CURRENT.id)
             .settings(Settings.builder()
-                // the configurations are expected to be small
+                // the audits are expected to be small
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
             .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(auditMappings()))
@@ -75,6 +78,7 @@ public final class DataFrameInternalIndex {
         XContentBuilder builder = jsonBuilder().startObject();
         builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
+        builder.field(DYNAMIC, "false");
         builder.startObject(PROPERTIES)
             .startObject(DATA_FRAME_TRANSFORM_AUDIT_ID_FIELD)
             .field(TYPE, KEYWORD)

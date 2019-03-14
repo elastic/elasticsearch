@@ -1047,7 +1047,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(StopDataFrameTransformAction.NAME, request), is(true));
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertOnlyReadAllowed(role, ".data-frame-notifications");
+        assertOnlyReadAllowed(role, ".data-frame-notifications-1");
         assertNoAccessAllowed(role, "foo");
         assertNoAccessAllowed(role, ".data-frame-internal-1"); // internal use only
 
@@ -1071,7 +1071,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(StopDataFrameTransformAction.NAME, request), is(false));
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertOnlyReadAllowed(role, ".data-frame-notifications");
+        assertOnlyReadAllowed(role, ".data-frame-notifications-1");
         assertNoAccessAllowed(role, "foo");
         assertNoAccessAllowed(role, ".data-frame-internal-1");
 

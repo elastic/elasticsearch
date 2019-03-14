@@ -821,10 +821,6 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             
             assertEquals(results.getDate("test_date"), new java.sql.Date(connCalendar.getTimeInMillis()));
             assertEquals(results.getDate(9), new java.sql.Date(connCalendar.getTimeInMillis()));
-            assertEquals(results.getObject("test_date", java.sql.Date.class),
-                    new java.sql.Date(randomLongDate - (randomLongDate % 86400000L)));
-            assertEquals(results.getObject(9, java.sql.Date.class),
-                    new java.sql.Date(randomLongDate - (randomLongDate % 86400000L)));
 
             // bulk validation for all fields which are not of type date
             validateErrorsForDateTimeTestsWithoutCalendar(results::getDate);
@@ -1006,7 +1002,67 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertNull(results.getTimestamp("test_date"));
         });
     }
-    
+
+    public void testScalarOnDates() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
+
+        // 2018-03-12 17:00:00 UTC
+        Long dateInMillis = 1520874000000L;
+        index("test", "1", builder -> builder.field("test_date", dateInMillis));
+
+        // UTC +10 hours
+        String timeZoneId1 = "Etc/GMT-10";
+        Calendar connCalendar1 = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId1), Locale.ROOT);
+
+        doWithQueryAndTimezone("SELECT test_date, DAY_OF_MONTH(test_date) as day FROM test", timeZoneId1, results -> {
+            results.next();
+            connCalendar1.setTimeInMillis(dateInMillis);
+            connCalendar1.set(HOUR_OF_DAY, 0);
+            connCalendar1.set(MINUTE, 0);
+            connCalendar1.set(SECOND, 0);
+            connCalendar1.set(MILLISECOND, 0);
+
+            assertEquals(new java.sql.Date(connCalendar1.getTimeInMillis()), results.getDate("test_date"));
+            assertEquals(new java.sql.Date(connCalendar1.getTimeInMillis()), results.getDate(1));
+            assertEquals(new java.sql.Date(dateInMillis - (dateInMillis % 86400000L)), results.getObject("test_date", java.sql.Date.class));
+            assertEquals(new java.sql.Date(dateInMillis - (dateInMillis % 86400000L)), results.getObject(1, java.sql.Date.class));
+
+            // +1 day
+            assertEquals(13, results.getInt("day"));
+        });
+
+        delete("test", "1");
+
+        // 2018-03-12 05:00:00 UTC
+        Long dateInMillis2 = 1520830800000L;
+        index("test", "1", builder -> builder.field("test_date", dateInMillis2));
+
+        // UTC -10 hours
+        String timeZoneId2 = "Etc/GMT+10";
+        Calendar connCalendar2 = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId2), Locale.ROOT);
+
+
+        doWithQueryAndTimezone("SELECT test_date, DAY_OF_MONTH(test_date) as day FROM test", timeZoneId2, results -> {
+            results.next();
+            connCalendar2.setTimeInMillis(dateInMillis2);
+            connCalendar2.set(HOUR_OF_DAY, 0);
+            connCalendar2.set(MINUTE, 0);
+            connCalendar2.set(SECOND, 0);
+            connCalendar2.set(MILLISECOND, 0);
+
+            assertEquals(new java.sql.Date(connCalendar2.getTimeInMillis()), results.getDate("test_date"));
+            assertEquals(new java.sql.Date(connCalendar2.getTimeInMillis()), results.getDate(1));
+            assertEquals(new java.sql.Date(dateInMillis2 - (dateInMillis2 % 86400000L)),
+                results.getObject("test_date", java.sql.Date.class));
+            assertEquals(new java.sql.Date(dateInMillis2 - (dateInMillis2 % 86400000L)),
+                results.getObject(1, java.sql.Date.class));
+
+            // -1 day
+            assertEquals(11, results.getInt("day"));
+        });
+    }
+
     public void testValidGetObjectCalls() throws Exception {
         createIndex("test");
         updateMappingForNumericValuesTests("test");

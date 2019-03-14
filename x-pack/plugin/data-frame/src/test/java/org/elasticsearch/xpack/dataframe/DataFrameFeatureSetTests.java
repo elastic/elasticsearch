@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
 import static java.lang.Math.toIntExact;
@@ -73,7 +74,6 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         assertTrue(featureSet.enabled());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40022")
     public void testUsage() throws InterruptedException, ExecutionException, IOException {
         Client client = mock(Client.class);
         when(licenseState.isDataFrameAllowed()).thenReturn(true);
@@ -142,16 +142,18 @@ public class DataFrameFeatureSetTests extends ESTestCase {
                 transformConfigWithoutTasks.forEach(ignored -> stateCounts.merge(IndexerState.STOPPED.value(), 1, Integer::sum));
                 stateCounts.forEach((k, v) -> assertEquals(v, XContentMapValues.extractValue("transforms." + k, usageAsMap)));
 
-                DataFrameIndexerTransformStats combinedStats = transformsStateAndStats.stream().map(x -> x.getTransformStats())
-                        .reduce((l, r) -> l.merge(r)).get();
+                Optional<DataFrameIndexerTransformStats> combinedStats = transformsStateAndStats.stream().map(x -> x.getTransformStats())
+                        .reduce((l, r) -> l.merge(r));
 
-                assertEquals(toIntExact(combinedStats.getIndexFailures()),
-                        XContentMapValues.extractValue("stats.index_failures", usageAsMap));
-                assertEquals(toIntExact(combinedStats.getIndexTotal()), XContentMapValues.extractValue("stats.index_total", usageAsMap));
-                assertEquals(toIntExact(combinedStats.getSearchTime()),
-                        XContentMapValues.extractValue("stats.search_time_in_ms", usageAsMap));
-                assertEquals(toIntExact(combinedStats.getNumDocuments()),
-                        XContentMapValues.extractValue("stats.documents_processed", usageAsMap));
+                if (combinedStats.isPresent()) {
+                    assertEquals(toIntExact(combinedStats.get().getIndexFailures()),
+                            XContentMapValues.extractValue("stats.index_failures", usageAsMap));
+                    assertEquals(toIntExact(combinedStats.get().getIndexTotal()), XContentMapValues.extractValue("stats.index_total", usageAsMap));
+                    assertEquals(toIntExact(combinedStats.get().getSearchTime()),
+                            XContentMapValues.extractValue("stats.search_time_in_ms", usageAsMap));
+                    assertEquals(toIntExact(combinedStats.get().getNumDocuments()),
+                            XContentMapValues.extractValue("stats.documents_processed", usageAsMap));
+                }
             }
         }
     }

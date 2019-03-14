@@ -152,8 +152,9 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         } finally {
             assertTrue(stopReconnecting.compareAndSet(false, true));
             reconnectionThread.join();
-            ensureConnections(service);
         }
+
+        ensureConnections(service);
     }
 
     public void testPeriodicReconnection() {

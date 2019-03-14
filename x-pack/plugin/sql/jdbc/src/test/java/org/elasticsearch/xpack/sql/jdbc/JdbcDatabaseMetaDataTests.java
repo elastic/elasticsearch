@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.jdbc.JdbcDatabaseMetaData;
 
 public class JdbcDatabaseMetaDataTests extends ESTestCase {
 
@@ -17,6 +16,5 @@ public class JdbcDatabaseMetaDataTests extends ESTestCase {
         assertEquals(":", md.getCatalogSeparator());
         assertEquals("\"", md.getIdentifierQuoteString());
         assertEquals("\\", md.getSearchStringEscape());
-        
     }
 }

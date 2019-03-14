@@ -161,6 +161,10 @@ class JdbcConfiguration extends ConnectionConfiguration {
         return OPTION_NAMES;
     }
 
+    ZoneId zoneId() {
+        return zoneId;
+    }
+
     public boolean debug() {
         return debug;
     }
@@ -171,10 +175,6 @@ class JdbcConfiguration extends ConnectionConfiguration {
 
     public TimeZone timeZone() {
         return zoneId != null ? TimeZone.getTimeZone(zoneId) : null;
-    }
-
-    public void timeZone(TimeZone timeZone) {
-        this.zoneId = timeZone != null ? timeZone.toZoneId() : null;
     }
 
     public static boolean canAccept(String url) {

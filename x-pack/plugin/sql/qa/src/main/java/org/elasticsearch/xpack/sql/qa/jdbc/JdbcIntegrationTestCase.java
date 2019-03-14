@@ -93,6 +93,12 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         client().performRequest(request);
     }
 
+    public static void delete(String index, String documentId) throws IOException {
+        Request request = new Request("DELETE", "/" + index + "/_doc/" + documentId);
+        request.addParameter("refresh", "true");
+        client().performRequest(request);
+    }
+
     protected String clusterName() {
         try {
             String response = EntityUtils.toString(client().performRequest(new Request("GET", "/")).getEntity());

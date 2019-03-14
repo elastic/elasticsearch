@@ -256,6 +256,7 @@ public class RestHighLevelClient implements Closeable {
     private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
     private final RollupClient rollupClient = new RollupClient(this);
     private final CcrClient ccrClient = new CcrClient(this);
+    private final DataFrameClient dataFrameClient = new DataFrameClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -464,6 +465,19 @@ public class RestHighLevelClient implements Closeable {
      */
     public SecurityClient security() {
         return securityClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Data Frame APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="TODO">Data Frame APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making Data Frame API calls
+     */
+    public DataFrameClient dataFrame() {
+        return dataFrameClient;
     }
 
     /**

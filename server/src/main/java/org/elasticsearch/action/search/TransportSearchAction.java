@@ -80,6 +80,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
@@ -246,6 +247,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return false;
         }
         if (searchRequest.scroll() != null) {
+            return false;
+        }
+        if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
             return false;
         }
         SearchSourceBuilder source = searchRequest.source();

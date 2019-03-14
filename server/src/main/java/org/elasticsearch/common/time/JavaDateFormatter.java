@@ -150,7 +150,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public String format(TemporalAccessor accessor) {
-        return printer.format(accessor);
+        return printer.format(DateFormatters.from(accessor));
     }
 
     @Override

@@ -23,7 +23,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -1090,28 +1089,15 @@ public abstract class TransportReplicationAction<
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                localCheckpoint = in.readZLong();
-            } else {
-                // 5.x used to read empty responses, which don't really read anything off the stream, so just do nothing.
-                localCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
-            }
-            if (in.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
-                globalCheckpoint = in.readZLong();
-            } else {
-                globalCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
-            }
+            localCheckpoint = in.readZLong();
+            globalCheckpoint = in.readZLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                out.writeZLong(localCheckpoint);
-            }
-            if (out.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
-                out.writeZLong(globalCheckpoint);
-            }
+            out.writeZLong(localCheckpoint);
+            out.writeZLong(globalCheckpoint);
         }
 
         @Override
@@ -1309,29 +1295,15 @@ public abstract class TransportReplicationAction<
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                globalCheckpoint = in.readZLong();
-            } else {
-                globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            }
-            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
-                maxSeqNoOfUpdatesOrDeletes = in.readZLong();
-            } else {
-                // UNASSIGNED_SEQ_NO (-2) means uninitialized, and replicas will disable
-                // optimization using seq_no if its max_seq_no_of_updates is still uninitialized
-                maxSeqNoOfUpdatesOrDeletes = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            }
+            globalCheckpoint = in.readZLong();
+            maxSeqNoOfUpdatesOrDeletes = in.readZLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                out.writeZLong(globalCheckpoint);
-            }
-            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
-                out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
-            }
+            out.writeZLong(globalCheckpoint);
+            out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
         }
 
         public long getGlobalCheckpoint() {

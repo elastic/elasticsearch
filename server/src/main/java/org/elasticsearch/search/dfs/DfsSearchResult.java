@@ -25,7 +25,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -130,16 +129,10 @@ public class DfsSearchResult extends SearchPhaseResult {
             CollectionStatistics statistics = c.value;
             assert statistics.maxDoc() >= 0;
             out.writeVLong(statistics.maxDoc());
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                // stats are always positive numbers
-                out.writeVLong(statistics.docCount());
-                out.writeVLong(statistics.sumTotalTermFreq());
-                out.writeVLong(statistics.sumDocFreq());
-            } else {
-                out.writeVLong(addOne(statistics.docCount()));
-                out.writeVLong(addOne(statistics.sumTotalTermFreq()));
-                out.writeVLong(addOne(statistics.sumDocFreq()));
-            }
+            // stats are always positive numbers
+            out.writeVLong(statistics.docCount());
+            out.writeVLong(statistics.sumTotalTermFreq());
+            out.writeVLong(statistics.sumDocFreq());
         }
     }
 
@@ -175,19 +168,10 @@ public class DfsSearchResult extends SearchPhaseResult {
             final String field = in.readString();
             assert field != null;
             final long maxDoc = in.readVLong();
-            final long docCount;
-            final long sumTotalTermFreq;
-            final long sumDocFreq;
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                // stats are always positive numbers
-                docCount = in.readVLong();
-                sumTotalTermFreq = in.readVLong();
-                sumDocFreq = in.readVLong();
-            } else {
-                docCount = subOne(in.readVLong());
-                sumTotalTermFreq = subOne(in.readVLong());
-                sumDocFreq = subOne(in.readVLong());
-            }
+            // stats are always positive numbers
+            final long docCount = in.readVLong();
+            final long sumTotalTermFreq = in.readVLong();
+            final long sumDocFreq = in.readVLong();
             CollectionStatistics stats = new CollectionStatistics(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
             fieldStatistics.put(field, stats);
         }

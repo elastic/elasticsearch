@@ -96,7 +96,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
                 actions.put(action, map);
             }
         };
-        manager = new SecurityIndexManager(client, INDEX_NAME, clusterService);
+        manager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService);
     }
 
     public void testIndexWithUpToDateMappingAndTemplate() throws IOException {

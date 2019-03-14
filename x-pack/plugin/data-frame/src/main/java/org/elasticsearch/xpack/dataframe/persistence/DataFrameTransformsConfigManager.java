@@ -20,8 +20,12 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -32,14 +36,21 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -47,6 +58,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class DataFrameTransformsConfigManager {
 
     private static final Logger logger = LogManager.getLogger(DataFrameTransformsConfigManager.class);
+    private static final int DEFAULT_SIZE = 100;
 
     public static final Map<String, String> TO_XCONTENT_PARAMS = Collections.singletonMap(DataFrameField.FOR_INTERNAL_STORAGE, "true");
 
@@ -110,6 +122,53 @@ public class DataFrameTransformsConfigManager {
         }));
     }
 
+    /**
+     * Get more than one DataFrameTransformConfig
+     *
+     * @param transformId Can be a single transformId, `*`, or `_all`
+     * @param resultListener Listener to alert when request is completed
+     */
+    // TODO add pagination support
+    public void getTransformConfigurations(String transformId,
+                                           ActionListener<List<DataFrameTransformConfig>> resultListener) {
+        final boolean isAllOrWildCard = Strings.isAllOrWildcard(new String[]{transformId});
+        BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("doc_type", DataFrameTransformConfig.NAME));
+        if (isAllOrWildCard == false) {
+            queryBuilder.filter(QueryBuilders.termQuery(DataFrameField.ID.getPreferredName(), transformId));
+        }
+
+        SearchRequest request = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .setTrackTotalHits(true)
+            .setSize(DEFAULT_SIZE)
+            .setQuery(queryBuilder)
+            .request();
+
+        ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), DATA_FRAME_ORIGIN, request,
+            ActionListener.<SearchResponse>wrap(
+                searchResponse -> {
+                    List<DataFrameTransformConfig> configs = new ArrayList<>(searchResponse.getHits().getHits().length);
+                    for (SearchHit hit : searchResponse.getHits().getHits()) {
+                        DataFrameTransformConfig config = parseTransformLenientlyFromSourceSync(hit.getSourceRef(),
+                            resultListener::onFailure);
+                        if (config == null) {
+                            return;
+                        }
+                        configs.add(config);
+                    }
+                    if (configs.isEmpty() && (isAllOrWildCard == false)) {
+                        resultListener.onFailure(new ResourceNotFoundException(
+                            DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
+                        return;
+                    }
+                    resultListener.onResponse(configs);
+                },
+                resultListener::onFailure)
+        , client::search);
+
+    }
+
     public void deleteTransformConfiguration(String transformId, ActionListener<Boolean> listener) {
         DeleteRequest request = new DeleteRequest(DataFrameInternalIndex.INDEX_NAME, DataFrameTransformConfig.documentId(transformId));
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -130,6 +189,18 @@ public class DataFrameTransformsConfigManager {
                 listener.onFailure(e);
             }
         }));
+    }
+
+    private DataFrameTransformConfig parseTransformLenientlyFromSourceSync(BytesReference source, Consumer<Exception> onFailure) {
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
+            return DataFrameTransformConfig.fromXContent(parser, null, true);
+        } catch (Exception e) {
+            logger.error(DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_PARSE_TRANSFORM_CONFIGURATION), e);
+            onFailure.accept(e);
+            return null;
+        }
     }
 
     private void parseTransformLenientlyFromSource(BytesReference source, String transformId,

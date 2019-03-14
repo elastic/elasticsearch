@@ -73,6 +73,7 @@ public class ClusterStateResponse extends ActionResponse {
      * of the cluster state as it would be transmitted over the network during
      * intra-node communication.
      */
+    @Deprecated
     public ByteSizeValue getTotalCompressedSize() {
         return totalCompressedSize;
     }

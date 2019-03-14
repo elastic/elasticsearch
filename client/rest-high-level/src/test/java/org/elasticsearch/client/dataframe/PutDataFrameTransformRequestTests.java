@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.client.dataframe.transforms;
+package org.elasticsearch.client.dataframe;
 
-import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfigTests;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -28,34 +29,21 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.function.Predicate;
 
-public class DataFrameTransformConfigTests extends AbstractXContentTestCase<DataFrameTransformConfig> {
-
-    public static DataFrameTransformConfig randomDataFrameTransformConfig() {
-        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10), QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+public class PutDataFrameTransformRequestTests extends AbstractXContentTestCase<PutDataFrameTransformRequest> {
+    @Override
+    protected PutDataFrameTransformRequest createTestInstance() {
+        return new PutDataFrameTransformRequest(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
     }
 
     @Override
-    protected DataFrameTransformConfig createTestInstance() {
-        return randomDataFrameTransformConfig();
-    }
-
-    @Override
-    protected DataFrameTransformConfig doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformConfig.fromXContent(parser);
+    protected PutDataFrameTransformRequest doParseInstance(XContentParser parser) throws IOException {
+        return new PutDataFrameTransformRequest(DataFrameTransformConfig.fromXContent(parser));
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // allow unknown fields in the root of the object only
-        return field -> !field.isEmpty();
+        return false;
     }
 
     @Override

@@ -150,6 +150,11 @@ public final class JsonFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+            fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            return builder;
+        }
+
         public Builder ignoreAbove(int ignoreAbove) {
             if (ignoreAbove < 0) {
                 throw new IllegalArgumentException("[ignore_above] must be positive, got " + ignoreAbove);
@@ -195,6 +200,9 @@ public final class JsonFieldMapper extends FieldMapper {
                 Object propNode = entry.getValue();
                 if (propName.equals("depth_limit")) {
                     builder.depthLimit(XContentMapValues.nodeIntegerValue(propNode, -1));
+                    iterator.remove();
+                } else if (propName.equals("eager_global_ordinals")) {
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode, "eager_global_ordinals"));
                     iterator.remove();
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));

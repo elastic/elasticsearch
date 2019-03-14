@@ -387,6 +387,23 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
             mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON)));
     }
 
+    public void testEagerGlobalOrdinals() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "json")
+                        .field("eager_global_ordinals", true)
+                    .endObject().endObject()
+                .endObject().endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        assertTrue(fieldMapper.fieldType().eagerGlobalOrdinals());
+    }
+
     public void testIgnoreAbove() throws IOException {
          String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("type")

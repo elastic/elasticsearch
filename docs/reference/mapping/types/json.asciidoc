@@ -160,6 +160,12 @@ parameters are accepted:
     can later be used for sorting, aggregations, or scripting? Accepts `true`
     (default) or `false`.
 
+<<eager-global-ordinals,`eager_global_ordinals`>>::
+
+    Should global ordinals be loaded eagerly on refresh? Accepts `true` or `false`
+    (default). Enabling this is a good idea on fields that are frequently used for
+    terms aggregations.
+
 <<ignore-above,`ignore_above`>>::
 
     Leaf values longer than this limit will not be indexed. By default, there

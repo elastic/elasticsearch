@@ -8,7 +8,7 @@
 ---
 "get cluster state does not return cluster state size by default":
   - skip:
-      version: " - 7.99.99"
+      version: " - 6.6.99"
       reason: "backwards compatibility break in 6.7.0 removes compressed_size* from the response"
   - do:
       cluster.state:

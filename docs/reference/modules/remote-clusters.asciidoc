@@ -31,7 +31,7 @@ _gateway nodes_ and uses them to federate requests to the remote cluster.
 
 The _gateway nodes_ selection depends on the following criteria:
 
-- *version*: remote nodes need to be compatible with the cluster they are
+- *version*: Remote nodes must be compatible with the cluster they are
 registered to. This is subject to the same rules as <<rolling-upgrades>>.
 Any node can communicate with any other node on the same major version (e.g.
 6.0 can talk to any 6.x node). Only nodes on the last minor version of a

@@ -470,8 +470,7 @@ public final class TokenService {
         }
     }
 
-    private static String decryptTokenId(byte[] encryptedTokenId, Cipher cipher, Version version)
-            throws GeneralSecurityException, IOException {
+    private static String decryptTokenId(byte[] encryptedTokenId, Cipher cipher, Version version) throws IOException {
         try (ByteArrayInputStream bais = new ByteArrayInputStream(encryptedTokenId);
                 CipherInputStream cis = new CipherInputStream(bais, cipher);
                 StreamInput decryptedInput = new InputStreamStreamInput(cis)) {
@@ -1357,8 +1356,7 @@ public final class TokenService {
         return cipher;
     }
 
-    private Cipher getDecryptionCipher(byte[] iv, SecretKey key, Version version,
-                                       BytesKey salt) throws GeneralSecurityException {
+    private Cipher getDecryptionCipher(byte[] iv, SecretKey key, Version version, BytesKey salt) throws GeneralSecurityException {
         Cipher cipher = Cipher.getInstance(ENCRYPTION_CIPHER);
         cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv), secureRandom);
         cipher.updateAAD(ByteBuffer.allocate(4).putInt(version.id).array());

@@ -33,7 +33,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
-import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.time.format.SignStyle;
 import java.time.temporal.ChronoField;
@@ -1592,17 +1591,21 @@ public class DateFormatters {
 
         @Override
         public TemporalAccessor parse(String input) {
-            for (DateFormatter formatter : formatters) {
-                if(formatter.tryParseUnresolved(input) == true){
-                    return formatter.parse(input);
+            try {
+                for (DateFormatter formatter : formatters) {
+                    if (formatter.tryParseUnresolved(input) == true) {
+                        return formatter.parse(input);
+                    }
                 }
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + pattern + "]", e);
             }
-            throw new DateTimeParseException("Text '" + input + "' could not be parsed", input, 0);
+            throw new IllegalArgumentException("Text '" + input + "' could not be parsed");
         }
 
         @Override
         public boolean tryParseUnresolved(String input) {
-            return false;
+            return true;
         }
 
         @Override

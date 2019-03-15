@@ -255,10 +255,6 @@ public class Archives {
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
-    public static void runElasticsearch(Installation installation) throws IOException {
-        runElasticsearch(installation, new Shell());
-    }
-
     public static void runElasticsearch(Installation installation, Shell sh) throws IOException {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 

@@ -24,6 +24,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -82,13 +83,13 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             expectedQuery = LatLonPoint.newDistanceFeatureQuery(fieldName, boost, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
         } else { // if (fieldName.equals(DATE_FIELD_NAME))
             MapperService mapperService = context.getQueryShardContext().getMapperService();
-            MappedFieldType fieldType = mapperService.fullName(fieldName);
+            DateFieldType fieldType = (DateFieldType) mapperService.fullName(fieldName);
             long originLong = (origin instanceof Long) ? (Long) origin :
-                ((DateFieldType) fieldType).parseToLong(origin, true, null, null, context.getQueryShardContext());
+                fieldType.parseToLong(origin, true, null, null, context.getQueryShardContext());
             TimeValue pivotVal = TimeValue.parseTimeValue(pivot, TimeValue.timeValueHours(24),
                 DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
             long pivotLong;
-            if (((DateFieldType) fieldType).resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
+            if (fieldType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
                 pivotLong = pivotVal.getMillis();
             } else { // NANOSECONDS
                 pivotLong = pivotVal.getNanos();
@@ -206,16 +207,18 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         assertEquals(json, origin, parsed.origin().origin());
     }
 
-    public void testQueryFailsWithUnmappedField() {
-        String query = "{\n" +
+    public void testQueryFailsWithUnmappedField() throws IOException {
+        Query expectedQuery = Queries.newMatchNoDocsQuery(
+            "Can't run [" + DistanceFeatureQueryBuilder.NAME + "] query on unmapped fields!");
+        String queryString = "{\n" +
             "    \"distance_feature\" : {\n" +
             "            \"field\": \"random_unmapped_field\",\n" +
             "            \"origin\": \"random_string\",\n" +
             "            \"pivot\" : \"random_string\"\n" +
             "    }\n" +
             "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
-        assertEquals("Can't run [" + DistanceFeatureQueryBuilder.NAME + "] query on unmapped fields!", e.getMessage());
+        Query query = parseQuery(queryString).toQuery(createShardContext());
+        assertEquals(expectedQuery, query);
     }
 
     public void testQueryFailsWithWrongFieldType() {

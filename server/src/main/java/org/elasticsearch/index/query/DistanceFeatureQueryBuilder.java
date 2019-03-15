@@ -28,6 +28,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -117,12 +118,11 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MappedFieldType fieldType = context.fieldMapper(field);
         if (fieldType == null) {
-            throw new IllegalArgumentException("Can't run [" + NAME + "] query on unmapped fields!");
+            return Queries.newMatchNoDocsQuery("Can't run [" + NAME + "] query on unmapped fields!");
         }
         Object originObj = origin.origin();
         if (fieldType instanceof DateFieldType) {
-            long originLong = (originObj instanceof Long) ? (Long) originObj :
-                ((DateFieldType) fieldType).parseToLong(originObj, true, null, null, context);
+            long originLong = ((DateFieldType) fieldType).parseToLong(originObj, true, null, null, context);
             TimeValue pivotVal = TimeValue.parseTimeValue(pivot, TimeValue.timeValueHours(24),
                 DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
             if (((DateFieldType) fieldType).resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
@@ -131,23 +131,31 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
                 return LongPoint.newDistanceFeatureQuery(field, boost, originLong, pivotVal.getNanos());
             }
         } else if (fieldType instanceof GeoPointFieldType) {
-            GeoPoint originGeoPoint = (originObj instanceof GeoPoint)? (GeoPoint) originObj : GeoUtils.parseFromString((String) originObj);
+            GeoPoint originGeoPoint;
+            if (originObj instanceof GeoPoint) {
+                originGeoPoint = (GeoPoint) originObj;
+            } else if (originObj instanceof String) {
+                originGeoPoint = GeoUtils.parseFromString((String) originObj);
+            } else {
+                throw new IllegalArgumentException("Illegal type ["+ origin.getClass() + "] for [origin]! " +
+                    "Must be of type [geo_point] or [string] for geo_point fields!");
+            }
             double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
             return LatLonPoint.newDistanceFeatureQuery(field, boost, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
         }
-        throw new IllegalArgumentException(
-            "Illegal data type! ["+ NAME + "] query can only be run on a date, date_nanos or geo_point field type!");
+        throw new IllegalArgumentException("Illegal data type of [" + fieldType.typeName() + "]!"+
+            "[" + NAME + "] query can only be run on a date, date_nanos or geo_point field type!");
     }
 
-    public String fieldName() {
+    String fieldName() {
         return field;
     }
 
-    public Origin origin() {
+    Origin origin() {
         return origin;
     }
 
-    public String pivot() {
+    String pivot() {
         return pivot;
     }
 
@@ -163,13 +171,17 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
 
     public static class Origin {
         private final Object origin;
-        public Origin(Object origin) {
-            if ((origin instanceof Long) || (origin instanceof GeoPoint) || (origin instanceof String)) {
-                this.origin = origin;
-            } else {
-                throw new IllegalArgumentException("Illegal type for [origin]! Must be of type [long] or [string] for " +
-                    "date and date_nanos origins," + "[geo_point] or [string] for geo_point origins!");
-            }
+
+        public Origin(Long origin) {
+            this.origin = origin;
+        }
+
+        public Origin(String origin) {
+            this.origin = origin;
+        }
+
+        public Origin(GeoPoint origin) {
+            this.origin = origin;
         }
 
         private static Origin originFromXContent(XContentParser parser) throws IOException {
@@ -183,8 +195,8 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
                 return new Origin(GeoUtils.parseGeoPoint(parser));
             } else {
                 throw new ParsingException(parser.getTokenLocation(),
-                    "Illegal type while parsing [origin]! Must be [number] or [string] for date and date_nanos origins;" +
-                    " or [string], [array], [object] for geo_point origins!");
+                    "Illegal type while parsing [origin]! Must be [number] or [string] for date and date_nanos fields;" +
+                    " or [string], [array], [object] for geo_point fields!");
             }
         }
 
@@ -210,6 +222,11 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         @Override
         public int hashCode() {
             return Objects.hash(origin);
+        }
+
+        @Override
+        public String toString() {
+            return origin.toString();
         }
     }
 }

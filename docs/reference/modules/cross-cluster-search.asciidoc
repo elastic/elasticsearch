@@ -191,7 +191,7 @@ By default, all remote clusters that are searched via {ccs} need
 to be available when the search request is executed. Otherwise, the whole
 request fails; even if some of the clusters are available, no search results are returned.
 You can use the boolean
-`skip_unavailable` setting, set to `false` by default.
+`skip_unavailable` setting to make remote clusters optional. By default, it is set to `false`.
 
 [source,js]
 --------------------------------

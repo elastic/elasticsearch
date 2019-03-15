@@ -110,13 +110,12 @@ public class DataFrameFeatureSetTests extends ESTestCase {
                 assertEquals(null, XContentMapValues.extractValue("transforms", usageAsMap));
                 assertEquals(null, XContentMapValues.extractValue("stats", usageAsMap));
             } else {
-                assertEquals(transformsStateAndStats.size() + transformConfigWithoutTasks.size(),
-                    XContentMapValues.extractValue("transforms._all", usageAsMap));
+                assertEquals(transformsStateAndStats.size(), XContentMapValues.extractValue("transforms._all", usageAsMap));
 
                 Map<String, Integer> stateCounts = new HashMap<>();
-                transformsStateAndStats.stream().map(x -> x.getTransformState().getIndexerState().value())
-                        .forEach(x -> stateCounts.merge(x, 1, Integer::sum));
-                transformConfigWithoutTasks.forEach(ignored -> stateCounts.merge(IndexerState.STOPPED.value(), 1, Integer::sum));
+                transformsStateAndStats.stream()
+                    .map(x -> x.getTransformState().getIndexerState().value())
+                    .forEach(x -> stateCounts.merge(x, 1, Integer::sum));
                 stateCounts.forEach((k, v) -> assertEquals(v, XContentMapValues.extractValue("transforms." + k, usageAsMap)));
 
                 // use default constructed stats object for assertions if transformsStateAndStats is empty

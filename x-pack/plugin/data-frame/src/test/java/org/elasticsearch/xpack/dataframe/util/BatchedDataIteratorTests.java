@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.dataframe.util;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -27,7 +29,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.util.ArrayDeque;
@@ -36,12 +37,16 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -55,17 +60,21 @@ public class BatchedDataIteratorTests extends ESTestCase {
 
     private TestIterator testIterator;
 
-    private ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-    private ArgumentCaptor<SearchScrollRequest> searchScrollRequestCaptor = ArgumentCaptor.forClass(SearchScrollRequest.class);
+    private List<SearchRequest> searchRequestCaptor = new ArrayList<>();
+    private List<SearchScrollRequest> searchScrollRequestCaptor = new ArrayList<>();
 
     @Before
     public void setUpMocks() {
-        ThreadPool pool = new ThreadPool(Settings.EMPTY);
+        ThreadPool pool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(pool.getThreadContext()).thenReturn(threadContext);
         client = Mockito.mock(Client.class);
         when(client.threadPool()).thenReturn(pool);
         wasScrollCleared = false;
         testIterator = new TestIterator(client, INDEX_NAME);
         givenClearScrollRequest();
+        searchRequestCaptor.clear();
+        searchScrollRequestCaptor.clear();
     }
 
     public void testQueryReturnsNoResults() throws Exception {
@@ -82,15 +91,18 @@ public class BatchedDataIteratorTests extends ESTestCase {
     }
 
     public void testCallingNextWhenHasNextIsFalseThrows() throws Exception {
-        PlainActionFuture<Deque<String>> future = new PlainActionFuture<>();
+        PlainActionFuture<Deque<String>> firstFuture = new PlainActionFuture<>();
         new ScrollResponsesMocker().addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c")).finishMock();
-        testIterator.next(future);
-        future.get();
+        testIterator.next(firstFuture);
+        firstFuture.get();
         assertFalse(testIterator.hasNext());
-        ESTestCase.expectThrows(NoSuchElementException.class, () -> {
+        PlainActionFuture<Deque<String>> future = new PlainActionFuture<>();
+        ExecutionException executionException = ESTestCase.expectThrows(ExecutionException.class, () -> {
             testIterator.next(future);
             future.get();
         });
+        assertNotNull(executionException.getCause());
+        assertTrue(executionException.getCause() instanceof NoSuchElementException);
     }
 
     public void testQueryReturnsSingleBatch() throws Exception {
@@ -124,11 +136,13 @@ public class BatchedDataIteratorTests extends ESTestCase {
         assertEquals(3, batch.size());
         assertTrue(batch.containsAll(Arrays.asList(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c"))));
 
+        future = new PlainActionFuture<>();
         testIterator.next(future);
         batch = future.get();
         assertEquals(2, batch.size());
         assertTrue(batch.containsAll(Arrays.asList(createJsonDoc("d"), createJsonDoc("e"))));
 
+        future = new PlainActionFuture<>();
         testIterator.next(future);
         batch = future.get();
         assertEquals(1, batch.size());
@@ -145,19 +159,26 @@ public class BatchedDataIteratorTests extends ESTestCase {
         return "{\"foo\":\"" + value + "\"}";
     }
 
+    @SuppressWarnings("unchecked")
     private void givenClearScrollRequest() {
         ClearScrollRequestBuilder requestBuilder = mock(ClearScrollRequestBuilder.class);
 
         when(client.prepareClearScroll()).thenReturn(requestBuilder);
         when(requestBuilder.setScrollIds(Collections.singletonList(SCROLL_ID))).thenReturn(requestBuilder);
-        when(requestBuilder.get()).thenAnswer((invocation) -> {
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        clearScrollRequest.addScrollId(SCROLL_ID);
+        when(requestBuilder.request()).thenReturn(clearScrollRequest);
+        doAnswer((answer) -> {
             wasScrollCleared = true;
+            ActionListener<ClearScrollResponse> scrollListener =
+                (ActionListener<ClearScrollResponse>) answer.getArguments()[1];
+            scrollListener.onResponse(new ClearScrollResponse(true,0));
             return null;
-        });
+        }).when(client).clearScroll(any(ClearScrollRequest.class), any(ActionListener.class));
     }
 
     private void assertSearchRequest() {
-        List<SearchRequest> searchRequests = searchRequestCaptor.getAllValues();
+        List<SearchRequest> searchRequests = searchRequestCaptor;
         assertThat(searchRequests.size(), equalTo(1));
         SearchRequest searchRequest = searchRequests.get(0);
         assertThat(searchRequest.indices(), equalTo(new String[] {INDEX_NAME}));
@@ -168,7 +189,7 @@ public class BatchedDataIteratorTests extends ESTestCase {
     }
 
     private void assertSearchScrollRequests(int expectedCount) {
-        List<SearchScrollRequest> searchScrollRequests = searchScrollRequestCaptor.getAllValues();
+        List<SearchScrollRequest> searchScrollRequests = searchScrollRequestCaptor;
         assertThat(searchScrollRequests.size(), equalTo(expectedCount));
         for (SearchScrollRequest request : searchScrollRequests) {
             assertThat(request.scrollId(), equalTo(SCROLL_ID));
@@ -198,33 +219,39 @@ public class BatchedDataIteratorTests extends ESTestCase {
                 givenNextResponse(batches.get(i));
             }
             if (responses.size() > 0) {
-                ActionFuture<SearchResponse> first = wrapResponse(responses.get(0));
+                SearchResponse first = responses.get(0);
                 if (responses.size() > 1) {
-                    List<ActionFuture<SearchResponse>> rest = new ArrayList<>();
-                    for (int i = 1; i < responses.size(); ++i) {
-                        rest.add(wrapResponse(responses.get(i)));
-                    }
-
-                    when(client.searchScroll(searchScrollRequestCaptor.capture())).thenReturn(
-                            first, rest.toArray(new ActionFuture[rest.size() - 1]));
+                    List<SearchResponse> rest = new ArrayList<>(responses);
+                    Iterator<SearchResponse> responseIterator = rest.iterator();
+                    doAnswer((answer) -> {
+                        SearchScrollRequest request = (SearchScrollRequest)answer.getArguments()[0];
+                        ActionListener<SearchResponse> rsp = (ActionListener<SearchResponse>)answer.getArguments()[1];
+                        searchScrollRequestCaptor.add(request);
+                        rsp.onResponse(responseIterator.next());
+                        return null;
+                    }).when(client).searchScroll(any(SearchScrollRequest.class), any(ActionListener.class));
                 } else {
-                    when(client.searchScroll(searchScrollRequestCaptor.capture())).thenReturn(first);
+                    doAnswer((answer) -> {
+                        SearchScrollRequest request = (SearchScrollRequest)answer.getArguments()[0];
+                        ActionListener<SearchResponse> rsp = (ActionListener<SearchResponse>)answer.getArguments()[1];
+                        searchScrollRequestCaptor.add(request);
+                        rsp.onResponse(first);
+                        return null;
+                    }).when(client).searchScroll(any(SearchScrollRequest.class), any(ActionListener.class));
                 }
             }
         }
 
+        @SuppressWarnings("unchecked")
         private void givenInitialResponse(String... hits) {
             SearchResponse searchResponse = createSearchResponseWithHits(hits);
-            ActionFuture<SearchResponse> future = wrapResponse(searchResponse);
-            when(future.actionGet()).thenReturn(searchResponse);
-            when(client.search(searchRequestCaptor.capture())).thenReturn(future);
-        }
-
-        @SuppressWarnings("unchecked")
-        private ActionFuture<SearchResponse> wrapResponse(SearchResponse searchResponse) {
-            ActionFuture<SearchResponse> future = mock(ActionFuture.class);
-            when(future.actionGet()).thenReturn(searchResponse);
-            return future;
+            doAnswer((answer) -> {
+                SearchRequest request = (SearchRequest)answer.getArguments()[0];
+                searchRequestCaptor.add(request);
+                ActionListener<SearchResponse> rsp = (ActionListener<SearchResponse>)answer.getArguments()[1];
+                rsp.onResponse(searchResponse);
+                return null;
+            }).when(client).search(any(SearchRequest.class), any(ActionListener.class));
         }
 
         private void givenNextResponse(String... hits) {

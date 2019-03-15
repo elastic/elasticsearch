@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.dataframe.util;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -72,7 +74,7 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
         ActionListener<SearchResponse> wrappedListener = ActionListener.wrap(
             searchResponse -> {
                 scrollId = searchResponse.getScrollId();
-                listener.onResponse(mapHits(searchResponse));
+                mapHits(searchResponse, listener);
             },
             listener::onFailure
         );
@@ -125,7 +127,7 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
             client::search);
     }
 
-    private E mapHits(SearchResponse searchResponse) {
+    private void mapHits(SearchResponse searchResponse, ActionListener<E> mappingListener) {
         E results = getCollection();
 
         SearchHit[] hits = searchResponse.getHits().getHits();
@@ -138,9 +140,18 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
         count += hits.length;
 
         if (!hasNext() && scrollId != null) {
-            client.prepareClearScroll().setScrollIds(Collections.singletonList(scrollId)).get();
+            ClearScrollRequest request = client.prepareClearScroll().setScrollIds(Collections.singletonList(scrollId)).request();
+            ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+                ClientHelper.DATA_FRAME_ORIGIN,
+                request,
+                ActionListener.<ClearScrollResponse>wrap(
+                    r -> mappingListener.onResponse(results),
+                    mappingListener::onFailure
+                ),
+                client::clearScroll);
+        } else {
+            mappingListener.onResponse(results);
         }
-        return results;
     }
 
     /**

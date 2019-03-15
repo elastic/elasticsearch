@@ -26,11 +26,13 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -89,24 +91,14 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
                 client.execute(GetDataFrameTransformsStatsAction.INSTANCE,
                     transformStatsRequest,
                     ActionListener.wrap(transformStatsResponse -> {
-                        Map<String, Long> transformsCountByState = new HashMap<>();
-                        DataFrameIndexerTransformStats accumulatedStats = new DataFrameIndexerTransformStats();
-
-                        // How many configs do we have that do not have a task?
-                        // This implies that the same number of configs have a state of STOPPED
-                        long configsWithOutTask = totalConfigs - transformStatsResponse.getTransformsStateAndStats().size();
-                        transformStatsResponse.getTransformsStateAndStats().forEach(singleResult -> {
-                            transformsCountByState.merge(singleResult.getTransformState().getIndexerState().value(), 1L, Long::sum);
-                            accumulatedStats.merge(singleResult.getTransformStats());
-                        });
-
-                        // Assume STOPPED for any configs without an associated task
-                        transformsCountByState.merge(IndexerState.STOPPED.value(), configsWithOutTask, Long::sum);
-
-                        listener.onResponse(new DataFrameFeatureSetUsage(available(), enabled(), transformsCountByState, accumulatedStats));
+                        listener.onResponse(createUsage(available(),
+                            enabled(),
+                            totalConfigs,
+                            transformStatsResponse.getTransformsStateAndStats()));
                     }, listener::onFailure));
             },
             exception -> {
+                // We should create an empty but enabled response if we have not created the transforms index yet.
                 if (exception instanceof IndexNotFoundException) {
                     listener.onResponse(new DataFrameFeatureSetUsage(available(),
                         enabled(),
@@ -130,5 +122,25 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             searchRequest,
             configHitListener,
             client::search);
+    }
+
+    static DataFrameFeatureSetUsage createUsage(boolean available,
+                                                boolean enabled,
+                                                long numberOfTransforms,
+                                                List<DataFrameTransformStateAndStats> transformsStateAndStats) {
+
+        Map<String, Long> transformsCountByState = new HashMap<>();
+        DataFrameIndexerTransformStats accumulatedStats = new DataFrameIndexerTransformStats();
+        transformsStateAndStats.forEach(singleResult -> {
+            transformsCountByState.merge(singleResult.getTransformState().getIndexerState().value(), 1L, Long::sum);
+            accumulatedStats.merge(singleResult.getTransformStats());
+        });
+
+        // How many configs do we have that do not have a task?
+        // This implies that the same number of configs have a state of STOPPED
+        long configsWithOutTask = numberOfTransforms - transformsStateAndStats.size();
+        transformsCountByState.merge(IndexerState.STOPPED.value(), configsWithOutTask, Long::sum);
+
+        return new DataFrameFeatureSetUsage(available, enabled, transformsCountByState, accumulatedStats);
     }
 }

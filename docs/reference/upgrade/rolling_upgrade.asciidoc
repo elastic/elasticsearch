@@ -1,30 +1,22 @@
 [[rolling-upgrades]]
 == Rolling upgrades
 
-A rolling upgrade allows an Elasticsearch cluster to be upgraded one node at
+A rolling upgrade allows an {es} cluster to be upgraded one node at
 a time so upgrading does not interrupt service. Running multiple versions of
-Elasticsearch in the same cluster beyond the duration of an upgrade is
+{es} in the same cluster beyond the duration of an upgrade is
 not supported, as shards cannot be replicated from upgraded nodes to nodes
 running the older version.
 
-Rolling upgrades can be performed between minor versions. Elasticsearch
-6.x supports rolling upgrades from *Elasticsearch 5.6*.
-Upgrading from earlier 5.x versions requires a <<restart-upgrade,
-full cluster restart>>. You must <<reindex-upgrade,reindex to upgrade>> from
-versions prior to 5.x.
+Rolling upgrades are supported:
 
-WARNING: If the {es} {security-features} are enabled on your 5.x cluster, before
-you can do a rolling upgrade you must encrypt the internode-communication with
-SSL/TLS, which requires a full cluster restart. For more information about this
-requirement and the associated bootstrap check, see <<bootstrap-checks-tls>>.
+* Between minor versions
+* https://www.elastic.co/guide/en/elastic-stack/6.7/upgrading-elastic-stack.html[From 5.6 to 6.7]
+* From 6.7 to {version}
 
-WARNING: The format used for the internal indices used by Kibana and {xpack}
-has changed in 6.x. When upgrading from 5.6 to 6.x, these internal indices have
-to be {stack-ref}/upgrading-elastic-stack.html#upgrade-internal-indices[upgraded]
-before the rolling upgrade procedure can start. Otherwise the upgraded node will
-refuse to join the cluster.
+Upgrading directly to {version} from 6.6 or earlier requires a
+<<restart-upgrade, full cluster restart>>.
 
-To perform a rolling upgrade:
+To perform a rolling upgrade from 6.7 to {version}:
 
 . *Disable shard allocation*.
 +
@@ -58,10 +50,6 @@ include::shut-down-node.asciidoc[]
 . *Upgrade the node you shut down.*
 +
 --
-include::remove-xpack.asciidoc[]
---
-+
---
 include::upgrade-node.asciidoc[]
 include::set-paths-tip.asciidoc[]
 --
@@ -69,7 +57,7 @@ include::set-paths-tip.asciidoc[]
 . *Upgrade any plugins.*
 +
 Use the `elasticsearch-plugin` script to install the upgraded version of each
-installed Elasticsearch plugin. All plugins must be upgraded when you upgrade
+installed {es} plugin. All plugins must be upgraded when you upgrade
 a node.
 
 . If you use {es} {security-features} to define realms, verify that your realm

@@ -576,3 +576,8 @@ See <<gce-hosts-provider>>.
 
 Zen discovery is replaced by the <<modules-discovery,discovery and cluster
 formation module>>.
+
+[role="exclude",id="settings-xpack"]
+=== {xpack} settings in {es}
+
+include::{asciidoc-dir}/../../shared/settings.asciidoc[]

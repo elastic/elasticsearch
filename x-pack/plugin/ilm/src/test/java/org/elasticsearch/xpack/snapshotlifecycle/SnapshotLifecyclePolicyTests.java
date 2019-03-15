@@ -9,14 +9,37 @@ package org.elasticsearch.xpack.snapshotlifecycle;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<SnapshotLifecyclePolicy> {
 
     private String id;
+
+    public void testNameGeneration() {
+        long time = 1552684146542L; // Fri Mar 15 2019 21:09:06 UTC
+        SnapshotLifecyclePolicy.ResolverContext context = new SnapshotLifecyclePolicy.ResolverContext(time);
+        SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "1 * * * * ?", "repo", Collections.emptyMap());
+        assertThat(p.generateSnapshotName(context), startsWith("name-"));
+        assertThat(p.generateSnapshotName(context).length(), greaterThan("name-".length()));
+
+        p = new SnapshotLifecyclePolicy("id", "<name-{now}>", "1 * * * * ?", "repo", Collections.emptyMap());
+        assertThat(p.generateSnapshotName(context), startsWith("name-2019.03.15-"));
+        assertThat(p.generateSnapshotName(context).length(), greaterThan("name-2019.03.15-".length()));
+
+        p = new SnapshotLifecyclePolicy("id", "<name-{now/M}>", "1 * * * * ?", "repo", Collections.emptyMap());
+        assertThat(p.generateSnapshotName(context), startsWith("name-2019.03.01-"));
+
+        p = new SnapshotLifecyclePolicy("id", "<name-{now/m{yyyy-MM-dd.HH:mm:ss}}>", "1 * * * * ?", "repo", Collections.emptyMap());
+        assertThat(p.generateSnapshotName(context), startsWith("name-2019-03-15.21:09:00-"));
+    }
 
     @Override
     protected SnapshotLifecyclePolicy doParseInstance(XContentParser parser) throws IOException {

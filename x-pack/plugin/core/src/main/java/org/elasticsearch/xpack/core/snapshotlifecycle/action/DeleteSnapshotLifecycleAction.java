@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.snapshotlifecycle.action;
+package org.elasticsearch.xpack.core.snapshotlifecycle.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -26,19 +26,18 @@ public class DeleteSnapshotLifecycleAction extends Action<DeleteSnapshotLifecycl
     }
 
     @Override
-    public DeleteSnapshotLifecycleAction.Response newResponse() {
+    public Response newResponse() {
         return new Response();
     }
 
-    public static class Request extends AcknowledgedRequest<DeleteSnapshotLifecycleAction.Request> {
+    public static class Request extends AcknowledgedRequest<Request> {
 
         private String lifecycleId;
 
-        Request(String lifecycleId) {
-            this.lifecycleId = Objects.requireNonNull(lifecycleId, "id may not be null");
-        }
+        public Request() { }
 
-        Request() {
+        public Request(String lifecycleId) {
+            this.lifecycleId = Objects.requireNonNull(lifecycleId, "id may not be null");
         }
 
         public String getLifecycleId() {

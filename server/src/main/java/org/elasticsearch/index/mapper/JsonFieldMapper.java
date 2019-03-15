@@ -51,6 +51,7 @@ import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
@@ -385,7 +386,8 @@ public final class JsonFieldMapper extends FieldMapper {
                                    MultiValueMode sortMode,
                                    XFieldComparatorSource.Nested nested,
                                    boolean reverse) {
-            return delegate.sortField(missingValue, sortMode, nested, reverse);
+            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+            return new SortField(getFieldName(), source, reverse);
         }
 
         @Override

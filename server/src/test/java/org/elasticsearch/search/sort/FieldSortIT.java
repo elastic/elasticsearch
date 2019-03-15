@@ -73,7 +73,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
@@ -1787,7 +1787,7 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testJsonField() throws Exception {
-         XContentBuilder mapping = XContentFactory.jsonBuilder()
+         XContentBuilder mapping = jsonBuilder()
             .startObject()
                 .startObject("_doc")
                     .startObject("properties")
@@ -1800,24 +1800,24 @@ public class FieldSortIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("_doc", mapping));
         ensureGreen("test");
 
-        index("test", "_doc", "1", XContentFactory.jsonBuilder()
+        index("test", "_doc", "1", jsonBuilder()
             .startObject()
                 .startObject("json_field")
-                    .field("key", "1")
-                    .field("other_key", "4")
+                    .field("key", "A")
+                    .field("other_key", "D")
                 .endObject()
             .endObject());
-        index("test", "_doc", "2", XContentFactory.jsonBuilder()
+        index("test", "_doc", "2", jsonBuilder()
             .startObject()
                 .startObject("json_field")
-                    .field("key", "2")
-                    .field("other_key", "3")
+                    .field("key", "B")
+                    .field("other_key", "C")
                 .endObject()
             .endObject());
-        index("test", "_doc", "3", XContentFactory.jsonBuilder()
+        index("test", "_doc", "3", jsonBuilder()
             .startObject()
                 .startObject("json_field")
-                    .field("other_key", "10")
+                    .field("other_key", "E")
                 .endObject()
             .endObject());
         refresh("test");
@@ -1827,13 +1827,21 @@ public class FieldSortIT extends ESIntegTestCase {
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 3);
-        assertSearchHits(response, "3", "1", "2");
+        assertOrderedSearchHits(response, "3", "1", "2");
 
-        SearchResponse keyedResponse = client().prepareSearch("test")
+        response = client().prepareSearch("test")
             .addSort("json_field.key", SortOrder.DESC)
             .get();
-        assertSearchResponse(keyedResponse);
-        assertHitCount(keyedResponse, 3);
-        assertSearchHits(keyedResponse, "2", "1", "3");
+
+        assertSearchResponse(response);
+        assertHitCount(response, 3);
+        assertOrderedSearchHits(response, "2", "1", "3");
+
+        response = client().prepareSearch("test")
+            .addSort(new FieldSortBuilder("json_field.key").order(SortOrder.DESC).missing("Z"))
+            .get();
+        assertSearchResponse(response);
+        assertHitCount(response, 3);
+        assertOrderedSearchHits(response, "3", "2", "1");
     }
 }

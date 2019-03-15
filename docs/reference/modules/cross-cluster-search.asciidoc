@@ -187,7 +187,7 @@ cluster alias:
 [float]
 === Skipping disconnected clusters
 
-By default all remote clusters that are searched via Cross Cluster Search need
+By default, all remote clusters that are searched via {ccs} need
 to be available when the search request is executed, otherwise the whole
 request fails and no search results are returned despite some of the clusters
 are available. Remote clusters can be made optional through the boolean

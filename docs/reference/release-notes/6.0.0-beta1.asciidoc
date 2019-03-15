@@ -349,7 +349,7 @@ Search::
 * Add cluster name validation to RemoteClusterConnection {pull}25568[#25568]
 * Speed up sorted scroll when the index sort matches the search sort {pull}25138[#25138] (issue: {issue}6720[#6720])
 * Leverage scorerSupplier when applicable. {pull}25109[#25109]
-* Add Cross Cluster Search support for scroll searches {pull}25094[#25094]
+* Add {ccs} support for scroll searches {pull}25094[#25094]
 * Track EWMA[1] of task execution time in search threadpool executor {pull}24989[#24989] (issue: {issue}24915[#24915])
 * Query range fields by doc values when they are expected to be more efficient than points {pull}24823[#24823] (issue: {issue}24314[#24314])
 * Search: Fairer balancing when routing searches by session ID {pull}24671[#24671] (issue: {issue}24642[#24642])
@@ -436,7 +436,7 @@ Internal::
 * Extract a common base class for scroll executions {pull}24979[#24979] (issue: {issue}16555[#16555])
 * Obey lock order if working with store to get metadata snapshots {pull}24787[#24787] (issue: {issue}24481[#24481])
 * Fix Version based BWC and set correct minCompatVersion {pull}24732[#24732]
-* Fix `_field_caps` serialization in order to support cross cluster search {pull}24722[#24722]
+* Fix `_field_caps` serialization in order to support {ccs} {pull}24722[#24722]
 * Avoid race when shutting down controller processes {pull}24579[#24579]
 
 Mapping::

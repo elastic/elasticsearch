@@ -874,16 +874,15 @@ public final class TokenService {
                             createOAuth2Tokens(newUserTokenId, toRefreshUserToken.getAuthentication(), clientAuth,
                                     toRefreshUserToken.getMetadata(), true, listener);
                         } else if (backoff.hasNext()) {
-                            logger.info(() -> new ParameterizedMessage(
-                                    "failed to update the original token document [{}], the update result was [{}]. Retrying", tokenDocId,
-                                    updateResponse.getResult()));
+                            logger.info("failed to update the original token document [{}], the update result was [{}]. Retrying",
+                                    tokenDocId, updateResponse.getResult());
                             final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
                                     .preserveContext(() -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, backoff,
                                             refreshRequested, listener));
                             client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                         } else {
-                            logger.info(() -> new ParameterizedMessage("failed to update the original token document [{}]"
-                                    + " after all retries, the update result was [{}]. ", tokenDocId, updateResponse.getResult()));
+                            logger.info("failed to update the original token document [{}] after all retries, the update result was [{}]. ",
+                                    tokenDocId, updateResponse.getResult());
                             listener.onFailure(invalidGrantException("could not refresh the requested token"));
                         }
                     }, e -> {
@@ -1045,14 +1044,13 @@ public final class TokenService {
             throw invalidGrantException("token is missing client information");
         }
         if (clientAuth.getUser().principal().equals(clientInfo.get("user")) == false) {
-            logger.warn(() -> new ParameterizedMessage("Token was originally created by [{}] but [{}] attempted to refresh it",
-                    clientInfo.get("user"), clientAuth.getUser().principal()));
+            logger.warn("Token was originally created by [{}] but [{}] attempted to refresh it", clientInfo.get("user"),
+                    clientAuth.getUser().principal());
             throw invalidGrantException("tokens must be refreshed by the creating client");
         }
         if (clientAuth.getAuthenticatedBy().getName().equals(clientInfo.get("realm")) == false) {
-            logger.warn(() -> new ParameterizedMessage(
-                    "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]", clientInfo.get("user"),
-                    clientInfo.get("realm"), clientAuth.getAuthenticatedBy().getName()));
+            logger.warn("[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
+                    clientInfo.get("user"), clientInfo.get("realm"), clientAuth.getAuthenticatedBy().getName());
             throw invalidGrantException("tokens must be refreshed by the creating client");
         }
     }

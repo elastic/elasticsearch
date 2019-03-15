@@ -11,8 +11,8 @@ the {kibana-ref}/upgrade-assistant.html[{kib} Upgrade Assistant] or
 <<reindex-upgrade,reindex manually>> before upgrading.
 
 deprecated[6.7, Use the {kibana-ref}/upgrade-assistant.html[{kib} Upgrade
-Assistant] or <<reindex-upgrade,Reindex manually>> before upgrading.] The
-Migration Upgrade API performs the upgrade of internal indices to make them
+Assistant] or <<reindex-upgrade,reindex manually>> before upgrading.] The
+migration upgrade API performs the upgrade of internal indices to make them
 compatible with version 6 of Elasticsearch.
 
 [float]

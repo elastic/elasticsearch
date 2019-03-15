@@ -351,7 +351,7 @@ public final class TokenService {
      */
     void getUserTokenFromId(String userTokenId, ActionListener<UserToken> listener) {
         if (securityIndex.isAvailable() == false) {
-            logger.warn("failed to get token [{}] since index is not available", userTokenId);
+            logger.warn("failed to get access token [{}] because index is not available", userTokenId);
             listener.onResponse(null);
         } else {
             securityIndex.checkIndexVersionThenExecute(
@@ -384,10 +384,10 @@ public final class TokenService {
                             // if the index or the shard is not there / available we assume that
                             // the token is not valid
                             if (isShardNotAvailableException(e)) {
-                                logger.warn("failed to get token [{}] since index is not available", userTokenId);
+                                logger.warn("failed to get access token [{}] because index is not available", userTokenId);
                                 listener.onResponse(null);
                             } else {
-                                logger.error(new ParameterizedMessage("failed to get token [{}]", userTokenId), e);
+                                logger.error(new ParameterizedMessage("failed to get access token [{}]", userTokenId), e);
                                 listener.onFailure(e);
                             }
                         }), client::get);
@@ -510,7 +510,7 @@ public final class TokenService {
         ensureEnabled();
         if (userToken == null) {
             logger.trace("No access token provided");
-            listener.onFailure(new IllegalArgumentException("token must be provided"));
+            listener.onFailure(new IllegalArgumentException("access token must be provided"));
         } else {
             maybeStartTokenRemover();
             final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
@@ -734,7 +734,7 @@ public final class TokenService {
         };
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.indexExists() == false) {
-            logger.warn("security index does not exist therefore refresh token [{}] cannot be validated", refreshToken);
+            logger.warn("security index does not exist therefore refresh token cannot be validated");
             listener.onFailure(invalidGrantException("could not refresh the requested token"));
         } else if (frozenSecurityIndex.isAvailable() == false) {
             logger.debug("security index is not available to find token from refresh token, retrying");
@@ -753,7 +753,7 @@ public final class TokenService {
                             logger.debug("find token from refresh token response timed out, retrying");
                             maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
                         } else if (searchResponse.getHits().getHits().length < 1) {
-                            logger.warn("could not find token document with refresh_token [{}]", refreshToken);
+                            logger.warn("could not find token document for refresh token");
                             onFailure.accept(invalidGrantException("could not refresh the requested token"));
                         } else if (searchResponse.getHits().getHits().length > 1) {
                             onFailure.accept(new IllegalStateException("multiple tokens share the same refresh token"));
@@ -784,7 +784,7 @@ public final class TokenService {
      */
     private void innerRefresh(String tokenDocId, Map<String, Object> source, long seqNo, long primaryTerm, Authentication clientAuth,
                               Iterator<TimeValue> backoff, Instant refreshRequested, ActionListener<Tuple<UserToken, String>> listener) {
-        logger.debug("Attempting to refresh token [{}]", tokenDocId);
+        logger.debug("Attempting to refresh token stored in token document [{}]", tokenDocId);
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
         final String supersedingTokenId;
         try {
@@ -866,7 +866,7 @@ public final class TokenService {
                             try {
                                 parsedTokens = parseTokensFromDocument(source, null);
                             } catch (IOException e) {
-                                logger.error("unable to decode the user token from document [{}]", tokenDocId);
+                                logger.error("unable to decode the tokens from document [{}]", tokenDocId);
                                 listener.onFailure(invalidGrantException("could not refresh the requested token"));
                                 return;
                             }
@@ -1224,7 +1224,7 @@ public final class TokenService {
             listener.onFailure(traceLog("validate token", userToken.getId(), expiredTokenException()));
         } else if (securityIndex.indexExists() == false) {
             // index doesn't exist so the token is considered invalid as we cannot verify its validity
-            logger.warn("failed to validate token [{}] since the security index doesn't exist", userToken.getId());
+            logger.warn("failed to validate access token because the security index doesn't exist");
             listener.onResponse(null);
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
@@ -1255,7 +1255,7 @@ public final class TokenService {
                         // if the index or the shard is not there / available we assume that
                         // the token is not valid
                         if (isShardNotAvailableException(e)) {
-                            logger.warn("failed to get token [{}] since index is not available", userToken.getId());
+                            logger.warn("failed to get access token because index is not available", userToken.getId());
                             listener.onResponse(null);
                         } else {
                             logger.error(new ParameterizedMessage("failed to get token [{}]", userToken.getId()), e);

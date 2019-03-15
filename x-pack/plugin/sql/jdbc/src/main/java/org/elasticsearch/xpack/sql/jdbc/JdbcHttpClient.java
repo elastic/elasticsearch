@@ -12,10 +12,9 @@ import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.sql.SQLException;
@@ -50,7 +49,7 @@ class JdbcHttpClient {
 
     Cursor query(String sql, List<SqlTypedParamValue> params, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
-                SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, null, Protocol.TIME_ZONE,
+                SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, null, conCfg.zoneId(),
                 fetch,
                 TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
                 false, new RequestInfo(Mode.JDBC));

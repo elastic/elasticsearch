@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -268,9 +267,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readOptionalString();
-        }
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         storedFields = in.readOptionalStringArray();
@@ -287,9 +283,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalString(null);
-        }
         out.writeOptionalString(preference);
 
         out.writeBoolean(refresh);

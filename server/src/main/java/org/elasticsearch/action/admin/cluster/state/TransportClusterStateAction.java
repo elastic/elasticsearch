@@ -20,14 +20,14 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.Version;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -45,6 +45,14 @@ import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
+    private final Logger logger = LogManager.getLogger(getClass());
+
+    static {
+        final String property = System.getProperty("es.cluster_state.size");
+        if (property != null) {
+                throw new IllegalArgumentException("es.cluster_state.size is no longer respected but was [" + property + "]");
+        }
+    }
 
     @Inject
     public TransportClusterStateAction(TransportService transportService, ClusterService clusterService,
@@ -106,7 +114,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                     @Override
                     public void onTimeout(TimeValue timeout) {
                         try {
-                            listener.onResponse(new ClusterStateResponse(clusterState.getClusterName(), null, 0L, true));
+                            listener.onResponse(new ClusterStateResponse(clusterState.getClusterName(), null, true));
                         } catch (Exception e) {
                             listener.onFailure(e);
                         }
@@ -182,8 +190,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 }
             }
         }
-        listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(),
-            PublicationTransportHandler.serializeFullClusterState(currentState, Version.CURRENT).length(), false));
+
+        listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(), false));
     }
 
 

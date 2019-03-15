@@ -5,13 +5,19 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -32,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
 import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCountsTests;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
@@ -55,6 +62,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -77,6 +85,54 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         jobProvider = new JobResultsProvider(client(), builder.build());
         waitForMlTemplates();
+    }
+
+    public void testMultipleSimultaneousJobCreations() {
+
+        int numJobs = randomIntBetween(4, 7);
+
+        // Each job should result in one extra field being added to the results index mappings: field1, field2, field3, etc.
+        // Due to all being created simultaneously this test may reveal race conditions in the code that updates the mappings.
+        List<PutJobAction.Request> requests = new ArrayList<>(numJobs);
+        for (int i = 1; i <= numJobs; ++i) {
+            Job.Builder builder = new Job.Builder("job" + i);
+            AnalysisConfig.Builder ac = createAnalysisConfig("field" + i, Collections.emptyList());
+            DataDescription.Builder dc = new DataDescription.Builder();
+            builder.setAnalysisConfig(ac);
+            builder.setDataDescription(dc);
+
+            requests.add(new PutJobAction.Request(builder));
+        }
+
+        // Start the requests as close together as possible, without waiting for each to complete before starting the next one.
+        List<ActionFuture<PutJobAction.Response>> futures = new ArrayList<>(numJobs);
+        for (PutJobAction.Request request : requests) {
+            futures.add(client().execute(PutJobAction.INSTANCE, request));
+        }
+
+        // Only after all requests are in-flight, wait for all the requests to complete.
+        for (ActionFuture<PutJobAction.Response> future : futures) {
+            future.actionGet();
+        }
+
+        // Assert that the mappings contain all the additional fields: field1, field2, field3, etc.
+        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        GetMappingsRequest request = new GetMappingsRequest().indices(sharedResultsIndex);
+        GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings = response.getMappings();
+        assertNotNull(indexMappings);
+        ImmutableOpenMap<String, MappingMetaData> typeMappings = indexMappings.get(sharedResultsIndex);
+        assertNotNull("expected " + sharedResultsIndex + " in " + indexMappings, typeMappings);
+        assertEquals("expected 1 type in " + typeMappings, 1, typeMappings.size());
+        Map<String, Object> mappings = typeMappings.iterator().next().value.getSourceAsMap();
+        assertNotNull(mappings);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+        assertNotNull("expected 'properties' field in " + mappings, properties);
+        for (int i = 1; i <= numJobs; ++i) {
+            String fieldName = "field" + i;
+            assertNotNull("expected '" + fieldName + "' field in " + properties, properties.get(fieldName));
+        }
     }
 
     public void testGetCalandarByJobId() throws Exception {
@@ -473,7 +529,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     private Job.Builder createJob(String jobId, List<String> filterIds, List<String> jobGroups) {
         Job.Builder builder = new Job.Builder(jobId);
         builder.setGroups(jobGroups);
-        AnalysisConfig.Builder ac = createAnalysisConfig(filterIds);
+        AnalysisConfig.Builder ac = createAnalysisConfig("by_field", filterIds);
         DataDescription.Builder dc = new DataDescription.Builder();
         builder.setAnalysisConfig(ac);
         builder.setDataDescription(dc);
@@ -483,14 +539,14 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         return builder;
     }
 
-    private AnalysisConfig.Builder createAnalysisConfig(List<String> filterIds) {
+    private AnalysisConfig.Builder createAnalysisConfig(String byFieldName, List<String> filterIds) {
         Detector.Builder detector = new Detector.Builder("mean", "field");
-        detector.setByFieldName("by_field");
+        detector.setByFieldName(byFieldName);
         List<DetectionRule> rules = new ArrayList<>();
 
         for (String filterId : filterIds) {
             RuleScope.Builder ruleScope = RuleScope.builder();
-            ruleScope.include("by_field", filterId);
+            ruleScope.include(byFieldName, filterId);
 
             rules.add(new DetectionRule.Builder(ruleScope).setActions(RuleAction.SKIP_RESULT).build());
         }

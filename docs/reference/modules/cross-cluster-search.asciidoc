@@ -188,7 +188,7 @@ cluster alias:
 === Skipping disconnected clusters
 
 By default, all remote clusters that are searched via {ccs} need
-to be available when the search request is executed, otherwise the whole
+to be available when the search request is executed. Otherwise, the whole
 request fails and no search results are returned despite some of the clusters
 are available. Remote clusters can be made optional through the boolean
 `skip_unavailable` setting, set to `false` by default.

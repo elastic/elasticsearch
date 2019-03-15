@@ -52,7 +52,7 @@ version (e.g. 6.7 can communicate with 7.0, as well as any 7.x node, while
 | 7.x           |    No    | No  |    No    | Yes | Yes
 |====
 
-NOTE: When needing to connect incompatible clusters on subsequent major
+NOTE: If you want to connect incompatible clusters on subsequent major
 versions, it is possible to add to the cluster on the lower version one or
 more <<coordinating-only-node,coordinating only nodes>> on the intermediate
 version that supports communicating with both ends. For instance, a 7.0

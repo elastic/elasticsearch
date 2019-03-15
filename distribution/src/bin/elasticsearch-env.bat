@@ -28,6 +28,8 @@ for %%I in ("%ES_PATH_CONF%..") do set ES_PATH_CONF=%%~dpfI
 set ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 set ES_DISTRIBUTION_TYPE=${es.distribution.type}
 
+cd /d "%ES_HOME%"
+
 rem now set the path to java, pass "nojava" arg to skip setting JAVA_HOME and JAVA
 if "%1" == "nojava" (
    exit /b

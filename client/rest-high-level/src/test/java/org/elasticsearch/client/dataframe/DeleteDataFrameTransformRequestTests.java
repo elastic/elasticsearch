@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,14 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.elasticsearch.client.dataframe;
 
-import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.test.ESTestCase;
 
-public class DefaultTarTests extends ArchiveTestCase {
+import static org.hamcrest.Matchers.containsString;
 
-    @Override
-    protected Distribution distribution() {
-        return Distribution.DEFAULT_LINUX;
+public class DeleteDataFrameTransformRequestTests extends ESTestCase {
+
+    public void testValidate() {
+        assertFalse(new DeleteDataFrameTransformRequest("valid-id").validate().isPresent());
+        assertThat(new DeleteDataFrameTransformRequest(null).validate().get().getMessage(),
+                containsString("data frame transform id must not be null"));
     }
 }

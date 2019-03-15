@@ -233,7 +233,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
      */
     public InternalHistogram(StreamInput in) throws IOException {
         super(in);
-        order = InternalOrder.Streams.readHistogramOrder(in, false);
+        order = InternalOrder.Streams.readHistogramOrder(in);
         minDocCount = in.readVLong();
         if (minDocCount == 0) {
             emptyBucketInfo = new EmptyBucketInfo(in);
@@ -247,7 +247,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        InternalOrder.Streams.writeHistogramOrder(order, out, false);
+        InternalOrder.Streams.writeHistogramOrder(order, out);
         out.writeVLong(minDocCount);
         if (minDocCount == 0) {
             emptyBucketInfo.writeTo(out);

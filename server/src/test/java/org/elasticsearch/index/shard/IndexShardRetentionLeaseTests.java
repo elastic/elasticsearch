@@ -256,6 +256,20 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             } finally {
                 closeShards(recoveredShard);
             }
+
+            // we should not recover retention leases when force-allocating a stale primary
+            final IndexShard forceRecoveredShard = reinitShard(
+                indexShard,
+                ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
+                    RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE));
+            try {
+                recoverShardFromStore(forceRecoveredShard);
+                final RetentionLeases recoveredRetentionLeases = forceRecoveredShard.getEngine().config().retentionLeasesSupplier().get();
+                assertThat(recoveredRetentionLeases.leases(), empty());
+                assertThat(recoveredRetentionLeases.version(), equalTo(0L));
+            } finally {
+                closeShards(forceRecoveredShard);
+            }
         } finally {
             closeShards(indexShard);
         }

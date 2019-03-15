@@ -88,7 +88,7 @@ public class ClusterStateResponse extends ActionResponse {
         super.writeTo(out);
         clusterName.writeTo(out);
         out.writeOptionalWriteable(clusterState);
-        if (out.getVersion().before(Version.V_6_7_0)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             ByteSizeValue.ZERO.writeTo(out);
         }
         out.writeBoolean(waitForTimedOut);

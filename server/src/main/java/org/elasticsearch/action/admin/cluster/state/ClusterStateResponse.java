@@ -77,7 +77,7 @@ public class ClusterStateResponse extends ActionResponse {
         super.readFrom(in);
         clusterName = new ClusterName(in);
         clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
-        if (in.getVersion().before(Version.V_6_7_0)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             new ByteSizeValue(in);
         }
         waitForTimedOut = in.readBoolean();

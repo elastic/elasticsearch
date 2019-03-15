@@ -103,7 +103,7 @@ Scripting::
 Search::
 * Eliminate array access in tight loops when profiling is enabled. {pull}24959[#24959]
 * Support Multiple Inner Hits on a Field Collapse Request {pull}24517[#24517]
-* Expand cross cluster search indices for search requests to the concrete index or to it's aliases {pull}24502[#24502]
+* Expand {ccs} indices for search requests to the concrete index or to it's aliases {pull}24502[#24502]
 
 Search Templates::
 * Add max concurrent searches to multi template search {pull}24255[#24255] (issues: {issue}20912[#20912], {issue}21907[#21907])

@@ -99,7 +99,7 @@ Reindex API::
 Search::
 * Avoid stack overflow on search phases {pull}27069[#27069] (issue: {issue}27042[#27042])
 * Fix search_after with geo distance sorting {pull}26891[#26891]
-* Fix serialization errors when cross cluster search goes to a single shard {pull}26881[#26881] (issue: {issue}26833[#26833])
+* Fix serialization errors when {ccs} goes to a single shard {pull}26881[#26881] (issue: {issue}26833[#26833])
 * Early termination with index sorting should not set terminated_early in the response {pull}26597[#26597] (issue: {issue}26408[#26408])
 * Format doc values fields. {pull}22146[#22146]
 

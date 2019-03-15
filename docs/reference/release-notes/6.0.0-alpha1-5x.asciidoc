@@ -177,7 +177,7 @@ Reindex API::
 
 Search::
 * Introduce incremental reduction of TopDocs {pull}23946[#23946]
-* Add federated cross cluster search capabilities {pull}22502[#22502] (issue: {issue}21473[#21473])
+* Add federated {ccs} capabilities {pull}22502[#22502] (issue: {issue}21473[#21473])
 * Add field collapsing for search request {pull}22337[#22337] (issue: {issue}21833[#21833])
 
 Settings::
@@ -304,7 +304,7 @@ Highlighting::
 
 Index APIs::
 * Open and close index to honour allow_no_indices option {pull}24222[#24222] (issue: {issue}24031[#24031])
-* Wildcard cluster names for cross cluster search {pull}23985[#23985] (issue: {issue}23893[#23893])
+* Wildcard cluster names for {ccs} {pull}23985[#23985] (issue: {issue}23893[#23893])
 * Indexing: Add shard id to indexing operation listener {pull}22606[#22606]
 * Better error when can't auto create index  {pull}22488[#22488] (issues: {issue}21448[#21448], {issue}22435[#22435])
 * Add date-math support to `_rollover` {pull}20709[#20709]
@@ -585,7 +585,7 @@ Snapshot/Restore::
 
 Stats::
 * Show JVM arguments {pull}24450[#24450]
-* Add cross-cluster search remote cluster info API {pull}23969[#23969] (issue: {issue}23925[#23925])
+* Add {ccs} remote cluster info API {pull}23969[#23969] (issue: {issue}23925[#23925])
 * Add geo_point to FieldStats {pull}21947[#21947] (issue: {issue}20707[#20707])
 * Include unindexed field in FieldStats response {pull}21821[#21821] (issue: {issue}21952[#21952])
 * Remove load average leniency {pull}21380[#21380]
@@ -954,7 +954,7 @@ Scripting::
 
 Search::
 * Include all aliases including non-filtering in  `_search_shards` response {pull}24489[#24489]
-* Cross Cluster Search: propagate original indices per cluster {pull}24328[#24328]
+* {ccs-cap}: propagate original indices per cluster {pull}24328[#24328]
 * Query string default field {pull}24214[#24214]
 * Speed up parsing of large `terms` queries. {pull}24210[#24210]
 * IndicesQueryCache should delegate the scorerSupplier method. {pull}24209[#24209]

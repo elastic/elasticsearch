@@ -610,7 +610,7 @@ Search::
 * Add cluster name validation to RemoteClusterConnection {pull}25568[#25568]
 * Speed up sorted scroll when the index sort matches the search sort {pull}25138[#25138] (issue: {issue}6720[#6720])
 * Leverage scorerSupplier when applicable. {pull}25109[#25109]
-* Add Cross Cluster Search support for scroll searches {pull}25094[#25094]
+* Add {ccs} support for scroll searches {pull}25094[#25094]
 * Track EWMA[1] of task execution time in search threadpool executor {pull}24989[#24989] (issue: {issue}24915[#24915])
 * Query range fields by doc values when they are expected to be more efficient than points {pull}24823[#24823] (issue: {issue}24314[#24314])
 * Search: Fairer balancing when routing searches by session ID {pull}24671[#24671] (issue: {issue}24642[#24642])
@@ -618,7 +618,7 @@ Search::
 * Add parsing from xContent to ShardSearchFailure {pull}22699[#22699]
 * Eliminate array access in tight loops when profiling is enabled. {pull}24959[#24959]
 * Support Multiple Inner Hits on a Field Collapse Request {pull}24517[#24517]
-* Expand cross cluster search indices for search requests to the concrete index or to it's aliases {pull}24502[#24502]
+* Expand {ccs} indices for search requests to the concrete index or to it's aliases {pull}24502[#24502]
 
 Search Templates::
 * Add max concurrent searches to multi template search {pull}24255[#24255] (issues: {issue}20912[#20912], {issue}21907[#21907])
@@ -796,7 +796,7 @@ Internal::
 * Extract a common base class for scroll executions {pull}24979[#24979] (issue: {issue}16555[#16555])
 * Obey lock order if working with store to get metadata snapshots {pull}24787[#24787] (issue: {issue}24481[#24481])
 * Fix Version based BWC and set correct minCompatVersion {pull}24732[#24732]
-* Fix `_field_caps` serialization in order to support cross cluster search {pull}24722[#24722]
+* Fix `_field_caps` serialization in order to support {ccs} {pull}24722[#24722]
 * Avoid race when shutting down controller processes {pull}24579[#24579]
 * Fix handling of document failure exception in InternalEngine {pull}22718[#22718]
 * Ensure remote cluster is connected before fetching `_field_caps` {pull}24845[#24845] (issue: {issue}24763[#24763])
@@ -941,7 +941,7 @@ Search::
 * Let search phases override max concurrent requests {pull}26484[#26484] (issue: {issue}26198[#26198])
 * Avoid stack overflow on search phases {pull}27069[#27069] (issue: {issue}27042[#27042])
 * Fix search_after with geo distance sorting {pull}26891[#26891]
-* Fix serialization errors when cross cluster search goes to a single shard {pull}26881[#26881] (issue: {issue}26833[#26833])
+* Fix serialization errors when {ccs} goes to a single shard {pull}26881[#26881] (issue: {issue}26833[#26833])
 * Early termination with index sorting should not set terminated_early in the response {pull}26597[#26597] (issue: {issue}26408[#26408])
 * Format doc values fields. {pull}22146[#22146]
 * Fix term(s) query for range field {pull}25918[#25918]

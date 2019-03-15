@@ -143,7 +143,7 @@ Search::
 * Limit the number of concurrent shard requests per search request {pull}25632[#25632]
 * Add cluster name validation to RemoteClusterConnection {pull}25568[#25568]
 * Leverage scorerSupplier when applicable. {pull}25109[#25109]
-* Add Cross Cluster Search support for scroll searches {pull}25094[#25094]
+* Add {ccs} support for scroll searches {pull}25094[#25094]
 
 Sequence IDs::
 * 5.x - Move primary term from ReplicationRequest to ConcreteShardRequest {pull}25824[#25824] (issue: {issue}25822[#25822])

@@ -125,7 +125,7 @@ Highlighting::
 * Add BreakIteratorBoundaryScanner support {pull}23248[#23248]
 
 Index APIs::
-* Wildcard cluster names for cross cluster search {pull}23985[#23985] (issue: {issue}23893[#23893])
+* Wildcard cluster names for {ccs} {pull}23985[#23985] (issue: {issue}23893[#23893])
 
 Ingest::
 * Lazy load the geoip databases {pull}23337[#23337]
@@ -231,7 +231,7 @@ Snapshot/Restore::
 * Change snapshot status error to use generic SnapshotException {pull}24355[#24355] (issue: {issue}24225[#24225])
 
 Stats::
-* Add cross-cluster search remote cluster info API {pull}23969[#23969] (issue: {issue}23925[#23925])
+* Add {ccs} remote cluster info API {pull}23969[#23969] (issue: {issue}23925[#23925])
 
 Task Manager::
 * Allow task to be unregistered by ClusterStateApplier {pull}23931[#23931]
@@ -364,7 +364,7 @@ Scripting::
 * Script: Fix value of `ctx._now` to be current epoch time in milliseconds {pull}23175[#23175] (issue: {issue}23169[#23169])
 
 Search::
-* Cross Cluster Search: propagate original indices per cluster {pull}24328[#24328]
+* {ccs-cap}: propagate original indices per cluster {pull}24328[#24328]
 * Query string default field {pull}24214[#24214]
 * Speed up parsing of large `terms` queries. {pull}24210[#24210]
 * IndicesQueryCache should delegate the scorerSupplier method. {pull}24209[#24209]

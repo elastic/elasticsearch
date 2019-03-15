@@ -180,7 +180,7 @@ Scripting::
 Search::
 * Eliminate array access in tight loops when profiling is enabled. {pull}24959[#24959]
 * Support Multiple Inner Hits on a Field Collapse Request {pull}24517[#24517]
-* Expand cross cluster search indices for search requests to the concrete index or to it's aliases {pull}24502[#24502]
+* Expand {ccs} indices for search requests to the concrete index or to it's aliases {pull}24502[#24502]
 * Remove leniency when merging fetched hits in a search response phase {pull}24158[#24158]
 
 Search Templates::
@@ -269,7 +269,7 @@ Internal::
 * Ensure remote cluster is connected before fetching `_field_caps` {pull}24845[#24845] (issue: {issue}24763[#24763])
 * Obey lock order if working with store to get metadata snapshots {pull}24787[#24787] (issue: {issue}24481[#24481])
 * Remove `_UNRELEASED` from Version constants for released versions {pull}24764[#24764]
-* Fix `_field_caps` serialization in order to support cross cluster search {pull}24722[#24722]
+* Fix `_field_caps` serialization in order to support {ccs} {pull}24722[#24722]
 * Avoid race when shutting down controller processes {pull}24579[#24579]
 * Fix NPE if field caps request has a field that exists not in all indices {pull}24504[#24504]
 
@@ -330,7 +330,7 @@ Search::
 * Fix RangeFieldMapper rangeQuery to properly handle relations {pull}24808[#24808] (issue: {issue}24744[#24744])
 * Fix ExpandSearchPhase when response contains no hits {pull}24688[#24688] (issue: {issue}24672[#24672])
 * Include all aliases including non-filtering in  `_search_shards` response {pull}24489[#24489]
-* Cross Cluster Search: propagate original indices per cluster {pull}24328[#24328]
+* {ccs-cap}: propagate original indices per cluster {pull}24328[#24328]
 
 Search Templates::
 * No longer add illegal content type option to stored search templates {pull}24251[#24251] (issue: {issue}24227[#24227])

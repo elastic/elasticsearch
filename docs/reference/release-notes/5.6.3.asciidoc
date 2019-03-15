@@ -29,5 +29,5 @@ Plugin Repository Azure::
 * Use Azure upload method instead of our own implementation (#26751) {pull}26839[#26839] (issue: {issue}26751[#26751])
 
 Search::
-* Fix serialization errors when cross cluster search goes to a single shard {pull}26881[#26881] (issue: {issue}26833[#26833])
+* Fix serialization errors when {ccs} goes to a single shard {pull}26881[#26881] (issue: {issue}26833[#26833])
 

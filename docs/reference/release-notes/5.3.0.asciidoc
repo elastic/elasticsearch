@@ -90,7 +90,7 @@ Highlighting::
 * Integrate UnifiedHighlighter {pull}21621[#21621] (issue: {issue}21376[#21376])
 
 Search::
-* Add federated cross cluster search capabilities {pull}22502[#22502] (issue: {issue}21473[#21473])
+* Add federated {ccs} capabilities {pull}22502[#22502] (issue: {issue}21473[#21473])
 * Add field collapsing for search request {pull}22337[#22337] (issue: {issue}21833[#21833])
 
 Settings::

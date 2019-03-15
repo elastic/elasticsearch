@@ -26,6 +26,11 @@
   same cluster name. Each cluster has a single master node which is
   chosen automatically by the cluster and which can be replaced if the
   current master node fails.
+    
+[[glossary-ccs]] {ccs} (CCS)::
+
+  The {ccs} feature enables any node to act as a federated client across
+  multiple clusters. See <<modules-cross-cluster-search>>.    
 
 [[glossary-document]] document ::
 

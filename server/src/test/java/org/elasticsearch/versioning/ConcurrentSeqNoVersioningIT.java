@@ -96,8 +96,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             .setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(3))
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(),
-                    randomTimeValue(0, Math.max(disruptTimeSeconds*3/2, 2), "s"))
             ));
 
         ensureGreen();

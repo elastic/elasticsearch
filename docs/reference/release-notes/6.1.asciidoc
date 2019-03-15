@@ -559,7 +559,7 @@ Search::
 * fix unnecessary logger creation {pull}27349[#27349]
 * `ObjectParser` : replace `IllegalStateException` with `ParsingException` {pull}27302[#27302] (issue: {issue}27147[#27147])
 * Uses norms for exists query if enabled {pull}27237[#27237]
-* Cross Cluster Search: make remote clusters optional {pull}27182[#27182] (issues: {issue}26118[#26118], {issue}27161[#27161])
+* {ccs-cap}: make remote clusters optional {pull}27182[#27182] (issues: {issue}26118[#26118], {issue}27161[#27161])
 * Enhances exists queries to reduce need for `_field_names` {pull}26930[#26930] (issue: {issue}26770[#26770])
 * Change ParentFieldSubFetchPhase to create doc values iterator once per segment {pull}26815[#26815]
 * Change VersionFetchSubPhase to create doc values iterator once per segment {pull}26809[#26809]

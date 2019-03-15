@@ -372,7 +372,8 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         Archives.runElasticsearch(installation);
         Archives.stopElasticsearch(installation);
 
-        final Shell sh = new Shell(getTempDir());
+        final Shell sh = new Shell();
+        sh.setWorkingDirectory(getTempDir());
 
         Result result = sh.run("echo y | " + installation.executables().elasticsearchNode + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));

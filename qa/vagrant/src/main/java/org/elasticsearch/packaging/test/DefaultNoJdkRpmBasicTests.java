@@ -21,10 +21,10 @@ package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.packaging.util.Distribution;
 
-public class DefaultTarTests extends ArchiveTestCase {
+public class DefaultNoJdkRpmBasicTests extends PackageTestCase {
 
     @Override
     protected Distribution distribution() {
-        return Distribution.DEFAULT_LINUX;
+        return Distribution.DEFAULT_NO_JDK_RPM;
     }
 }

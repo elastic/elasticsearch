@@ -60,7 +60,15 @@ class VagrantTestPlugin implements Plugin<Project> {
             'packages:rpm',
             'packages:oss-rpm',
             'packages:deb',
-            'packages:oss-deb'
+            'packages:oss-deb',
+            'archives:no-jdk-linux-tar',
+            'archives:oss-no-jdk-linux-tar',
+            'archives:no-jdk-windows-zip',
+            'archives:oss-no-jdk-windows-zip',
+            'packages:no-jdk-rpm',
+            'packages:oss-no-jdk-rpm',
+            'packages:no-jdk-deb',
+            'packages:oss-no-jdk-deb'
     ])
 
     /** Packages onboarded for upgrade tests **/

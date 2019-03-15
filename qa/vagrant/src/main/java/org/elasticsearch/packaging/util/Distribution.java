@@ -23,42 +23,59 @@ import java.util.Locale;
 
 public enum Distribution {
 
-    OSS_LINUX(Packaging.TAR, Platform.LINUX, Flavor.OSS),
-    OSS_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.OSS),
-    OSS_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.OSS),
-    OSS_DEB(Packaging.DEB, Platform.LINUX, Flavor.OSS),
-    OSS_RPM(Packaging.RPM, Platform.LINUX, Flavor.OSS),
+    OSS_LINUX(Packaging.TAR, Platform.LINUX, Flavor.OSS, true),
+    OSS_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.OSS, true),
+    OSS_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.OSS, true),
+    OSS_DEB(Packaging.DEB, Platform.LINUX, Flavor.OSS, true),
+    OSS_RPM(Packaging.RPM, Platform.LINUX, Flavor.OSS, true),
 
-    DEFAULT_LINUX(Packaging.TAR, Platform.LINUX, Flavor.DEFAULT),
-    DEFAULT_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.DEFAULT),
-    DEFAULT_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.DEFAULT),
-    DEFAULT_DEB(Packaging.DEB, Platform.LINUX, Flavor.DEFAULT),
-    DEFAULT_RPM(Packaging.RPM, Platform.LINUX, Flavor.DEFAULT);
+    DEFAULT_LINUX(Packaging.TAR, Platform.LINUX, Flavor.DEFAULT, true),
+    DEFAULT_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.DEFAULT, true),
+    DEFAULT_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.DEFAULT, true),
+    DEFAULT_DEB(Packaging.DEB, Platform.LINUX, Flavor.DEFAULT, true),
+    DEFAULT_RPM(Packaging.RPM, Platform.LINUX, Flavor.DEFAULT, true),
+
+    OSS_NO_JDK_LINUX(Packaging.TAR, Platform.LINUX, Flavor.OSS, false),
+    OSS_NO_JDK_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.OSS, false),
+    OSS_NO_JDK_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.OSS, false),
+    OSS_NO_JDK_DEB(Packaging.DEB, Platform.LINUX, Flavor.OSS, false),
+    OSS_NO_JDK_RPM(Packaging.RPM, Platform.LINUX, Flavor.OSS, false),
+
+    DEFAULT_NO_JDK_LINUX(Packaging.TAR, Platform.LINUX, Flavor.DEFAULT, false),
+    DEFAULT_NO_JDK_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.DEFAULT, false),
+    DEFAULT_NO_JDK_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.DEFAULT, false),
+    DEFAULT_NO_JDK_DEB(Packaging.DEB, Platform.LINUX, Flavor.DEFAULT, false),
+    DEFAULT_NO_JDK_RPM(Packaging.RPM, Platform.LINUX, Flavor.DEFAULT, false);
 
     public final Packaging packaging;
     public final Platform platform;
     public final Flavor flavor;
+    public final boolean hasJdk;
 
-    Distribution(Packaging packaging, Platform platform, Flavor flavor) {
+    Distribution(Packaging packaging, Platform platform, Flavor flavor, boolean hasJdk) {
         this.packaging = packaging;
         this.platform = platform;
         this.flavor = flavor;
+        this.hasJdk = hasJdk;
     }
 
     public String filename(String version) {
-        String architecture = "";
+        String classifier = "";
         if (version.startsWith("6.") == false) {
 
+            if (hasJdk == false) {
+                classifier += "-no-jdk";
+            }
             if (packaging == Packaging.DEB) {
-                architecture = "-amd64";
+                classifier += "-amd64";
             } else {
                 if (packaging != Packaging.RPM) {
-                    architecture = "-" + platform.toString();
+                    classifier += "-" + platform.toString();
                 }
-                architecture += "-x86_64";
+                classifier += "-x86_64";
             }
         }
-        return flavor.name + "-" + version + architecture + packaging.extension;
+        return flavor.name + "-" + version + classifier + packaging.extension;
     }
 
     public boolean isDefault() {

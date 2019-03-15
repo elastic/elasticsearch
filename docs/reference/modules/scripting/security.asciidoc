@@ -341,7 +341,7 @@ Security Policy either:
 +
 [source,js]
 ---------------------------------
-export ES_JAVA_OPTS="${ES_JAVA_OPTS} -Djava.security.policy=file:///path/to/my.policy`
+export ES_JAVA_OPTS="${ES_JAVA_OPTS} -Djava.security.policy=file:///path/to/my.policy"
 ./bin/elasticsearch
 ---------------------------------
 // NOTCONSOLE

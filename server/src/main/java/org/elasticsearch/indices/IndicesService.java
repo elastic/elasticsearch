@@ -706,7 +706,6 @@ public class IndicesService extends AbstractLifecycleComponent
         final GetStats getStats = new GetStats();
         final IndexingStats indexingStats = new IndexingStats();
         final MergeStats mergeStats = new MergeStats();
-        final RefreshStats externalRefreshStats = new RefreshStats();
         final RefreshStats refreshStats = new RefreshStats();
         final FlushStats flushStats = new FlushStats();
         final RecoveryStats recoveryStats = new RecoveryStats();

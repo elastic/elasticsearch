@@ -42,6 +42,7 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -125,7 +126,8 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                 new IndexStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indexStats, metaData, routingTable);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        assertEquals("{"
+        assertThat(xContent.utf8ToString(), equalTo(
+                    "{"
                      + "\"cluster_uuid\":\"_cluster\","
                      + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
                      + "\"interval_ms\":1506593717631,"
@@ -148,9 +150,9 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                            + "\"size_in_bytes\":13"
                          + "},"
                          + "\"indexing\":{"
-                           + "\"index_total\":15,"
-                           + "\"index_time_in_millis\":16,"
-                           + "\"throttle_time_in_millis\":17"
+                           + "\"index_total\":16,"
+                           + "\"index_time_in_millis\":17,"
+                           + "\"throttle_time_in_millis\":18"
                          + "},"
                          + "\"search\":{"
                            + "\"query_total\":19,"
@@ -161,7 +163,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                          + "},"
                          + "\"refresh\":{"
                            + "\"total_time_in_millis\":14,"
-                           + "\"external_total_time_in_millis\":14"
+                           + "\"external_total_time_in_millis\":15"
                          + "},"
                          + "\"query_cache\":{"
                            + "\"memory_size_in_bytes\":5,"
@@ -174,17 +176,17 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                            + "\"evictions\":3"
                          + "},"
                          + "\"segments\":{"
-                           + "\"count\":20,"
-                           + "\"memory_in_bytes\":21,"
-                           + "\"terms_memory_in_bytes\":22,"
-                           + "\"stored_fields_memory_in_bytes\":23,"
-                           + "\"term_vectors_memory_in_bytes\":24,"
-                           + "\"norms_memory_in_bytes\":25,"
-                           + "\"points_memory_in_bytes\":26,"
-                           + "\"doc_values_memory_in_bytes\":27,"
-                           + "\"index_writer_memory_in_bytes\":28,"
-                           + "\"version_map_memory_in_bytes\":29,"
-                           + "\"fixed_bit_set_memory_in_bytes\":30"
+                           + "\"count\":21,"
+                           + "\"memory_in_bytes\":22,"
+                           + "\"terms_memory_in_bytes\":23,"
+                           + "\"stored_fields_memory_in_bytes\":24,"
+                           + "\"term_vectors_memory_in_bytes\":25,"
+                           + "\"norms_memory_in_bytes\":26,"
+                           + "\"points_memory_in_bytes\":27,"
+                           + "\"doc_values_memory_in_bytes\":28,"
+                           + "\"index_writer_memory_in_bytes\":29,"
+                           + "\"version_map_memory_in_bytes\":30,"
+                           + "\"fixed_bit_set_memory_in_bytes\":31"
                          + "},"
                          + "\"request_cache\":{"
                            + "\"memory_size_in_bytes\":9,"
@@ -201,9 +203,9 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                            + "\"size_in_bytes\":13"
                          + "},"
                          + "\"indexing\":{"
-                           + "\"index_total\":15,"
-                           + "\"index_time_in_millis\":16,"
-                           + "\"throttle_time_in_millis\":17"
+                           + "\"index_total\":16,"
+                           + "\"index_time_in_millis\":17,"
+                           + "\"throttle_time_in_millis\":18"
                          + "},"
                          + "\"search\":{"
                            + "\"query_total\":19,"
@@ -214,7 +216,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                          + "},"
                          + "\"refresh\":{"
                            + "\"total_time_in_millis\":14,"
-                           + "\"external_total_time_in_millis\":14"
+                           + "\"external_total_time_in_millis\":15"
                          + "},"
                          + "\"query_cache\":{"
                            + "\"memory_size_in_bytes\":5,"
@@ -227,17 +229,17 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                            + "\"evictions\":3"
                          + "},"
                          + "\"segments\":{"
-                           + "\"count\":20,"
-                           + "\"memory_in_bytes\":21,"
-                           + "\"terms_memory_in_bytes\":22,"
-                           + "\"stored_fields_memory_in_bytes\":23,"
-                           + "\"term_vectors_memory_in_bytes\":24,"
-                           + "\"norms_memory_in_bytes\":25,"
-                           + "\"points_memory_in_bytes\":26,"
-                           + "\"doc_values_memory_in_bytes\":27,"
-                           + "\"index_writer_memory_in_bytes\":28,"
-                           + "\"version_map_memory_in_bytes\":29,"
-                           + "\"fixed_bit_set_memory_in_bytes\":30"
+                           + "\"count\":21,"
+                           + "\"memory_in_bytes\":22,"
+                           + "\"terms_memory_in_bytes\":23,"
+                           + "\"stored_fields_memory_in_bytes\":24,"
+                           + "\"term_vectors_memory_in_bytes\":25,"
+                           + "\"norms_memory_in_bytes\":26,"
+                           + "\"points_memory_in_bytes\":27,"
+                           + "\"doc_values_memory_in_bytes\":28,"
+                           + "\"index_writer_memory_in_bytes\":29,"
+                           + "\"version_map_memory_in_bytes\":30,"
+                           + "\"fixed_bit_set_memory_in_bytes\":31"
                          + "},"
                          + "\"request_cache\":{"
                            + "\"memory_size_in_bytes\":9,"
@@ -247,7 +249,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                         + "}"
                         + "}"
                       + "}"
-                + "}", xContent.utf8ToString());
+                + "}"));
     }
 
     public void testToXContentWithNullStats() throws IOException {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.refresh;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -51,9 +52,22 @@ public class RefreshStats implements Streamable, Writeable, ToXContentFragment {
     public RefreshStats(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
-        externalTotal = in.readVLong();
-        externalTotalTimeInMillis = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            externalTotal = in.readVLong();
+            externalTotalTimeInMillis = in.readVLong();
+        }
         listeners = in.readVInt();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(total);
+        out.writeVLong(totalTimeInMillis);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeVLong(externalTotal);
+            out.writeVLong(externalTotalTimeInMillis);
+        }
+        out.writeVInt(listeners);
     }
 
     public RefreshStats(long total, long totalTimeInMillis, long externalTotal, long externalTotalTimeInMillis, int listeners) {
@@ -140,15 +154,6 @@ public class RefreshStats implements Streamable, Writeable, ToXContentFragment {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(total);
-        out.writeVLong(totalTimeInMillis);
-        out.writeVLong(externalTotal);
-        out.writeVLong(externalTotalTimeInMillis);
-        out.writeVInt(listeners);
     }
 
     @Override

@@ -363,13 +363,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             return Objects.hash(primaryTerm, seqNo);
         }
 
-        /**
-         * Return true iff this is strictly greater than other.
-         */
-        public boolean gt(Version other) {
-            return compareTo(other) > 0;
-        }
-
         @Override
         public int compareTo(Version other) {
             int termCompare = Long.compare(primaryTerm, other.primaryTerm);
@@ -563,7 +556,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             // We use the max cas fail version, which is correct due to the checking in casSuccess.
             // for 4, we ignore the stale read (does not affect state).
 
-            Version newCASFailVersion = outputVersion.gt(casFailVersion) ? outputVersion : casFailVersion;
+            Version newCASFailVersion = outputVersion.compareTo(casFailVersion) > 0 ? outputVersion : casFailVersion;
             return Optional.of(new CASFailOwnWriteState(safeVersion, newCASFailVersion));
         }
 
@@ -601,7 +594,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         @Override
         Optional<State> casSuccess(Version inputVersion, Version outputVersion) {
-            if (safeVersion.gt(inputVersion) || safeVersion.gt(outputVersion))
+            if (safeVersion.compareTo(inputVersion) > 0 || safeVersion.compareTo(outputVersion) > 0)
                 return Optional.empty();
 
             // the previous write could have been accepted or rejected so we cannot validate the version more precisely.

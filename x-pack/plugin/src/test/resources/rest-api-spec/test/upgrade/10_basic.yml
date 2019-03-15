@@ -26,7 +26,13 @@ setup:
 
 ---
 "Upgrade info - all":
+  - skip:
+      version: " - 6.6.99"
+      reason: Deprecated in 6.7.0, will not issue warnings before 6.7.0
+      features: "warnings"
   - do:
+      warnings:
+        - "[GET _xpack/migration/assistance/{index}] is deprecated. Use [GET _xpack/migration/deprecations?index={index}] instead."
       xpack.migration.get_assistance: { index: _all }
 
   - length: { indices: 0 }
@@ -39,8 +45,13 @@ setup:
 
 ---
 "Upgrade test - wait_for_completion:false":
-
+  - skip:
+      version: " - 6.6.99"
+      reason: Deprecated in 6.7.0, will not issue warnings before 6.7.0
+      features: "warnings"
   - do:
+      warnings:
+        - "[_xpack/migration/upgrade] is deprecated. Use the Kibana Upgrade Assistant or the Reindex API instead."
       xpack.migration.upgrade:
         index: test1
         wait_for_completion: false

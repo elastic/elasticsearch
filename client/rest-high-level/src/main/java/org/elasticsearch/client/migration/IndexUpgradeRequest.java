@@ -25,7 +25,9 @@ import java.util.Objects;
 /**
  * A request for performing Upgrade on Index
  * Part of Migration API
+ * @deprecated The Migration Upgrade API is deprecated, use the Kibana Upgrade Assistant or Reindex API instead.
  */
+@Deprecated
 public class IndexUpgradeRequest implements Validatable {
 
     private String index;

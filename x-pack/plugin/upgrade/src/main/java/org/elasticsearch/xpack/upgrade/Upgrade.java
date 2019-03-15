@@ -52,16 +52,16 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
-import org.elasticsearch.xpack.upgrade.actions.TransportIndexUpgradeAction;
-import org.elasticsearch.xpack.upgrade.actions.TransportIndexUpgradeInfoAction;
-import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeAction;
-import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeInfoAction;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
+import org.elasticsearch.xpack.upgrade.actions.TransportIndexUpgradeAction;
+import org.elasticsearch.xpack.upgrade.actions.TransportIndexUpgradeInfoAction;
+import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeAction;
+import org.elasticsearch.xpack.upgrade.rest.RestIndexUpgradeInfoAction;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -152,7 +152,7 @@ public class Upgrade extends Plugin implements ActionPlugin {
                                 || indexMetaData.getAliases().containsKey(".security")) {
 
                             if (checkInternalIndexFormat(indexMetaData)) {
-                                return UpgradeActionRequired.UP_TO_DATE;
+                                return checkIndexNeedsReindex(indexMetaData);
                             } else {
                                 return UpgradeActionRequired.UPGRADE;
                             }
@@ -257,7 +257,7 @@ public class Upgrade extends Plugin implements ActionPlugin {
                     indexMetaData -> {
                         if (indexOrAliasExists(indexMetaData, ".watches")) {
                             if (checkInternalIndexFormat(indexMetaData)) {
-                                return UpgradeActionRequired.UP_TO_DATE;
+                                return checkIndexNeedsReindex(indexMetaData);
                             } else {
                                 return UpgradeActionRequired.UPGRADE;
                             }
@@ -285,7 +285,7 @@ public class Upgrade extends Plugin implements ActionPlugin {
                     indexMetaData -> {
                         if (indexOrAliasExists(indexMetaData, TriggeredWatchStoreField.INDEX_NAME)) {
                             if (checkInternalIndexFormat(indexMetaData)) {
-                                return UpgradeActionRequired.UP_TO_DATE;
+                                return checkIndexNeedsReindex(indexMetaData);
                             } else {
                                 return UpgradeActionRequired.UPGRADE;
                             }
@@ -300,6 +300,14 @@ public class Upgrade extends Plugin implements ActionPlugin {
                     (shouldStartWatcher, listener) -> postWatchesIndexUpgrade(clientWithOrigin, shouldStartWatcher, listener)
             );
         };
+    }
+
+    private static UpgradeActionRequired checkIndexNeedsReindex(IndexMetaData indexMetaData) {
+        if (indexMetaData.getCreationVersion().before(Version.V_6_0_0)) {
+            return UpgradeActionRequired.REINDEX;
+        } else {
+            return UpgradeActionRequired.UP_TO_DATE;
+        }
     }
 
     private static boolean indexOrAliasExists(IndexMetaData indexMetaData, String name) {

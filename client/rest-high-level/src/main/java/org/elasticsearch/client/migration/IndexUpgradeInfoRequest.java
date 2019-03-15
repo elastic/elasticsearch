@@ -29,7 +29,9 @@ import java.util.Objects;
 /**
  * A request for retrieving upgrade information
  * Part of Migration API
+ * @deprecated Use the Deprecation Info API, which uses {@link DeprecationInfoRequest} instead.
  */
+@Deprecated
 public class IndexUpgradeInfoRequest extends TimedRequest implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;

@@ -21,6 +21,7 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
 
+import java.text.ParsePosition;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -126,6 +127,21 @@ class JavaDateFormatter implements DateFormatter {
         } catch (DateTimeParseException e) {
             throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
         }
+    }
+
+    @Override
+    public boolean tryParseUnresolved(String input) {
+        try {
+            ParsePosition pp = new ParsePosition(0);
+            parser.parseUnresolved(input, pp);
+            int len = input.length();
+            if (pp.getErrorIndex() == -1 && pp.getIndex() == len) {
+                return true;
+            }
+        } catch (RuntimeException ex) {
+            // should not happen, but ignore if it does
+        }
+        return false;
     }
 
     @Override

@@ -26,6 +26,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
 
+import java.text.ParsePosition;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -49,6 +50,15 @@ public class JodaDateFormatter implements DateFormatter {
     public TemporalAccessor parse(String input) {
         final DateTime dt = parser.parseDateTime(input);
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(dt.getMillis()), DateUtils.dateTimeZoneToZoneId(dt.getZone()));
+    }
+
+    /**
+     * Joda allways succeds when parsing with composite optional patterns
+     * @return true
+     */
+    @Override
+    public boolean tryParseUnresolved(String input) {
+        return true;
     }
 
     public long parseMillis(String input) {

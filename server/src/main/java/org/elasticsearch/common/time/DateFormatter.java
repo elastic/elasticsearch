@@ -22,6 +22,7 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.common.Strings;
 import org.joda.time.DateTime;
 
+import java.text.ParsePosition;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -149,6 +150,16 @@ public interface DateFormatter {
             return formatters.get(0);
         }
 
-        return DateFormatters.merge(input, formatters);
+        return new DateFormatters.MergedDateFormatter(input, formatters);
     }
+
+    /**
+     * Attempt parsing the input without throwing exception. This is needed because java-time requires ordering on optional (composite)
+     * patterns. Joda does not suffer from this.
+     * https://bugs.openjdk.java.net/browse/JDK-8188771
+     *
+     * @param input An arbitrary string resembling the string representation of a date or time
+     * @return true if parsing was successful, false if parsing failed
+     */
+    boolean tryParseUnresolved(String input);
 }

@@ -278,12 +278,14 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
 
         public Consumer<HistoryOutput> invoke(Version version) {
-            Consumer<Object> historyResponse = history.invoke2(version);
-            return output -> consumeOutput(output, historyResponse);
+            int eventId = history.invoke(version);
+            logger.debug("invocation partition ({}) event ({}) version ({})", id, eventId, version);
+            return output -> consumeOutput(output, eventId);
         }
 
-        private void consumeOutput(HistoryOutput output, Consumer<Object> historyResponse) {
-            historyResponse.accept(output);
+        private void consumeOutput(HistoryOutput output, int eventId) {
+            history.respond(eventId, output);
+            logger.debug("response partition ({}) event ({}) output ({})", id, eventId, output);
             // we try to use the highest seen version for the next request. We could think that this could lead to one dirty read that
             // causes us to stick to errors for the rest of the run. But if we have a dirty read/CAS failure, it must be on an old primary
             // and the new primary will have a larger primaryTerm and a subsequent CAS failure will ensure we notice the new primaryTerm
@@ -510,23 +512,35 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         @Override
         Optional<State> casSuccess(Version inputVersion, Version outputVersion) {
-            if (safeVersion.equals(inputVersion) || casFailVersion.equals(inputVersion))
-                return Optional.of(new SuccessState(outputVersion));
+            if (inputVersion.compareTo(safeVersion) >= 0 && inputVersion.compareTo(casFailVersion) <= 0) {
+                // A CAS fail on own write can happen in two main scenarios:
+                // 1. The primary replicates to one replica R1 but fails to replicate to other replica. It is then demoted and R1 is
+                // promoted to primary
+                // 2. The coordinating node looses connection to primary. Coordinating node will do a retry after connection is
+                // reestablished (against same or new primary).
 
-            if (inputVersion.gt(safeVersion) && inputVersion.primaryTerm < casFailVersion.primaryTerm) {
-                // After a CAS fail on own write, we do not know if a number of interim updates were made before the final CAS.
-                // Suppose last term was 1 (t=1,s=0) on n1.
-                // Suppose we write on n1 successfully (t=1,s=1). Then during replication, we find that n2 is primary and write here,
-                // again successfully (t=2, s=2). Again during replication, we find that n3 is primary and then CAS fail on n3 against our
+                // Both situations lead to interim writes that are never returned to the client. When we guess seqnos, we risk hitting
+                // those.
+
+                // Interim write explanation for scenario 1:
+                // Suppose last update was (t=1,s=0) on n1.
+                // We successfully write (t=1,s=1) on n1. During replication, we find that n2 is primary and successfully write (t=2,
+                // s=2) on n2. Again during replication, we find that n3 is primary and then CAS fail on n3 against our
                 // own write (t=2, s=2).
                 // The ghost write (t=1, s=1) was never seen neither as success nor CAS fail write and we therefore have to accept that
                 // CAS can succeed against any version where safeVersion <= version < (casFailVersion.primaryTerm,0)
-                // This is so even if n3 and n2 does not die, since this following successful CAS write could complete (including
-                // replication) between storing the CAS fail write and the primary noticing that it is not the primary.
 
-                // Notice that if we see a CAS succeed in same term as last casFailVersion, inputVersion must match the seqNo too since
-                // same term means same primary and thus no change of state since last operation (we do CAS validation on a believed to
-                // be primary).
+                // Interim write explanation for scenario 2:
+                // Suppose last update was (t=1, s=0) on n1.
+                // A write is sent to coordinator c1 which sends request to n1. n1 successfully writes (t=1, s=1). Before responding,
+                // connection is broken. c1 notices broken link and schedules a retry.
+                // New write goes directly to n1. It made up the input seqno 1. This write succeeds with output-version (t=1, s=2).
+                // Connection is reestablished between c1 and n1 and the retry goes to n1. The retry fails, output-version (t=1, s=2).
+                // Notice that we never saw any success or cas fail with output version (t=1, s=1) even though we successfully wrote it.
+
+                // Based on above, the only assertion we can make here is that the input-version must be between previous safeVersion
+                // and last casFailVersion.
+
                 return Optional.of(new SuccessState(outputVersion));
                 // todo: add more advanced network disruptions with floating partitioning to provoke above in more cases.
             }
@@ -536,10 +550,10 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         @Override
         Optional<State> casFail(Version inputVersion, Version outputVersion) {
-            // see comment above in casSuccess, we can fail against one of:
+            // we can fail against one of:
             // 1. our own write (outputVersion > casFailVersion)
             // 2. any of the previous interim/ghost writes (safeVersion < outputVersion <= casFailVersion
-            // .primaryTerm)
+            // .primaryTerm) (see comment above for info on interim/ghost writes).
             // 3. last success write. (safeVersion == outputVersion). This is either a regular fail or a stale read failure, we cannot
             // tell since we do not know which shard ends up winning.
             // 4. A plain stale read (safeVersion.primaryTerm > outputVersion.primaryTerm)

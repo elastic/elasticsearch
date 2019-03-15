@@ -11,7 +11,7 @@ IMPORTANT: The Migration Assistance API is deprecated, use the
 complete and detailed information about actions necessary prior to upgrade.
 
 deprecated[6.7, Use the <<migration-api-deprecation,Deprecation Info API>>
-instead.] The Migration Assistance API analyzes existing indices in the cluster
+instead.] The migration assistance API analyzes existing indices in the cluster
 and returns the information about indices that require some changes before the
 cluster can be upgraded to the next major version.
 

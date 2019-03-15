@@ -61,6 +61,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.greaterThan;
 
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 3, maxNumDataNodes = 5,
@@ -206,7 +207,12 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                                 .setIfPrimaryTerm(version.primaryTerm)
                                 .setIfSeqNo(version.seqNo)
                                 .execute().actionGet(40, TimeUnit.SECONDS);
-                            historyResponse.accept(new IndexResponseHistoryOutput(indexResponse));
+                            IndexResponseHistoryOutput historyOutput = new IndexResponseHistoryOutput(indexResponse);
+                            historyResponse.accept(historyOutput);
+                            // validate version and seqNo strictly increasing for successful CAS to avoid that overhead during
+                            // linearizability checking.
+                            assertThat(historyOutput.outputVersion, greaterThan(version));
+                            assertThat(historyOutput.outputVersion.seqNo, greaterThan(version.seqNo));
                         } catch (VersionConflictEngineException e) {
                             historyResponse.accept(new CASFailureHistoryOutput(e));
                         } catch (RuntimeException e) {
@@ -296,12 +302,17 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         public boolean isLinearizable() {
             logger.info("--> Linearizability checking history of size: {} for key: {} and initialVersion: {}: {}", history.size(),
                 id, initialVersion, history);
+            return isLinearizable(new CASSequentialSpec(initialVersion))
+                 & isLinearizable(new CASSimpleSequentialSpec(initialVersion));
+        }
+
+        private boolean isLinearizable(LinearizabilityChecker.SequentialSpec spec) {
             boolean linearizable =
-                new LinearizabilityChecker().isLinearizable(new CASSequentialSpec(initialVersion), history,
+                new LinearizabilityChecker().isLinearizable(spec, history,
                     missingResponseGenerator());
             if (linearizable == false) {
                 // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
-                logger.error("Linearizability check failed. Initial version: {}, serialized history: {}", initialVersion,
+                logger.error("Linearizability check failed. Spec: {}, initial version: {}, serialized history: {}", spec, initialVersion,
                     base64Serialize(history));
             }
             return linearizable;
@@ -329,6 +340,50 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         @Override
         public Optional<Object> nextState(Object currentState, Object input, Object output) {
             return ((HistoryOutput) output).nextState((State) currentState, (Version) input).map(i -> i); // Optional<?> to Optional<Object>
+        }
+    }
+
+
+    private static class CASSimpleSequentialSpec implements LinearizabilityChecker.SequentialSpec {
+        private final Version initialVersion;
+
+        private CASSimpleSequentialSpec(Version initialVersion) {
+            this.initialVersion = initialVersion;
+        }
+
+        @Override
+        public Object initialState() {
+            return new SimpleState(initialVersion, false);
+        }
+
+        @Override
+        public Optional<Object> nextState(Object currentState, Object input, Object output) {
+            SimpleState state = (SimpleState) currentState;
+            if (output instanceof IndexResponseHistoryOutput) {
+                if (input.equals(state.safeVersion) ||
+                    (state.lastFailed && ((Version) input).compareTo(state.safeVersion) > 0)) {
+                    return Optional.of(new SimpleState(((IndexResponseHistoryOutput) output).getVersion(), false));
+                } else {
+                    return Optional.empty();
+                }
+            } else {
+                return Optional.of(state.failed());
+            }
+        }
+    }
+
+    private static class SimpleState {
+        private final Version safeVersion;
+        private final boolean lastFailed;
+
+        private SimpleState(Version safeVersion, boolean lastFailed) {
+            this.safeVersion = safeVersion;
+            this.lastFailed = lastFailed;
+        }
+
+
+        public SimpleState failed() {
+            return lastFailed ? this : new SimpleState(safeVersion, true);
         }
     }
 

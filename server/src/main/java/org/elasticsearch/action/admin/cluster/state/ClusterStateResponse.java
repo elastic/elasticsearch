@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.graalvm.compiler.nodes.extended.BytecodeExceptionNode;
 
 import java.io.IOException;
 import java.util.Objects;

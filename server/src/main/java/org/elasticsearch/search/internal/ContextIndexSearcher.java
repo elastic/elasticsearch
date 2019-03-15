@@ -123,15 +123,19 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             timer.start();
             final Weight weight;
             try {
-                weight = super.createWeight(query, scoreMode, boost);
+                weight = aggregatedDfs == null ? in.createWeight(query, scoreMode, boost) :
+                    // needs to be 'super', not 'in' in order to use aggregated DFS
+                    super.createWeight(query, scoreMode, boost);
             } finally {
                 timer.stop();
                 profiler.pollLastElement();
             }
             return new ProfileWeight(query, weight, profile);
         } else {
-            // needs to be 'super', not 'in' in order to use aggregated DFS
-            return super.createWeight(query, scoreMode, boost);
+            return aggregatedDfs == null ? in.createWeight(query, scoreMode, boost) :
+                // needs to be 'super', not 'in' in order to use aggregated DFS
+                super.createWeight(query, scoreMode, boost);
+
         }
     }
 
@@ -179,11 +183,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Explanation explain(Query query, int doc) throws IOException {
-        if (aggregatedDfs != null) {
+        return aggregatedDfs == null ? in.explain(query, doc) :
             // dfs data is needed to explain the score
-            return super.explain(createWeight(rewrite(query), ScoreMode.COMPLETE, 1f), doc);
-        }
-        return in.explain(query, doc);
+            super.explain(createWeight(rewrite(query), ScoreMode.COMPLETE, 1f), doc);
     }
 
     @Override

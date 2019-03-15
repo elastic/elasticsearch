@@ -43,4 +43,9 @@ public class XIndexSearcher extends IndexSearcher {
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         in.search(leaves, weight, collector);
     }
+
+    @Override
+    public Weight createWeight(Query query, ScoreMode scoreMode, float boost) throws IOException {
+        return in.createWeight(query, scoreMode, boost);
+    }
 }

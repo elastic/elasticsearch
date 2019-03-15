@@ -89,7 +89,7 @@ public final class TcpTransportChannel implements TransportChannel {
 
     @Override
     public String getChannelType() {
-        return "tcp-transport";
+        return "transport";
     }
 
     @Override

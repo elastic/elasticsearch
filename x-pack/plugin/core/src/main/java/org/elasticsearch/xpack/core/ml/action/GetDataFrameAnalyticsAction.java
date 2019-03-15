@@ -10,7 +10,9 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 
 import java.io.IOException;
@@ -32,10 +34,13 @@ public class GetDataFrameAnalyticsAction extends Action<GetDataFrameAnalyticsAct
 
     public static class Request extends AbstractGetResourcesRequest {
 
-        public Request() {}
+        public Request() {
+            setAllowNoResources(true);
+        }
 
         public Request(String id) {
             setResourceId(id);
+            setAllowNoResources(true);
         }
 
         public Request(StreamInput in) throws IOException {

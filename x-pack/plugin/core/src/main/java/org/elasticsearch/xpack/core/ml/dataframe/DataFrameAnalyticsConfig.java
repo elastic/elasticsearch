@@ -7,23 +7,21 @@ package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CachedSupplier;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -33,7 +31,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -48,24 +45,6 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     public static final ByteSizeValue DEFAULT_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.GB);
     public static final ByteSizeValue MIN_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.MB);
-
-    private static final XContentObjectTransformer<QueryBuilder> QUERY_TRANSFORMER = XContentObjectTransformer.queryBuilderTransformer();
-    static final TriFunction<Map<String, Object>, String, List<String>, QueryBuilder> lazyQueryParser =
-        (objectMap, id, warnings) -> {
-            try {
-                return QUERY_TRANSFORMER.fromMap(objectMap, warnings);
-            } catch (IOException | XContentParseException exception) {
-                // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
-                if (exception.getCause() instanceof IllegalArgumentException) {
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, id), exception.getCause());
-                } else {
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, id), exception);
-                }
-            }
-        };
-
 
     public static final ParseField ID = new ParseField("id");
     public static final ParseField SOURCE = new ParseField("source");
@@ -88,7 +67,9 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         parser.declareString(Builder::setSource, SOURCE);
         parser.declareString(Builder::setDest, DEST);
         parser.declareObjectArray(Builder::setAnalyses, DataFrameAnalysisConfig.parser(), ANALYSES);
-        parser.declareObject((builder, query) -> builder.setQuery(query, ignoreUnknownFields), (p, c) -> p.mapOrdered(), QUERY);
+        parser.declareObject(Builder::setQueryProvider,
+            (p, c) -> QueryProvider.fromXContent(p, ignoreUnknownFields, Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT),
+            QUERY);
         parser.declareField(Builder::setAnalysesFields,
             (p, c) -> FetchSourceContext.fromXContent(p),
             ANALYSES_FIELDS,
@@ -107,8 +88,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final String source;
     private final String dest;
     private final List<DataFrameAnalysisConfig> analyses;
-    private final Map<String, Object> query;
-    private final CachedSupplier<QueryBuilder> querySupplier;
+    private final QueryProvider queryProvider;
     private final FetchSourceContext analysesFields;
     /**
      * This may be null up to the point of persistence, as the relationship with <code>xpack.ml.max_model_memory_limit</code>
@@ -122,7 +102,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final Map<String, String> headers;
 
     public DataFrameAnalyticsConfig(String id, String source, String dest, List<DataFrameAnalysisConfig> analyses,
-                                    Map<String, Object> query, Map<String, String> headers, ByteSizeValue modelMemoryLimit,
+                                    QueryProvider queryProvider, Map<String, String> headers, ByteSizeValue modelMemoryLimit,
                                     FetchSourceContext analysesFields) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
         this.source = ExceptionsHelper.requireNonNull(source, SOURCE);
@@ -135,8 +115,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         if (analyses.size() > 1) {
             throw new UnsupportedOperationException("Does not yet support multiple analyses");
         }
-        this.query = Collections.unmodifiableMap(query);
-        this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
+        this.queryProvider = ExceptionsHelper.requireNonNull(queryProvider, QUERY);
         this.analysesFields = analysesFields;
         this.modelMemoryLimit = modelMemoryLimit;
         this.headers = Collections.unmodifiableMap(headers);
@@ -147,8 +126,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         source = in.readString();
         dest = in.readString();
         analyses = in.readList(DataFrameAnalysisConfig::new);
-        this.query = in.readMap();
-        this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
+        this.queryProvider = QueryProvider.fromStream(in);
         this.analysesFields = in.readOptionalWriteable(FetchSourceContext::new);
         this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::new);
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
@@ -170,32 +148,54 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         return analyses;
     }
 
-    @Nullable
-    public Map<String, Object> getQuery() {
-        return query;
+    /**
+     * Get the fully parsed query from the semi-parsed stored {@code Map<String, Object>}
+     *
+     * @return Fully parsed query
+     */
+    public QueryBuilder getParsedQuery() {
+        Exception exception = queryProvider.getParsingException();
+        if (exception != null) {
+            if (exception instanceof RuntimeException) {
+                throw (RuntimeException) exception;
+            } else {
+                throw new ElasticsearchException(queryProvider.getParsingException());
+            }
+        }
+        return queryProvider.getParsedQuery();
     }
 
-    @Nullable
-    public QueryBuilder getParsedQuery() {
-        return querySupplier.get();
+    Exception getQueryParsingException() {
+        return queryProvider == null ? null : queryProvider.getParsingException();
+    }
+
+    /**
+     * Calls the parser and returns any gathered deprecations
+     *
+     * @param namedXContentRegistry XContent registry to transform the lazily parsed query
+     * @return The deprecations from parsing the query
+     */
+    public List<String> getQueryDeprecations(NamedXContentRegistry namedXContentRegistry) {
+        List<String> deprecations = new ArrayList<>();
+        try {
+            XContentObjectTransformer.queryBuilderTransformer(namedXContentRegistry).fromMap(queryProvider.getQuery(),
+                deprecations);
+        } catch (Exception exception) {
+            // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
+            if (exception.getCause() instanceof IllegalArgumentException) {
+                exception = (Exception) exception.getCause();
+            }
+            throw ExceptionsHelper.badRequestException(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, exception);
+        }
+        return deprecations;
+    }
+
+    public Map<String, Object> getQuery() {
+        return queryProvider.getQuery();
     }
 
     public FetchSourceContext getAnalysesFields() {
         return analysesFields;
-    }
-
-    /**
-     * Calls the lazy parser and returns any gathered deprecations
-     * @return The deprecations from parsing the query
-     */
-    List<String> getQueryDeprecations() {
-        return getQueryDeprecations(lazyQueryParser);
-    }
-
-    List<String> getQueryDeprecations(TriFunction<Map<String, Object>, String, List<String>, QueryBuilder> parser) {
-        List<String> deprecations = new ArrayList<>();
-        parser.apply(query, id, deprecations);
-        return deprecations;
     }
 
     public ByteSizeValue getModelMemoryLimit() {
@@ -216,7 +216,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false)) {
             builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
         }
-        builder.field(QUERY.getPreferredName(), query);
+        builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
         if (analysesFields != null) {
             builder.field(ANALYSES_FIELDS.getPreferredName(), analysesFields);
         }
@@ -234,7 +234,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         out.writeString(source);
         out.writeString(dest);
         out.writeList(analyses);
-        out.writeMap(query);
+        queryProvider.writeTo(out);
         out.writeOptionalWriteable(analysesFields);
         out.writeOptionalWriteable(modelMemoryLimit);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
@@ -250,7 +250,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             && Objects.equals(source, other.source)
             && Objects.equals(dest, other.dest)
             && Objects.equals(analyses, other.analyses)
-            && Objects.equals(query, other.query)
+            && Objects.equals(queryProvider, other.queryProvider)
             && Objects.equals(headers, other.headers)
             && Objects.equals(getModelMemoryLimit(), other.getModelMemoryLimit())
             && Objects.equals(analysesFields, other.analysesFields);
@@ -258,7 +258,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, analyses, query, headers, getModelMemoryLimit(), analysesFields);
+        return Objects.hash(id, source, dest, analyses, queryProvider, headers, getModelMemoryLimit(), analysesFields);
     }
 
     public static String documentId(String id) {
@@ -271,7 +271,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private String source;
         private String dest;
         private List<DataFrameAnalysisConfig> analyses;
-        private Map<String, Object> query = Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap());
+        private QueryProvider queryProvider = QueryProvider.defaultQuery();
         private FetchSourceContext analysesFields;
         private ByteSizeValue modelMemoryLimit;
         private ByteSizeValue maxModelMemoryLimit;
@@ -296,7 +296,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             this.source = config.source;
             this.dest = config.dest;
             this.analyses = new ArrayList<>(config.analyses);
-            this.query = new LinkedHashMap<>(config.query);
+            this.queryProvider = new QueryProvider(config.queryProvider);
             this.headers = new HashMap<>(config.headers);
             this.modelMemoryLimit = config.modelMemoryLimit;
             this.maxModelMemoryLimit = maxModelMemoryLimit;
@@ -329,22 +329,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setQuery(Map<String, Object> query) {
-            return setQuery(query, true);
-        }
-
-        public Builder setQuery(Map<String, Object> query, boolean lenient) {
-            this.query = ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName());
-            try {
-                QUERY_TRANSFORMER.fromMap(query);
-            } catch (Exception exception) {
-                if (lenient) {
-                    logger.warn(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, id), exception);
-                } else {
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, id), exception);
-                }
-            }
+        public Builder setQueryProvider(QueryProvider queryProvider) {
+            this.queryProvider = ExceptionsHelper.requireNonNull(queryProvider, QUERY.getPreferredName());
             return this;
         }
 
@@ -385,7 +371,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
         public DataFrameAnalyticsConfig build() {
             applyMaxModelMemoryLimit();
-            return new DataFrameAnalyticsConfig(id, source, dest, analyses, query, headers, modelMemoryLimit, analysesFields);
+            return new DataFrameAnalyticsConfig(id, source, dest, analyses, queryProvider, headers, modelMemoryLimit, analysesFields);
         }
     }
 }

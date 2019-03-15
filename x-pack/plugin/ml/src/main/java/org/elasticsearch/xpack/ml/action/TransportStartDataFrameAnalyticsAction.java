@@ -137,8 +137,7 @@ public class TransportStartDataFrameAnalyticsAction
 
         // Validate config
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
-            config ->
-                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, config, validateListener),
+            config -> DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, config, validateListener),
             listener::onFailure
         );
 

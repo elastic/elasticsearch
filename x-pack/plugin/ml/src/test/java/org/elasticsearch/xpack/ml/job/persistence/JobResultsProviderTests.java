@@ -783,12 +783,10 @@ public class JobResultsProviderTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
                 .put(indexMetaData1)
                 .build();
-        boolean result = JobResultsProvider.violatedFieldCountLimit("index1", 0, 10,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
+        boolean result = JobResultsProvider.violatedFieldCountLimit(0, 10, metaData.index("index1").getMappings().valuesIt());
         assertFalse(result);
 
-        result = JobResultsProvider.violatedFieldCountLimit("index1", 1, 10,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
+        result = JobResultsProvider.violatedFieldCountLimit(1, 10, metaData.index("index1").getMappings().valuesIt());
         assertTrue(result);
 
         IndexMetaData.Builder indexMetaData2 = new IndexMetaData.Builder("index1")
@@ -801,8 +799,8 @@ public class JobResultsProviderTests extends ESTestCase {
         metaData = MetaData.builder()
                 .put(indexMetaData2)
                 .build();
-        result = JobResultsProvider.violatedFieldCountLimit("index1", 0, 19,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
+
+        result = JobResultsProvider.violatedFieldCountLimit(0, 19, metaData.index("index1").getMappings().valuesIt());
         assertTrue(result);
     }
 

@@ -254,4 +254,4 @@ PUT _cluster/settings
 You can use the <<cluster-remote-info, remote cluster info API>> to retrieve
 information about the configured remote clusters, as well as the remote nodes
 that the node is connected to. This is particularly useful to verify which
-nodes get selected based on the criteria listed <<gateway-nodes-selection,above>>.
+nodes got selected according to the <<gateway-nodes-selection>>.

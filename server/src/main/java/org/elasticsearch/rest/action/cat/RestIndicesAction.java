@@ -116,6 +116,7 @@ public class RestIndicesAction extends AbstractCatAction {
                         indicesStatsRequest.indices(indices);
                         indicesStatsRequest.indicesOptions(strictExpandIndicesOptions);
                         indicesStatsRequest.all();
+                        indicesStatsRequest.includeSegmentFileSizes(request.paramAsBoolean("include_unloaded_segments", false));
 
                         client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                             @Override

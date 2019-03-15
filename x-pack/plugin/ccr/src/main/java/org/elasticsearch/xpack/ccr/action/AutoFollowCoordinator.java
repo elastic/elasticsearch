@@ -433,7 +433,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                 ActionListener.wrap(
                     rs -> resultHandler.accept(new AutoFollowResult(autoFollowPattenName, new ArrayList<>(rs))),
                     e -> { throw new AssertionError("must never happen", e); }),
-                leaderIndicesToFollow.size(), Collections.emptyList());
+                leaderIndicesToFollow.size());
 
             for (final Index indexToFollow : leaderIndicesToFollow) {
                 List<String> otherMatchingPatterns = patternsForTheSameRemoteCluster.stream()

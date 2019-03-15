@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.upgrade;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -15,6 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -25,7 +29,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.index.IndexSettings.same;
 
@@ -39,17 +42,18 @@ import static org.elasticsearch.index.IndexSettings.same;
  * - Delete index .{name} and add alias .{name} to .{name}-6
  */
 public class InternalIndexReindexer<T> {
+    private static final Logger logger = LogManager.getLogger(InternalIndexReindexer.class);
 
     private final Client client;
     private final ClusterService clusterService;
     private final Script transformScript;
     private final String[] types;
     private final int version;
-    private final Consumer<ActionListener<T>> preUpgrade;
+    private final BiConsumer<ClusterState, ActionListener<T>> preUpgrade;
     private final BiConsumer<T, ActionListener<TransportResponse.Empty>> postUpgrade;
 
     public InternalIndexReindexer(Client client, ClusterService clusterService, int version, Script transformScript, String[] types,
-                                  Consumer<ActionListener<T>> preUpgrade,
+                                  BiConsumer<ClusterState,ActionListener<T>> preUpgrade,
                                   BiConsumer<T, ActionListener<TransportResponse.Empty>> postUpgrade) {
         this.client = client;
         this.clusterService = clusterService;
@@ -62,7 +66,7 @@ public class InternalIndexReindexer<T> {
 
     public void upgrade(TaskId task, String index, ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
         ParentTaskAssigningClient parentAwareClient = new ParentTaskAssigningClient(client, task);
-        preUpgrade.accept(ActionListener.wrap(
+        preUpgrade.accept(clusterState, ActionListener.wrap(
                 t -> innerUpgrade(parentAwareClient, index, clusterState, ActionListener.wrap(
                         response -> postUpgrade.accept(t, ActionListener.wrap(
                                 empty -> listener.onResponse(response),
@@ -76,30 +80,59 @@ public class InternalIndexReindexer<T> {
     private void innerUpgrade(ParentTaskAssigningClient parentAwareClient, String index, ClusterState clusterState,
                               ActionListener<BulkByScrollResponse> listener) {
         String newIndex = index + "-" + version;
+        logger.trace("upgrading index {} to new index {}", index, newIndex);
         try {
             checkMasterAndDataNodeVersion(clusterState);
-            parentAwareClient.admin().indices().prepareCreate(newIndex).execute(ActionListener.wrap(createIndexResponse ->
-                    setReadOnlyBlock(index, ActionListener.wrap(setReadOnlyResponse ->
-                            reindex(parentAwareClient, index, newIndex, ActionListener.wrap(
-                                    bulkByScrollResponse -> // Successful completion of reindexing - delete old index
-                                            removeReadOnlyBlock(parentAwareClient, index, ActionListener.wrap(unsetReadOnlyResponse ->
-                                                    parentAwareClient.admin().indices().prepareAliases().removeIndex(index)
-                                                            .addAlias(newIndex, index).execute(ActionListener.wrap(deleteIndexResponse ->
-                                                            listener.onResponse(bulkByScrollResponse), listener::onFailure
-                                                    )), listener::onFailure
-                                            )),
-                                    e -> // Something went wrong during reindexing - remove readonly flag and report the error
-                                            removeReadOnlyBlock(parentAwareClient, index, ActionListener.wrap(unsetReadOnlyResponse -> {
-                                                listener.onFailure(e);
-                                            }, e1 -> {
-                                                listener.onFailure(e);
-                                            }))
-                            )), listener::onFailure
-                    )), listener::onFailure
-            ));
+            parentAwareClient.admin().indices().prepareCreate(newIndex).execute(ActionListener.wrap(createIndexResponse -> {
+                setReadOnlyBlock(index, ActionListener.wrap(
+                        setReadOnlyResponse -> reindex(parentAwareClient, index, newIndex, ActionListener.wrap(bulkByScrollResponse -> {
+                            if ((bulkByScrollResponse.getBulkFailures() != null
+                                    && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
+                                    || (bulkByScrollResponse.getSearchFailures() != null
+                                            && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
+                                ElasticsearchException ex = logAndThrowExceptionForFailures(bulkByScrollResponse);
+                                removeReadOnlyBlockOnReindexFailure(parentAwareClient, index, listener, ex);
+                            } else {
+                                // Successful completion of reindexing - remove read only and delete old index
+                                removeReadOnlyBlock(parentAwareClient, index,
+                                        ActionListener.wrap(unsetReadOnlyResponse -> parentAwareClient.admin().indices().prepareAliases()
+                                                .removeIndex(index).addAlias(newIndex, index)
+                                                .execute(ActionListener.wrap(
+                                                        deleteIndexResponse -> listener.onResponse(bulkByScrollResponse),
+                                                        listener::onFailure)),
+                                                listener::onFailure));
+                            }
+                        }, e -> {
+                            logger.error("error occurred while reindexing", e);
+                            removeReadOnlyBlockOnReindexFailure(parentAwareClient, index, listener, e);
+                        })), listener::onFailure));
+            }, listener::onFailure));
         } catch (Exception ex) {
+            logger.error("error occurred while upgrading index", ex);
+            removeReadOnlyBlockOnReindexFailure(parentAwareClient, index, listener, ex);
             listener.onFailure(ex);
         }
+    }
+
+    private void removeReadOnlyBlockOnReindexFailure(ParentTaskAssigningClient parentAwareClient, String index,
+            ActionListener<BulkByScrollResponse> listener, Exception ex) {
+        removeReadOnlyBlock(parentAwareClient, index, ActionListener.wrap(unsetReadOnlyResponse -> {
+            listener.onFailure(ex);
+        }, e1 -> {
+            listener.onFailure(ex);
+        }));
+    }
+
+    private ElasticsearchException logAndThrowExceptionForFailures(BulkByScrollResponse bulkByScrollResponse) {
+        String bulkFailures = (bulkByScrollResponse.getBulkFailures() != null)
+                ? Strings.collectionToCommaDelimitedString(bulkByScrollResponse.getBulkFailures())
+                : "";
+        String searchFailures = (bulkByScrollResponse.getSearchFailures() != null)
+                ? Strings.collectionToCommaDelimitedString(bulkByScrollResponse.getSearchFailures())
+                : "";
+        logger.error("error occurred while reindexing, bulk failures [{}], search failures [{}]", bulkFailures, searchFailures);
+        return new ElasticsearchException("error occurred while reindexing, bulk failures [{}], search failures [{}]", bulkFailures,
+                searchFailures);
     }
 
     private void checkMasterAndDataNodeVersion(ClusterState clusterState) {

@@ -506,7 +506,7 @@ public class AuthorizationService {
                         listener.onResponse(null);
                     }, listener::onFailure);
                 final ActionListener<Tuple<String, IndexAuthorizationResult>> groupedActionListener = wrapPreservingContext(
-                    new GroupedActionListener<>(bulkAuthzListener, actionToIndicesMap.size(), Collections.emptyList()), threadContext);
+                    new GroupedActionListener<>(bulkAuthzListener, actionToIndicesMap.size()), threadContext);
 
                 actionToIndicesMap.forEach((bulkItemAction, indices) -> {
                     final RequestInfo bulkItemInfo =

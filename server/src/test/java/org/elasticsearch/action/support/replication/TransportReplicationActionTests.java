@@ -744,11 +744,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         AtomicReference<Object> failure = new AtomicReference<>();
-        AtomicReference<Object> ignoredFailure = new AtomicReference<>();
         AtomicBoolean success = new AtomicBoolean();
         proxy.failShardIfNeeded(replica, "test", new ElasticsearchException("simulated"),
-                () -> success.set(true), failure::set, ignoredFailure::set
-        );
+                ActionListener.wrap(r -> success.set(true), failure::set));
         CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();
         // A replication action doesn't not fail the request
         assertEquals(0, shardFailedRequests.length);

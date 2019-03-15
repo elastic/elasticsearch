@@ -147,7 +147,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         String host = publishAddress.address().getHostString();
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder(host, publishAddress.getPort())
-                .path(new TextTemplate("/%3Clogstash-%7Bnow%2Fd%7D%3E/log/1"))
+                .path(new TextTemplate("/%3Clogstash-%7Bnow%2Fd%7D%3E/_doc/1"))
                 .body(new TextTemplate("{\"foo\":\"bar\"}"))
                 .putHeader("Content-Type", new TextTemplate("application/json"))
                 .method(HttpMethod.PUT);
@@ -162,7 +162,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         watcherClient().prepareExecuteWatch("_id").get();
 
-        GetResponse response = client().prepareGet("<logstash-{now/d}>", "log", "1").get();
+        GetResponse response = client().prepareGet().setIndex("<logstash-{now/d}>").setId("1").get();
         assertExists(response);
     }
 }

@@ -34,7 +34,7 @@ import java.util.Objects;
 public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransformsStatsAction.Response> {
 
     public static final GetDataFrameTransformsStatsAction INSTANCE = new GetDataFrameTransformsStatsAction();
-    public static final String NAME = "cluster:monitor/data_frame_stats/get";
+    public static final String NAME = "cluster:monitor/data_frame/stats/get";
     public GetDataFrameTransformsStatsAction() {
         super(NAME);
     }
@@ -55,7 +55,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             }
         }
 
-        public Request() {}
+        private Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -138,7 +138,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         }
 
         public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
+            super(in);
             readFrom(in);
         }
 
@@ -161,6 +161,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            toXContentCommon(builder, params);
             builder.field(DataFrameField.COUNT.getPreferredName(), transformsStateAndStats.size());
             builder.field(DataFrameField.TRANSFORMS.getPreferredName(), transformsStateAndStats);
             builder.endObject();

@@ -840,11 +840,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 + Integer.toHexString(headerBuffer.get(2) & 0xFF) + ","
                 + Integer.toHexString(headerBuffer.get(3) & 0xFF) + ")");
         }
-        final int messageLength;
-        try (StreamInput input = headerBuffer.streamInput()) {
-            input.skip(TcpHeader.MARKER_BYTES_SIZE);
-            messageLength = input.readInt();
-        }
+        final int messageLength = headerBuffer.getInt(TcpHeader.MARKER_BYTES_SIZE);
 
         if (messageLength == TransportKeepAlive.PING_DATA_SIZE) {
             // This is a ping

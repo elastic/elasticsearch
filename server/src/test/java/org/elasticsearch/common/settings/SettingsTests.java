@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -42,7 +41,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -639,61 +637,9 @@ public class SettingsTests extends ESTestCase {
             e.getMessage().contains("null-valued setting found for key [foo] found at line number [1], column number [5]"));
     }
 
-    public void testReadLegacyFromStream() throws IOException {
-        BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
-        output.writeVInt(5);
-        output.writeString("foo.bar.1");
-        output.writeOptionalString("1");
-        output.writeString("foo.bar.0");
-        output.writeOptionalString("0");
-        output.writeString("foo.bar.2");
-        output.writeOptionalString("2");
-        output.writeString("foo.bar.3");
-        output.writeOptionalString("3");
-        output.writeString("foo.bar.baz");
-        output.writeOptionalString("baz");
-        StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
-        in.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
-        Settings settings = Settings.readSettingsFromStream(in);
-        assertEquals(2, settings.size());
-        assertEquals(Arrays.asList("0", "1", "2", "3"), settings.getAsList("foo.bar"));
-        assertEquals("baz", settings.get("foo.bar.baz"));
-    }
-
-    public void testWriteLegacyOutput() throws IOException {
-        BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(VersionUtils.getPreviousVersion(Version.V_6_1_0));
-        Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3")
-            .put("foo.bar.baz", "baz").putNull("foo.null").build();
-        Settings.writeSettingsToStream(settings, output);
-        StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
-        assertEquals(6, in.readVInt());
-        Map<String, String> keyValues = new HashMap<>();
-        for (int i = 0; i < 6; i++){
-            keyValues.put(in.readString(), in.readOptionalString());
-        }
-        assertEquals(keyValues.get("foo.bar.0"), "0");
-        assertEquals(keyValues.get("foo.bar.1"), "1");
-        assertEquals(keyValues.get("foo.bar.2"), "2");
-        assertEquals(keyValues.get("foo.bar.3"), "3");
-        assertEquals(keyValues.get("foo.bar.baz"), "baz");
-        assertTrue(keyValues.containsKey("foo.null"));
-        assertNull(keyValues.get("foo.null"));
-
-        in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
-        in.setVersion(output.getVersion());
-        Settings readSettings = Settings.readSettingsFromStream(in);
-        assertEquals(3, readSettings.size());
-        assertEquals(Arrays.asList("0", "1", "2", "3"), readSettings.getAsList("foo.bar"));
-        assertEquals(readSettings.get("foo.bar.baz"), "baz");
-        assertTrue(readSettings.keySet().contains("foo.null"));
-        assertNull(readSettings.get("foo.null"));
-    }
-
     public void testReadWriteArray() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(randomFrom(Version.CURRENT, Version.V_6_1_0));
+        output.setVersion(randomFrom(Version.CURRENT, Version.V_7_0_0));
         Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
         Settings.writeSettingsToStream(settings, output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));

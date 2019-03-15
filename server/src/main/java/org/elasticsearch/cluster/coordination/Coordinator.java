@@ -169,7 +169,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.lagDetector = new LagDetector(settings, transportService.getThreadPool(), n -> removeNode(n, "lagging"),
             transportService::getLocalNode);
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
-            transportService.getThreadPool());
+            transportService.getThreadPool(), joinHelper::logLastFailedJoinAttempt);
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -221,6 +221,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // where we would possibly have to remove the NO_MASTER_BLOCK from the applierState when turning a candidate back to follower.
             if (getLastAcceptedState().term() < getCurrentTerm()) {
                 becomeFollower("onFollowerCheckRequest", followerCheckRequest.getSender());
+            } else if (mode == Mode.FOLLOWER) {
+                logger.trace("onFollowerCheckRequest: responding successfully to {}", followerCheckRequest);
+            } else if (joinHelper.isJoinPending()) {
+                logger.trace("onFollowerCheckRequest: rejoining master, responding successfully to {}", followerCheckRequest);
+            } else {
+                logger.trace("onFollowerCheckRequest: received check from faulty master, rejecting {}", followerCheckRequest);
+                throw new CoordinationStateRejectedException(
+                    "onFollowerCheckRequest: received check from faulty master, rejecting " + followerCheckRequest);
             }
         }
     }
@@ -436,7 +444,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     // package private for tests
     void sendValidateJoinRequest(ClusterState stateForJoinValidation, JoinRequest joinRequest,
-                                        JoinHelper.JoinCallback joinCallback) {
+                                 JoinHelper.JoinCallback joinCallback) {
         // validate the join on the joining node, will throw a failure if it fails the validation
         joinHelper.sendValidateJoinRequest(joinRequest.getSourceNode(), stateForJoinValidation, new ActionListener<Empty>() {
             @Override
@@ -944,10 +952,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     public void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, AckListener ackListener) {
         try {
             synchronized (mutex) {
-                if (mode != Mode.LEADER) {
-                    logger.debug(() -> new ParameterizedMessage("[{}] failed publication as not currently leading",
-                        clusterChangedEvent.source()));
-                    publishListener.onFailure(new FailedToCommitClusterStateException("node stepped down as leader during publication"));
+                if (mode != Mode.LEADER || getCurrentTerm() != clusterChangedEvent.state().term()) {
+                    logger.debug(() -> new ParameterizedMessage("[{}] failed publication as node is no longer master for term {}",
+                        clusterChangedEvent.source(), clusterChangedEvent.state().term()));
+                    publishListener.onFailure(new FailedToCommitClusterStateException("node is no longer master for term " +
+                        clusterChangedEvent.state().term() + " while handling publication"));
                     return;
                 }
 

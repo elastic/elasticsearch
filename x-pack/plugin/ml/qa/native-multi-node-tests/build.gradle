@@ -44,7 +44,7 @@ integTestCluster {
     setting 'xpack.security.transport.ssl.key', nodeKey.name
     setting 'xpack.security.transport.ssl.certificate', nodeCert.name
     setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
-    setting 'xpack.security.audit.enabled', 'true'
+    setting 'xpack.security.audit.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.ml.min_disk_space_off_heap', '200mb'
 

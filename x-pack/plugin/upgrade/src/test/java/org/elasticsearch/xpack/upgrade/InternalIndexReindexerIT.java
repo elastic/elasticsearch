@@ -6,8 +6,11 @@
 package org.elasticsearch.xpack.upgrade;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -19,6 +22,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -26,13 +30,16 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.upgrade.IndexUpgradeCheckVersion;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,10 +52,13 @@ import java.util.function.Function;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsEqual.equalTo;
 
+@ClusterScope(scope=Scope.TEST)
 public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
 
     @Override
@@ -77,13 +87,13 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
 
     public void testUpgradeIndex() throws Exception {
         createTestIndex("test");
-        InternalIndexReindexer reindexer = createIndexReindexer(123, script("add_bar"), Strings.EMPTY_ARRAY);
+        InternalIndexReindexer reindexer = createIndexReindexer(script("add_bar"), Strings.EMPTY_ARRAY);
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
         reindexer.upgrade(new TaskId("abc", 123), "test", clusterState(), future);
         BulkByScrollResponse response = future.actionGet();
         assertThat(response.getCreated(), equalTo(2L));
 
-        SearchResponse searchResponse = client().prepareSearch("test-123").get();
+        SearchResponse searchResponse = client().prepareSearch("test-" + IndexUpgradeCheckVersion.UPGRADE_VERSION).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
         for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -94,7 +104,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
 
         GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases("test").get();
         assertThat(aliasesResponse.getAliases().size(), equalTo(1));
-        List<AliasMetaData> testAlias = aliasesResponse.getAliases().get("test-123");
+        List<AliasMetaData> testAlias = aliasesResponse.getAliases().get("test-" + IndexUpgradeCheckVersion.UPGRADE_VERSION);
         assertNotNull(testAlias);
         assertThat(testAlias.size(), equalTo(1));
         assertThat(testAlias.get(0).alias(), equalTo("test"));
@@ -102,8 +112,8 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
 
     public void testTargetIndexExists() throws Exception {
         createTestIndex("test");
-        createTestIndex("test-123");
-        InternalIndexReindexer reindexer = createIndexReindexer(123, script("add_bar"), Strings.EMPTY_ARRAY);
+        createTestIndex("test-" + IndexUpgradeCheckVersion.UPGRADE_VERSION);
+        InternalIndexReindexer reindexer = createIndexReindexer(script("add_bar"), Strings.EMPTY_ARRAY);
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
         reindexer.upgrade(new TaskId("abc", 123), "test", clusterState(), future);
         assertThrows(future, ResourceAlreadyExistsException.class);
@@ -115,14 +125,14 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
     public void testTargetIndexExistsAsAlias() throws Exception {
         createTestIndex("test");
         createTestIndex("test-foo");
-        client().admin().indices().prepareAliases().addAlias("test-foo", "test-123").get();
-        InternalIndexReindexer reindexer = createIndexReindexer(123, script("add_bar"), Strings.EMPTY_ARRAY);
+        client().admin().indices().prepareAliases().addAlias("test-foo", "test-" + IndexUpgradeCheckVersion.UPGRADE_VERSION).get();
+        InternalIndexReindexer reindexer = createIndexReindexer(script("add_bar"), Strings.EMPTY_ARRAY);
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
         reindexer.upgrade(new TaskId("abc", 123), "test", clusterState(), future);
         assertThrows(future, InvalidIndexNameException.class);
 
         // Make sure that the index is not marked as read-only
-        client().prepareIndex("test-123", "doc").setSource("foo", "bar").get();
+        client().prepareIndex("test-" + IndexUpgradeCheckVersion.UPGRADE_VERSION, "doc").setSource("foo", "bar").get();
     }
 
     public void testSourceIndexIsReadonly() throws Exception {
@@ -130,7 +140,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
         try {
             Settings settings = Settings.builder().put(IndexMetaData.INDEX_READ_ONLY_SETTING.getKey(), true).build();
             assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get());
-            InternalIndexReindexer reindexer = createIndexReindexer(123, script("add_bar"), Strings.EMPTY_ARRAY);
+            InternalIndexReindexer reindexer = createIndexReindexer(script("add_bar"), Strings.EMPTY_ARRAY);
             PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
             reindexer.upgrade(new TaskId("abc", 123), "test", clusterState(), future);
             assertThrows(future, IllegalStateException.class);
@@ -144,12 +154,30 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
         }
     }
 
+    public void testReindexingFailureWithClusterRoutingAllocationDisabled() throws Exception {
+        createTestIndex("test");
+
+        Settings settings = Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                .build();
+        ClusterUpdateSettingsResponse clusterUpdateResponse = client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(settings).get();
+        assertThat(clusterUpdateResponse.isAcknowledged(), is(true));
+        assertThat(clusterUpdateResponse.getTransientSettings()
+                .get(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()), is("none"));
+
+        InternalIndexReindexer reindexer = createIndexReindexer(script("add_bar"), Strings.EMPTY_ARRAY);
+        PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
+        reindexer.upgrade(new TaskId("abc", 123), "test", clusterState(), future);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> future.actionGet());
+        assertThat(e.getMessage(), containsString(
+                "pre-upgrade check failed, please enable cluster routing allocation using setting [cluster.routing.allocation.enable]"));
+    }
 
     public void testReindexingFailure() throws Exception {
         createTestIndex("test");
         // Make sure that the index is not marked as read-only
         client().prepareIndex("test", "doc").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        InternalIndexReindexer reindexer = createIndexReindexer(123, script("fail"), Strings.EMPTY_ARRAY);
+        InternalIndexReindexer reindexer = createIndexReindexer(script("fail"), Strings.EMPTY_ARRAY);
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
         reindexer.upgrade(new TaskId("abc", 123), "test", clusterState(), future);
         assertThrows(future, RuntimeException.class);
@@ -161,7 +189,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
     public void testMixedNodeVersion() throws Exception {
         createTestIndex("test");
 
-        InternalIndexReindexer reindexer = createIndexReindexer(123, script("add_bar"), Strings.EMPTY_ARRAY);
+        InternalIndexReindexer reindexer = createIndexReindexer(script("add_bar"), Strings.EMPTY_ARRAY);
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
         reindexer.upgrade(new TaskId("abc", 123), "test", withRandomOldNode(), future);
         assertThrows(future, IllegalStateException.class);
@@ -183,11 +211,9 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
         return new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, name, new HashMap<>());
     }
 
-    private InternalIndexReindexer createIndexReindexer(int version, Script transformScript, String[] types) {
-        return new InternalIndexReindexer<Void>(client(), internalCluster().clusterService(internalCluster().getMasterName()),
-                version, transformScript, types, voidActionListener -> voidActionListener.onResponse(null),
-                (aVoid, listener) -> listener.onResponse(TransportResponse.Empty.INSTANCE));
-
+    private InternalIndexReindexer createIndexReindexer(Script transformScript, String[] types) {
+        return new IndexUpgradeCheck("test", imd -> UpgradeActionRequired.UPGRADE, client(),
+                internalCluster().clusterService(internalCluster().getMasterName()), types, transformScript).getInternalIndexReindexer();
     }
 
     private ClusterState clusterState() {

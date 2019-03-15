@@ -35,7 +35,7 @@ The _gateway nodes_ selection depends on the following criteria:
 registered to. This is subject to the same rules as <<rolling-upgrades>>.
 Any node can communicate with any other node on the same major version (e.g.
 6.0 can talk to any 6.x node). Only nodes on the last minor version of a
-certain major version are able to communicate with nodes on the following major
+certain major version can communicate with nodes on the following major
 version (e.g. 6.7 can communicate with 7.0, as well as any 7.x node, while
  6.6 or earlier cannot talk to any 7.x node). Note that version compatibility
  is symmetric, meaning that if 6.7 can communicate with 7.0, 7.0 can also

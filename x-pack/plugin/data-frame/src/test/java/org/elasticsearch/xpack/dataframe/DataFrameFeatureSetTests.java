@@ -83,15 +83,18 @@ public class DataFrameFeatureSetTests extends ESTestCase {
                     DataFrameTransformConfigTests.randomDataFrameTransformConfig("df-" + Integer.toString(uniqueId++)));
         }
 
-        List<DataFrameTransformConfig> transformConfigWithTasks = new ArrayList<>(transformsStateAndStats.size());
+        List<DataFrameTransformConfig> transformConfigWithTasks =
+            new ArrayList<>(transformsStateAndStats.size() + transformConfigWithoutTasks.size());
+
         transformsStateAndStats.forEach(stats ->
             transformConfigWithTasks.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig(stats.getId())));
+        transformConfigWithoutTasks.forEach(withoutTask ->
+            transformsStateAndStats.add(DataFrameTransformStateAndStats.initialStateAndStats(withoutTask.getId())));
 
         boolean enabled = randomBoolean();
         boolean available = randomBoolean();
         DataFrameFeatureSetUsage usage = DataFrameFeatureSet.createUsage(available,
             enabled,
-            transformConfigWithoutTasks.size() + transformConfigWithTasks.size(),
             transformsStateAndStats);
 
         assertEquals(enabled, usage.enabled());

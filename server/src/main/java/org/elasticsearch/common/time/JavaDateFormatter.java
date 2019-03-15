@@ -30,6 +30,7 @@ import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -51,14 +52,16 @@ class JavaDateFormatter implements DateFormatter {
 
     private final String format;
     private final DateTimeFormatter printer;
-    private final DateTimeFormatter parser;
-    private final DateTimeFormatter roundupParser;
+     final DateTimeFormatter parser;
+      Collection<DateTimeFormatter> parsers;
+     final DateTimeFormatter roundupParser;
 
     private JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter roundupParser, DateTimeFormatter parser) {
         this.format = format;
         this.printer = printer;
         this.roundupParser = roundupParser;
         this.parser = parser;
+        this.parsers = Arrays.asList(parser);
     }
 
     JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
@@ -80,8 +83,11 @@ class JavaDateFormatter implements DateFormatter {
         }
         this.printer = printer;
         this.format = format;
+        this.parsers = Arrays.asList(parsers);
+
         if (parsers.length == 0) {
             this.parser = printer;
+            this.parsers = Arrays.asList(parser);
         } else if (parsers.length == 1) {
             this.parser = parsers[0];
         } else {
@@ -123,17 +129,35 @@ class JavaDateFormatter implements DateFormatter {
         }
 
         try {
-            return parser.parse(input);
+            return doParse(input);
         } catch (DateTimeParseException e) {
             throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
         }
     }
 
-    @Override
-    public boolean tryParseUnresolved(String input) {
+    private TemporalAccessor doParse(String input) {
+        if (parsers.size() > 1) {
+            for (DateTimeFormatter formatter : parsers) {
+                if (tryParseUnresolved(formatter, input) == true) {
+                    return formatter.parse(input);
+                }
+            }
+        }
+        return parser.parse(input);
+    }
+
+    /**
+     * Attempt parsing the input without throwing exception. This is needed because java-time requires ordering on optional (composite)
+     * patterns. Joda does not suffer from this.
+     * https://bugs.openjdk.java.net/browse/JDK-8188771
+     *
+     * @param input An arbitrary string resembling the string representation of a date or time
+     * @return true if parsing was successful, false if parsing failed
+     */
+    private boolean tryParseUnresolved(DateTimeFormatter formatter, String input) {
         try {
             ParsePosition pp = new ParsePosition(0);
-            parser.parseUnresolved(input, pp);
+            formatter.parseUnresolved(input, pp);
             int len = input.length();
             if (pp.getErrorIndex() == -1 && pp.getIndex() == len) {
                 return true;

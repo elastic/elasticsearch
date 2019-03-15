@@ -51,15 +51,6 @@ public class JodaDateFormatter implements DateFormatter {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(dt.getMillis()), DateUtils.dateTimeZoneToZoneId(dt.getZone()));
     }
 
-    /**
-     * Joda allways succeds when parsing with composite optional patterns
-     * @return true
-     */
-    @Override
-    public boolean tryParseUnresolved(String input) {
-        return true;
-    }
-
     public long parseMillis(String input) {
         return parser.parseMillis(input);
     }

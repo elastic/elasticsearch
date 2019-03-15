@@ -78,10 +78,10 @@ The modules in this section are:
     A tribe node joins one or more clusters and acts as a federated
     client across them.
 
-<<modules-cross-cluster-search, Cross cluster Search>>::
+<<modules-cross-cluster-search, {ccs-cap}>>::
 
-    Cross cluster search enables executing search requests across more than one cluster without joining them and acts
-    as a federated client across them.
+    {ccs-cap} enables executing search requests across more than one cluster
+    without joining them and acts as a federated client across them.
 --
 
 

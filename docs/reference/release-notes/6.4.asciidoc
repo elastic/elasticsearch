@@ -414,9 +414,9 @@ Logging::
  * Add x-opaque-id to search slow logs {pull}31539[#31539] (issue: {issue}31521[#31521])
 
 Machine learning::
-* If a {ml} datafeed is configured to use cross cluster search to retrieve data,
+* If a {ml} datafeed is configured to use {ccs} to retrieve data,
 the remote clusters must have {xpack} installed and a valid licence for {ml}.
-If the licence requirements are not met, datafeeds using cross cluster search
+If the licence requirements are not met, datafeeds using {ccs}
 will not start. {pull}31247[#31247]
  * Use default request durability for .ml-state index {pull}32233[#32233]
  * Return statistics about forecasts as part of the job stats and usage API {pull}31647[#31647] (issue: {issue}31395[#31395])
@@ -511,9 +511,9 @@ Search::
  * Force execution of fetch tasks {pull}31974[#31974] (issue: {issue}29442[#29442])
  * Add second level of field collapsing {pull}31808[#31808] (issue: {issue}24855[#24855])
  * Remove QueryCachingPolicy#ALWAYS_CACHE {pull}31451[#31451]
- * Cross cluster search: don't proxy requests for already connected node {pull}31273[#31273]
+ * {ccs-cap}: don't proxy requests for already connected node {pull}31273[#31273]
  * Reject long regex in query_string {pull}31136[#31136] (issue: {issue}28344[#28344])
- * Cross cluster search: do not use dedicated masters as gateways {pull}30926[#30926] (issue: {issue}30687[#30687])
+ * {ccs-cap}: do not use dedicated masters as gateways {pull}30926[#30926] (issue: {issue}30687[#30687])
  * Added max_expansion param to span_multi {pull}30913[#30913] (issue: {issue}27432[#27432])
  * Increase the maximum number of filters that may be in the cache. {pull}30655[#30655]
  * Improve explanation in rescore {pull}30629[#30629] (issue: {issue}28725[#28725])
@@ -774,7 +774,7 @@ Search::
 * Fix multi level nested sort {pull}32204[#32204] (issues: {issue}31554[#31554], {issue}31783[#31783], {issue}32130[#32130])
 * Fix race in clear scroll {pull}31259[#31259]
 * Fix index prefixes to work with span_multi {pull}31066[#31066] (issue: {issue}31056[#31056])
-* Cross Cluster Search: preserve remote status code {pull}30976[#30976] (issue: {issue}27461[#27461])
+* {ccs-cap}: preserve remote status code {pull}30976[#30976] (issue: {issue}27461[#27461])
 * Fix NPE in 'more_like_this' when field has zero tokens {pull}30365[#30365] (issue: {issue}30148[#30148])
 * Fix failure for validate API on a terms query {pull}30319[#30319], {pull}29483[#29483] (issue: {issue}29033[#29033])
 * Fix a bug in FieldCapabilitiesRequest#equals and hashCode. {pull}30181[#30181]

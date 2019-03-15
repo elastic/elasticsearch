@@ -83,7 +83,7 @@ killed.
 `query_delay` setting.  
 
 Network::
-* Cross-cluster search and default connections can get crossed [OPEN] [ISSUE] {pull}29321[#29321]
+* {ccs-cap} and default connections can get crossed [OPEN] [ISSUE] {pull}29321[#29321]
 
 Percolator::
 * Fixed bug when non percolator docs end up in the search hits {pull}29447[#29447] (issue: {issue}29429[#29429])

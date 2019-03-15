@@ -95,7 +95,7 @@ Scripting::
 
 Search::
 * Fix race in clear scroll {pull}31259[#31259]
-* Cross Cluster Search: preserve remote status code {pull}30976[#30976] (issue: {issue}27461[#27461])
+* {ccs-cap}: preserve remote status code {pull}30976[#30976] (issue: {issue}27461[#27461])
 
 Security::
 * Preserve thread context when connecting to remote cluster {pull}31574[#31574] (issues: {issue}31241[#31241], {issue}31462[#31462])

@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.shards;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -163,10 +162,6 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         @Override
         public void readFrom(StreamInput in) throws IOException {
             node = new DiscoveryNode(in);
-            if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-                // legacy version
-                in.readLong();
-            }
             allocationId = in.readOptionalString();
             allocationStatus = AllocationStatus.readFrom(in);
             if (in.readBoolean()) {
@@ -177,10 +172,6 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             node.writeTo(out);
-            if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-                // legacy version
-                out.writeLong(-1L);
-            }
             out.writeOptionalString(allocationId);
             allocationStatus.writeTo(out);
             if (storeException != null) {

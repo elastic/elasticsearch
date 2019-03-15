@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -137,8 +136,8 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                             }
 
                         },
-                        numberOfShards,
-                        Collections.emptyList());
+                        numberOfShards
+                );
                 for (int i = 0; i < numberOfShards; i++) {
                     final ShardId followerShardId = new ShardId(indexMetaData.getIndex(), i);
                     final ShardId leaderShardId = new ShardId(leaderIndex, i);

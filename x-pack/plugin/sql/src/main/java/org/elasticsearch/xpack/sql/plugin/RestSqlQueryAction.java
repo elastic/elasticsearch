@@ -104,6 +104,13 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
         TextFormat textFormat = TextFormat.fromMediaTypeOrFormat(accept);
 
+        // if we reached this point, the format to be used can be one of TXT, CSV or TSV
+        // which won't work in a columnar fashion
+        if (sqlRequest.columnar()) {
+            throw new IllegalArgumentException("Invalid use of [columnar] argument: cannot be used in combination with "
+                    + "txt, csv or tsv formats");
+        }
+        
         long startNanos = System.nanoTime();
         return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
             @Override

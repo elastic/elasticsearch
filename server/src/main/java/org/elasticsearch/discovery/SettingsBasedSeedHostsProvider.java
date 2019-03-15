@@ -44,9 +44,6 @@ public class SettingsBasedSeedHostsProvider implements SeedHostsProvider {
 
     private static final Logger logger = LogManager.getLogger(SettingsBasedSeedHostsProvider.class);
 
-    public static final Setting<List<String>> LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING =
-        Setting.listSetting("discovery.zen.ping.unicast.hosts", emptyList(), Function.identity(), Property.NodeScope, Property.Deprecated);
-
     public static final Setting<List<String>> DISCOVERY_SEED_HOSTS_SETTING =
         Setting.listSetting("discovery.seed_hosts", emptyList(), Function.identity(), Property.NodeScope);
 
@@ -58,16 +55,7 @@ public class SettingsBasedSeedHostsProvider implements SeedHostsProvider {
     private final int limitPortCounts;
 
     public SettingsBasedSeedHostsProvider(Settings settings, TransportService transportService) {
-        if (LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.exists(settings)) {
-            if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings)) {
-                throw new IllegalArgumentException("it is forbidden to set both ["
-                    + DISCOVERY_SEED_HOSTS_SETTING.getKey() + "] and ["
-                    + LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey() + "]");
-            }
-            configuredHosts = LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
-            // we only limit to 1 address, makes no sense to ping 100 ports
-            limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;
-        } else if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings)) {
+        if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings)) {
             configuredHosts = DISCOVERY_SEED_HOSTS_SETTING.get(settings);
             // we only limit to 1 address, makes no sense to ping 100 ports
             limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;

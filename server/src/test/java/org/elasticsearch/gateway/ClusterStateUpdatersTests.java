@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -33,10 +34,8 @@ import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
@@ -47,7 +46,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.MetaData.CLUSTER_READ_ONLY_BLOCK;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.addStateNotRecoveredBlock;
-import static org.elasticsearch.gateway.ClusterStateUpdaters.closeBadIndices;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.mixCurrentStateAndRecoveredState;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.recoverClusterBlocks;
@@ -59,8 +57,6 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
 
 public class ClusterStateUpdatersTests extends ESTestCase {
 
@@ -201,32 +197,6 @@ public class ClusterStateUpdatersTests extends ESTestCase {
         assertTrue(newState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
     }
 
-    public void testCloseBadIndices() throws IOException {
-        final IndicesService indicesService = mock(IndicesService.class);
-        final IndexMetaData good = createIndexMetaData("good", Settings.EMPTY);
-        final IndexMetaData bad = createIndexMetaData("bad", Settings.EMPTY);
-        final IndexMetaData ugly = IndexMetaData.builder(createIndexMetaData("ugly", Settings.EMPTY))
-                .state(IndexMetaData.State.CLOSE)
-                .build();
-
-        final ClusterState initialState = ClusterState
-                .builder(ClusterState.EMPTY_STATE)
-                .metaData(MetaData.builder()
-                        .put(good, false)
-                        .put(bad, false)
-                        .put(ugly, false)
-                        .build())
-                .build();
-
-        doThrow(new RuntimeException("test")).when(indicesService).verifyIndexMetadata(bad, bad);
-        doThrow(new AssertionError("ugly index is already closed")).when(indicesService).verifyIndexMetadata(ugly, ugly);
-
-        final ClusterState newState = closeBadIndices(initialState, indicesService);
-        assertThat(newState.metaData().index(good.getIndex()).getState(), equalTo(IndexMetaData.State.OPEN));
-        assertThat(newState.metaData().index(bad.getIndex()).getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(newState.metaData().index(ugly.getIndex()).getState(), equalTo(IndexMetaData.State.CLOSE));
-    }
-
     public void testUpdateRoutingTable() {
         final int numOfShards = randomIntBetween(1, 10);
 
@@ -241,11 +211,36 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                 .build();
         assertFalse(initialState.routingTable().hasIndex(index));
 
-        final ClusterState newState = updateRoutingTable(initialState);
-
-        assertTrue(newState.routingTable().hasIndex(index));
-        assertThat(newState.routingTable().version(), is(0L));
-        assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
+        {
+            final ClusterState newState = updateRoutingTable(initialState);
+            assertTrue(newState.routingTable().hasIndex(index));
+            assertThat(newState.routingTable().version(), is(0L));
+            assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
+        }
+        {
+            final ClusterState newState = updateRoutingTable(ClusterState.builder(initialState)
+                .metaData(MetaData.builder(initialState.metaData())
+                    .put(IndexMetaData.builder(initialState.metaData().index("test"))
+                        .state(IndexMetaData.State.CLOSE))
+                    .build())
+                .build());
+            assertFalse(newState.routingTable().hasIndex(index));
+        }
+        {
+            final ClusterState newState = updateRoutingTable(ClusterState.builder(initialState)
+                .metaData(MetaData.builder(initialState.metaData())
+                    .put(IndexMetaData.builder(initialState.metaData().index("test"))
+                        .state(IndexMetaData.State.CLOSE)
+                        .settings(Settings.builder()
+                            .put(initialState.metaData().index("test").getSettings())
+                            .put(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)
+                            .build())
+                    ).build())
+                .build());
+            assertTrue(newState.routingTable().hasIndex(index));
+            assertThat(newState.routingTable().version(), is(0L));
+            assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
+        }
     }
 
     public void testMixCurrentAndRecoveredState() {

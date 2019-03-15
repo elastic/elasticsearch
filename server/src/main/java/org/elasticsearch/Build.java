@@ -75,6 +75,7 @@ public class Build {
     public enum Type {
 
         DEB("deb"),
+        DOCKER("docker"),
         RPM("rpm"),
         TAR("tar"),
         ZIP("zip"),
@@ -94,6 +95,8 @@ public class Build {
             switch (displayName) {
                 case "deb":
                     return Type.DEB;
+                case "docker":
+                    return Type.DOCKER;
                 case "rpm":
                     return Type.RPM;
                 case "tar":

@@ -211,8 +211,6 @@ subprojects {
         setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
         clusterName = 'rolling-upgrade'
         otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
-        minimumMasterNodes = { 2 }
-        autoSetInitialMasterNodes = false
         /* Override the data directory so the new node always gets the node we
         * just stopped's data directory. */
         dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }

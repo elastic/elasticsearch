@@ -35,10 +35,6 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
     private LongArray keys;
     private ObjectArray<T> values;
 
-    public LongObjectPagedHashMap(BigArrays bigArrays) {
-        this(16, bigArrays);
-    }
-
     public LongObjectPagedHashMap(long capacity, BigArrays bigArrays) {
         this(capacity, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
     }

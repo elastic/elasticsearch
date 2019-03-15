@@ -71,11 +71,9 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -94,7 +92,6 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response> {
 
@@ -612,13 +609,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
             final Request request = Request.parse(restRequest.contentOrSourceParamParser());
-            return channel -> client.executeLocally(INSTANCE, request, new RestBuilderListener<Response>(channel) {
-                @Override
-                public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-                    response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    return new BytesRestResponse(OK, builder);
-                }
-            });
+            return channel -> client.executeLocally(INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }
 

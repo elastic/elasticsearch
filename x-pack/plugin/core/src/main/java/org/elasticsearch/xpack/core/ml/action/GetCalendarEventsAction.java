@@ -9,7 +9,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
@@ -19,8 +18,9 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
+import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -194,50 +194,18 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Resp
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        private QueryPage<ScheduledEvent> scheduledEvents;
+    public static class Response extends AbstractGetResourcesResponse<ScheduledEvent> implements ToXContentObject {
 
         public Response() {
         }
 
         public Response(QueryPage<ScheduledEvent> scheduledEvents) {
-            this.scheduledEvents = scheduledEvents;
+            super(scheduledEvents);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            scheduledEvents = new QueryPage<>(in, ScheduledEvent::new);
-
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            scheduledEvents.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return scheduledEvents.toXContent(builder, params);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(scheduledEvents);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return Objects.equals(scheduledEvents, other.scheduledEvents);
+        protected Reader<ScheduledEvent> getReader() {
+            return ScheduledEvent::new;
         }
     }
 

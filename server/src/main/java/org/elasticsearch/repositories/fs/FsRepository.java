@@ -61,9 +61,6 @@ public class FsRepository extends BlobStoreRepository {
             new ByteSizeValue(Long.MAX_VALUE), new ByteSizeValue(5), new ByteSizeValue(Long.MAX_VALUE), Property.NodeScope);
     public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING = Setting.byteSizeSetting("repositories.fs.chunk_size",
         new ByteSizeValue(Long.MAX_VALUE), new ByteSizeValue(5), new ByteSizeValue(Long.MAX_VALUE), Property.NodeScope);
-    public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
-    public static final Setting<Boolean> REPOSITORIES_COMPRESS_SETTING =
-        Setting.boolSetting("repositories.fs.compress", false, Property.NodeScope, Property.Deprecated);
     private final Environment environment;
 
     private ByteSizeValue chunkSize;
@@ -75,7 +72,7 @@ public class FsRepository extends BlobStoreRepository {
      */
     public FsRepository(RepositoryMetaData metadata, Environment environment,
                         NamedXContentRegistry namedXContentRegistry) {
-        super(metadata, environment.settings(), calculateCompress(metadata, environment), namedXContentRegistry);
+        super(metadata, environment.settings(), namedXContentRegistry);
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {
@@ -104,11 +101,6 @@ public class FsRepository extends BlobStoreRepository {
             this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(environment.settings());
         }
         this.basePath = BlobPath.cleanPath();
-    }
-
-    private static boolean calculateCompress(RepositoryMetaData metadata, Environment environment) {
-        return COMPRESS_SETTING.exists(metadata.settings())
-            ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(environment.settings());
     }
 
     @Override

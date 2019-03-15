@@ -19,12 +19,9 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.RetentionLeases;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.transport.TransportRequest;
@@ -97,22 +94,9 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         shardId = ShardId.readShardId(in);
         operations = Translog.readOperations(in, "recovery");
         totalTranslogOps = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
-            maxSeenAutoIdTimestampOnPrimary = in.readZLong();
-        } else {
-            maxSeenAutoIdTimestampOnPrimary = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
-            maxSeqNoOfUpdatesOrDeletesOnPrimary = in.readZLong();
-        } else {
-            // UNASSIGNED_SEQ_NO means uninitialized and replica won't enable optimization using seq_no
-            maxSeqNoOfUpdatesOrDeletesOnPrimary = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            retentionLeases = new RetentionLeases(in);
-        } else {
-            retentionLeases = RetentionLeases.EMPTY;
-        }
+        maxSeenAutoIdTimestampOnPrimary = in.readZLong();
+        maxSeqNoOfUpdatesOrDeletesOnPrimary = in.readZLong();
+        retentionLeases = new RetentionLeases(in);
     }
 
     @Override
@@ -122,14 +106,8 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         shardId.writeTo(out);
         Translog.writeOperations(out, operations);
         out.writeVInt(totalTranslogOps);
-        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
-            out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
-            out.writeZLong(maxSeqNoOfUpdatesOrDeletesOnPrimary);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            retentionLeases.writeTo(out);
-        }
+        out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
+        out.writeZLong(maxSeqNoOfUpdatesOrDeletesOnPrimary);
+        retentionLeases.writeTo(out);
     }
 }

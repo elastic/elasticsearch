@@ -31,14 +31,13 @@ import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -47,10 +46,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
 
@@ -58,20 +53,17 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
 
     @Override
     protected ThreadPool setUpThreadPool() {
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        doAnswer(invocationOnMock -> currentTimeMillis.get()).when(threadPool).absoluteTimeInMillis();
-        when(threadPool.executor(anyString())).thenReturn(mock(ExecutorService.class));
-        when(threadPool.scheduler()).thenReturn(mock(ScheduledExecutorService.class));
-        return threadPool;
-    }
-
-    @Override
-    protected void tearDownThreadPool() {
-
+        return new TestThreadPool(getClass().getName(), threadPoolSettings()) {
+            @Override
+            public long absoluteTimeInMillis() {
+                return currentTimeMillis.get();
+            }
+        };
     }
 
     public void testAddOrRenewRetentionLease() throws IOException {
-        final IndexShard indexShard = newStartedShard(true);
+        final IndexShard indexShard = newStartedShard(true,
+            Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         final long primaryTerm = indexShard.getOperationPrimaryTerm();
         try {
             final int length = randomIntBetween(0, 8);
@@ -102,7 +94,8 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
     }
 
     public void testRemoveRetentionLease() throws IOException {
-        final IndexShard indexShard = newStartedShard(true);
+        final IndexShard indexShard = newStartedShard(true,
+            Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         final long primaryTerm = indexShard.getOperationPrimaryTerm();
         try {
             final int length = randomIntBetween(0, 8);
@@ -143,8 +136,9 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         final long retentionLeaseMillis = randomLongBetween(1, TimeValue.timeValueHours(12).millis());
         final Settings settings = Settings
                 .builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .put(
-                        IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING.getKey(),
+                        IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(),
                         TimeValue.timeValueMillis(retentionLeaseMillis))
                 .build();
         // current time is mocked through the thread pool
@@ -211,7 +205,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
     public void testPersistence() throws IOException {
         final Settings settings = Settings.builder()
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING.getKey(), Long.MAX_VALUE, TimeUnit.NANOSECONDS)
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), Long.MAX_VALUE, TimeUnit.NANOSECONDS)
                 .build();
         final IndexShard indexShard = newStartedShard(
                 true,
@@ -262,13 +256,28 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             } finally {
                 closeShards(recoveredShard);
             }
+
+            // we should not recover retention leases when force-allocating a stale primary
+            final IndexShard forceRecoveredShard = reinitShard(
+                indexShard,
+                ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
+                    RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE));
+            try {
+                recoverShardFromStore(forceRecoveredShard);
+                final RetentionLeases recoveredRetentionLeases = forceRecoveredShard.getEngine().config().retentionLeasesSupplier().get();
+                assertThat(recoveredRetentionLeases.leases(), empty());
+                assertThat(recoveredRetentionLeases.version(), equalTo(0L));
+            } finally {
+                closeShards(forceRecoveredShard);
+            }
         } finally {
             closeShards(indexShard);
         }
     }
 
     public void testRetentionLeaseStats() throws IOException {
-        final IndexShard indexShard = newStartedShard(true);
+        final IndexShard indexShard = newStartedShard(true,
+            Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         try {
             final int length = randomIntBetween(0, 8);
             final long[] minimumRetainingSequenceNumbers = new long[length];
@@ -287,6 +296,22 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         } finally {
             closeShards(indexShard);
         }
+    }
+
+    public void testRetentionLeasesActionsFailWithSoftDeletesDisabled() throws Exception {
+        IndexShard shard = newStartedShard(true, Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
+        assertThat(expectThrows(AssertionError.class, () -> shard.addRetentionLease(randomAlphaOfLength(10),
+            randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE), "test", ActionListener.wrap(() -> {}))).getMessage(),
+            equalTo("retention leases requires soft deletes but [index] does not have soft deletes enabled"));
+        assertThat(expectThrows(AssertionError.class, () -> shard.renewRetentionLease(
+            randomAlphaOfLength(10), randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE), "test")).getMessage(),
+            equalTo("retention leases requires soft deletes but [index] does not have soft deletes enabled"));
+        assertThat(expectThrows(AssertionError.class, () -> shard.removeRetentionLease(
+            randomAlphaOfLength(10), ActionListener.wrap(() -> {}))).getMessage(),
+            equalTo("retention leases requires soft deletes but [index] does not have soft deletes enabled"));
+        assertThat(expectThrows(AssertionError.class, shard::syncRetentionLeases).getMessage(),
+            equalTo("retention leases requires soft deletes but [index] does not have soft deletes enabled"));
+        closeShards(shard);
     }
 
     private void assertRetentionLeases(

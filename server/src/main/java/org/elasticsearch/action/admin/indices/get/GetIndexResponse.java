@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.get;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -193,11 +192,9 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         settings = settingsMapBuilder.build();
 
         ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            int defaultSettingsSize = in.readVInt();
-            for (int i = 0; i < defaultSettingsSize ; i++) {
-                defaultSettingsMapBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
-            }
+        int defaultSettingsSize = in.readVInt();
+        for (int i = 0; i < defaultSettingsSize; i++) {
+            defaultSettingsMapBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
         }
         defaultSettings = defaultSettingsMapBuilder.build();
     }
@@ -228,12 +225,10 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             out.writeString(indexEntry.key);
             Settings.writeSettingsToStream(indexEntry.value, out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeVInt(defaultSettings.size());
-            for (ObjectObjectCursor<String, Settings> indexEntry : defaultSettings) {
-                out.writeString(indexEntry.key);
-                Settings.writeSettingsToStream(indexEntry.value, out);
-            }
+        out.writeVInt(defaultSettings.size());
+        for (ObjectObjectCursor<String, Settings> indexEntry : defaultSettings) {
+            out.writeString(indexEntry.key);
+            Settings.writeSettingsToStream(indexEntry.value, out);
         }
     }
 

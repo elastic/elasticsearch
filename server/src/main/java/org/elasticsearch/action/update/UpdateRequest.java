@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -836,9 +835,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readOptionalString(); // _parent
-        }
         if (in.readBoolean()) {
             script = new Script(in);
         }
@@ -848,26 +844,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc = new IndexRequest();
             doc.readFrom(in);
         }
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            String[] fields = in.readOptionalStringArray();
-            if (fields != null) {
-                throw new IllegalArgumentException("[fields] is no longer supported");
-            }
-        }
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.readBoolean()) {
             upsertRequest = new IndexRequest();
             upsertRequest.readFrom(in);
         }
         docAsUpsert = in.readBoolean();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            long version = in.readLong();
-            VersionType versionType = VersionType.readFromStream(in);
-            if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
-                throw new UnsupportedOperationException(
-                    "versioned update requests have been removed in 7.0. Use if_seq_no and if_primary_term");
-            }
-        }
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
         detectNoop = in.readBoolean();
@@ -883,9 +865,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeString(type());
         out.writeString(id);
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalString(null); // _parent
-        }
 
         boolean hasScript = script != null;
         out.writeBoolean(hasScript);
@@ -904,9 +883,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc.id(id);
             doc.writeTo(out);
         }
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalStringArray(null);
-        }
         out.writeOptionalWriteable(fetchSourceContext);
         if (upsertRequest == null) {
             out.writeBoolean(false);
@@ -919,10 +895,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             upsertRequest.writeTo(out);
         }
         out.writeBoolean(docAsUpsert);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeLong(Versions.MATCH_ANY);
-            out.writeByte(VersionType.INTERNAL.getValue());
-        }
         out.writeZLong(ifSeqNo);
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(detectNoop);

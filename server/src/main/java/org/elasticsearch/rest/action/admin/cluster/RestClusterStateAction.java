@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
@@ -102,8 +103,12 @@ public class RestClusterStateAction extends BaseRestHandler {
                     builder.field(Fields.WAIT_FOR_TIMED_OUT, response.isWaitForTimedOut());
                 }
                 builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
-                builder.humanReadableField(Fields.CLUSTER_STATE_SIZE_IN_BYTES, Fields.CLUSTER_STATE_SIZE,
-                        response.getTotalCompressedSize());
+                if (TransportClusterStateAction.CLUSTER_STATE_SIZE) {
+                    builder.humanReadableField(
+                            Fields.CLUSTER_STATE_SIZE_IN_BYTES,
+                            Fields.CLUSTER_STATE_SIZE,
+                            response.getTotalCompressedSize());
+                }
                 response.getState().toXContent(builder, request);
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);

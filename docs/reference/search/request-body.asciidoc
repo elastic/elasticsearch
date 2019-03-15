@@ -117,7 +117,7 @@ And here is a sample response:
 
     Defaults to `true`. Set to `false` to disable minimizing network round-trips
     between the coordinating node and the remote clusters when executing
-    cross-cluster search requests. See <<ccs-reduction>> for more.
+    {ccs} requests. See <<ccs-reduction>> for more.
 
 
 Out of the above, the `search_type`, `request_cache` and the `allow_partial_search_results` 

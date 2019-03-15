@@ -17,14 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.apache.lucene.search;
 
-import org.elasticsearch.packaging.util.Distribution;
+import org.apache.lucene.index.LeafReaderContext;
 
-public class OssTarTests extends ArchiveTestCase {
+import java.io.IOException;
+import java.util.List;
+
+/**
+ * A wrapper for {@link IndexSearcher} that makes {@link IndexSearcher#search(List, Weight, Collector)}
+ * visible by sub-classes.
+ */
+public class XIndexSearcher extends IndexSearcher {
+    private final IndexSearcher in;
+
+    public XIndexSearcher(IndexSearcher in) {
+        super(in.getIndexReader());
+        this.in = in;
+        setSimilarity(in.getSimilarity());
+        setQueryCache(in.getQueryCache());
+        setQueryCachingPolicy(in.getQueryCachingPolicy());
+    }
 
     @Override
-    protected Distribution distribution() {
-        return Distribution.OSS_LINUX;
+    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        in.search(leaves, weight, collector);
     }
 }

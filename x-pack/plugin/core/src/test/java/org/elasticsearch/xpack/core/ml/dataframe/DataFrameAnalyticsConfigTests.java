@@ -132,7 +132,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
 
     public void testQueryConfigStoresUserInputOnly() throws IOException {
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY,
+            .createParser(xContentRegistry(),
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 MODERN_QUERY_DATA_FRAME_ANALYTICS)) {
 
@@ -141,7 +141,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         }
 
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY,
+            .createParser(xContentRegistry(),
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 MODERN_QUERY_DATA_FRAME_ANALYTICS)) {
 
@@ -152,17 +152,18 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
 
     public void testPastQueryConfigParse() throws IOException {
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY,
+            .createParser(xContentRegistry(),
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS)) {
 
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> config.getParsedQuery(xContentRegistry()));
-            assertEquals("[match] query doesn't support multiple fields, found [query] and [type]", e.getMessage());
+            assertEquals("Data Frame Analytics config query is not parsable", e.getMessage());
+            assertEquals("[match] query doesn't support multiple fields, found [query] and [type]", e.getCause().getMessage());
         }
 
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY,
+            .createParser(xContentRegistry(),
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS)) {
 

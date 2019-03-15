@@ -132,7 +132,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     @TestLogging("org.elasticsearch.xpack.security.authc:DEBUG")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39581")
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {
         final Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,

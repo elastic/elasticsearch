@@ -22,7 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests for the get cluster state API.
@@ -36,8 +36,8 @@ public class GetClusterStateTests extends ESSingleNodeTestCase {
         ClusterStateResponse response = client().admin().cluster().prepareState().get();
         assertNotNull(response.getState());
         assertNotNull(response.getClusterName());
-        // assume the cluster state size is 50 bytes or more, just so we aren't testing against size of 0
-        assertThat(response.getTotalCompressedSize().getBytes(), greaterThanOrEqualTo(50L));
+        // the cluster state size is no longer computed by default
+        assertThat(response.getTotalCompressedSize().getBytes(), equalTo(0L));
     }
 
     public void testSizeDerivedFromFullClusterState() {

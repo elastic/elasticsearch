@@ -580,10 +580,6 @@ public final class ThreadContext implements Closeable, Writeable {
             return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);
         }
 
-        boolean isEmpty() {
-            return requestHeaders.isEmpty() && responseHeaders.isEmpty() && transientHeaders.isEmpty();
-        }
-
         private ThreadContextStruct copyHeaders(Iterable<Map.Entry<String, String>> headers) {
             Map<String, String> newHeaders = new HashMap<>();
             for (Map.Entry<String, String> header : headers) {

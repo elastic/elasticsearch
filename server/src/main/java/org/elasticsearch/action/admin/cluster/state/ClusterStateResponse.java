@@ -19,9 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -75,6 +73,7 @@ public class ClusterStateResponse extends ActionResponse {
      * of the cluster state as it would be transmitted over the network during
      * intra-node communication.
      */
+    @Deprecated
     public ByteSizeValue getTotalCompressedSize() {
         return totalCompressedSize;
     }
@@ -91,44 +90,18 @@ public class ClusterStateResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         clusterName = new ClusterName(in);
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
-        } else {
-            clusterState = ClusterState.readFrom(in, null);
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            totalCompressedSize = new ByteSizeValue(in);
-        } else {
-            // in a mixed cluster, if a pre 6.0 node processes the get cluster state
-            // request, then a compressed size won't be returned, so just return 0;
-            // its a temporary situation until all nodes in the cluster have been upgraded,
-            // at which point the correct cluster state size will always be reported
-            totalCompressedSize = new ByteSizeValue(0L);
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            waitForTimedOut = in.readBoolean();
-        }
+        clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
+        totalCompressedSize = new ByteSizeValue(in);
+        waitForTimedOut = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         clusterName.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeOptionalWriteable(clusterState);
-        } else {
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-                clusterState.writeTo(out);
-            } else {
-                ClusterModule.filterCustomsForPre63Clients(clusterState).writeTo(out);
-            }
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            totalCompressedSize.writeTo(out);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeBoolean(waitForTimedOut);
-        }
+        out.writeOptionalWriteable(clusterState);
+        totalCompressedSize.writeTo(out);
+        out.writeBoolean(waitForTimedOut);
     }
 
     @Override

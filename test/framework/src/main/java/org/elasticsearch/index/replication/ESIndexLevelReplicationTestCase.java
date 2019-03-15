@@ -897,7 +897,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     private TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> executeResyncOnPrimary(
         IndexShard primary, ResyncReplicationRequest request) throws Exception {
         final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
-            new TransportWriteAction.WritePrimaryResult<>(TransportResyncReplicationAction.performOnPrimary(request, primary),
+            new TransportWriteAction.WritePrimaryResult<>(TransportResyncReplicationAction.performOnPrimary(request),
                 new ResyncReplicationResponse(), null, null, primary, logger);
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
         return result;

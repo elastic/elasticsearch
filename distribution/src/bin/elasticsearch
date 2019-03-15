@@ -18,9 +18,8 @@ source "`dirname "$0"`"/elasticsearch-env
 
 ES_JVM_OPTIONS="$ES_PATH_CONF"/jvm.options
 JVM_OPTIONS=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_JVM_OPTIONS"`
-ES_JAVA_OPTS="${JVM_OPTIONS//\$\{ES_TMPDIR\}/$ES_TMPDIR} $ES_JAVA_OPTS"
+ES_JAVA_OPTS="${JVM_OPTIONS//\"\$\{ES_TMPDIR\}\"/$ES_TMPDIR} $ES_JAVA_OPTS"
 
-cd "$ES_HOME"
 # manual parsing to find out, if process should be detached
 if ! echo $* | grep -E '(^-d |-d$| -d |--daemonize$|--daemonize )' > /dev/null; then
   exec \

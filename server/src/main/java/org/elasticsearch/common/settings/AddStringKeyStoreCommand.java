@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import java.io.BufferedReader;
+import java.io.CharArrayWriter;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -83,8 +84,17 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
 
         final char[] value;
         if (options.has(stdinOption)) {
-            BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
-            value = stdinReader.readLine().toCharArray();
+            try (BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
+                 CharArrayWriter writer = new CharArrayWriter()) {
+                int charInt;
+                while ((charInt = stdinReader.read()) != -1) {
+                    if ((char) charInt == '\r' || (char) charInt == '\n') {
+                        break;
+                    }
+                    writer.write((char) charInt);
+                }
+                value = writer.toCharArray();
+            }
         } else {
             value = terminal.readSecret("Enter value for " + setting + ": ");
         }

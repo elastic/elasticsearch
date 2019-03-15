@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.replication;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -58,7 +57,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

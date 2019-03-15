@@ -8,7 +8,7 @@
 
 IMPORTANT: To prepare a cluster for an upgrade to Elasticsearch version 7, use
 the {kibana-ref}/upgrade-assistant.html[{kib} Upgrade Assistant] or
-<<reindex-upgrade,Reindex manually>> before upgrading.
+<<reindex-upgrade,reindex manually>> before upgrading.
 
 deprecated[6.7, Use the {kibana-ref}/upgrade-assistant.html[{kib} Upgrade
 Assistant] or <<reindex-upgrade,Reindex manually>> before upgrading.] The

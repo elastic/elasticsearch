@@ -19,9 +19,11 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 
+import java.text.ParsePosition;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -32,6 +34,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.time.format.SignStyle;
 import java.time.temporal.ChronoField;
@@ -41,8 +44,10 @@ import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.time.temporal.WeekFields;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.DAY_OF_WEEK;
@@ -1573,25 +1578,85 @@ public class DateFormatters {
         }
     }
 
-    static JavaDateFormatter merge(String pattern, List<DateFormatter> formatters) {
-        assert formatters.size() > 0;
+    static class MergedDateFormatter implements DateFormatter {
 
-        List<DateTimeFormatter> dateTimeFormatters = new ArrayList<>(formatters.size());
-        DateTimeFormatterBuilder roundupBuilder = new DateTimeFormatterBuilder();
-        DateTimeFormatter printer = null;
-        for (DateFormatter formatter : formatters) {
-            assert formatter instanceof JavaDateFormatter;
-            JavaDateFormatter javaDateFormatter = (JavaDateFormatter) formatter;
-            if (printer == null) {
-                printer = javaDateFormatter.getPrinter();
-            }
-            dateTimeFormatters.add(javaDateFormatter.getParser());
-            roundupBuilder.appendOptional(javaDateFormatter.getRoundupParser());
+        private final String pattern;
+        // package private for tests
+        final List<DateFormatter> formatters;
+        private final List<DateMathParser> dateMathParsers;
+
+        MergedDateFormatter(String pattern, List<DateFormatter> formatters) {
+            assert formatters.size() > 0;
+            this.pattern = pattern;
+            this.formatters = Collections.unmodifiableList(formatters);
+            this.dateMathParsers = formatters.stream().map(DateFormatter::toDateMathParser).collect(Collectors.toList());
         }
-        DateTimeFormatter roundUpParser = roundupBuilder.toFormatter(Locale.ROOT);
 
-        return new JavaDateFormatter(pattern, printer, builder -> builder.append(roundUpParser),
-            dateTimeFormatters.toArray(new DateTimeFormatter[0]));
+        @Override
+        public TemporalAccessor parse(String input) {
+            for (DateFormatter formatter : formatters) {
+                if(formatter.tryParseUnresolved(input) == true){
+                    return formatter.parse(input);
+                }
+            }
+            throw new DateTimeParseException("Text '" + input + "' could not be parsed", input, 0);
+        }
+
+        @Override
+        public boolean tryParseUnresolved(String input) {
+            return false;
+        }
+
+        @Override
+        public DateFormatter withZone(ZoneId zoneId) {
+            return new MergedDateFormatter(pattern, formatters.stream().map(f -> f.withZone(zoneId)).collect(Collectors.toList()));
+        }
+
+        @Override
+        public DateFormatter withLocale(Locale locale) {
+            return new MergedDateFormatter(pattern, formatters.stream().map(f -> f.withLocale(locale)).collect(Collectors.toList()));
+        }
+
+        @Override
+        public String format(TemporalAccessor accessor) {
+            return formatters.get(0).format(accessor);
+        }
+
+        @Override
+        public String pattern() {
+            return pattern;
+        }
+
+        @Override
+        public Locale locale() {
+            return formatters.get(0).locale();
+        }
+
+        @Override
+        public ZoneId zone() {
+            return formatters.get(0).zone();
+        }
+
+        @Override
+        public DateMathParser toDateMathParser() {
+            return (text, now, roundUp, tz) -> {
+                ElasticsearchParseException failure = null;
+                for (DateMathParser parser : dateMathParsers) {
+                    try {
+                        return parser.parse(text, now, roundUp, tz);
+                    } catch (ElasticsearchParseException e) {
+                        if (failure == null) {
+                            // wrap so the entire multi format is in the message
+                            failure = new ElasticsearchParseException("failed to parse date field [" + text + "] with format ["
+                                + pattern + "]", e);
+                        } else {
+                            failure.addSuppressed(e);
+                        }
+                    }
+                }
+                throw failure;
+            };
+        }
     }
 
     private static final LocalDate LOCALDATE_EPOCH = LocalDate.of(1970, 1, 1);

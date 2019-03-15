@@ -18,12 +18,16 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
@@ -32,6 +36,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.core.Is.is;
 
 public class JoinHelperTests extends ESTestCase {
 
@@ -106,5 +111,24 @@ public class JoinHelperTests extends ESTestCase {
         capturingTransport.handleRemoteError(capturedRequest1a.requestId, new CoordinationStateRejectedException("dummy"));
         capturingTransport.handleRemoteError(capturedRequest2a.requestId, new CoordinationStateRejectedException("dummy"));
         assertFalse(joinHelper.isJoinPending());
+    }
+
+    public void testFailedJoinAttemptLogLevel() {
+        assertThat(JoinHelper.FailedJoinAttempt.getLogLevel(new TransportException("generic transport exception")), is(Level.INFO));
+
+        assertThat(JoinHelper.FailedJoinAttempt.getLogLevel(
+                new RemoteTransportException("remote transport exception with generic cause", new Exception())), is(Level.INFO));
+
+        assertThat(JoinHelper.FailedJoinAttempt.getLogLevel(
+                new RemoteTransportException("caused by CoordinationStateRejectedException",
+                        new CoordinationStateRejectedException("test"))), is(Level.DEBUG));
+
+        assertThat(JoinHelper.FailedJoinAttempt.getLogLevel(
+                new RemoteTransportException("caused by FailedToCommitClusterStateException",
+                        new FailedToCommitClusterStateException("test"))), is(Level.DEBUG));
+
+        assertThat(JoinHelper.FailedJoinAttempt.getLogLevel(
+                new RemoteTransportException("caused by NotMasterException",
+                        new NotMasterException("test"))), is(Level.DEBUG));
     }
 }

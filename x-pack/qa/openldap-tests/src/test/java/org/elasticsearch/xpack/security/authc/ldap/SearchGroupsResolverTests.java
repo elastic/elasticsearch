@@ -181,6 +181,6 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     @Override
     protected String trustPath() {
-        return "/idptrust.jks";
+        return "/ca.jks";
     }
 }

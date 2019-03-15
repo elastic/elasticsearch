@@ -550,3 +550,16 @@ include::ilm/stop_lifecycle_management.asciidoc[]
 include::ilm/lifecycle_management_status.asciidoc[]
 include::ilm/retry_lifecycle_policy.asciidoc[]
 include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
+
+== Data Frame APIs
+
+:upid: {mainid}-dataframe
+:doc-tests-file: {doc-tests}/DataFrameTransformDocumentationIT.java
+
+The Java High Level REST Client supports the following Data Frame APIs:
+
+* <<{upid}-put-data-frame-transform>>
+* <<{upid}-delete-data-frame-transform>>
+
+include::dataframe/put_data_frame.asciidoc[]
+include::dataframe/delete_data_frame.asciidoc[]

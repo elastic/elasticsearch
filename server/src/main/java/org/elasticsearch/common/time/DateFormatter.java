@@ -22,7 +22,6 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.common.Strings;
 import org.joda.time.DateTime;
 
-import java.text.ParsePosition;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;

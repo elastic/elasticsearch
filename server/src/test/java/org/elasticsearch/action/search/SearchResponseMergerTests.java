@@ -570,7 +570,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertEquals(0, response.getShardFailures().length);
     }
 
-    public void testMergeEmptySearchHits() {
+    public void testMergeEmptySearchHitsWithNonEmpty() {
         long currentRelativeTime = randomLong();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
         SearchResponseMerger merger = new SearchResponseMerger(0, 10, Integer.MAX_VALUE, timeProvider, flag -> null);
@@ -607,6 +607,33 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertArrayEquals(sortFields, mergedResponse.getHits().getSortFields());
         assertArrayEquals(hits, mergedResponse.getHits().getHits());
         assertEquals(clusters, mergedResponse.getClusters());
+    }
+
+    public void testMergeOnlyEmptyHits() {
+        long currentRelativeTime = randomLong();
+        final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+        Tuple<Integer, TotalHits.Relation> randomTrackTotalHits = randomTrackTotalHits();
+        int trackTotalHitsUpTo = randomTrackTotalHits.v1();
+        TotalHits.Relation totalHitsRelation = randomTrackTotalHits.v2();
+        SearchResponseMerger merger = new SearchResponseMerger(0, 10, trackTotalHitsUpTo, timeProvider, flag -> null);
+        int numResponses = randomIntBetween(1, 5);
+        TotalHits expectedTotalHits = null;
+        for (int i = 0; i < numResponses; i++) {
+            TotalHits totalHits = null;
+            if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                totalHits = new TotalHits(randomLongBetween(0, 1000), totalHitsRelation);
+                long previousValue = expectedTotalHits == null ? 0 : expectedTotalHits.value;
+                expectedTotalHits = new TotalHits(Math.min(previousValue + totalHits.value, trackTotalHitsUpTo), totalHitsRelation);
+            }
+            SearchHits empty = new SearchHits(new SearchHit[0], totalHits, Float.NaN, null, null, null);
+            InternalSearchResponse response = new InternalSearchResponse(empty, null, null, null, false, false, 1);
+            SearchResponse searchResponse = new SearchResponse(response, null, 1, 1, 0, 1L,
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            merger.add(searchResponse);
+        }
+        SearchResponse mergedResponse = merger.getMergedResponse(clusters);
+        assertEquals(expectedTotalHits, mergedResponse.getHits().getTotalHits());
     }
 
     private static Tuple<Integer, TotalHits.Relation> randomTrackTotalHits() {

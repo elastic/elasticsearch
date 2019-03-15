@@ -189,7 +189,7 @@ cluster alias:
 
 By default, all remote clusters that are searched via {ccs} need
 to be available when the search request is executed. Otherwise, the whole
-request fails and no search results are returned despite some of the clusters
+request fails; even if some of the clusters are available, no search results are returned.
 are available. Remote clusters can be made optional through the boolean
 `skip_unavailable` setting, set to `false` by default.
 

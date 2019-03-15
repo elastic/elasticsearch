@@ -962,7 +962,7 @@ public final class TokenService {
         if (creationEpochMilli == null) {
             throw invalidGrantException("token document is missing creation time value");
         } else {
-            final Instant creationTime = creationEpochMilli == null ? null : Instant.ofEpochMilli(creationEpochMilli);
+            final Instant creationTime = Instant.ofEpochMilli(creationEpochMilli);
             if (clock.instant().isAfter(creationTime.plus(24L, ChronoUnit.HOURS))) {
                 throw invalidGrantException("refresh token has expired");
             }

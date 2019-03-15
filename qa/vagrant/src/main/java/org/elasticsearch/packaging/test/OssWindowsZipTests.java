@@ -21,10 +21,10 @@ package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.packaging.util.Distribution;
 
-public class DefaultZipTests extends ArchiveTestCase {
+public class OssWindowsZipTests extends ArchiveTestCase {
 
     @Override
     protected Distribution distribution() {
-        return Distribution.DEFAULT_WINDOWS;
+        return Distribution.OSS_WINDOWS;
     }
 }

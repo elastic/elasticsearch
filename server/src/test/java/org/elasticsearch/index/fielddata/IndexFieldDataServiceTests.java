@@ -22,14 +22,17 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -55,6 +58,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -215,25 +219,65 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         ifdService.clear();
     }
 
-    public void testJsonFields() {
+    public void testJsonFields() throws IOException {
+        // Set up the index service.
         IndexService indexService = createIndex("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
-            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
-        ifdService.clear();
+            indicesService.getIndicesFieldDataCache(),
+            indicesService.getCircuitBreakerService(),
+            indexService.mapperService());
 
         BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         JsonFieldMapper fieldMapper = new JsonFieldMapper.Builder("json").build(ctx);
 
-        KeyedJsonFieldType fieldType1 = fieldMapper.keyedFieldType("key");
-        IndexFieldData<?> fd1 = ifdService.getForField(fieldType1);
-        assertTrue(fd1 instanceof KeyedJsonIndexFieldData);
-        assertEquals("key", ((KeyedJsonIndexFieldData) fd1).getKey());
+        AtomicInteger onCacheCalled = new AtomicInteger();
+        ifdService.setListener(new IndexFieldDataCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
+                assertEquals(fieldMapper.keyedFieldName(), fieldName);
+                onCacheCalled.incrementAndGet();
+            }
+        });
 
+        // Add some documents.
+        Directory directory = newDirectory();
+        IndexWriterConfig config = new IndexWriterConfig(new KeywordAnalyzer());
+        IndexWriter writer = new IndexWriter(directory, config);
+
+        Document doc = new Document();
+        doc.add(new SortedSetDocValuesField("json._keyed", new BytesRef("some_key\0some_value")));
+        writer.addDocument(doc);
+        writer.commit();
+        writer.addDocument(doc);
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(
+            DirectoryReader.open(writer),
+            new ShardId("test", "_na_", 1));
+
+        // Load global field data for subfield 'key'.
+        KeyedJsonFieldType fieldType1 = fieldMapper.keyedFieldType("key");
+        IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1);
+        assertTrue(ifd1 instanceof KeyedJsonIndexFieldData);
+
+        KeyedJsonIndexFieldData fieldData1 = (KeyedJsonIndexFieldData) ifd1;
+        assertEquals("key", fieldData1.getKey());
+        fieldData1.loadGlobal(reader);
+        assertEquals(1, onCacheCalled.get());
+
+        // Load global field data for the subfield 'other_key'.
         KeyedJsonFieldType fieldType2 = fieldMapper.keyedFieldType("other_key");
-        IndexFieldData<?> fd2 = ifdService.getForField(fieldType2);
-        assertTrue(fd2 instanceof KeyedJsonIndexFieldData);
-        assertEquals("other_key", ((KeyedJsonIndexFieldData) fd2).getKey());
+        IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2);
+        assertTrue(ifd2 instanceof KeyedJsonIndexFieldData);
+
+        KeyedJsonIndexFieldData fieldData2 = (KeyedJsonIndexFieldData) ifd2;
+        assertEquals("other_key", fieldData2.getKey());
+        fieldData2.loadGlobal(reader);
+        assertEquals(1, onCacheCalled.get());
+
+        ifdService.clear();
+        reader.close();
+        writer.close();
+        directory.close();
     }
 
     public void testSetCacheListenerTwice() {

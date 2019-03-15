@@ -178,10 +178,17 @@ final class SearchResponseMerger {
                 assert trackTotalHits == null || trackTotalHits;
                 trackTotalHits = true;
             }
-            TopDocs topDocs = searchHitsToTopDocs(searchHits, totalHits, shards);
-            topDocsStats.add(new TopDocsAndMaxScore(topDocs, searchHits.getMaxScore()),
-                searchResponse.isTimedOut(), searchResponse.isTerminatedEarly());
-            topDocsList.add(topDocs);
+            if (totalHits.value > 0) {
+                TopDocs topDocs = searchHitsToTopDocs(searchHits, totalHits, shards);
+                topDocsStats.add(new TopDocsAndMaxScore(topDocs, searchHits.getMaxScore()),
+                    searchResponse.isTimedOut(), searchResponse.isTerminatedEarly());
+                topDocsList.add(topDocs);
+            } else {
+                //there is no point in adding empty search hits and merging them with the others. Also, empty search hits always come
+                //without sort fields and collapse info, despite sort by field and/or field collapsing was requested, which causes
+                //issues reconstructing the proper TopDocs instance and breaks mergeTopDocs which expects the same type for each result.
+                assert searchHits.getHits().length == 0;
+            }
         }
 
         //after going through all the hits and collecting all their distinct shards, we can assign shardIndex and set it to the ScoreDocs

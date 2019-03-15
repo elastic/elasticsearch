@@ -161,10 +161,4 @@ some indices but not all:
 // NOTCONSOLE
 
 <1> The `rating` field is unmapped` in `index5`.
-<1> The `title` field is unmapped` in `index5`.
-
-
-
-
-
-
+<2> The `title` field is unmapped` in `index5`.

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.graalvm.compiler.nodes.extended.BytecodeExceptionNode;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -39,18 +40,14 @@ public class ClusterStateResponse extends ActionResponse {
 
     private ClusterName clusterName;
     private ClusterState clusterState;
-    // the total compressed size of the full cluster state, not just
-    // the parts included in this response
-    private ByteSizeValue totalCompressedSize;
     private boolean waitForTimedOut = false;
 
     public ClusterStateResponse() {
     }
 
-    public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, long sizeInBytes, boolean waitForTimedOut) {
+    public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, boolean waitForTimedOut) {
         this.clusterName = clusterName;
         this.clusterState = clusterState;
-        this.totalCompressedSize = new ByteSizeValue(sizeInBytes);
         this.waitForTimedOut = waitForTimedOut;
     }
 
@@ -70,17 +67,6 @@ public class ClusterStateResponse extends ActionResponse {
     }
 
     /**
-     * The total compressed size of the full cluster state, not just the parts
-     * returned by {@link #getState()}.  The total compressed size is the size
-     * of the cluster state as it would be transmitted over the network during
-     * intra-node communication.
-     */
-    @Deprecated
-    public ByteSizeValue getTotalCompressedSize() {
-        return totalCompressedSize;
-    }
-
-    /**
      * Returns whether the request timed out waiting for a cluster state with a metadata version equal or
      * higher than the specified metadata.
      */
@@ -97,14 +83,8 @@ public class ClusterStateResponse extends ActionResponse {
         } else {
             clusterState = ClusterState.readFrom(in, null);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            totalCompressedSize = new ByteSizeValue(in);
-        } else {
-            // in a mixed cluster, if a pre 6.0 node processes the get cluster state
-            // request, then a compressed size won't be returned, so just return 0;
-            // its a temporary situation until all nodes in the cluster have been upgraded,
-            // at which point the correct cluster state size will always be reported
-            totalCompressedSize = new ByteSizeValue(0L);
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            new ByteSizeValue(in);
         }
         if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             waitForTimedOut = in.readBoolean();
@@ -124,8 +104,8 @@ public class ClusterStateResponse extends ActionResponse {
                 ClusterModule.filterCustomsForPre63Clients(clusterState).writeTo(out);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            totalCompressedSize.writeTo(out);
+        if (out.getVersion().before(Version.V_7_0_0)) {
+            ByteSizeValue.ZERO.writeTo(out);
         }
         if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeBoolean(waitForTimedOut);
@@ -142,8 +122,7 @@ public class ClusterStateResponse extends ActionResponse {
             // Best effort. Only compare cluster state version and master node id,
             // because cluster state doesn't implement equals()
             Objects.equals(getVersion(clusterState), getVersion(response.clusterState)) &&
-            Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState)) &&
-            Objects.equals(totalCompressedSize, response.totalCompressedSize);
+            Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState));
     }
 
     @Override
@@ -154,7 +133,6 @@ public class ClusterStateResponse extends ActionResponse {
             clusterName,
             getVersion(clusterState),
             getMasterNodeId(clusterState),
-            totalCompressedSize,
             waitForTimedOut
         );
     }

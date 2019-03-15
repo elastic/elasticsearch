@@ -60,7 +60,7 @@ cluster can communicate with 6.6 or earlier nodes as long as at least one 6.7
 _gateway node_ is present in their cluster. Beware that only features
 supported by the lower version can be used in that case.
 
-- *role*: dedicated master nodes never get selected
+- *role*: Dedicated master nodes never get selected.
 - *attributes*: you can tag which nodes should be selected
 (see <<remote-cluster-settings>>), though such tagged nodes still have
 to satisfy the two above requirements

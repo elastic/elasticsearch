@@ -1481,6 +1481,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
         updateRetentionLeasesOnReplica(loadRetentionLeases());
+        assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
+            : "expected empty set of retention leases with recovery source [" + recoveryState.getRecoverySource()
+            + "] but got " + getRetentionLeases();
         trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();
@@ -2078,6 +2081,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void persistRetentionLeases() throws IOException {
         verifyNotClosed();
         replicationTracker.persistRetentionLeases(path.getShardStatePath());
+    }
+
+    public boolean assertRetentionLeasesPersisted() throws IOException {
+        return replicationTracker.assertRetentionLeasesPersisted(path.getShardStatePath());
     }
 
     /**

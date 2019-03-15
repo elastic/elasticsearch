@@ -50,14 +50,6 @@ version (e.g. 6.7 can communicate with 7.0, as well as any 7.x node, while
 | 7.x           |    No    | No  |    No    | Yes | Yes
 |====
 
-NOTE: If you want to connect incompatible clusters on subsequent major
-versions, you can add one or
-more <<coordinating-only-node,coordinating only nodes>> on the intermediate
-version to the cluster on the lower version, since they support communicating with both ends. For instance, a 7.0
-cluster can communicate with 6.6 or earlier nodes as long as at least one 6.7
-_gateway node_ is present in their cluster. Beware that only features
-supported by the lower version can be used in that case.
-
 - *role*: Dedicated master nodes never get selected.
 - *attributes*: You can tag which nodes should be selected
 (see <<remote-cluster-settings>>), though such tagged nodes still have

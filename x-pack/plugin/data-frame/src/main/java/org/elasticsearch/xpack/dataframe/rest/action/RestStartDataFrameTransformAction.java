@@ -13,7 +13,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
 
 import java.io.IOException;
@@ -27,8 +26,9 @@ public class RestStartDataFrameTransformAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String id = restRequest.param(RollupField.ID.getPreferredName());
-        StartDataFrameTransformAction.Request request = new StartDataFrameTransformAction.Request(id);
+        String id = restRequest.param(DataFrameField.ID.getPreferredName());
+        boolean force = restRequest.paramAsBoolean(DataFrameField.FORCE.getPreferredName(), false);
+        StartDataFrameTransformAction.Request request = new StartDataFrameTransformAction.Request(id, force);
 
         return channel -> client.execute(StartDataFrameTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

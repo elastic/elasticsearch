@@ -47,6 +47,7 @@ teardown:
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-stats" }
   - match: { transforms.0.state.transform_state: "started" }
+  - match: { transforms.0.state.state: "started" }
   - match: { transforms.0.state.generation: 0 }
   - match: { transforms.0.stats.pages_processed: 0 }
   - match: { transforms.0.stats.documents_processed: 0 }

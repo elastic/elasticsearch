@@ -18,7 +18,11 @@ import java.util.Map;
 public class DataFrameTransformStateTests extends AbstractSerializingTestCase<DataFrameTransformState> {
 
     public static DataFrameTransformState randomDataFrameTransformState() {
-        return new DataFrameTransformState(randomFrom(IndexerState.values()), randomPosition(), randomLongBetween(0,10));
+        return new DataFrameTransformState(randomFrom(DataFrameTransformTaskState.values()),
+            randomFrom(IndexerState.values()),
+            randomPosition(),
+            randomLongBetween(0,10),
+            randomBoolean() ? null : randomAlphaOfLength(10));
     }
 
     @Override

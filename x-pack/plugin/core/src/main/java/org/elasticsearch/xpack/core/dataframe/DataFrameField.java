@@ -26,6 +26,7 @@ public final class DataFrameField {
     public static final ParseField INDEX_DOC_TYPE = new ParseField("doc_type");
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DESTINATION = new ParseField("dest");
+    public static final ParseField FORCE = new ParseField("force");
 
     // common strings
     public static final String TASK_NAME = "data_frame/transforms";

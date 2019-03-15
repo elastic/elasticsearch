@@ -59,7 +59,7 @@ teardown:
   - match: { started: true }
 
   - do:
-      catch: /Cannot start task for data frame transform \[airline-transform-start-stop\], because state was \[STARTED\]/
+      catch: /Unable to start data frame transform \[airline-transform-start-stop\] as it is in state \[STARTED\]/
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
 
@@ -76,6 +76,7 @@ teardown:
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
   - match: { transforms.0.state.transform_state: "started" }
+  - match: { transforms.0.state.state: "started" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -88,6 +89,7 @@ teardown:
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
   - match: { transforms.0.state.transform_state: "stopped" }
+  - match: { transforms.0.state.state: "stopped" }
 
   - do:
       data_frame.start_data_frame_transform:
@@ -100,6 +102,7 @@ teardown:
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
   - match: { transforms.0.state.transform_state: "started" }
+  - match: { transforms.0.state.state: "started" }
 
 ---
 "Test stop missing transform":
@@ -114,3 +117,4 @@ teardown:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-start-stop"
   - match: { stopped: true }
+

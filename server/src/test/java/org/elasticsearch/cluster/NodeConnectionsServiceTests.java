@@ -105,46 +105,56 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 service.ensureConnections(() -> future.onResponse(null));
                 future.actionGet();
             }
-        });
+        }, "reconnection thread");
         reconnectionThread.start();
 
-        final List<DiscoveryNode> allNodes = generateNodes();
-        for (int iteration = 0; iteration < 3; iteration++) {
+        try {
 
-            final boolean isDisrupting = randomBoolean();
-            final AtomicBoolean stopDisrupting = new AtomicBoolean();
-            final Thread disruptionThread = new Thread(() -> {
-                while (isDisrupting && stopDisrupting.get() == false) {
-                    transportService.disconnectFromNode(randomFrom(allNodes));
-                }
-            });
-            disruptionThread.start();
+            final List<DiscoveryNode> allNodes = generateNodes();
+            for (int iteration = 0; iteration < 3; iteration++) {
 
-            final DiscoveryNodes nodes = discoveryNodesFromList(randomSubsetOf(allNodes));
-            final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            service.connectToNodes(nodes, () -> future.onResponse(null));
-            future.actionGet();
-            if (isDisrupting == false) {
-                assertConnected(nodes);
-            }
-            service.disconnectFromNodesExcept(nodes);
-
-            assertTrue(stopDisrupting.compareAndSet(false, true));
-            disruptionThread.join();
-
-            if (randomBoolean()) {
-                // sometimes do not wait for the disconnections to complete before starting the next connections
-                if (usually()) {
+                final boolean isDisrupting = randomBoolean();
+                if (isDisrupting == false) {
+                    // if the previous iteration was a disrupting one then there could still be some pending disconnections which would
+                    // prevent us from asserting that all nodes are connected in this iteration without this call.
                     ensureConnections(service);
-                    assertConnectedExactlyToNodes(nodes);
-                } else {
-                    assertBusy(() -> assertConnectedExactlyToNodes(nodes));
+                }
+                final AtomicBoolean stopDisrupting = new AtomicBoolean();
+                final Thread disruptionThread = new Thread(() -> {
+                    while (isDisrupting && stopDisrupting.get() == false) {
+                        transportService.disconnectFromNode(randomFrom(allNodes));
+                    }
+                }, "disruption thread " + iteration);
+                disruptionThread.start();
+
+                final DiscoveryNodes nodes = discoveryNodesFromList(randomSubsetOf(allNodes));
+                final PlainActionFuture<Void> future = new PlainActionFuture<>();
+                service.connectToNodes(nodes, () -> future.onResponse(null));
+                future.actionGet();
+                if (isDisrupting == false) {
+                    assertConnected(nodes);
+                }
+                service.disconnectFromNodesExcept(nodes);
+
+                assertTrue(stopDisrupting.compareAndSet(false, true));
+                disruptionThread.join();
+
+                if (randomBoolean()) {
+                    // sometimes do not wait for the disconnections to complete before starting the next connections
+                    if (usually()) {
+                        ensureConnections(service);
+                        assertConnectedExactlyToNodes(nodes);
+                    } else {
+                        assertBusy(() -> assertConnectedExactlyToNodes(nodes));
+                    }
                 }
             }
+        } finally {
+            assertTrue(stopReconnecting.compareAndSet(false, true));
+            reconnectionThread.join();
         }
 
-        assertTrue(stopReconnecting.compareAndSet(false, true));
-        reconnectionThread.join();
+        ensureConnections(service);
     }
 
     public void testPeriodicReconnection() {

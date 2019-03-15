@@ -51,7 +51,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
-import org.elasticsearch.xpack.ml.job.persistence.ExpandedIdsMatcher;
+import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 
 import java.io.IOException;
 import java.io.InputStream;

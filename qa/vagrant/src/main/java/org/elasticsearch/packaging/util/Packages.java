@@ -22,9 +22,11 @@ package org.elasticsearch.packaging.util;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -88,25 +90,31 @@ public class Packages {
         return result;
     }
 
-    public static Installation install(Distribution distribution) {
+    public static Installation install(Distribution distribution) throws IOException {
         return install(distribution, getCurrentVersion());
     }
 
-    public static Installation install(Distribution distribution, String version) {
-        final Result result = runInstallCommand(distribution, version);
+    public static Installation install(Distribution distribution, String version) throws IOException {
+        Shell sh = new Shell();
+        String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+        if (distribution.hasJdk == false) {
+            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+        }
+        final Result result = runInstallCommand(distribution, version, sh);
         if (result.exitCode != 0) {
             throw new RuntimeException("Installing distribution " + distribution + " version " + version + " failed: " + result);
         }
 
-        return Installation.ofPackage(distribution.packaging);
+        Installation installation = Installation.ofPackage(distribution.packaging);
+
+        if (distribution.hasJdk == false) {
+            Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome + "\n").getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.APPEND);
+        }
+        return installation;
     }
 
-    public static Result runInstallCommand(Distribution distribution) {
-        return runInstallCommand(distribution, getCurrentVersion());
-    }
-
-    public static Result runInstallCommand(Distribution distribution, String version) {
-        final Shell sh = new Shell();
+    public static Result runInstallCommand(Distribution distribution, String version, Shell sh) {
         final Path distributionFile = getDistributionFile(distribution, version);
 
         if (Platforms.isRPM()) {
@@ -142,16 +150,15 @@ public class Packages {
         });
     }
 
-    public static void verifyPackageInstallation(Installation installation, Distribution distribution) {
-        verifyOssInstallation(installation, distribution);
+    public static void verifyPackageInstallation(Installation installation, Distribution distribution, Shell sh) {
+        verifyOssInstallation(installation, distribution, sh);
         if (distribution.flavor == Distribution.Flavor.DEFAULT) {
             verifyDefaultInstallation(installation);
         }
     }
 
 
-    private static void verifyOssInstallation(Installation es, Distribution distribution) {
-        final Shell sh = new Shell();
+    private static void verifyOssInstallation(Installation es, Distribution distribution, Shell sh) {
 
         sh.run("id elasticsearch");
         sh.run("getent group elasticsearch");

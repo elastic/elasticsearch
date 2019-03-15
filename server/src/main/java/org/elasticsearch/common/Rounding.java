@@ -19,7 +19,6 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -397,11 +396,7 @@ public abstract class Rounding implements Writeable {
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeByte(unit.getId());
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeString(timeZone.getId());
-            } else {
-                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
-            }
+            out.writeString(timeZone.getId());
         }
 
         @Override
@@ -522,11 +517,7 @@ public abstract class Rounding implements Writeable {
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeString(timeZone.getId());
-            } else {
-                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
-            }
+            out.writeString(timeZone.getId());
         }
 
         @Override

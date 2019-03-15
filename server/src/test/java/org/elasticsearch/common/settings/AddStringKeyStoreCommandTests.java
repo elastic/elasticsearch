@@ -134,6 +134,27 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertSecureString("foo", "secret value 2");
     }
 
+    public void testStdinNoInput() throws Exception {
+        KeyStoreWrapper.create().save(env.configFile(), new char[0]);
+        setInput("");
+        execute("-x", "foo");
+        assertSecureString("foo", "");
+    }
+
+    public void testStdinInputWithLineBreaks() throws Exception {
+        KeyStoreWrapper.create().save(env.configFile(), new char[0]);
+        setInput("Typedthisandhitenter\n");
+        execute("-x", "foo");
+        assertSecureString("foo", "Typedthisandhitenter");
+    }
+
+    public void testStdinInputWithCarriageReturn() throws Exception {
+        KeyStoreWrapper.create().save(env.configFile(), new char[0]);
+        setInput("Typedthisandhitenter\r");
+        execute("-x", "foo");
+        assertSecureString("foo", "Typedthisandhitenter");
+    }
+
     public void testAddUtf8String() throws Exception {
         KeyStoreWrapper.create().save(env.configFile(), new char[0]);
         final int stringSize = randomIntBetween(8, 16);

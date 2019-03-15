@@ -454,7 +454,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         // Remove it from the list of available nodes
         nodes.remove(blockedNode);
 
-        int numberOfFilesBeforeSnapshot = numberOfFiles(repo);
+        assertFileCount(repo, 0);
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
                                 .setWaitForCompletion(false)
@@ -490,8 +490,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         //   (2) index-0 (because we keep the previous version) and
         //   (3) index-latest
         //   (4) incompatible-snapshots
-        assertThat("not all files were deleted during snapshot cancellation",
-            numberOfFilesBeforeSnapshot, equalTo(numberOfFiles(repo) - 4));
+        assertFileCount(repo, 4);
         logger.info("--> done");
     }
 

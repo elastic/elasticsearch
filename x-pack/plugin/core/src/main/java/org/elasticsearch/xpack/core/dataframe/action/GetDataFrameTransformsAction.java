@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.support.tasks.BaseTasksRequest;
-import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
@@ -25,7 +23,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 
@@ -52,7 +49,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         return new Response();
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
+    public static class Request extends ActionRequest implements ToXContent {
         private String id;
 
         public Request(String id) {
@@ -63,21 +60,12 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
             }
         }
 
-        private Request() {}
+        public Request() {
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-        }
-
-        @Override
-        public boolean match(Task task) {
-            // If we are retrieving all the transforms, the task description does not contain the id
-            if (id.equals(MetaData.ALL)) {
-                return task.getDescription().startsWith(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX);
-            }
-            // Otherwise find the task by ID
-            return task.getDescription().equals(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
         }
 
         public String getId() {
@@ -126,7 +114,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         }
     }
 
-    public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
+    public static class Response extends ActionResponse implements Writeable, ToXContentObject {
 
         public static final String INVALID_TRANSFORMS_DEPRECATION_WARNING = "Found [{}] invalid transforms";
         private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms");
@@ -134,22 +122,14 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         private List<DataFrameTransformConfig> transformConfigurations;
 
         public Response(List<DataFrameTransformConfig> transformConfigs) {
-            super(Collections.emptyList(), Collections.emptyList());
-            this.transformConfigurations = transformConfigs;
-        }
-
-        public Response(List<DataFrameTransformConfig> transformConfigs, List<TaskOperationFailure> taskFailures,
-                List<? extends FailedNodeException> nodeFailures) {
-            super(taskFailures, nodeFailures);
             this.transformConfigurations = transformConfigs;
         }
 
         public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
+            this.transformConfigurations = Collections.emptyList();
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             readFrom(in);
         }
 
@@ -173,7 +153,6 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             List<String> invalidTransforms = new ArrayList<>();
             builder.startObject();
-            toXContentCommon(builder, params);
             builder.field(DataFrameField.COUNT.getPreferredName(), transformConfigurations.size());
             // XContentBuilder does not support passing the params object for Iterables
             builder.field(DataFrameField.TRANSFORMS.getPreferredName());

@@ -22,7 +22,7 @@ package org.elasticsearch.geo.geometry;
 import java.util.List;
 
 /**
- * Represents a MultiPoint object on the earth's surface in decimal degrees.
+ * Represents a MultiPoint object on the earth's surface in decimal degrees and optional altitude in meters.
  */
 public class MultiPoint extends GeometryCollection<Point> {
     public static final MultiPoint EMPTY = new MultiPoint();

@@ -9,14 +9,17 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -42,6 +45,12 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         return newSettings.build();
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @Override

@@ -94,6 +94,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.sql.expression.Expressions.equalsAsAttribute;
 import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.sql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.combineAnd;
@@ -885,20 +886,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     Expression fieldToOrder = o.child();
                     for (Expression group : a.groupings()) {
                         Holder<Boolean> isMatching = new Holder<>(Boolean.FALSE);
-                        if (Expressions.equalsAsAttribute(fieldToOrder, group)) {
+                        if (equalsAsAttribute(fieldToOrder, group)) {
                             isMatching.set(Boolean.TRUE);
                         } else {
-                            a.aggregates().forEach(as -> {
-                                if (as instanceof Alias) {
-                                    Expression child = ((Alias) as).child();
-                                    // The aggregates contain the aliases, while the order by's only attributes and in order to
-                                    // associate either a function or field attribute with either a field or an alias, the aggregates
-                                    // are used as a an intermediate comparison element: groupBy == aggregate == orderBy
-                                    if ((Expressions.equalsAsAttribute(child, group) && Expressions.equalsAsAttribute(child, fieldToOrder))
-                                        || (Expressions.equalsAsAttribute(as, group) && Expressions.equalsAsAttribute(as, fieldToOrder))
-                                        || (Expressions.equalsAsAttribute(child, group) && Expressions.equalsAsAttribute(as, fieldToOrder))
-                                        || (Expressions.equalsAsAttribute(as, group) && Expressions.equalsAsAttribute(child, fieldToOrder)))
-                                    {
+                            a.aggregates().forEach(alias -> {
+                                if (alias instanceof Alias) {
+                                    Expression child = ((Alias) alias).child();
+                                    // Check if the groupings (a, y) match the orderings (b, x) through the aggregates' aliases (x, y)
+                                    // e.g. SELECT a AS x, b AS y ... GROUP BY a, y ORDER BY b, x
+                                    if ((equalsAsAttribute(child, group)
+                                            && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder))) 
+                                        || (equalsAsAttribute(alias, group)
+                                                && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))) {
                                         isMatching.set(Boolean.TRUE);
                                     }
                                 }

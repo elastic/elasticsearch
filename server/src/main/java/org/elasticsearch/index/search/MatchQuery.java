@@ -708,8 +708,15 @@ public class MatchQuery {
                         @Override
                         public Query next() {
                             TokenStream ts = it.next();
-                            return createFieldQuery(ts, usePrefix ? Type.PHRASE_PREFIX : Type.PHRASE,
-                                BooleanClause.Occur.MUST, field, 0);
+                            final Type type;
+                            if (getAutoGenerateMultiTermSynonymsPhraseQuery()) {
+                                type = usePrefix
+                                    ? Type.PHRASE_PREFIX
+                                    : Type.PHRASE;
+                            } else {
+                                type = Type.BOOLEAN;
+                            }
+                            return createFieldQuery(ts, type, BooleanClause.Occur.MUST, field, 0);
                         }
                     };
                     queryPos = newGraphSynonymQuery(queries);

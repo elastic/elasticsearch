@@ -329,6 +329,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public RetentionLeases loadRetentionLeases(final Path path) throws IOException {
         final RetentionLeases retentionLeases = RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+
+        // TODO after backporting we expect this never to happen in 8.x, so adjust this to throw an exception instead.
+        assert Version.CURRENT.major <= 8 : "throw an exception instead of returning EMPTY on null";
         if (retentionLeases == null) {
             return RetentionLeases.EMPTY;
         }
@@ -352,6 +355,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             logger.trace("persisting retention leases [{}]", currentRetentionLeases);
             RetentionLeases.FORMAT.writeAndCleanup(currentRetentionLeases, path);
         }
+    }
+
+    public boolean assertRetentionLeasesPersisted(final Path path) throws IOException {
+        assert RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path) != null;
+        return true;
     }
 
     public static class CheckpointState implements Writeable {

@@ -1645,8 +1645,7 @@ public class DateFormatters {
                     } catch (ElasticsearchParseException e) {
                         if (failure == null) {
                             // wrap so the entire multi format is in the message
-                            failure = new ElasticsearchParseException("failed to parse date field [" + text + "] with format ["
-                                + pattern + "]", e);
+                            failure = e;
                         } else {
                             failure.addSuppressed(e);
                         }

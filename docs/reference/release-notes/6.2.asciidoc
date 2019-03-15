@@ -63,7 +63,7 @@ Java Low Level REST Client::
 * REST client: hosts marked dead for the first time should not be immediately retried {pull}29230[#29230]
 
 Network::
-* Cross-cluster search and default connections can get crossed [OPEN] [ISSUE] {pull}29321[#29321]
+* {ccs-cap} and default connections can get crossed [OPEN] [ISSUE] {pull}29321[#29321]
 
 Percolator::
 * Fixed bug when non percolator docs end up in the search hits {pull}29447[#29447] (issue: {issue}29429[#29429])
@@ -1000,7 +1000,7 @@ Search::
 * fix unnecessary logger creation {pull}27349[#27349]
 * `ObjectParser` : replace `IllegalStateException` with `ParsingException` {pull}27302[#27302] (issue: {issue}27147[#27147])
 * Uses norms for exists query if enabled {pull}27237[#27237]
-* Cross Cluster Search: make remote clusters optional {pull}27182[#27182] (issues: {issue}26118[#26118], {issue}27161[#27161])
+* {ccs-cap}: make remote clusters optional {pull}27182[#27182] (issues: {issue}26118[#26118], {issue}27161[#27161])
 * Enhances exists queries to reduce need for `_field_names` {pull}26930[#26930] (issue: {issue}26770[#26770])
 * Change ParentFieldSubFetchPhase to create doc values iterator once per segment {pull}26815[#26815]
 * Change VersionFetchSubPhase to create doc values iterator once per segment {pull}26809[#26809]
@@ -1881,7 +1881,7 @@ Search::
 * Add cluster name validation to RemoteClusterConnection {pull}25568[#25568]
 * Speed up sorted scroll when the index sort matches the search sort {pull}25138[#25138] (issue: {issue}6720[#6720])
 * Leverage scorerSupplier when applicable. {pull}25109[#25109]
-* Add Cross Cluster Search support for scroll searches {pull}25094[#25094]
+* Add {ccs} support for scroll searches {pull}25094[#25094]
 * Track EWMA[1] of task execution time in search threadpool executor {pull}24989[#24989] (issue: {issue}24915[#24915])
 * Query range fields by doc values when they are expected to be more efficient than points {pull}24823[#24823] (issue: {issue}24314[#24314])
 * Search: Fairer balancing when routing searches by session ID {pull}24671[#24671] (issue: {issue}24642[#24642])
@@ -1889,7 +1889,7 @@ Search::
 * Add parsing from xContent to ShardSearchFailure {pull}22699[#22699]
 * Eliminate array access in tight loops when profiling is enabled. {pull}24959[#24959]
 * Support Multiple Inner Hits on a Field Collapse Request {pull}24517[#24517]
-* Expand cross cluster search indices for search requests to the concrete index or to it's aliases {pull}24502[#24502]
+* Expand {ccs} indices for search requests to the concrete index or to it's aliases {pull}24502[#24502]
 
 Search Templates::
 * Add max concurrent searches to multi template search {pull}24255[#24255] (issues: {issue}20912[#20912], {issue}21907[#21907])
@@ -2064,7 +2064,7 @@ Internal::
 * Extract a common base class for scroll executions {pull}24979[#24979] (issue: {issue}16555[#16555])
 * Obey lock order if working with store to get metadata snapshots {pull}24787[#24787] (issue: {issue}24481[#24481])
 * Fix Version based BWC and set correct minCompatVersion {pull}24732[#24732]
-* Fix `_field_caps` serialization in order to support cross cluster search {pull}24722[#24722]
+* Fix `_field_caps` serialization in order to support {ccs} {pull}24722[#24722]
 * Avoid race when shutting down controller processes {pull}24579[#24579]
 * Fix handling of document failure exception in InternalEngine {pull}22718[#22718]
 * Ensure remote cluster is connected before fetching `_field_caps` {pull}24845[#24845] (issue: {issue}24763[#24763])
@@ -2209,7 +2209,7 @@ Search::
 * Let search phases override max concurrent requests {pull}26484[#26484] (issue: {issue}26198[#26198])
 * Avoid stack overflow on search phases {pull}27069[#27069] (issue: {issue}27042[#27042])
 * Fix search_after with geo distance sorting {pull}26891[#26891]
-* Fix serialization errors when cross cluster search goes to a single shard {pull}26881[#26881] (issue: {issue}26833[#26833])
+* Fix serialization errors when {ccs} goes to a single shard {pull}26881[#26881] (issue: {issue}26833[#26833])
 * Early termination with index sorting should not set terminated_early in the response {pull}26597[#26597] (issue: {issue}26408[#26408])
 * Format doc values fields. {pull}22146[#22146]
 * Fix term(s) query for range field {pull}25918[#25918]
@@ -2429,7 +2429,7 @@ Reindex API::
 Search::
 * Avoid stack overflow on search phases {pull}27069[#27069] (issue: {issue}27042[#27042])
 * Fix search_after with geo distance sorting {pull}26891[#26891]
-* Fix serialization errors when cross cluster search goes to a single shard {pull}26881[#26881] (issue: {issue}26833[#26833])
+* Fix serialization errors when {ccs} goes to a single shard {pull}26881[#26881] (issue: {issue}26833[#26833])
 * Early termination with index sorting should not set terminated_early in the response {pull}26597[#26597] (issue: {issue}26408[#26408])
 * Format doc values fields. {pull}22146[#22146]
 
@@ -3058,7 +3058,7 @@ Search::
 * Add cluster name validation to RemoteClusterConnection {pull}25568[#25568]
 * Speed up sorted scroll when the index sort matches the search sort {pull}25138[#25138] (issue: {issue}6720[#6720])
 * Leverage scorerSupplier when applicable. {pull}25109[#25109]
-* Add Cross Cluster Search support for scroll searches {pull}25094[#25094]
+* Add {ccs} support for scroll searches {pull}25094[#25094]
 * Track EWMA[1] of task execution time in search threadpool executor {pull}24989[#24989] (issue: {issue}24915[#24915])
 * Query range fields by doc values when they are expected to be more efficient than points {pull}24823[#24823] (issue: {issue}24314[#24314])
 * Search: Fairer balancing when routing searches by session ID {pull}24671[#24671] (issue: {issue}24642[#24642])
@@ -3142,7 +3142,7 @@ Internal::
 * Extract a common base class for scroll executions {pull}24979[#24979] (issue: {issue}16555[#16555])
 * Obey lock order if working with store to get metadata snapshots {pull}24787[#24787] (issue: {issue}24481[#24481])
 * Fix Version based BWC and set correct minCompatVersion {pull}24732[#24732]
-* Fix `_field_caps` serialization in order to support cross cluster search {pull}24722[#24722]
+* Fix `_field_caps` serialization in order to support {ccs} {pull}24722[#24722]
 * Avoid race when shutting down controller processes {pull}24579[#24579]
 
 Mapping::
@@ -3369,7 +3369,7 @@ Scripting::
 Search::
 * Eliminate array access in tight loops when profiling is enabled. {pull}24959[#24959]
 * Support Multiple Inner Hits on a Field Collapse Request {pull}24517[#24517]
-* Expand cross cluster search indices for search requests to the concrete index or to it's aliases {pull}24502[#24502]
+* Expand {ccs} indices for search requests to the concrete index or to it's aliases {pull}24502[#24502]
 
 Search Templates::
 * Add max concurrent searches to multi template search {pull}24255[#24255] (issues: {issue}20912[#20912], {issue}21907[#21907])
@@ -3906,7 +3906,7 @@ Reindex API::
 
 Search::
 * Introduce incremental reduction of TopDocs {pull}23946[#23946]
-* Add federated cross cluster search capabilities {pull}22502[#22502] (issue: {issue}21473[#21473])
+* Add federated {ccs} capabilities {pull}22502[#22502] (issue: {issue}21473[#21473])
 * Add field collapsing for search request {pull}22337[#22337] (issue: {issue}21833[#21833])
 
 Settings::
@@ -4030,7 +4030,7 @@ Highlighting::
 
 Index APIs::
 * Open and close index to honour allow_no_indices option {pull}24222[#24222] (issue: {issue}24031[#24031])
-* Wildcard cluster names for cross cluster search {pull}23985[#23985] (issue: {issue}23893[#23893])
+* Wildcard cluster names for {ccs} {pull}23985[#23985] (issue: {issue}23893[#23893])
 * Indexing: Add shard id to indexing operation listener {pull}22606[#22606]
 * Better error when can't auto create index  {pull}22488[#22488] (issues: {issue}21448[#21448], {issue}22435[#22435])
 * Add date-math support to `_rollover` {pull}20709[#20709]
@@ -4311,7 +4311,7 @@ Snapshot/Restore::
 
 Stats::
 * Show JVM arguments {pull}24450[#24450]
-* Add cross-cluster search remote cluster info API {pull}23969[#23969] (issue: {issue}23925[#23925])
+* Add {ccs} remote cluster info API {pull}23969[#23969] (issue: {issue}23925[#23925])
 * Add geo_point to FieldStats {pull}21947[#21947] (issue: {issue}20707[#20707])
 * Include unindexed field in FieldStats response {pull}21821[#21821] (issue: {issue}21952[#21952])
 * Remove load average leniency {pull}21380[#21380]
@@ -4679,7 +4679,7 @@ Scripting::
 
 Search::
 * Include all aliases including non-filtering in  `_search_shards` response {pull}24489[#24489]
-* Cross Cluster Search: propagate original indices per cluster {pull}24328[#24328]
+* {ccs-cap}: propagate original indices per cluster {pull}24328[#24328]
 * Query string default field {pull}24214[#24214]
 * Speed up parsing of large `terms` queries. {pull}24210[#24210]
 * IndicesQueryCache should delegate the scorerSupplier method. {pull}24209[#24209]

@@ -157,9 +157,8 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                 ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS)) {
 
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
-            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> config.getParsedQuery(xContentRegistry()));
-            assertEquals("Data Frame Analytics config query is not parsable", e.getMessage());
-            assertEquals("[match] query doesn't support multiple fields, found [query] and [type]", e.getCause().getMessage());
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, config::getParsedQuery);
+            assertEquals("[match] query doesn't support multiple fields, found [query] and [type]", e.getMessage());
         }
 
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)

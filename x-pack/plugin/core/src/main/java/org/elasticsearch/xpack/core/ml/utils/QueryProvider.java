@@ -104,6 +104,8 @@ public class QueryProvider implements Writeable, ToXContentObject {
             if (parsingException != null) { // Do we have a parsing error? Throw it
                 if (parsingException instanceof IOException) {
                     throw (IOException) parsingException;
+                } else if (parsingException instanceof RuntimeException) {
+                    throw (RuntimeException) parsingException;
                 } else {
                     throw new ElasticsearchException(parsingException);
                 }

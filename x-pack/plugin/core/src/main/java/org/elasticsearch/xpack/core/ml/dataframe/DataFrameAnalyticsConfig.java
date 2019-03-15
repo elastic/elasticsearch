@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -150,20 +151,18 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     /**
      * Get the fully parsed query from the semi-parsed stored {@code Map<String, Object>}
      *
-     * @param namedXContentRegistry XContent registry to transform the lazily parsed query
      * @return Fully parsed query
      */
-    public QueryBuilder getParsedQuery(NamedXContentRegistry namedXContentRegistry) {
-        try {
-            return XContentObjectTransformer.queryBuilderTransformer(namedXContentRegistry).fromMap(queryProvider.getQuery(),
-                new ArrayList<>());
-        } catch (Exception exception) {
-            // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
-            if (exception.getCause() instanceof IllegalArgumentException) {
-                exception = (Exception) exception.getCause();
+    public QueryBuilder getParsedQuery() {
+        Exception exception = queryProvider.getParsingException();
+        if (exception != null) {
+            if (exception instanceof RuntimeException) {
+                throw (RuntimeException) exception;
+            } else {
+                throw new ElasticsearchException(queryProvider.getParsingException());
             }
-            throw ExceptionsHelper.badRequestException(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, exception);
         }
+        return queryProvider.getParsedQuery();
     }
 
     Exception getQueryParsingException() {

@@ -298,8 +298,7 @@ public class DataFrameAnalyticsManagerIT extends BaseMlIntegTestCase {
             TestEnvironment.newEnvironment(internalCluster().getDefaultSettings()),
             client().threadPool(),
             factory);
-        return new DataFrameAnalyticsManager(clusterService(), (NodeClient)internalCluster().dataNodeClient(), provider, processManager,
-            xContentRegistry());
+        return new DataFrameAnalyticsManager(clusterService(), (NodeClient)internalCluster().dataNodeClient(), provider, processManager);
     }
 
     @SuppressWarnings("unchecked")

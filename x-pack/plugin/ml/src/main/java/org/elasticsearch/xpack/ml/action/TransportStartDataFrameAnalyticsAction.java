@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -65,21 +64,19 @@ public class TransportStartDataFrameAnalyticsAction
     private final XPackLicenseState licenseState;
     private final Client client;
     private final PersistentTasksService persistentTasksService;
-    private final NamedXContentRegistry xContentRegistry;
     private final DataFrameAnalyticsConfigProvider configProvider;
 
     @Inject
     public TransportStartDataFrameAnalyticsAction(TransportService transportService, Client client, ClusterService clusterService,
                                                   ThreadPool threadPool, ActionFilters actionFilters, XPackLicenseState licenseState,
                                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                                  PersistentTasksService persistentTasksService, NamedXContentRegistry xContentRegistry,
+                                                  PersistentTasksService persistentTasksService,
                                                   DataFrameAnalyticsConfigProvider configProvider) {
         super(StartDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 StartDataFrameAnalyticsAction.Request::new);
         this.licenseState = licenseState;
         this.client = client;
         this.persistentTasksService = persistentTasksService;
-        this.xContentRegistry = xContentRegistry;
         this.configProvider = configProvider;
     }
 
@@ -140,8 +137,7 @@ public class TransportStartDataFrameAnalyticsAction
 
         // Validate config
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
-            config ->
-                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, config, xContentRegistry, validateListener),
+            config -> DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, config, validateListener),
             listener::onFailure
         );
 

@@ -1,15 +1,15 @@
 [[modules-cross-cluster-search]]
-== Cross Cluster Search
+== {ccs-cap}
 
-The _cross cluster search_ feature allows any node to act as a federated client across
-multiple clusters. A cross cluster search node won't join the remote cluster, instead
+The _{ccs}_ feature allows any node to act as a federated client across
+multiple clusters. A {ccs} node won't join the remote cluster, instead
 it connects to a remote cluster in a light fashion in order to execute
 federated search requests.
 
 [float]
-=== Using cross cluster search
+=== Using {ccs}
 
-Cross-cluster search requires <<modules-remote-clusters,configuring remote clusters>>.
+{ccs-cap} requires <<modules-remote-clusters,configuring remote clusters>>.
 
 [source,js]
 --------------------------------
@@ -185,7 +185,7 @@ will be prefixed with their remote cluster name:
 [float]
 === Skipping disconnected clusters
 
-By default all remote clusters that are searched via Cross Cluster Search need to be available when
+By default all remote clusters that are searched via {ccs} need to be available when
 the search request is executed, otherwise the whole request fails and no search results are returned
 despite some of the clusters are available. Remote clusters can be made optional through the
 boolean `skip_unavailable` setting, set to `false` by default.
@@ -278,9 +278,9 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 
 [float]
 [[ccs-reduction]]
-=== CCS reduction phase
+=== {ccs-cap} reduction phase
 
-Cross-cluster search requests can be executed in two ways:
+{ccs-cap} (CCS) requests can be executed in two ways:
 
 - the CCS coordinating node minimizes network round-trips by sending one search
 request to each cluster. Each cluster performs the search independently,

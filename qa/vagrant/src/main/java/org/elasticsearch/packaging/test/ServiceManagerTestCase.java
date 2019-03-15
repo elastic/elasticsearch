@@ -20,6 +20,7 @@
 package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
@@ -35,6 +36,9 @@ import static org.elasticsearch.packaging.util.Archives.stopElasticsearch;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.FileUtils.slurp;
+import static org.elasticsearch.packaging.util.Packages.assertInstalled;
+import static org.elasticsearch.packaging.util.Packages.assertRemoved;
+import static org.elasticsearch.packaging.util.Packages.install;
 import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
@@ -47,18 +51,25 @@ import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
-public abstract class ServiceManagerTestCase extends PackagingTestCase {
-
+public  class ServiceManagerTestCase extends PackagingTestCase {
+    @Override
+    protected Distribution distribution() {
+        return Distribution.DEFAULT_DEB;
+    }
 
     @Before
     public void init() {
+        assumeTrue("only compatible distributions", distribution().packaging.compatible);
+
         //unless 70_sysv_initd.bats is migrated this should only run for systemd
         assumeTrue(isSystemd());
     }
 
     public void test10Install() {
-        installation = installArchive(distribution());
-        verifyArchiveInstallation(installation, distribution());
+        assertRemoved(distribution());
+        installation = install(distribution());
+        assertInstalled(distribution());
+        verifyPackageInstallation(installation, distribution());
     }
 
     public void test20StartServer() throws IOException {
@@ -82,17 +93,18 @@ public abstract class ServiceManagerTestCase extends PackagingTestCase {
     public void test30RestartServer() throws IOException {
         restartElasticsearch();
         runElasticsearchTests();
+        stopElasticsearch(installation);
     }
 
-    public void test40StopServer() {
-        stopElasticsearch(installation);
-        assertStatuses(); // non deterministic
-    }
-
-    public void test45StopServerAgain() {
-        stopElasticsearch(installation);
-        assertStatuses(); // non deterministic
-    }
+//    public void test40StopServer() {
+//        stopElasticsearch(installation);
+//        assertStatuses(); // non deterministic
+//    }
+//
+//    public void test45StopServerAgain() {
+//        stopElasticsearch(installation);
+//        assertStatuses(); // non deterministic
+//    }
 
     /**
      * # Simulates the behavior of a system restart:
@@ -165,6 +177,8 @@ public abstract class ServiceManagerTestCase extends PackagingTestCase {
     }
 
     public void test90gcLogsExist() throws IOException {
+        cleanup();
+        installation = installArchive(distribution());
         startElasticsearch();
         FileUtils.assertPathsExist(Paths.get("/var/log/elasticsearch/gc.log.0.current"));
         stopElasticsearch(installation);

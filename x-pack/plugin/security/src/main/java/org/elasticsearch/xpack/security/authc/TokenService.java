@@ -480,20 +480,20 @@ public final class TokenService {
     }
 
     /**
-     * This method performs the steps necessary to invalidate a token so that it may no longer be
+     * This method performs the steps necessary to invalidate an access token so that it may no longer be
      * used. The process of invalidation involves performing an update to the token document and setting
-     * the <code>invalidated</code> field to <code>true</code>
+     * the {@code access_token.invalidated} field to {@code true}
      */
-    public void invalidateAccessToken(String tokenString, ActionListener<TokensInvalidationResult> listener) {
+    public void invalidateAccessToken(String accessToken, ActionListener<TokensInvalidationResult> listener) {
         ensureEnabled();
-        if (Strings.isNullOrEmpty(tokenString)) {
-            listener.onFailure(traceLog("no token-string provided", new IllegalArgumentException("token must be provided")));
+        if (Strings.isNullOrEmpty(accessToken)) {
+            listener.onFailure(traceLog("no access token provided", new IllegalArgumentException("access token must be provided")));
         } else {
             maybeStartTokenRemover();
             final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-            decodeToken(tokenString, ActionListener.wrap(userToken -> {
+            decodeToken(accessToken, ActionListener.wrap(userToken -> {
                 if (userToken == null) {
-                    listener.onFailure(traceLog("invalidate token", tokenString, malformedTokenException()));
+                    listener.onFailure(traceLog("invalidate token", accessToken, malformedTokenException()));
                 } else {
                     indexInvalidation(Collections.singleton(userToken.getId()), backoff, "access_token", null, listener);
                 }
@@ -786,23 +786,23 @@ public final class TokenService {
                               Iterator<TimeValue> backoff, Instant refreshRequested, ActionListener<Tuple<UserToken, String>> listener) {
         logger.debug("Attempting to refresh token [{}]", tokenDocId);
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
-        final String refreshedNewTokenId;
+        final String supersedingTokenId;
         try {
-            refreshedNewTokenId = checkTokenDocForRefresh(source, clientAuth);
+            supersedingTokenId = checkTokenDocForRefresh(source, clientAuth);
         } catch (ElasticsearchSecurityException e) {
             onFailure.accept(e);
             return;
         }
-        if (refreshedNewTokenId != null) {
+        if (supersedingTokenId != null) {
             logger.debug("Token document [{}] was recently refreshed, when a new token document [{}] was generated. Reusing that result.",
-                    tokenDocId, refreshedNewTokenId);
-            getTokenDocAsync(refreshedNewTokenId, new ActionListener<GetResponse>() {
+                    tokenDocId, supersedingTokenId);
+            getTokenDocAsync(supersedingTokenId, new ActionListener<GetResponse>() {
                 private final Consumer<Exception> maybeRetryOnFailure = ex -> {
                     if (backoff.hasNext()) {
                         final TimeValue backofTimeValue = backoff.next();
                         logger.debug("retrying after [" + backofTimeValue + "] back off");
                         final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                .preserveContext(() -> getTokenDocAsync(refreshedNewTokenId, this));
+                                .preserveContext(() -> getTokenDocAsync(supersedingTokenId, this));
                         client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);
                     } else {
                         logger.warn("back off retries exhausted");
@@ -813,7 +813,7 @@ public final class TokenService {
                 @Override
                 public void onResponse(GetResponse response) {
                     if (response.isExists()) {
-                        logger.debug("found superseding token document [{}] for token document [{}]", refreshedNewTokenId, tokenDocId);
+                        logger.debug("found superseding token document [{}] for token document [{}]", supersedingTokenId, tokenDocId);
                         final Tuple<UserToken, String> parsedTokens;
                         try {
                             parsedTokens = parseTokensFromDocument(response.getSource(), null);
@@ -827,7 +827,7 @@ public final class TokenService {
                         // We retry this since the creation of the superseding token document might already be in flight but not
                         // yet completed, triggered by a refresh request that came a few milliseconds ago
                         logger.info("could not find superseding token document [{}] for token document [{}], retrying",
-                                refreshedNewTokenId, tokenDocId);
+                                supersedingTokenId, tokenDocId);
                         maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
                     }
                 }
@@ -835,10 +835,10 @@ public final class TokenService {
                 @Override
                 public void onFailure(Exception e) {
                     if (isShardNotAvailableException(e)) {
-                        logger.info("could not find superseding token document [{}] for refresh, retrying", refreshedNewTokenId);
+                        logger.info("could not find superseding token document [{}] for refresh, retrying", supersedingTokenId);
                         maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
                     } else {
-                        logger.warn("could not find superseding token document [{}] for refresh", refreshedNewTokenId);
+                        logger.warn("could not find superseding token document [{}] for refresh", supersedingTokenId);
                         onFailure.accept(invalidGrantException("could not refresh the requested token"));
                     }
                 }

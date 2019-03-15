@@ -64,7 +64,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.greaterThan;
 
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 3, maxNumDataNodes = 5,
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 4, maxNumDataNodes = 6,
     transportClientRatio = 0)
 @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
     "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE," +
@@ -95,7 +95,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(3))
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(),
                     randomTimeValue(0, Math.max(disruptTimeSeconds*3/2, 2), "s"))
             ));
@@ -118,7 +118,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         List<CASUpdateThread> threads =
             IntStream.range(0, threadCount)
-                .mapToObj(i -> new CASUpdateThread(i, roundBarrier, partitions))
+                .mapToObj(i -> new CASUpdateThread(i, roundBarrier, partitions, disruptTimeSeconds+1))
                 .collect(Collectors.toList());
 
         logger.info("--> Starting {} threads", threadCount);
@@ -140,6 +140,8 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                     roundBarrier.reset();
                 }
                 internalCluster().clearDisruptionScheme(false);
+                // heal cluster faster to reduce test time.
+                ensureFullyConnectedCluster();
             }
         } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
             logger.error("Timed out, dumping stack traces of all threads:");
@@ -160,14 +162,16 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     private class CASUpdateThread extends Thread {
         private final CyclicBarrier roundBarrier;
         private final List<Partition> partitions;
+        private final int timeout;
 
         private volatile boolean stop;
         private final Random random = new Random(randomLong());
 
-        private CASUpdateThread(int threadNum, CyclicBarrier roundBarrier, List<Partition> partitions) {
+        private CASUpdateThread(int threadNum, CyclicBarrier roundBarrier, List<Partition> partitions, int timeout) {
             super("CAS-Update-" + threadNum);
             this.roundBarrier = roundBarrier;
             this.partitions = partitions;
+            this.timeout = timeout;
             setDaemon(true);
         }
 
@@ -206,7 +210,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                                 .setSource("value", random.nextInt())
                                 .setIfPrimaryTerm(version.primaryTerm)
                                 .setIfSeqNo(version.seqNo)
-                                .execute().actionGet(40, TimeUnit.SECONDS);
+                                .execute().actionGet(timeout, TimeUnit.SECONDS);
                             IndexResponseHistoryOutput historyOutput = new IndexResponseHistoryOutput(indexResponse);
                             historyResponse.accept(historyOutput);
                             // validate version and seqNo strictly increasing for successful CAS to avoid that overhead during

@@ -33,9 +33,6 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
@@ -451,7 +448,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertThat(query, equalTo(expectedQuery));
         }
 
-        { // todo this is probably wrong
+        {
             matchQuery.setAutoGenerateSynonymsPhraseQuery(true);
             final Query query = matchQuery.parse(Type.BOOLEAN_PREFIX, STRING_FIELD_NAME, "guinea pig");
             final MultiPhrasePrefixQuery guineaPig = new MultiPhrasePrefixQuery(STRING_FIELD_NAME);

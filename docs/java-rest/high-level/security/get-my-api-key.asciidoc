@@ -1,0 +1,51 @@
+--
+:api: get-my-api-key
+:request: GetApiKeyRequest
+:response: GetApiKeyResponse
+--
+
+[id="{upid}-{api}"]
+=== Get information for API key(s) owned by authenticated user API
+
+API Key(s) information owned by authenticated user can be retrieved using this API.
+
+[id="{upid}-{api}-request"]
+==== Get My API Key Request
+The +{request}+ supports retrieving API key information for
+
+. A specific API key by api key id or by name
+
+. All API keys of current logged in user
+
+===== Retrieve information for a specific API key by its id
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-my-api-key-id-request]
+--------------------------------------------------
+
+===== Retrieve information for a specific API key by its name
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-my-api-key-name-request]
+--------------------------------------------------
+
+===== Retrieve information for all API key(s) owned by authenticated user
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-my-api-key-all-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get My API Key information API Response
+
+The returned +{response}+ contains the information regarding the API keys that were
+requested.
+
+`api_keys`:: Available using `getApiKeyInfos`, contains list of API keys that were retrieved for this request.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

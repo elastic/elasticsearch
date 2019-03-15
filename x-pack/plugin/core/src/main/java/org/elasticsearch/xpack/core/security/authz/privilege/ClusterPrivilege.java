@@ -37,6 +37,11 @@ public final class ClusterPrivilege extends Privilege {
     private static final Automaton MANAGE_SECURITY_AUTOMATON = patterns("cluster:admin/xpack/security/*");
     private static final Automaton MANAGE_SAML_AUTOMATON = patterns("cluster:admin/xpack/security/saml/*",
             InvalidateTokenAction.NAME, RefreshTokenAction.NAME);
+    private static final Automaton MANAGE_API_KEY_AUTOMATON = patterns("cluster:admin/xpack/security/api_key/*");
+    private static final Automaton OWNER_MANAGE_API_KEY_AUTOMATON = patterns("cluster:admin/xpack/security/api_key/create",
+            "cluster:admin/xpack/security/api_key/invalidate/my", "cluster:admin/xpack/security/api_key/get/my");
+    private static final Automaton CREATE_API_KEY_AUTOMATON = patterns("cluster:admin/xpack/security/api_key/create",
+            "cluster:admin/xpack/security/api_key/get/my");
     private static final Automaton MANAGE_OIDC_AUTOMATON = patterns("cluster:admin/xpack/security/oidc/*");
     private static final Automaton MANAGE_TOKEN_AUTOMATON = patterns("cluster:admin/xpack/security/token/*");
     private static final Automaton MONITOR_AUTOMATON = patterns("cluster:monitor/*");
@@ -73,6 +78,10 @@ public final class ClusterPrivilege extends Privilege {
     public static final ClusterPrivilege MANAGE_ML =             new ClusterPrivilege("manage_ml",           MANAGE_ML_AUTOMATON);
     public static final ClusterPrivilege MANAGE_DATA_FRAME =
             new ClusterPrivilege("manage_data_frame_transforms", MANAGE_DATA_FRAME_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_API_KEY =        new ClusterPrivilege("manage_api_key",      MANAGE_API_KEY_AUTOMATON);
+    public static final ClusterPrivilege OWNER_MANAGE_API_KEY = new ClusterPrivilege("owner_manage_api_key",
+            OWNER_MANAGE_API_KEY_AUTOMATON);
+    public static final ClusterPrivilege CREATE_API_KEY =  new ClusterPrivilege("create_api_key",            CREATE_API_KEY_AUTOMATON);
     public static final ClusterPrivilege MANAGE_TOKEN =          new ClusterPrivilege("manage_token",        MANAGE_TOKEN_AUTOMATON);
     public static final ClusterPrivilege MANAGE_WATCHER =        new ClusterPrivilege("manage_watcher",      MANAGE_WATCHER_AUTOMATON);
     public static final ClusterPrivilege MANAGE_ROLLUP =         new ClusterPrivilege("manage_rollup",       MANAGE_ROLLUP_AUTOMATON);
@@ -104,6 +113,9 @@ public final class ClusterPrivilege extends Privilege {
             .put("manage", MANAGE)
             .put("manage_ml", MANAGE_ML)
             .put("manage_data_frame_transforms", MANAGE_DATA_FRAME)
+            .put("manage_api_key", MANAGE_API_KEY)
+            .put("owner_manage_api_key", OWNER_MANAGE_API_KEY)
+            .put("create_api_key", CREATE_API_KEY)
             .put("manage_token", MANAGE_TOKEN)
             .put("manage_watcher", MANAGE_WATCHER)
             .put("manage_index_templates", MANAGE_IDX_TEMPLATES)

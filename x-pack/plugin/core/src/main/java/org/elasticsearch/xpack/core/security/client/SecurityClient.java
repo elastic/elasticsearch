@@ -17,9 +17,13 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.GetMyApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetMyApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.InvalidateMyApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateMyApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
@@ -361,8 +365,16 @@ public class SecurityClient {
         client.execute(InvalidateApiKeyAction.INSTANCE, request, listener);
     }
 
+    public void invalidateMyApiKey(InvalidateMyApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
+        client.execute(InvalidateMyApiKeyAction.INSTANCE, request, listener);
+    }
+
     public void getApiKey(GetApiKeyRequest request, ActionListener<GetApiKeyResponse> listener) {
         client.execute(GetApiKeyAction.INSTANCE, request, listener);
+    }
+
+    public void getMyApiKey(GetMyApiKeyRequest request, ActionListener<GetApiKeyResponse> listener) {
+        client.execute(GetMyApiKeyAction.INSTANCE, request, listener);
     }
 
     public SamlAuthenticateRequestBuilder prepareSamlAuthenticate(byte[] xmlContent, List<String> validIds) {

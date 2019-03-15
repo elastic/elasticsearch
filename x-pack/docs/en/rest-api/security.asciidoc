@@ -60,7 +60,9 @@ without requiring basic authentication:
 
 * <<security-api-create-api-key,Create API Key>>
 * <<security-api-get-api-key,Get API Key>>
+* <<security-api-get-my-api-key,Get API Key owned by authenticated user>>
 * <<security-api-invalidate-api-key,Invalidate API Key>>
+* <<security-api-invalidate-my-api-key,Invalidate API Key owned by authenticated user>>
 
 [float]
 [[security-user-apis]]
@@ -102,6 +104,7 @@ include::security/delete-users.asciidoc[]
 include::security/disable-users.asciidoc[]
 include::security/enable-users.asciidoc[]
 include::security/get-api-keys.asciidoc[]
+include::security/get-my-api-keys.asciidoc[]
 include::security/get-app-privileges.asciidoc[]
 include::security/get-role-mappings.asciidoc[]
 include::security/get-roles.asciidoc[]
@@ -109,6 +112,7 @@ include::security/get-tokens.asciidoc[]
 include::security/get-users.asciidoc[]
 include::security/has-privileges.asciidoc[]
 include::security/invalidate-api-keys.asciidoc[]
+include::security/invalidate-my-api-keys.asciidoc[]
 include::security/invalidate-tokens.asciidoc[]
 include::security/ssl.asciidoc[]
 include::security/oidc-prepare-authentication-api.asciidoc[]

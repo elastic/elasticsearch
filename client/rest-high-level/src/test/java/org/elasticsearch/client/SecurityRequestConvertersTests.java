@@ -33,11 +33,13 @@ import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.GetApiKeyRequest;
+import org.elasticsearch.client.security.GetMyApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
+import org.elasticsearch.client.security.InvalidateMyApiKeyRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
@@ -459,6 +461,26 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final Request request = SecurityRequestConverters.invalidateApiKey(invalidateApiKeyRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_security/api_key", request.getEndpoint());
+        assertToXContentBody(invalidateApiKeyRequest, request.getEntity());
+    }
+
+    public void testGetMyApiKey() throws IOException {
+        String apiKeyId = randomAlphaOfLength(5);
+        final GetMyApiKeyRequest getApiKeyRequest = GetMyApiKeyRequest.usingApiKeyId(apiKeyId);
+        final Request request = SecurityRequestConverters.getMyApiKey(getApiKeyRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/api_key/my", request.getEndpoint());
+        Map<String, String> mapOfParameters = new HashMap<>();
+        mapOfParameters.put("id", apiKeyId);
+        assertThat(request.getParameters(), equalTo(mapOfParameters));
+    }
+
+    public void testInvalidateMyApiKey() throws IOException {
+        String apiKeyId = randomAlphaOfLength(5);
+        final InvalidateMyApiKeyRequest invalidateApiKeyRequest = new InvalidateMyApiKeyRequest(apiKeyId, null);
+        final Request request = SecurityRequestConverters.invalidateMyApiKey(invalidateApiKeyRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/api_key/my", request.getEndpoint());
         assertToXContentBody(invalidateApiKeyRequest, request.getEntity());
     }
  }

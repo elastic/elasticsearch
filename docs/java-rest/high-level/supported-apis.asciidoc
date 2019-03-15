@@ -409,7 +409,9 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-delete-privileges>>
 * <<{upid}-create-api-key>>
 * <<{upid}-get-api-key>>
+* <<{upid}-get-my-api-key>>
 * <<{upid}-invalidate-api-key>>
+* <<{upid}-invalidate-my-api-key>>
 
 include::security/put-user.asciidoc[]
 include::security/get-users.asciidoc[]

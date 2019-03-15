@@ -50,6 +50,7 @@ import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.ExpressionRoleMapping;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetApiKeyResponse;
+import org.elasticsearch.client.security.GetMyApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetPrivilegesResponse;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
@@ -64,6 +65,7 @@ import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyResponse;
+import org.elasticsearch.client.security.InvalidateMyApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
@@ -1959,6 +1961,97 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetMyApiKey() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
+        final TimeValue expiration = TimeValue.timeValueHours(24);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        // Create API Keys
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("k1", roles, expiration, refreshPolicy);
+        CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+        assertThat(createApiKeyResponse1.getName(), equalTo("k1"));
+        assertNotNull(createApiKeyResponse1.getKey());
+
+        final ApiKey expectedApiKeyInfo = new ApiKey(createApiKeyResponse1.getName(), createApiKeyResponse1.getId(), Instant.now(),
+                Instant.now().plusMillis(expiration.getMillis()), false, "test_user", "default_file");
+        {
+            // tag::get-my-api-key-id-request
+            GetMyApiKeyRequest getApiKeyRequest = GetMyApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+            // end::get-my-api-key-id-request
+
+            // tag::get-my-api-key-execute
+            GetApiKeyResponse getApiKeyResponse = client.security().getMyApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+            // end::get-my-api-key-execute
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            // tag::get-my-api-key-name-request
+            GetMyApiKeyRequest getApiKeyRequest = GetMyApiKeyRequest.usingApiKeyName(createApiKeyResponse1.getName());
+            // end::get-my-api-key-name-request
+
+            GetApiKeyResponse getApiKeyResponse = client.security().getMyApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            // tag::get-my-api-key-all-request
+            GetMyApiKeyRequest getApiKeyRequest = new GetMyApiKeyRequest(null, null);
+            // end::get-my-api-key-all-request
+
+            GetApiKeyResponse getApiKeyResponse = client.security().getMyApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            GetMyApiKeyRequest getApiKeyRequest = GetMyApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+
+            ActionListener<GetApiKeyResponse> listener;
+            // tag::get-my-api-key-execute-listener
+            listener = new ActionListener<GetApiKeyResponse>() {
+                @Override
+                public void onResponse(GetApiKeyResponse getApiKeyResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-my-api-key-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::get-my-api-key-execute-async
+            client.security().getMyApiKeyAsync(getApiKeyRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-my-api-key-execute-async
+
+            final GetApiKeyResponse response = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(response);
+
+            assertThat(response.getApiKeyInfos(), is(notNullValue()));
+            assertThat(response.getApiKeyInfos().size(), is(1));
+            verifyApiKey(response.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+    }
+
     private void verifyApiKey(final ApiKey actual, final ApiKey expected) {
         assertThat(actual.getId(), is(expected.getId()));
         assertThat(actual.getName(), is(expected.getName()));
@@ -2128,6 +2221,129 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::invalidate-api-key-execute-async
             client.security().invalidateApiKeyAsync(invalidateApiKeyRequest, RequestOptions.DEFAULT, listener); // <1>
             // end::invalidate-api-key-execute-async
+
+            final InvalidateApiKeyResponse response = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(response);
+            final List<String> invalidatedApiKeyIds = response.getInvalidatedApiKeys();
+            List<String> expectedInvalidatedApiKeyIds = Arrays.asList(createApiKeyResponse6.getId());
+            assertTrue(response.getErrors().isEmpty());
+            assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
+            assertThat(response.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
+        }
+    }
+
+    public void testInvalidateMyApiKey() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
+        final TimeValue expiration = TimeValue.timeValueHours(24);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        // Create API Keys
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("k1", roles, expiration, refreshPolicy);
+        CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+        assertThat(createApiKeyResponse1.getName(), equalTo("k1"));
+        assertNotNull(createApiKeyResponse1.getKey());
+
+        {
+            // tag::invalidate-my-api-key-id-request
+            InvalidateMyApiKeyRequest invalidateApiKeyRequest = InvalidateMyApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+            // end::invalidate-my-api-key-id-request
+
+            // tag::invalidate-my-api-key-execute
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateMyApiKey(invalidateApiKeyRequest,
+                    RequestOptions.DEFAULT);
+            // end::invalidate-my-api-key-execute
+
+            final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
+            final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
+            final List<String> previouslyInvalidatedApiKeyIds = invalidateApiKeyResponse.getPreviouslyInvalidatedApiKeys();
+
+            assertTrue(errors.isEmpty());
+            List<String> expectedInvalidatedApiKeyIds = Arrays.asList(createApiKeyResponse1.getId());
+            assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
+            assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
+        }
+
+        {
+            createApiKeyRequest = new CreateApiKeyRequest("k2", roles, expiration, refreshPolicy);
+            CreateApiKeyResponse createApiKeyResponse2 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(createApiKeyResponse2.getName(), equalTo("k2"));
+            assertNotNull(createApiKeyResponse2.getKey());
+
+            // tag::invalidate-my-api-key-name-request
+            InvalidateMyApiKeyRequest invalidateApiKeyRequest = InvalidateMyApiKeyRequest.usingApiKeyName(createApiKeyResponse2.getName());
+            // end::invalidate-my-api-key-name-request
+
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateMyApiKey(invalidateApiKeyRequest,
+                    RequestOptions.DEFAULT);
+
+            final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
+            final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
+            final List<String> previouslyInvalidatedApiKeyIds = invalidateApiKeyResponse.getPreviouslyInvalidatedApiKeys();
+
+            assertTrue(errors.isEmpty());
+            List<String> expectedInvalidatedApiKeyIds = Arrays.asList(createApiKeyResponse2.getId());
+            assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
+            assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
+        }
+
+        {
+            createApiKeyRequest = new CreateApiKeyRequest("k3", roles, expiration, refreshPolicy);
+            CreateApiKeyResponse createApiKeyResponse3 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(createApiKeyResponse3.getName(), equalTo("k3"));
+            assertNotNull(createApiKeyResponse3.getKey());
+
+            // tag::invalidate-my-api-key-all-request
+            InvalidateMyApiKeyRequest invalidateApiKeyRequest = new InvalidateMyApiKeyRequest(null, null);
+            // end::invalidate-my-api-key-all-request
+
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateMyApiKey(invalidateApiKeyRequest,
+                    RequestOptions.DEFAULT);
+
+            final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
+            final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
+            final List<String> previouslyInvalidatedApiKeyIds = invalidateApiKeyResponse.getPreviouslyInvalidatedApiKeys();
+
+            assertTrue(errors.isEmpty());
+            List<String> expectedInvalidatedApiKeyIds = Arrays.asList(createApiKeyResponse3.getId());
+            assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
+            assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
+        }
+
+        {
+            createApiKeyRequest = new CreateApiKeyRequest("k6", roles, expiration, refreshPolicy);
+            CreateApiKeyResponse createApiKeyResponse6 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(createApiKeyResponse6.getName(), equalTo("k6"));
+            assertNotNull(createApiKeyResponse6.getKey());
+
+            InvalidateMyApiKeyRequest invalidateApiKeyRequest = InvalidateMyApiKeyRequest.usingApiKeyId(createApiKeyResponse6.getId());
+
+            ActionListener<InvalidateApiKeyResponse> listener;
+            // tag::invalidate-my-api-key-execute-listener
+            listener = new ActionListener<InvalidateApiKeyResponse>() {
+                @Override
+                public void onResponse(InvalidateApiKeyResponse invalidateApiKeyResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::invalidate-my-api-key-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<InvalidateApiKeyResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::invalidate-my-api-key-execute-async
+            client.security().invalidateMyApiKeyAsync(invalidateApiKeyRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::invalidate-my-api-key-execute-async
 
             final InvalidateApiKeyResponse response = future.get(30, TimeUnit.SECONDS);
             assertNotNull(response);

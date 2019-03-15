@@ -13,25 +13,24 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.GetMyApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetMyApiKeyRequest;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
-public final class TransportGetApiKeyAction extends HandledTransportAction<GetApiKeyRequest,GetApiKeyResponse> {
+public final class TransportGetMyApiKeyAction extends HandledTransportAction<GetMyApiKeyRequest, GetApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
 
     @Inject
-    public TransportGetApiKeyAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService) {
-        super(GetApiKeyAction.NAME, transportService, actionFilters,
-                (Writeable.Reader<GetApiKeyRequest>) GetApiKeyRequest::new);
+    public TransportGetMyApiKeyAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService) {
+        super(GetMyApiKeyAction.NAME, transportService, actionFilters, (Writeable.Reader<GetMyApiKeyRequest>) GetMyApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
     }
 
     @Override
-    protected void doExecute(Task task, GetApiKeyRequest request, ActionListener<GetApiKeyResponse> listener) {
-        apiKeyService.getApiKeys(request, listener);
+    protected void doExecute(Task task, GetMyApiKeyRequest request, ActionListener<GetApiKeyResponse> listener) {
+        apiKeyService.getApiKeysForCurrentUser(request, listener);
     }
 
 }

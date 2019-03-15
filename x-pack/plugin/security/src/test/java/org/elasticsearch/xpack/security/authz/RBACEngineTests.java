@@ -21,6 +21,10 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.GetMyApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetMyApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.InvalidateMyApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateMyApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequestBuilder;
@@ -108,6 +112,21 @@ public class RBACEngineTests extends ESTestCase {
 
         assertThat(request, instanceOf(UserRequest.class));
         assertTrue(engine.checkSameUserPermissions(action, request, authentication));
+    }
+
+    public void testSamUserPermissionForGetMyApiKeyAction() {
+        final User user = new User("api-key-principal");
+        final Authentication authentication = mock(Authentication.class);
+        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authenticatedBy.getType()).thenReturn("_es_api_key");
+
+        TransportRequest request = new GetMyApiKeyRequest(null, null);
+        assertTrue(engine.checkSameUserPermissions(GetMyApiKeyAction.NAME, request, authentication));
+
+        request = new InvalidateMyApiKeyRequest();
+        assertFalse(engine.checkSameUserPermissions(InvalidateMyApiKeyAction.NAME, request, authentication));
     }
 
     public void testSameUserPermissionDoesNotAllowNonMatchingUsername() {

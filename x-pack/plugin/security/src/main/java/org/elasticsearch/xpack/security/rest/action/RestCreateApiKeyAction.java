@@ -39,7 +39,7 @@ public final class RestCreateApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_security_create_api_key";
+        return "security_create_api_key";
     }
 
     @Override

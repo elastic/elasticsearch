@@ -19,38 +19,36 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.InvalidateMyApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateMyApiKeyRequest;
 
 import java.io.IOException;
 
 /**
- * Rest action to invalidate one or more API keys
+ * Rest action to invalidate one or more API keys owned by the authenticated user.
  */
-public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
-    static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key",
+public final class RestInvalidateMyApiKeyAction extends SecurityBaseRestHandler {
+    static final ConstructingObjectParser<InvalidateMyApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_my_api_key",
             a -> {
-                return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2], (String) a[3]);
+                return new InvalidateMyApiKeyRequest((String) a[0], (String) a[1]);
             });
 
     static {
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("realm_name"));
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("id"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("name"));
     }
 
-    public RestInvalidateApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestInvalidateMyApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(RestRequest.Method.DELETE, "/_security/api_key", this);
+        controller.registerHandler(RestRequest.Method.DELETE, "/_security/api_key/my", this);
     }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            final InvalidateApiKeyRequest invalidateApiKeyRequest = PARSER.parse(parser, null);
-            return channel -> client.execute(InvalidateApiKeyAction.INSTANCE, invalidateApiKeyRequest,
+            final InvalidateMyApiKeyRequest invalidateApiKeyRequest = PARSER.parse(parser, null);
+            return channel -> client.execute(InvalidateMyApiKeyAction.INSTANCE, invalidateApiKeyRequest,
                 new RestBuilderListener<InvalidateApiKeyResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(InvalidateApiKeyResponse invalidateResp,
@@ -64,7 +62,7 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public String getName() {
-        return "security_invalidate_api_key";
+        return "security_invalidate_my_api_key";
     }
 
 }

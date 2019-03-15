@@ -13,25 +13,25 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.InvalidateMyApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateMyApiKeyRequest;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
-public final class TransportInvalidateApiKeyAction extends HandledTransportAction<InvalidateApiKeyRequest, InvalidateApiKeyResponse> {
+public final class TransportInvalidateMyApiKeyAction extends HandledTransportAction<InvalidateMyApiKeyRequest, InvalidateApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
 
     @Inject
-    public TransportInvalidateApiKeyAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService) {
-        super(InvalidateApiKeyAction.NAME, transportService, actionFilters,
-                (Writeable.Reader<InvalidateApiKeyRequest>) InvalidateApiKeyRequest::new);
+    public TransportInvalidateMyApiKeyAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService) {
+        super(InvalidateMyApiKeyAction.NAME, transportService, actionFilters,
+                (Writeable.Reader<InvalidateMyApiKeyRequest>) InvalidateMyApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
     }
 
     @Override
-    protected void doExecute(Task task, InvalidateApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
-        apiKeyService.invalidateApiKeys(request, listener);
+    protected void doExecute(Task task, InvalidateMyApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
+        apiKeyService.invalidateApiKeysForCurrentUser(request, listener);
     }
 
 }

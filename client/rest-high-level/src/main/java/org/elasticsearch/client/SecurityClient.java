@@ -43,6 +43,7 @@ import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetApiKeyResponse;
+import org.elasticsearch.client.security.GetMyApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetPrivilegesResponse;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
@@ -59,6 +60,7 @@ import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyResponse;
+import org.elasticsearch.client.security.InvalidateMyApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
@@ -910,6 +912,36 @@ public final class SecurityClient {
     }
 
     /**
+     * Retrieve information for API key(s) owned by authenticated user.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-my-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to retrieve API key(s)
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create API key call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetApiKeyResponse getMyApiKey(final GetMyApiKeyRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getMyApiKey, options,
+                GetApiKeyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieve information for API key(s) owned by authenticated user.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-my-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to retrieve API key(s)
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getMyApiKeyAsync(final GetMyApiKeyRequest request, final RequestOptions options,
+            final ActionListener<GetApiKeyResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getMyApiKey, options,
+                GetApiKeyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Invalidate API Key(s).<br>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-api-key.html">
      * the docs</a> for more.
@@ -937,6 +969,37 @@ public final class SecurityClient {
     public void invalidateApiKeyAsync(final InvalidateApiKeyRequest request, final RequestOptions options,
                                       final ActionListener<InvalidateApiKeyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::invalidateApiKey, options,
+                InvalidateApiKeyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Invalidate API key(s) owned by authenticated user.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-my-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to invalidate API key(s)
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the invalidate API key call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public InvalidateApiKeyResponse invalidateMyApiKey(final InvalidateMyApiKeyRequest request, final RequestOptions options)
+            throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::invalidateMyApiKey, options,
+                InvalidateApiKeyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously invalidates API key(s) owned by authenticated user.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-my-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to invalidate API key(s)
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void invalidateMyApiKeyAsync(final InvalidateMyApiKeyRequest request, final RequestOptions options,
+                                      final ActionListener<InvalidateApiKeyResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::invalidateMyApiKey, options,
                 InvalidateApiKeyResponse::fromXContent, listener, emptySet());
     }
 }

@@ -143,4 +143,10 @@ public final class GetApiKeyRequest extends ActionRequest {
     public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
+
+    @Override
+    public String toString() {
+        return "GetApiKeyRequest [realmName=" + realmName + ", userName=" + userName + ", apiKeyId=" + apiKeyId + ", apiKeyName="
+                + apiKeyName + "]";
+    }
 }

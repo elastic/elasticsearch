@@ -17,30 +17,28 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.GetMyApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetMyApiKeyRequest;
 
 import java.io.IOException;
 
 /**
- * Rest action to get one or more API keys information.
+ * Rest action to get information for one or more API keys owned by the authenticated user.
  */
-public final class RestGetApiKeyAction extends SecurityBaseRestHandler {
+public class RestGetMyApiKeyAction extends SecurityBaseRestHandler {
 
-    public RestGetApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestGetMyApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(RestRequest.Method.GET, "/_security/api_key", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_security/api_key/my", this);
     }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String apiKeyId = request.param("id");
         final String apiKeyName = request.param("name");
-        final String userName = request.param("username");
-        final String realmName = request.param("realm_name");
-        final GetApiKeyRequest getApiKeyRequest = new GetApiKeyRequest(realmName, userName, apiKeyId, apiKeyName);
-        return channel -> client.execute(GetApiKeyAction.INSTANCE, getApiKeyRequest,
+        final GetMyApiKeyRequest getApiKeyRequest = new GetMyApiKeyRequest(apiKeyId, apiKeyName);
+        return channel -> client.execute(GetMyApiKeyAction.INSTANCE, getApiKeyRequest,
                 new RestBuilderListener<GetApiKeyResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(GetApiKeyResponse getApiKeyResponse, XContentBuilder builder) throws Exception {
@@ -57,7 +55,6 @@ public final class RestGetApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public String getName() {
-        return "security_get_api_key";
+        return "security_get_my_api_key";
     }
-
 }

@@ -38,7 +38,7 @@ The maximum period to retain a shard history retention lease before it is consid
 expired. Shard history retention leases ensure that soft deletes are retained during
 merges on the Lucene index. If a soft delete is merged away before it can be replicated
 to a follower the following process will fail due to incomplete history on the leader.
-The default value is `12 hours`.
+The default value is `12h`.
 
 For more information about index settings, see {ref}/index-modules.html[Index modules].
 

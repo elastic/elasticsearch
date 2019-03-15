@@ -29,10 +29,10 @@ Replication can be configured in two ways:
 
 NOTE: You must also <<ccr-requirements,configure the leader index>>.
 
-When you initiate replication either manually or through a auto-follow pattern, the
+When you initiate replication either manually or through an auto-follow pattern, the
 follower index is created on the local cluster. Once the follower index is created,
-the <<remote-recovery, remote recovery>> process bulk transfers all of the Lucene
-segment files from the remote cluster to the local cluster.
+the <<remote-recovery, remote recovery>> process copies all of the Lucene segment
+files from the remote cluster to the local cluster.
 
 When initiating following manually using the API, by default the recovery process
 will be asynchronous in relationship to the
@@ -163,14 +163,14 @@ Elasticsearch attempts to mitigate this potential issue for update workflows usi
 a Lucene feature called soft deletes. When a document is updated or deleted, the
 underlying operation is retained in the Lucene index for a period of time. This
 period of time is governed by the `index.soft_deletes.retention_lease.period`
-setting which defaults to `12 hours`.
+setting which can be <<ccr-requirements,configured on the leader index>>.
 
 When a follower initiates the index following, it acquires a retention lease from
 the leader. This informs the leader that it should not allow a soft delete to be
 pruned until either the follower indicates that it has received the operation or
-the lease expires after `12 hours`. It is valuable to have monitoring in place to
-detect a follower replication issue prior to `12 hours` passing so that the
-problem can be remedied before the follower falls fatally behind.
+the lease expires. It is valuable to have monitoring in place to detect a follower
+replication issue prior to the lease expiring so that the problem can be remedied
+before the follower falls fatally behind.
 
 [float]
 === Remedying a follower that has fallen behind

@@ -353,6 +353,15 @@ public final class JsonFieldMapper extends FieldMapper {
         }
     }
 
+    /**
+     * A field data implementation that gives access to the values associated with
+     * a particular JSON key.
+     *
+     * This class wraps the field data that is built directly on the keyed JSON field, and
+     * filters out values whose prefix doesn't match the requested key. Loading and caching
+     * is fully delegated to the wrapped field data, so that different {@link KeyedJsonIndexFieldData}
+     * for the same JSON field share the same global ordinals.
+     */
     public static class KeyedJsonIndexFieldData implements IndexOrdinalsFieldData {
         private final String key;
         private final IndexOrdinalsFieldData delegate;

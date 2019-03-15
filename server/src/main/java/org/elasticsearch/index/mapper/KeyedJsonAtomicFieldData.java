@@ -33,6 +33,12 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
+/**
+ * The atomic field data implementation for {@link JsonFieldMapper.KeyedJsonFieldType}.
+ *
+ * This class wraps the field data that is built directly on the keyed JSON field,
+ * and filters out values whose prefix doesn't match the requested key.
+ */
 public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
 
     private final String key;

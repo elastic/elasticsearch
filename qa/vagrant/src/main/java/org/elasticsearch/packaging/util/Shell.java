@@ -31,35 +31,25 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
-
 /**
  * Wrapper to run shell commands and collect their outputs in a less verbose way
  */
 public class Shell {
 
     final Map<String, String> env;
-    final Path workingDirectory;
+    Path workingDirectory;
 
     public Shell() {
-        this(emptyMap(), null);
-    }
-
-    public Shell(Map<String, String> env) {
-        this(env, null);
-    }
-
-    public Shell(Path workingDirectory) {
-        this(emptyMap(), workingDirectory);
-    }
-
-    public Shell(Map<String, String> env, Path workingDirectory) {
-        this.env = new HashMap<>(env);
-        this.workingDirectory = workingDirectory;
+        this.env = new HashMap<>();
+        this.workingDirectory = null;
     }
 
     public Map<String, String> getEnv() {
         return env;
+    }
+
+    public void setWorkingDirectory(Path workingDirectory) {
+        this.workingDirectory = workingDirectory;
     }
 
     /**

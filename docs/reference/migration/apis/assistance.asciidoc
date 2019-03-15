@@ -7,7 +7,7 @@
 ++++
 
 IMPORTANT: The Migration Assistance API is deprecated, use the
-<<migration-api-deprecation,Deprecation Info API>> instead, which provides more
+<<migration-api-deprecation,deprecation info API>> instead, which provides more
 complete and detailed information about actions necessary prior to upgrade.
 
 deprecated[6.7, Use the <<migration-api-deprecation,Deprecation Info API>>

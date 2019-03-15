@@ -530,23 +530,15 @@ public final class Settings implements ToXContentFragment {
     public static Settings readSettingsFromStream(StreamInput in) throws IOException {
         Builder builder = new Builder();
         int numberOfSettings = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            for (int i = 0; i < numberOfSettings; i++) {
-                String key = in.readString();
-                Object value = in.readGenericValue();
-                if (value == null) {
-                    builder.putNull(key);
-                } else if (value instanceof List) {
-                    builder.putList(key, (List<String>) value);
-                } else {
-                    builder.put(key, value.toString());
-                }
-            }
-        } else {
-            for (int i = 0; i < numberOfSettings; i++) {
-                String key = in.readString();
-                String value = in.readOptionalString();
-                builder.put(key, value);
+        for (int i = 0; i < numberOfSettings; i++) {
+            String key = in.readString();
+            Object value = in.readGenericValue();
+            if (value == null) {
+                builder.putNull(key);
+            } else if (value instanceof List) {
+                builder.putList(key, (List<String>) value);
+            } else {
+                builder.put(key, value.toString());
             }
         }
         return builder.build();
@@ -555,27 +547,10 @@ public final class Settings implements ToXContentFragment {
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
         // pull settings to exclude secure settings in size()
         Set<Map.Entry<String, Object>> entries = settings.settings.entrySet();
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeVInt(entries.size());
-            for (Map.Entry<String, Object> entry : entries) {
-                out.writeString(entry.getKey());
-                out.writeGenericValue(entry.getValue());
-            }
-        } else {
-            int size = entries.stream().mapToInt(e -> e.getValue() instanceof List ? ((List)e.getValue()).size() : 1).sum();
-            out.writeVInt(size);
-            for (Map.Entry<String, Object> entry : entries) {
-                if (entry.getValue() instanceof List) {
-                    int idx = 0;
-                    for (String value : (List<String>)entry.getValue()) {
-                        out.writeString(entry.getKey() + "." + idx++);
-                        out.writeOptionalString(value);
-                    }
-                } else {
-                    out.writeString(entry.getKey());
-                    out.writeOptionalString(toString(entry.getValue()));
-                }
-            }
+        out.writeVInt(entries.size());
+        for (Map.Entry<String, Object> entry : entries) {
+            out.writeString(entry.getKey());
+            out.writeGenericValue(entry.getValue());
         }
     }
 

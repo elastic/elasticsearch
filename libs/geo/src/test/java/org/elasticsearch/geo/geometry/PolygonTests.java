@@ -23,11 +23,12 @@ import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.Collections;
 
 public class PolygonTests extends BaseGeometryTestCase<Polygon> {
     @Override
-    protected Polygon createTestInstance() {
-        return randomPolygon();
+    protected Polygon createTestInstance(boolean hasAlt) {
+        return randomPolygon(hasAlt);
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
@@ -35,6 +36,11 @@ public class PolygonTests extends BaseGeometryTestCase<Polygon> {
             WellKnownText.toWKT(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}))));
         assertEquals(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3})),
             WellKnownText.fromWKT("polygon ((3 1, 4 2, 5 3, 3 1))"));
+
+        assertEquals("polygon ((3.0 1.0 5.0, 4.0 2.0 4.0, 5.0 3.0 3.0, 3.0 1.0 5.0))",
+            WellKnownText.toWKT(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{5, 4, 3, 5}))));
+        assertEquals(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{5, 4, 3, 5})),
+            WellKnownText.fromWKT("polygon ((3 1 5, 4 2 4, 5 3 3, 3 1 5))"));
 
         assertEquals("polygon EMPTY", WellKnownText.toWKT(Polygon.EMPTY));
         assertEquals(Polygon.EMPTY, WellKnownText.fromWKT("polygon EMPTY)"));
@@ -48,5 +54,10 @@ public class PolygonTests extends BaseGeometryTestCase<Polygon> {
         ex = expectThrows(IllegalArgumentException.class,
             () -> new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}), null));
         assertEquals("holes must not be null", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{5, 4, 3, 5}),
+                Collections.singletonList(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}))));
+        assertEquals("holes must have the same number of dimensions as the polygon", ex.getMessage());
     }
 }

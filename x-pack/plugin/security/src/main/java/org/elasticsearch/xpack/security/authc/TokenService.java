@@ -774,10 +774,9 @@ public final class TokenService {
 
     /**
      * Performs the actual refresh of the token with retries in case of certain exceptions that may be recoverable. The refresh involves two
-     * steps: First, we check if the token document is still valid for refresh
-     * ({@link TokenService#checkTokenDocForRefresh(Map, Authentication)}. Then, in the case that the token has been refreshed within the
-     * previous 30 seconds, we do not create a new token document but instead retrieve the one that was created by the original refresh and
-     * return an access token and refresh token based on that. Otherwise this token document gets its refresh_token marked as refreshed,
+     * steps: First, we check if the token document is still valid for refresh. Then, in the case that the token has been refreshed within
+     * the previous 30 seconds, we do not create a new token document but instead retrieve the one that was created by the original refresh
+     * and return an access token and refresh token based on that. Otherwise this token document gets its refresh_token marked as refreshed,
      * while also storing the Instant when it was refreshed along with a pointer to the new token document that holds the refresh_token that
      * supersedes this one. The new document that contains the new access token and refresh token is created and finally the new access
      * token and refresh token are returned to the listener.

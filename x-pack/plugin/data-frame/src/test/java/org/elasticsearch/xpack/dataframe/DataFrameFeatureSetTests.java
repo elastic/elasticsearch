@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -19,14 +18,12 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
-import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
+import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStatsTests;
-import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
-import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.junit.Before;
 
@@ -39,9 +36,6 @@ import java.util.concurrent.ExecutionException;
 
 import static java.lang.Math.toIntExact;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.same;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -73,21 +67,20 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         assertTrue(featureSet.enabled());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40022")
-    public void testUsage() throws InterruptedException, ExecutionException, IOException {
-        Client client = mock(Client.class);
-        when(licenseState.isDataFrameAllowed()).thenReturn(true);
-
-        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(Settings.EMPTY, client, licenseState);
-
+    public void testUsage() throws IOException {
         List<DataFrameTransformStateAndStats> transformsStateAndStats = new ArrayList<>();
-        for (int i = 0; i < randomIntBetween(0, 10); ++i) {
-            transformsStateAndStats.add(DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats());
+        int count = randomIntBetween(0, 10);
+        int uniqueId = 0;
+        for (int i = 0; i < count; ++i) {
+            transformsStateAndStats.add(
+                    DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats("df-" + Integer.toString(uniqueId++)));
         }
 
+        count = randomIntBetween(0, 10);
         List<DataFrameTransformConfig> transformConfigWithoutTasks = new ArrayList<>();
-        for (int i = 0; i < randomIntBetween(0, 10); ++i) {
-            transformConfigWithoutTasks.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
+        for (int i = 0; i < count; ++i) {
+            transformConfigWithoutTasks.add(
+                    DataFrameTransformConfigTests.randomDataFrameTransformConfig("df-" + Integer.toString(uniqueId++)));
         }
 
         List<DataFrameTransformConfig> transformConfigWithTasks = new ArrayList<>(transformsStateAndStats.size());
@@ -98,35 +91,17 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         allConfigs.addAll(transformConfigWithoutTasks);
         allConfigs.addAll(transformConfigWithTasks);
 
-        GetDataFrameTransformsStatsAction.Response mockResponse = new GetDataFrameTransformsStatsAction.Response(transformsStateAndStats);
-        GetDataFrameTransformsAction.Response mockTransformsResponse = new GetDataFrameTransformsAction.Response(allConfigs);
+        boolean enabled = randomBoolean();
+        boolean available = randomBoolean();
+        DataFrameFeatureSetUsage usage = DataFrameFeatureSet.createUsage(available, enabled, allConfigs, transformsStateAndStats);
 
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<Response> listener = (ActionListener<Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(mockResponse);
-            return Void.TYPE;
-        }).when(client).execute(same(GetDataFrameTransformsStatsAction.INSTANCE), any(), any());
-
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<GetDataFrameTransformsAction.Response> listener =
-                (ActionListener<GetDataFrameTransformsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(mockTransformsResponse);
-            return Void.TYPE;
-        }).when(client).execute(same(GetDataFrameTransformsAction.INSTANCE), any(), any());
-
-        PlainActionFuture<Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage usage = future.get();
-
-        assertTrue(usage.enabled());
+        assertEquals(enabled, usage.enabled());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             XContentParser parser = createParser(builder);
             Map<String, Object> usageAsMap = parser.map();
-            assertTrue((boolean) XContentMapValues.extractValue("available", usageAsMap));
+            assertEquals(available, (boolean) XContentMapValues.extractValue("available", usageAsMap));
 
             if (transformsStateAndStats.isEmpty() && transformConfigWithoutTasks.isEmpty()) {
                 // no transforms, no stats
@@ -142,12 +117,16 @@ public class DataFrameFeatureSetTests extends ESTestCase {
                 transformConfigWithoutTasks.forEach(ignored -> stateCounts.merge(IndexerState.STOPPED.value(), 1, Integer::sum));
                 stateCounts.forEach((k, v) -> assertEquals(v, XContentMapValues.extractValue("transforms." + k, usageAsMap)));
 
-                DataFrameIndexerTransformStats combinedStats = transformsStateAndStats.stream().map(x -> x.getTransformStats())
-                        .reduce((l, r) -> l.merge(r)).get();
+                // use default constructed stats object for assertions if transformsStateAndStats is empty
+                DataFrameIndexerTransformStats combinedStats = new DataFrameIndexerTransformStats();
+                if (transformsStateAndStats.isEmpty() == false) {
+                    combinedStats = transformsStateAndStats.stream().map(x -> x.getTransformStats()).reduce((l, r) -> l.merge(r)).get();
+                }
 
                 assertEquals(toIntExact(combinedStats.getIndexFailures()),
                         XContentMapValues.extractValue("stats.index_failures", usageAsMap));
-                assertEquals(toIntExact(combinedStats.getIndexTotal()), XContentMapValues.extractValue("stats.index_total", usageAsMap));
+                assertEquals(toIntExact(combinedStats.getIndexTotal()),
+                        XContentMapValues.extractValue("stats.index_total", usageAsMap));
                 assertEquals(toIntExact(combinedStats.getSearchTime()),
                         XContentMapValues.extractValue("stats.search_time_in_ms", usageAsMap));
                 assertEquals(toIntExact(combinedStats.getNumDocuments()),

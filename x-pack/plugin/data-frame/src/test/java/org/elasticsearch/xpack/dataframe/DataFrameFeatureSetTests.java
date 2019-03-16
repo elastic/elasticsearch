@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfi
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStatsTests;
-import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.junit.Before;
 
 import java.io.IOException;

@@ -98,6 +98,7 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -132,6 +133,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final SetOnce<CcrSettings> ccrSettings = new SetOnce<>();
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private Client client;
+    private AutoFollowCoordinator autoFollowCoordinator;
     private final boolean transportClientMode;
 
     /**
@@ -178,13 +180,18 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         this.threadPool.set(threadPool);
         CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(threadPool, ccrSettings);
         this.restoreSourceService.set(restoreSourceService);
+        this.autoFollowCoordinator = new AutoFollowCoordinator(
+                settings,
+                client,
+                clusterService,
+                ccrLicenseChecker,
+                threadPool::relativeTimeInMillis,
+                threadPool::absoluteTimeInMillis);
         return Arrays.asList(
-            ccrLicenseChecker,
-            restoreSourceService,
-            new CcrRepositoryManager(settings, clusterService, client),
-            new AutoFollowCoordinator(settings, client, clusterService, ccrLicenseChecker,
-                threadPool::relativeTimeInMillis, threadPool::absoluteTimeInMillis)
-        );
+                ccrLicenseChecker,
+                restoreSourceService,
+                new CcrRepositoryManager(settings, clusterService, client),
+                autoFollowCoordinator);
     }
 
     @Override
@@ -341,6 +348,11 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     @Override
     public Collection<MappingRequestValidator> mappingRequestValidators() {
         return Collections.singletonList(CcrRequests.CCR_PUT_MAPPING_REQUEST_VALIDATOR);
+    }
+
+    @Override
+    public void close() throws IOException {
+        autoFollowCoordinator.close();
     }
 
 }

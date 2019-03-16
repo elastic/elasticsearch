@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -66,7 +67,7 @@ import static org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedClust
  * A component that runs only on the elected master node and follows leader indices automatically
  * if they match with a auto follow pattern that is defined in {@link AutoFollowMetadata}.
  */
-public class AutoFollowCoordinator implements ClusterStateListener {
+public class AutoFollowCoordinator extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger LOGGER = LogManager.getLogger(AutoFollowCoordinator.class);
     private static final int MAX_AUTO_FOLLOW_ERRORS = 256;
@@ -115,6 +116,21 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         };
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT, updater);
         waitForMetadataTimeOut = CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.get(settings);
+    }
+
+    @Override
+    protected void doStart() {
+
+    }
+
+    @Override
+    protected void doStop() {
+        getAutoFollowers().values().forEach(AutoFollower::stop);
+    }
+
+    @Override
+    protected void doClose() {
+
     }
 
     public synchronized AutoFollowStats getStats() {
@@ -313,6 +329,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         volatile boolean removed = false;
         private volatile CountDown autoFollowPatternsCountDown;
         private volatile AtomicArray<AutoFollowResult> autoFollowResults;
+        private volatile boolean stop = false;
 
         AutoFollower(final String remoteCluster,
                      final Consumer<List<AutoFollowResult>> statsUpdater,
@@ -325,6 +342,10 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         }
 
         void start() {
+            if (stop) {
+                LOGGER.trace("stopping auto-follower for [{}]", remoteCluster);
+                return;
+            }
             if (removed) {
                 // This check exists to avoid two AutoFollower instances a single remote cluster.
                 // (If an auto follow pattern is deleted and then added back quickly enough then
@@ -387,6 +408,10 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                     }
                 }
             });
+        }
+
+        void stop() {
+            stop = true;
         }
 
         private void autoFollowIndices(final AutoFollowMetadata autoFollowMetadata,

@@ -366,6 +366,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                 if (remoteClusterStateResponse != null) {
                     assert remoteError == null;
                     if (remoteClusterStateResponse.isWaitForTimedOut()) {
+                        LOGGER.trace("auto-follow coordinator timed out getting remote cluster state from [{}]", remoteCluster);
                         start();
                         return;
                     }

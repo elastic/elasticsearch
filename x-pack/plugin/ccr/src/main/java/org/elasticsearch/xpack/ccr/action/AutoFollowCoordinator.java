@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -125,7 +126,11 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
     @Override
     protected void doStop() {
-        getAutoFollowers().values().forEach(AutoFollower::stop);
+        /*
+         * Synchronization is not necessary here; the field is volatile and the map is a copy-on-write map, any new auto-followers will not
+         * start since we check started status of the coordinator before starting them.
+         */
+        autoFollowers.values().forEach(AutoFollower::stop);
     }
 
     @Override
@@ -263,7 +268,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             };
             newAutoFollowers.put(remoteCluster, autoFollower);
             LOGGER.info("starting auto follower for remote cluster [{}]", remoteCluster);
-            autoFollower.start();
+            if (lifecycleState() == Lifecycle.State.STARTED) {
+                autoFollower.start();
+            }
         }
 
         List<String> removedRemoteClusters = new ArrayList<>();
@@ -279,7 +286,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             } else if (autoFollower.remoteClusterConnectionMissing) {
                 LOGGER.info("retrying auto follower [{}] after remote cluster connection was missing", remoteCluster);
                 autoFollower.remoteClusterConnectionMissing = false;
-                autoFollower.start();
+                if (lifecycleState() == Lifecycle.State.STARTED) {
+                    autoFollower.start();
+                }
             }
         }
         assert assertNoOtherActiveAutoFollower(newAutoFollowers);

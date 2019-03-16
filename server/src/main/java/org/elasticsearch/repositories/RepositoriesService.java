@@ -98,7 +98,21 @@ public class RepositoriesService implements ClusterStateApplier {
 
         final ActionListener<ClusterStateUpdateResponse> registrationListener;
         if (request.verify) {
-            registrationListener = new VerifyingRegisterRepositoryListener(request.name, listener);
+            final String name = request.name;
+            registrationListener = ActionListener.delegateFailure(listener, (outerListener, clusterStateUpdateResponse) -> {
+                if (clusterStateUpdateResponse.isAcknowledged()) {
+                    // The response was acknowledged - all nodes should know about the new repository, let's verify them
+                    verifyRepository(name, ActionListener.delegateFailure(outerListener, (l, r) -> {
+                        if (r.failed()) {
+                            l.onFailure(new RepositoryVerificationException(name, r.failureDescription()));
+                        } else {
+                            l.onResponse(clusterStateUpdateResponse);
+                        }
+                    }));
+                } else {
+                    listener.onResponse(clusterStateUpdateResponse);
+                }
+            });
         } else {
             registrationListener = listener;
         }
@@ -229,27 +243,19 @@ public class RepositoriesService implements ClusterStateApplier {
                     final String verificationToken = repository.startVerification();
                     if (verificationToken != null) {
                         try {
-                            verifyAction.verify(repositoryName, verificationToken, new ActionListener<VerifyResponse>() {
-                                @Override
-                                public void onResponse(VerifyResponse verifyResponse) {
-                                    threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                            verifyAction.verify(repositoryName, verificationToken,
+                                ActionListener.delegateFailure(listener,
+                                    (l, r) -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                                         try {
                                             repository.endVerification(verificationToken);
                                         } catch (Exception e) {
                                             logger.warn(() -> new ParameterizedMessage(
                                                 "[{}] failed to finish repository verification", repositoryName), e);
-                                            listener.onFailure(e);
+                                            l.onFailure(e);
                                             return;
                                         }
-                                        listener.onResponse(verifyResponse);
-                                    });
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    listener.onFailure(e);
-                                }
-                            });
+                                        l.onResponse(r);
+                                    })));
                         } catch (Exception e) {
                             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                                 try {
@@ -425,47 +431,6 @@ public class RepositoriesService implements ClusterStateApplier {
         }
     }
 
-    private class VerifyingRegisterRepositoryListener implements ActionListener<ClusterStateUpdateResponse> {
-
-        private final String name;
-
-        private final ActionListener<ClusterStateUpdateResponse> listener;
-
-        VerifyingRegisterRepositoryListener(String name, final ActionListener<ClusterStateUpdateResponse> listener) {
-            this.name = name;
-            this.listener = listener;
-        }
-
-        @Override
-        public void onResponse(final ClusterStateUpdateResponse clusterStateUpdateResponse) {
-            if (clusterStateUpdateResponse.isAcknowledged()) {
-                // The response was acknowledged - all nodes should know about the new repository, let's verify them
-                verifyRepository(name, new ActionListener<VerifyResponse>() {
-                    @Override
-                    public void onResponse(VerifyResponse verifyResponse) {
-                        if (verifyResponse.failed()) {
-                            listener.onFailure(new RepositoryVerificationException(name, verifyResponse.failureDescription()));
-                        } else {
-                            listener.onResponse(clusterStateUpdateResponse);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
-            } else {
-                listener.onResponse(clusterStateUpdateResponse);
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
     /**
      * Register repository request
      */
@@ -527,7 +492,6 @@ public class RepositoriesService implements ClusterStateApplier {
             this.cause = cause;
             this.name = name;
         }
-
     }
 
     /**
@@ -562,7 +526,5 @@ public class RepositoriesService implements ClusterStateApplier {
                     .map(failure -> failure.toString())
                     .collect(Collectors.joining(", ", "[", "]"));
         }
-
     }
-
 }

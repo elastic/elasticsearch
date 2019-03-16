@@ -1263,45 +1263,35 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     // route by seed hostname
                     proxyNode = proxyMapping.get(node.getHostName());
                 }
-                return t.openConnection(proxyNode, profile, new ActionListener<Transport.Connection>() {
+            return t.openConnection(proxyNode, profile, ActionListener.delegateFailure(listener, (l, connection) -> l.onResponse(
+                new Transport.Connection() {
                     @Override
-                    public void onResponse(Transport.Connection connection) {
-                        Transport.Connection proxyConnection = new Transport.Connection() {
-                            @Override
-                            public DiscoveryNode getNode() {
-                                return node;
-                            }
-
-                            @Override
-                            public void sendRequest(long requestId, String action, TransportRequest request,
-                                                    TransportRequestOptions options) throws IOException, TransportException {
-                                connection.sendRequest(requestId, action, request, options);
-                            }
-
-                            @Override
-                            public void addCloseListener(ActionListener<Void> listener) {
-                                connection.addCloseListener(listener);
-                            }
-
-                            @Override
-                            public boolean isClosed() {
-                                return connection.isClosed();
-                            }
-
-                            @Override
-                            public void close() {
-                                connection.close();
-                            }
-                        };
-                        listener.onResponse(proxyConnection);
+                    public DiscoveryNode getNode() {
+                        return node;
                     }
 
                     @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
+                    public void sendRequest(long requestId, String action, TransportRequest request,
+                                            TransportRequestOptions options) throws IOException {
+                        connection.sendRequest(requestId, action, request, options);
                     }
-                });
-            });
+
+                    @Override
+                    public void addCloseListener(ActionListener<Void> listener) {
+                        connection.addCloseListener(listener);
+                    }
+
+                    @Override
+                    public boolean isClosed() {
+                        return connection.isClosed();
+                    }
+
+                    @Override
+                    public void close() {
+                        connection.close();
+                    }
+                })));
+        });
         return stubbableTransport;
     }
 }

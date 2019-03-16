@@ -363,19 +363,10 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 final List<Transport.Connection> establishedConnections = new CopyOnWriteArrayList<>();
 
                 clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile, listener) ->
-                    transport.openConnection(discoveryNode, profile, new ActionListener<Transport.Connection>() {
-                        @Override
-                        public void onResponse(Transport.Connection connection) {
-                            establishedConnections.add(connection);
-                            listener.onResponse(connection);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }));
-
+                    transport.openConnection(discoveryNode, profile, ActionListener.delegateFailure(listener, (l, r) -> {
+                        establishedConnections.add(r);
+                        listener.onResponse(r);
+                    })));
 
                 clientService.start();
                 clientService.acceptIncomingRequests();

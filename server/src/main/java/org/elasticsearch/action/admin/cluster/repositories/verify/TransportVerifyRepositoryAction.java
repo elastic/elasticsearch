@@ -68,20 +68,12 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
     @Override
     protected void masterOperation(final VerifyRepositoryRequest request, ClusterState state,
                                    final ActionListener<VerifyRepositoryResponse> listener) {
-        repositoriesService.verifyRepository(request.name(), new  ActionListener<RepositoriesService.VerifyResponse>() {
-            @Override
-            public void onResponse(RepositoriesService.VerifyResponse verifyResponse) {
-                if (verifyResponse.failed()) {
-                    listener.onFailure(new RepositoryVerificationException(request.name(), verifyResponse.failureDescription()));
-                } else {
-                    listener.onResponse(new VerifyRepositoryResponse(verifyResponse.nodes()));
-                }
+        repositoriesService.verifyRepository(request.name(), ActionListener.delegateFailure(listener, (l, r) -> {
+            if (r.failed()) {
+                l.onFailure(new RepositoryVerificationException(request.name(), r.failureDescription()));
+            } else {
+                l.onResponse(new VerifyRepositoryResponse(r.nodes()));
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        }));
     }
 }

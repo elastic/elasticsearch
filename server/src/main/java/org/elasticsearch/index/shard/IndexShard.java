@@ -2685,37 +2685,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // primary term update. Since indexShardOperationPermits doesn't guarantee that async submissions are executed
         // in the order submitted, combining both operations ensure that the term is updated before the operation is
         // executed. It also has the side effect of acquiring all the permits one time instead of two.
-        final ActionListener<Releasable> operationListener = new ActionListener<Releasable>() {
-            @Override
-            public void onResponse(final Releasable releasable) {
-                if (opPrimaryTerm < getOperationPrimaryTerm()) {
-                    releasable.close();
-                    final String message = String.format(
-                        Locale.ROOT,
-                        "%s operation primary term [%d] is too old (current [%d])",
-                        shardId,
-                        opPrimaryTerm,
-                        getOperationPrimaryTerm());
-                    onPermitAcquired.onFailure(new IllegalStateException(message));
-                } else {
-                    assert assertReplicationTarget();
-                    try {
-                        updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
-                        advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes);
-                    } catch (Exception e) {
-                        releasable.close();
-                        onPermitAcquired.onFailure(e);
-                        return;
-                    }
-                    onPermitAcquired.onResponse(releasable);
+        final ActionListener<Releasable> operationListener = ActionListener.delegateFailure(onPermitAcquired, (l, r) -> {
+            if (opPrimaryTerm < getOperationPrimaryTerm()) {
+                r.close();
+                final String message = String.format(
+                    Locale.ROOT,
+                    "%s operation primary term [%d] is too old (current [%d])",
+                    shardId,
+                    opPrimaryTerm,
+                    getOperationPrimaryTerm());
+                l.onFailure(new IllegalStateException(message));
+            } else {
+                assert assertReplicationTarget();
+                try {
+                    updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
+                    advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes);
+                } catch (Exception e) {
+                    r.close();
+                    l.onFailure(e);
+                    return;
                 }
+                l.onResponse(r);
             }
-
-            @Override
-            public void onFailure(final Exception e) {
-                onPermitAcquired.onFailure(e);
-            }
-        };
+        });
 
         if (requirePrimaryTermUpdate(opPrimaryTerm, allowCombineOperationWithPrimaryTermUpdate)) {
             synchronized (mutex) {

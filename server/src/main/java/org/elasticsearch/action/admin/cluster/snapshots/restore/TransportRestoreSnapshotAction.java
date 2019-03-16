@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.RestoreService.RestoreCompletionResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -73,20 +72,12 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     @Override
     protected void masterOperation(final RestoreSnapshotRequest request, final ClusterState state,
                                    final ActionListener<RestoreSnapshotResponse> listener) {
-        restoreService.restoreSnapshot(request, new ActionListener<RestoreCompletionResponse>() {
-            @Override
-            public void onResponse(RestoreCompletionResponse restoreCompletionResponse) {
-                if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
-                    RestoreClusterStateListener.createAndRegisterListener(clusterService, restoreCompletionResponse, listener);
-                } else {
-                    listener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
-                }
+        restoreService.restoreSnapshot(request, ActionListener.delegateFailure(listener, (l, r) -> {
+            if (r.getRestoreInfo() == null && request.waitForCompletion()) {
+                RestoreClusterStateListener.createAndRegisterListener(clusterService, r, l);
+            } else {
+                l.onResponse(new RestoreSnapshotResponse(r.getRestoreInfo()));
             }
-
-            @Override
-            public void onFailure(Exception t) {
-                listener.onFailure(t);
-            }
-        });
+        }));
     }
 }

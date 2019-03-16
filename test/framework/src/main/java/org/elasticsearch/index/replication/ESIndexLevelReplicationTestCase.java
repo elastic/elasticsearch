@@ -435,7 +435,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public Future<Void> asyncRecoverReplica(
-                final IndexShard replica, final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier) throws IOException {
+                final IndexShard replica, final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier) {
             final FutureTask<Void> task = new FutureTask<>(() -> {
                 recoverReplica(replica, targetSupplier);
                 return null;
@@ -611,17 +611,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public void execute() {
             try {
                 new ReplicationOperation<>(request, new PrimaryRef(),
-                    new ActionListener<PrimaryResult>() {
-                        @Override
-                        public void onResponse(PrimaryResult result) {
-                            result.respond(listener);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, new ReplicasRef(), logger, opType).execute();
+                    ActionListener.delegateFailure(listener, (l, r) -> r.respond(l)), new ReplicasRef(), logger, opType).execute();
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -695,28 +685,20 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
                 IndexShard replica = replicationTargets.findReplicaShard(replicaRouting);
                 replica.acquireReplicaOperationPermit(
-                        getPrimaryShard().getPendingPrimaryTerm(),
-                        globalCheckpoint,
-                        maxSeqNoOfUpdatesOrDeletes,
-                        new ActionListener<Releasable>() {
-                            @Override
-                            public void onResponse(Releasable releasable) {
-                                try {
-                                    performOnReplica(request, replica);
-                                    releasable.close();
-                                    listener.onResponse(new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint()));
-                                } catch (final Exception e) {
-                                    Releasables.closeWhileHandlingException(releasable);
-                                    listener.onFailure(e);
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                listener.onFailure(e);
-                            }
-                        },
-                        ThreadPool.Names.WRITE, request);
+                    getPrimaryShard().getPendingPrimaryTerm(),
+                    globalCheckpoint,
+                    maxSeqNoOfUpdatesOrDeletes,
+                    ActionListener.delegateFailure(listener, (l, r) -> {
+                        try {
+                            performOnReplica(request, replica);
+                            r.close();
+                            l.onResponse(new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint()));
+                        } catch (final Exception e) {
+                            Releasables.closeWhileHandlingException(r);
+                            l.onFailure(e);
+                        }
+                    }),
+                    ThreadPool.Names.WRITE, request);
             }
 
             @Override
@@ -895,7 +877,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     private TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> executeResyncOnPrimary(
-        IndexShard primary, ResyncReplicationRequest request) throws Exception {
+        IndexShard primary, ResyncReplicationRequest request) {
         final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
             new TransportWriteAction.WritePrimaryResult<>(TransportResyncReplicationAction.performOnPrimary(request),
                 new ResyncReplicationResponse(), null, null, primary, logger);

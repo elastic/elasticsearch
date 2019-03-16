@@ -35,12 +35,11 @@ public final class TcpTransportChannel implements TransportChannel {
     private final long requestId;
     private final String profileName;
     private final long reservedBytes;
-    private final String channelType;
     private final TcpChannel channel;
     private final boolean compressResponse;
 
-    TcpTransportChannel(TcpTransport transport, TcpChannel channel, String channelType, String action, long requestId, Version version,
-                        Set<String> features, String profileName, long reservedBytes, boolean compressResponse) {
+    TcpTransportChannel(TcpTransport transport, TcpChannel channel, String action, long requestId, Version version, Set<String> features,
+                        String profileName, long reservedBytes, boolean compressResponse) {
         this.version = version;
         this.features = features;
         this.channel = channel;
@@ -49,7 +48,6 @@ public final class TcpTransportChannel implements TransportChannel {
         this.requestId = requestId;
         this.profileName = profileName;
         this.reservedBytes = reservedBytes;
-        this.channelType = channelType;
         this.compressResponse = compressResponse;
     }
 
@@ -91,7 +89,7 @@ public final class TcpTransportChannel implements TransportChannel {
 
     @Override
     public String getChannelType() {
-        return channelType;
+        return "transport";
     }
 
     @Override

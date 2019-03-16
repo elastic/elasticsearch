@@ -32,6 +32,11 @@
   The {ccr} feature enables you to replicate indices in remote clusters to your
   local cluster. For more information, see 
   {stack-ov}/xpack-ccr.html[{ccr-cap}].  
+    
+[[glossary-ccs]] {ccs} (CCS)::
+
+  The {ccs} feature enables any node to act as a federated client across
+  multiple clusters. See <<modules-cross-cluster-search>>.    
 
 [[glossary-document]] document ::
 

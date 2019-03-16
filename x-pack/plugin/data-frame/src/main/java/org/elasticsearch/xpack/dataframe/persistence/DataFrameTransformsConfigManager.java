@@ -39,6 +39,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
@@ -141,6 +142,7 @@ public class DataFrameTransformsConfigManager {
         SearchRequest request = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .setTrackTotalHits(true)
+            .addSort(DataFrameField.ID.getPreferredName(), SortOrder.ASC)
             .setSize(DEFAULT_SIZE)
             .setQuery(queryBuilder)
             .request();

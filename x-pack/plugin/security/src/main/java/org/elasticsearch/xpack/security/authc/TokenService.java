@@ -786,23 +786,33 @@ public final class TokenService {
                               Iterator<TimeValue> backoff, Instant refreshRequested, ActionListener<Tuple<UserToken, String>> listener) {
         logger.debug("Attempting to refresh token stored in token document [{}]", tokenDocId);
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
-        final String supersedingTokenId;
+        final RefreshTokenStatus refreshTokenStatus;
         try {
-            supersedingTokenId = checkTokenDocForRefresh(source, clientAuth);
+            checkTokenDocumentExpired(clock.instant(), source);
+            refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
+            if (refreshTokenStatus.isInvalidated()) {
+                throw invalidGrantException("token has been invalidated");
+            }
+            checkClientCanRefresh(refreshTokenStatus, clientAuth);
+            final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
+            checkMultipleRefreshes(clock.instant(), refreshTokenStatus, userToken);
+        } catch (IOException | IllegalStateException e) {
+            onFailure.accept(new ElasticsearchSecurityException("invalid token document", e));
+            return;
         } catch (ElasticsearchSecurityException e) {
             onFailure.accept(e);
             return;
         }
-        if (supersedingTokenId != null) {
+        if (refreshTokenStatus.isRefreshed()) {
             logger.debug("Token document [{}] was recently refreshed, when a new token document [{}] was generated. Reusing that result.",
-                    tokenDocId, supersedingTokenId);
-            getTokenDocAsync(supersedingTokenId, new ActionListener<GetResponse>() {
+                    tokenDocId, refreshTokenStatus.getSupersedingDocId());
+            getTokenDocAsync(refreshTokenStatus.getSupersedingDocId(), new ActionListener<GetResponse>() {
                 private final Consumer<Exception> maybeRetryOnFailure = ex -> {
                     if (backoff.hasNext()) {
                         final TimeValue backofTimeValue = backoff.next();
                         logger.debug("retrying after [" + backofTimeValue + "] back off");
                         final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                .preserveContext(() -> getTokenDocAsync(supersedingTokenId, this));
+                                .preserveContext(() -> getTokenDocAsync(refreshTokenStatus.getSupersedingDocId(), this));
                         client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);
                     } else {
                         logger.warn("back off retries exhausted");
@@ -813,7 +823,8 @@ public final class TokenService {
                 @Override
                 public void onResponse(GetResponse response) {
                     if (response.isExists()) {
-                        logger.debug("found superseding token document [{}] for token document [{}]", supersedingTokenId, tokenDocId);
+                        logger.debug("found superseding token document [{}] for token document [{}]",
+                                refreshTokenStatus.getSupersedingDocId(), tokenDocId);
                         final Tuple<UserToken, String> parsedTokens;
                         try {
                             parsedTokens = parseTokensFromDocument(response.getSource(), null);
@@ -827,7 +838,7 @@ public final class TokenService {
                         // We retry this since the creation of the superseding token document might already be in flight but not
                         // yet completed, triggered by a refresh request that came a few milliseconds ago
                         logger.info("could not find superseding token document [{}] for token document [{}], retrying",
-                                supersedingTokenId, tokenDocId);
+                                refreshTokenStatus.getSupersedingDocId(), tokenDocId);
                         maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
                     }
                 }
@@ -835,10 +846,11 @@ public final class TokenService {
                 @Override
                 public void onFailure(Exception e) {
                     if (isShardNotAvailableException(e)) {
-                        logger.info("could not find superseding token document [{}] for refresh, retrying", supersedingTokenId);
+                        logger.info("could not find superseding token document [{}] for refresh, retrying",
+                                refreshTokenStatus.getSupersedingDocId());
                         maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
                     } else {
-                        logger.warn("could not find superseding token document [{}] for refresh", supersedingTokenId);
+                        logger.warn("could not find superseding token document [{}] for refresh", refreshTokenStatus.getSupersedingDocId());
                         onFailure.accept(invalidGrantException("could not refresh the requested token"));
                     }
                 }
@@ -937,124 +949,71 @@ public final class TokenService {
         }
     }
 
-    /**
-     * Performs checks on the retrieved doc source and returns the id for the document containing the superseding - after the refresh -
-     * token, or {@code null} if the token was not refreshed. If the token cannot be refreshed an exception is thrown.
-     */
-    private String checkTokenDocForRefresh(Map<String, Object> source, Authentication clientAuth) throws ElasticsearchSecurityException {
-        checkRefreshTokenExpired(source);
-        final Map<String, Object> refreshTokenSource = getRefreshTokenSource(source);
-        checkRefreshTokenInvalidated(refreshTokenSource);
-        checkClientCanRefresh(refreshTokenSource, clientAuth);
-        final Map<String, Object> userTokenSource = getUserTokenSource(source);
-        return checkRepeatedRefreshes(refreshTokenSource, userTokenSource);
-    }
-
     private void getTokenDocAsync(String tokenDocId, ActionListener<GetResponse> listener) {
-        GetRequest getRequest =
-            client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, tokenDocId).request();
+        final GetRequest getRequest = client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, tokenDocId).request();
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get);
     }
 
-    private void checkRefreshTokenExpired(Map<String, Object> source) throws ElasticsearchSecurityException {
+    private static void checkTokenDocumentExpired(Instant now, Map<String, Object> source) {
         final Long creationEpochMilli = (Long) source.get("creation_time");
         if (creationEpochMilli == null) {
-            throw invalidGrantException("token document is missing creation time value");
+            throw new IllegalStateException("token document is missing creation time value");
         } else {
             final Instant creationTime = Instant.ofEpochMilli(creationEpochMilli);
-            if (clock.instant().isAfter(creationTime.plus(24L, ChronoUnit.HOURS))) {
-                throw invalidGrantException("refresh token has expired");
+            if (now.isAfter(creationTime.plus(24L, ChronoUnit.HOURS))) {
+                throw invalidGrantException("token document has expired");
             }
         }
     }
 
-    private Map<String, Object> getRefreshTokenSource(Map<String, Object> source) throws ElasticsearchSecurityException {
+    private static void checkClientCanRefresh(RefreshTokenStatus refreshToken, Authentication clientAuthentication) {
+        if (clientAuthentication.getUser().principal().equals(refreshToken.getAssociatedUser()) == false) {
+            logger.warn("Token was originally created by [{}] but [{}] attempted to refresh it", refreshToken.getAssociatedUser(),
+                    clientAuthentication.getUser().principal());
+            throw invalidGrantException("tokens must be refreshed by the creating client");
+        }
+        if (clientAuthentication.getAuthenticatedBy().getName().equals(refreshToken.getAssociatedRealm()) == false) {
+            logger.warn("[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
+                    refreshToken.getAssociatedUser(), refreshToken.getAssociatedRealm(),
+                    clientAuthentication.getAuthenticatedBy().getName());
+            throw invalidGrantException("tokens must be refreshed by the creating client");
+        }
+    }
+
+    private static Map<String, Object> getRefreshTokenSourceMap(Map<String, Object> source) {
         final Map<String, Object> refreshTokenSource = (Map<String, Object>) source.get("refresh_token");
         if (refreshTokenSource == null || refreshTokenSource.isEmpty()) {
-            throw invalidGrantException("token document is missing the refresh_token object");
+            throw new IllegalStateException("token document is missing the refresh_token object");
         }
         return refreshTokenSource;
     }
 
-    private void checkRefreshTokenInvalidated(Map<String, Object> refreshTokenSource) throws ElasticsearchSecurityException {
-        final Boolean invalidated = (Boolean) refreshTokenSource.get("invalidated");
-        if (invalidated == null) {
-            throw invalidGrantException("token document is missing invalidated value");
-        } else if(invalidated) {
-            throw invalidGrantException("token has been invalidated");
-        }
-    }
-
-    private Map<String, Object> getUserTokenSource(Map<String, Object> source) throws ElasticsearchSecurityException {
+    private static Map<String, Object> getUserTokenSourceMap(Map<String, Object> source) {
         final Map<String, Object> accessTokenSource = (Map<String, Object>) source.get("access_token");
         if (accessTokenSource == null || accessTokenSource.isEmpty()) {
-            throw invalidGrantException("token document is missing the access_token object");
+            throw new IllegalStateException("token document is missing the access_token object");
         }
         final Map<String, Object> userTokenSource = (Map<String, Object>) accessTokenSource.get("user_token");
         if (userTokenSource == null || userTokenSource.isEmpty()) {
-            throw invalidGrantException("token document is missing the user token info");
+            throw new IllegalStateException("token document is missing the user token info");
         }
         return userTokenSource;
     }
 
-    /**
-     * If the token has been refreshed recently, returns the id of the doc containing the superseding token.
-     * If the token has not been refreshed returns {@code null}. Otherwise throws exception.
-     */
-    private String checkRepeatedRefreshes(Map<String, Object> refreshTokenSource, Map<String, Object> userTokenSource)
-            throws ElasticsearchSecurityException {
-        final Boolean refreshed = (Boolean) refreshTokenSource.get("refreshed");
-        if (refreshed == null) {
-            throw invalidGrantException("token document is missing refreshed value");
-        }
-        final Integer versionInteger = (Integer) userTokenSource.get("version");
-        if (versionInteger == null) {
-            throw invalidGrantException("token is missing version value");
-        }
-        final Version authVersion = Version.fromId((Integer) userTokenSource.get("version"));
-        if (refreshed) {
-            if (authVersion.onOrAfter(Version.V_7_1_0)) {
-                final Long refreshEpochMilli = (Long) refreshTokenSource.get("refresh_time");
-                final Instant refreshTime = refreshEpochMilli == null ? null : Instant.ofEpochMilli(refreshEpochMilli);
-                if (refreshTime == null) {
-                    throw invalidGrantException("token document is missing refresh time value");
-                } else if (clock.instant().isAfter(refreshTime.plus(30L, ChronoUnit.SECONDS))) {
+    private static void checkMultipleRefreshes(Instant now, RefreshTokenStatus refreshToken, UserToken userToken) {
+        if (refreshToken.isRefreshed()) {
+            if (userToken.getVersion().onOrAfter(Version.V_7_1_0)) {
+                if (now.isAfter(refreshToken.getRefreshInstant().plus(30L, ChronoUnit.SECONDS))) {
                     throw invalidGrantException("token has already been refreshed more than 30 seconds in the past");
-                } else if (clock.instant().isBefore(refreshTime.minus(30L, ChronoUnit.SECONDS))) {
+                }
+                if (now.isBefore(refreshToken.getRefreshInstant().minus(30L, ChronoUnit.SECONDS))) {
                     throw invalidGrantException("token has been refreshed more than 30 seconds in the future. clock skew too great.");
                 }
-                final String supersededBy = (String) refreshTokenSource.get("superseded_by");
-                if (supersededBy == null) {
-                    throw invalidGrantException("token document is missing superseded by value");
-                }
-                // token refreshed recently so we return the doc id for the containing doc
-                return supersededBy;
             } else {
-                // token refreshed and does not support multiple refreshes
                 throw invalidGrantException("token has already been refreshed");
             }
         }
-        return null;
     }
-
-    private void checkClientCanRefresh(Map<String, Object> refreshTokenSource, Authentication clientAuth)
-            throws ElasticsearchSecurityException {
-        final Map<String, Object> clientInfo = (Map<String, Object>) refreshTokenSource.get("client");
-        if (clientInfo == null) {
-            throw invalidGrantException("token is missing client information");
-        }
-        if (clientAuth.getUser().principal().equals(clientInfo.get("user")) == false) {
-            logger.warn("Token was originally created by [{}] but [{}] attempted to refresh it", clientInfo.get("user"),
-                    clientAuth.getUser().principal());
-            throw invalidGrantException("tokens must be refreshed by the creating client");
-        }
-        if (clientAuth.getAuthenticatedBy().getName().equals(clientInfo.get("realm")) == false) {
-            logger.warn("[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
-                    clientInfo.get("user"), clientInfo.get("realm"), clientAuth.getAuthenticatedBy().getName());
-            throw invalidGrantException("tokens must be refreshed by the creating client");
-        }
-    }
-
 
     /**
      * Find stored refresh and access tokens that have not been invalidated or expired, and were issued against
@@ -1822,7 +1781,6 @@ public final class TokenService {
         }
     }
 
-
     private static final class TokenKeys {
         final Map<BytesKey, KeyAndCache> cache;
         final BytesKey currentTokenKeyHash;
@@ -1836,6 +1794,88 @@ public final class TokenService {
 
         KeyAndCache get(BytesKey passphraseHash) {
             return cache.get(passphraseHash);
+        }
+    }
+
+    /**
+     * Contains metadata associated with the refresh token that is used for validity checks, but does not contain the proper token string.
+     */
+    private static final class RefreshTokenStatus {
+
+        private final boolean invalidated;
+        private final String associatedUser;
+        private final String associatedRealm;
+        @Nullable private final Instant refreshInstant;
+        @Nullable private final String supersededByDocId;
+
+        private RefreshTokenStatus(String token, boolean invalidated, String associatedUser, String associatedRealm, Instant refreshInstant,
+                String supersededByDocId) {
+            this.invalidated = invalidated;
+            this.associatedUser = associatedUser;
+            this.associatedRealm = associatedRealm;
+            this.refreshInstant = refreshInstant;
+            this.supersededByDocId = supersededByDocId;
+        }
+
+        boolean isInvalidated() {
+            return invalidated;
+        }
+
+        String getAssociatedUser() {
+            return associatedUser;
+        }
+
+        String getAssociatedRealm() {
+            return associatedRealm;
+        }
+
+        boolean isRefreshed() {
+            return refreshInstant != null;
+        }
+
+        @Nullable Instant getRefreshInstant() {
+            return refreshInstant;
+        }
+
+        @Nullable String getSupersedingDocId() {
+            return supersededByDocId;
+        }
+
+        static RefreshTokenStatus fromSourceMap(Map<String, Object> refreshTokenSource) {
+            final String token = (String) refreshTokenSource.get("token");
+            if (token == null) {
+                throw new IllegalStateException("token document is missing the \"token\" field");
+            }
+            final Boolean invalidated = (Boolean) refreshTokenSource.get("invalidated");
+            if (invalidated == null) {
+                throw new IllegalStateException("token document is missing the \"invalidated\" field");
+            }
+            final Map<String, Object> clientInfo = (Map<String, Object>) refreshTokenSource.get("client");
+            if (clientInfo == null) {
+                throw new IllegalStateException("token document is missing the \"client\" field");
+            }
+            if (false == clientInfo.containsKey("user")) {
+                throw new IllegalStateException("token document is missing the \"client.user\" field");
+            }
+            final String associatedUser = (String) clientInfo.get("user");
+            if (false == clientInfo.containsKey("realm")) {
+                throw new IllegalStateException("token document is missing the \"client.realm\" field");
+            }
+            final String associatedRealm = (String) clientInfo.get("realm");
+            final Boolean refreshed = (Boolean) refreshTokenSource.get("refreshed");
+            if (refreshed == null) {
+                throw new IllegalStateException("token document is missing the \"refreshed\" field");
+            }
+            final Long refreshEpochMilli = (Long) refreshTokenSource.get("refresh_time");
+            if (refreshed && null == refreshEpochMilli) {
+                throw new IllegalStateException("token document is missing the \"refresh_time\" field");
+            }
+            final Instant refreshInstant = refreshEpochMilli == null ? null : Instant.ofEpochMilli(refreshEpochMilli);
+            final String supersededBy = (String) refreshTokenSource.get("superseded_by");
+            if (refreshed && null == supersededBy) {
+                throw new IllegalStateException("token document is missing the \"superseded_by\" field");
+            }
+            return new RefreshTokenStatus(token, invalidated, associatedUser, associatedRealm, refreshInstant, supersededBy);
         }
     }
 

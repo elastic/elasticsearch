@@ -144,6 +144,9 @@ public final class UserToken implements Writeable, ToXContentObject {
         final String id = (String) source.get("id");
         final Long expirationEpochMilli = (Long) source.get("expiration_time");
         final Integer versionId = (Integer) source.get("version");
+        if (versionId == null) {
+            throw new IllegalStateException("user token source document does not have the \"version\" field");
+        }
         final Map<String, Object> metadata = (Map<String, Object>) source.get("metadata");
         final String authString = (String) source.get("authentication");
         final Version version = Version.fromId(versionId);

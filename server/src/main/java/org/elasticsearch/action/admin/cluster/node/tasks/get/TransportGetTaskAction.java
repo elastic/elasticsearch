@@ -157,7 +157,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 // Shift to the generic thread pool and let it wait for the task to complete so we don't block any important threads.
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
-                    protected void doRun() throws Exception {
+                    protected void doRun() {
                         taskManager.waitForTaskCompletion(runningTask, waitForCompletionTimeout(request.getTimeout()));
                         waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode().getId(), true), listener);
                     }
@@ -212,27 +212,15 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 request.getTaskId().toString());
         get.setParentTask(clusterService.localNode().getId(), thisTask.getId());
 
-        client.get(get, new ActionListener<GetResponse>() {
-            @Override
-            public void onResponse(GetResponse getResponse) {
-                try {
-                    onGetFinishedTaskFromIndex(getResponse, listener);
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
+        client.get(get, ActionListener.wrap(r -> onGetFinishedTaskFromIndex(r, listener), e -> {
+            if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
+                // We haven't yet created the index for the task results so it can't be found.
+                listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e,
+                    request.getTaskId()));
+            } else {
+                listener.onFailure(e);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
-                    // We haven't yet created the index for the task results so it can't be found.
-                    listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e,
-                        request.getTaskId()));
-                } else {
-                    listener.onFailure(e);
-                }
-            }
-        });
+        }));
     }
 
     /**

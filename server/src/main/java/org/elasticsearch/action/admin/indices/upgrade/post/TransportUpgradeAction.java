@@ -104,7 +104,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
                 versions.put(index, new Tuple<>(version, luceneVersion));
             }
         }
-        Map<String, Tuple<org.elasticsearch.Version, String>> updatedVersions = new HashMap<>();
+        Map<String, Tuple<Version, String>> updatedVersions = new HashMap<>();
         MetaData metaData = clusterState.metaData();
         for (Map.Entry<String, Tuple<Version, org.apache.lucene.util.Version>> versionEntry : versions.entrySet()) {
             String index = versionEntry.getKey();
@@ -185,26 +185,13 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
 
     @Override
     protected void doExecute(Task task, UpgradeRequest request, final ActionListener<UpgradeResponse> listener) {
-        ActionListener<UpgradeResponse> settingsUpdateListener = new ActionListener<UpgradeResponse>() {
-            @Override
-            public void onResponse(UpgradeResponse upgradeResponse) {
-                try {
-                    if (upgradeResponse.versions().isEmpty()) {
-                        listener.onResponse(upgradeResponse);
-                    } else {
-                        updateSettings(upgradeResponse, listener);
-                    }
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
+        super.doExecute(task, request, ActionListener.wrap(upgradeResponse -> {
+            if (upgradeResponse.versions().isEmpty()) {
+                listener.onResponse(upgradeResponse);
+            } else {
+                updateSettings(upgradeResponse, listener);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        };
-        super.doExecute(task, request, settingsUpdateListener);
+        }, listener::onFailure));
     }
 
     private void updateSettings(final UpgradeResponse upgradeResponse, final ActionListener<UpgradeResponse> listener) {

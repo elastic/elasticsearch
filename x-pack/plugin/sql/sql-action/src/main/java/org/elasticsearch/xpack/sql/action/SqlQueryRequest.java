@@ -47,7 +47,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
      * See {@code SqlTranslateRequest.toXContent}
      */
     private Boolean columnar = Boolean.FALSE;
-    private boolean fieldmultiValueLeniency = Protocol.FIELD_MULTI_VALUE_LENIENCY;
+    private boolean fieldMultiValueLeniency = Protocol.FIELD_MULTI_VALUE_LENIENCY;
 
     public SqlQueryRequest() {
         super();
@@ -55,11 +55,11 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, ZoneId zoneId,
                            int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, Boolean columnar,
-                           String cursor, RequestInfo requestInfo, boolean multiValueFieldLeniency) {
+                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency) {
         super(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
         this.cursor = cursor;
         this.columnar = columnar;
-        this.fieldmultiValueLeniency = multiValueFieldLeniency;
+        this.fieldMultiValueLeniency = fieldMultiValueLeniency;
     }
 
     @Override
@@ -107,19 +107,19 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
 
     public SqlQueryRequest fieldMultiValueLeniency(boolean leniency) {
-        this.fieldmultiValueLeniency = leniency;
+        this.fieldMultiValueLeniency = leniency;
         return this;
     }
 
     public boolean fieldMultiValueLeniency() {
-        return fieldmultiValueLeniency;
+        return fieldMultiValueLeniency;
     }
 
     public SqlQueryRequest(StreamInput in) throws IOException {
         super(in);
         cursor = in.readString();
         columnar = in.readOptionalBoolean();
-        fieldmultiValueLeniency = in.readBoolean();
+        fieldMultiValueLeniency = in.readBoolean();
     }
 
     @Override
@@ -127,7 +127,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         super.writeTo(out);
         out.writeString(cursor);
         out.writeOptionalBoolean(columnar);
-        out.writeBoolean(fieldmultiValueLeniency);
+        out.writeBoolean(fieldMultiValueLeniency);
     }
 
     @Override
@@ -140,7 +140,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return super.equals(obj)
                 && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor)
                 && Objects.equals(columnar, ((SqlQueryRequest) obj).columnar)
-                && fieldmultiValueLeniency == ((SqlQueryRequest) obj).fieldmultiValueLeniency;
+                && fieldMultiValueLeniency == ((SqlQueryRequest) obj).fieldMultiValueLeniency;
     }
 
     @Override

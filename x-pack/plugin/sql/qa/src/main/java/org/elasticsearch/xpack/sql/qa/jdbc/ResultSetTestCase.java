@@ -86,20 +86,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             results.next();
             Object number = results.getObject(1);
             Object string = results.getObject(2);
-            assertEquals(-100, number);
-            assertEquals("-100", string);
+            assertEquals(-10, number);
+            assertEquals("-10", string);
             assertFalse(results.next());
         });
-
-        doWithQuery(() -> esWithLeniency(true), "SELECT int, keyword FROM test", (results) -> {
-            results.next();
-            Object number = results.getObject(1);
-            Object string = results.getObject(2);
-            assertEquals(-100, number);
-            assertEquals("-100", string);
-            assertFalse(results.next());
-        });
-
     }
 
     public void testMultiValueFieldWithMultiValueLeniencyDisabled() throws Exception {
@@ -109,6 +99,12 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                 () -> doWithQuery(() -> esWithLeniency(false), "SELECT int, keyword FROM test", (results) -> {
         }));
         assertTrue(expected.getMessage().contains("Arrays (returned by [int]) are not supported"));
+        
+        // default has multi value disabled
+        expected = expectThrows(SQLException.class,
+                () -> doWithQuery(() -> esJdbc(), "SELECT int, keyword FROM test", (results) -> {
+        }));
+
     }
 
     // Byte values testing
@@ -1392,9 +1388,9 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.startObject("keyword").field("type", "keyword").endObject();
         });
 
-        Integer[] values = randomArray(3, 15, s -> new Integer[s], () -> Integer.valueOf(between(-50, 50)));
+        Integer[] values = randomArray(3, 15, s -> new Integer[s], () -> Integer.valueOf(randomInt(50)));
         // add the minimal value in the middle yet the test will pick it up since the results are sorted
-        values[2] = Integer.valueOf(-100);
+        values[2] = Integer.valueOf(-10);
 
         String[] stringValues = new String[values.length];
         for (int i = 0; i < values.length; i++) {

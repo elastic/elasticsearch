@@ -119,10 +119,9 @@ subprojects {
 
   String output = "${buildDir}/generated-resources/${project.name}"
   task copyTestNodeKeyMaterial(type: Copy) {
-    from project(':x-pack:plugin:core')
-            .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem')
-            .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt')
-            .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
     into outputDir
   }
 
@@ -134,7 +133,7 @@ subprojects {
     }
 
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-      dependsOn copyTestNodeKeystore
+      dependsOn copyTestNodeKeyMaterial
       if (version.before('6.3.0')) {
           String depVersion = version;
           if (project.bwcVersions.unreleased.contains(version)) {

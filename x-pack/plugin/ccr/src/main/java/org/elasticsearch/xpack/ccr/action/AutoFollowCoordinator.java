@@ -126,11 +126,11 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
     @Override
     protected void doStop() {
+        LOGGER.trace("stopping all auto-followers");
         /*
          * Synchronization is not necessary here; the field is volatile and the map is a copy-on-write map, any new auto-followers will not
          * start since we check started status of the coordinator before starting them.
          */
-        LOGGER.trace("stopping all auto-followers");
         autoFollowers.values().forEach(AutoFollower::stop);
     }
 
@@ -339,7 +339,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         volatile boolean removed = false;
         private volatile CountDown autoFollowPatternsCountDown;
         private volatile AtomicArray<AutoFollowResult> autoFollowResults;
-        private volatile boolean stop = false;
+        private volatile boolean stop;
 
         AutoFollower(final String remoteCluster,
                      final Consumer<List<AutoFollowResult>> statsUpdater,

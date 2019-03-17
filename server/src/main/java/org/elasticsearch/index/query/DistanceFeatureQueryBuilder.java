@@ -122,8 +122,7 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         }
         Object originObj = origin.origin();
         if (fieldType instanceof DateFieldType) {
-            long originLong = (originObj instanceof Long) ? (Long) originObj :
-                ((DateFieldType) fieldType).parseToLong(originObj, true, null, null, context);
+            long originLong = ((DateFieldType) fieldType).parseToLong(originObj, true, null, null, context);
             TimeValue pivotVal = TimeValue.parseTimeValue(pivot, TimeValue.timeValueHours(24),
                 DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
             if (((DateFieldType) fieldType).resolution() == DateFieldMapper.Resolution.MILLISECONDS) {

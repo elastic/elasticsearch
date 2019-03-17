@@ -28,7 +28,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -63,7 +62,11 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
                 break;
             default: // DATE_NANOS_FIELD_NAME
                 Instant randomDateNanos = Instant.now().minus(Duration.ofNanos(randomLongBetween(0, 100_000_000)));
-                origin = randomBoolean() ? new Origin(toLong(randomDateNanos)) : new Origin(randomDateNanos.toString());
+                if (randomBoolean()) {
+                    origin = new Origin(toLong(randomDateNanos) / 1_000_000); // get milliseconds since epoch
+                } else {
+                    origin = new Origin(randomDateNanos.toString());
+                }
                 pivot = randomTimeValue(1, 100_000_000, "nanos");
                 break;
         }
@@ -84,8 +87,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         } else { // if (fieldName.equals(DATE_FIELD_NAME))
             MapperService mapperService = context.getQueryShardContext().getMapperService();
             DateFieldType fieldType = (DateFieldType) mapperService.fullName(fieldName);
-            long originLong = (origin instanceof Long) ? (Long) origin :
-                fieldType.parseToLong(origin, true, null, null, context.getQueryShardContext());
+            long originLong = fieldType.parseToLong(origin, true, null, null, context.getQueryShardContext());
             TimeValue pivotVal = TimeValue.parseTimeValue(pivot, TimeValue.timeValueHours(24),
                 DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
             long pivotLong;
@@ -150,7 +152,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         assertEquals(json, 1.0, parsed.boost(), 0.0001);
 
         // origin as long
-        long originLong = 1517443200323456789L;
+        long originLong = 1514812230999L;
         json = "{\n" +
             "    \"distance_feature\" : {\n" +
             "            \"field\": \""+ DATE_NANOS_FIELD_NAME + "\",\n" +
@@ -207,7 +209,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         assertEquals(json, origin, parsed.origin().origin());
     }
 
-    public void testQueryFailsWithUnmappedField() throws IOException {
+    public void testQueryMatchNoDocsQueryWithUnmappedField() throws IOException {
         Query expectedQuery = Queries.newMatchNoDocsQuery(
             "Can't run [" + DistanceFeatureQueryBuilder.NAME + "] query on unmapped fields!");
         String queryString = "{\n" +

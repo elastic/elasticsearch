@@ -43,6 +43,7 @@ import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
@@ -91,7 +92,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
@@ -791,19 +791,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             IndexShard primary, Request request) throws Exception {
         final BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, request.getRefreshPolicy(),
             new BulkItemRequest[]{new BulkItemRequest(0, request)});
-        final CompletableFuture<BulkShardRequest> res = new CompletableFuture<>();
+        final PlainActionFuture<BulkShardRequest> res = new PlainActionFuture<>();
         executeShardBulkOnPrimary(
-            primary, bulkShardRequest, new ActionListener<TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>>() {
-                @Override
-                public void onResponse(TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result) {
-                    res.complete(result.replicaRequest());
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    res.completeExceptionally(e);
-                }
-            });
+            primary, bulkShardRequest, ActionListener.map(res, TransportReplicationAction.PrimaryResult::replicaRequest));
         return res.get();
     }
 

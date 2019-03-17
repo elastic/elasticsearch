@@ -129,7 +129,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                             // compute automaton once per index no matter how many times it is pointed to
                             final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(indexName,
                                     i -> IndexPrivilege.get(indexPrivileges).getAutomaton());
-                            if (Operations.subsetOf(aliasPrivilegeAutomaton, indexPrivilegeAutomaton)) {
+                            if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
                                 inferiorIndexNames.add(indexName);
                             }
                         } else {

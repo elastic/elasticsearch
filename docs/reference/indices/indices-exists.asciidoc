@@ -5,7 +5,7 @@ Used to check if the index (indices) exists or not. For example:
 
 [source,js]
 --------------------------------------------------
-HEAD twitter
+GET twitter
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]

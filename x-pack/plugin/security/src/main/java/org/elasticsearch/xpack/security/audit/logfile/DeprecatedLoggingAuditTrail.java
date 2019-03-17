@@ -357,6 +357,51 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
+    public void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String index,
+                                         String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo) {
+        assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
+        final String[] indices = index == null ? null : new String[] { index };
+        final User user = authentication.getUser();
+        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
+        if (isSystem && eventType == ACCESS_GRANTED) {
+            eventType = SYSTEM_ACCESS_GRANTED;
+        }
+        if (events.contains(eventType)) {
+            if (eventFilterPolicyRegistry.ignorePredicate()
+                    .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(effectiveRealmName(authentication)),
+                            Optional.of(authorizationInfo), Optional.ofNullable(indices))) == false) {
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
+                final StringBuilder logEntryBuilder = new StringBuilder();
+                logEntryBuilder.append(localNodeInfo.prefix);
+                logEntryBuilder.append("[transport] ");
+                if (eventType == ACCESS_DENIED) {
+                    logEntryBuilder.append("[access_denied]\t");
+                } else {
+                    logEntryBuilder.append("[access_granted]\t");
+                }
+                final String originAttributes = restOriginTag(threadContext).orElseGet(() -> {
+                    if (remoteAddress == null) {
+                        return localNodeInfo.localOriginTag;
+                    }
+                    return new StringBuilder("origin_type=[transport], origin_address=[")
+                            .append(NetworkAddress.format(remoteAddress.address().getAddress())).append("]").toString();
+                });
+                logEntryBuilder.append(originAttributes).append(", ");
+                logEntryBuilder.append(subject(authentication)).append(", ");
+                logEntryBuilder.append("roles=[").append(arrayToCommaDelimitedString(roleNames)).append("], ");
+                logEntryBuilder.append("action=[").append(action).append("], ");
+                logEntryBuilder.append("indices=[").append(index).append("], ");
+                logEntryBuilder.append("request=[").append(requestName).append("]");
+                final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID);
+                if (opaqueId != null) {
+                    logEntryBuilder.append(", opaque_id=[").append(opaqueId).append("]");
+                }
+                logger.info(logEntryBuilder.toString());
+            }
+        }
+    }
+
+    @Override
     public void tamperedRequest(String requestId, RestRequest request) {
         if (events.contains(TAMPERED_REQUEST) && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
             if (includeRequestBody) {

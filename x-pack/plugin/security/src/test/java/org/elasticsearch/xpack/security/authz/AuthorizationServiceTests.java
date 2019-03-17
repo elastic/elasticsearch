@@ -122,6 +122,7 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -1137,10 +1138,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         authorize(authentication, action, request);
 
-        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(DeleteAction.NAME), eq(request),
-            authzInfoRoles(new String[] { role.getName() })); // alias-1 delete
-        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(IndexAction.NAME), eq(request),
-            authzInfoRoles(new String[] { role.getName() })); // alias-2 index
+        verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_DENIED), eq(authentication),
+                eq(DeleteAction.NAME), eq("alias-1"), eq(BulkItemRequest.class.getSimpleName()),
+                eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
+        verify(auditTrail).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_DENIED), eq(authentication),
+                eq(IndexAction.NAME), eq("alias-2"), eq(BulkItemRequest.class.getSimpleName()),
+                eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
             authzInfoRoles(new String[] { role.getName() })); // bulk request is allowed
         verifyNoMoreInteractions(auditTrail);
@@ -1169,8 +1172,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorize(authentication, action, request);
 
         // both deletes should fail
-        verify(auditTrail, times(2)).accessDenied(eq(requestId), eq(authentication), eq(DeleteAction.NAME), eq(request),
-            authzInfoRoles(new String[] { role.getName() }));
+        verify(auditTrail, times(2)).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_DENIED), eq(authentication),
+                eq(DeleteAction.NAME), Matchers.startsWith("datemath-"), eq(BulkItemRequest.class.getSimpleName()),
+                eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
         // bulk request is allowed
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
             authzInfoRoles(new String[]{role.getName()}));

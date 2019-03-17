@@ -30,7 +30,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -404,9 +403,11 @@ final class StoreRecovery {
                 final String translogUUID = Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(), localCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
                 store.associateIndexWithNewTranslog(translogUUID);
+                writeEmptyRetentionLeasesFile(indexShard);
             } else if (indexShouldExists) {
                 if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
                     store.bootstrapNewHistory();
+                    writeEmptyRetentionLeasesFile(indexShard);
                 }
                 // since we recover from local, just fill the files and size
                 try {
@@ -423,6 +424,7 @@ final class StoreRecovery {
                     indexShard.shardPath().resolveTranslog(), SequenceNumbers.NO_OPS_PERFORMED, shardId,
                     indexShard.getPendingPrimaryTerm());
                 store.associateIndexWithNewTranslog(translogUUID);
+                writeEmptyRetentionLeasesFile(indexShard);
             }
             indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
@@ -433,6 +435,12 @@ final class StoreRecovery {
         } finally {
             store.decRef();
         }
+    }
+
+    private static void writeEmptyRetentionLeasesFile(IndexShard indexShard) throws IOException {
+        assert indexShard.getRetentionLeases().leases().isEmpty() : indexShard.getRetentionLeases(); // not loaded yet
+        indexShard.persistRetentionLeases();
+        assert indexShard.loadRetentionLeases().leases().isEmpty();
     }
 
     private void addRecoveredFileDetails(SegmentInfos si, Store store, RecoveryState.Index index) throws IOException {
@@ -472,6 +480,7 @@ final class StoreRecovery {
                     indexShard.shardPath().resolveTranslog(), commitInfo.maxSeqNo, shardId, indexShard.getPendingPrimaryTerm());
                 store.associateIndexWithNewTranslog(translogUUID);
                 assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+                writeEmptyRetentionLeasesFile(indexShard);
                 indexShard.openEngineAndSkipTranslogRecovery();
                 indexShard.advanceMaxSeqNoOfUpdatesOrDeletes(commitInfo.maxSeqNo);
                 translogState.totalOperations(historySnapshot.totalOperations());
@@ -480,17 +489,11 @@ final class StoreRecovery {
                 while ((operation = historySnapshot.next()) != null) {
                     final Engine.Result result = indexShard.applyTranslogOperation(operation, Engine.Operation.Origin.SNAPSHOT_RECOVERY);
                     if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
-                        if (Assertions.ENABLED) {
-                            throw new AssertionError("mapping is not ready for [" + operation + "]");
-                        }
+                        assert false : "mapping is not ready for [" + operation + "]";
                         throw new IndexShardRestoreFailedException(shardId, "mapping is not ready for [" + operation + "]");
                     }
-                    if (result.getFailure() != null) {
-                        if (Assertions.ENABLED) {
-                            throw new AssertionError("unexpected failure while applying translog operation", result.getFailure());
-                        }
-                        ExceptionsHelper.reThrowIfNotNull(result.getFailure());
-                    }
+                    assert result.getFailure() != null : "unexpected failure while applying translog operation" + result.getFailure();
+                    ExceptionsHelper.reThrowIfNotNull(result.getFailure());
                     indexShard.sync();
                     indexShard.afterWriteOperation();
                     translogState.incrementRecoveredOperations();
@@ -499,7 +502,7 @@ final class StoreRecovery {
                 long syncedGlobalCheckpoint = indexShard.getLastSyncedGlobalCheckpoint();
                 final SeqNoStats seqNoStats = indexShard.seqNoStats();
                 if (seqNoStats.getMaxSeqNo() != syncedGlobalCheckpoint || seqNoStats.getLocalCheckpoint() != syncedGlobalCheckpoint) {
-                    throw new IndexShardRestoreFailedException(shardId, "history is not restored properly: seq_no_stats=" + seqNoStats
+                    throw new IndexShardRestoreFailedException(shardId, "history is not fully restored: seq_no_stats=" + seqNoStats
                         + " synced_global_checkpoint=" + syncedGlobalCheckpoint);
                 }
                 /*
@@ -513,7 +516,7 @@ final class StoreRecovery {
                 syncedGlobalCheckpoint = indexShard.getLastSyncedGlobalCheckpoint();
                 if (restoredCommitInfo.localCheckpoint != syncedGlobalCheckpoint
                     || restoredCommitInfo.maxSeqNo != syncedGlobalCheckpoint) {
-                    throw new IndexShardRestoreFailedException(shardId, "history is not restored properly " +
+                    throw new IndexShardRestoreFailedException(shardId, "history is not fully restored " +
                         " restored_commit_info=" + restoredCommitInfo + " synced_global_checkpoint=" + syncedGlobalCheckpoint);
                 }
             }

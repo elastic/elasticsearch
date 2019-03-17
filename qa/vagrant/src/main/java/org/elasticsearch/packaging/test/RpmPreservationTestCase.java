@@ -26,6 +26,7 @@ import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
@@ -66,11 +67,11 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    public void test10Install() {
+    public void test10Install() throws IOException {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
     }
 
     public void test20Remove() {
@@ -88,12 +89,12 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
         assertFalse(Files.exists(installation.envFile));
     }
 
-    public void test30PreserveConfig() {
+    public void test30PreserveConfig() throws IOException {
         final Shell sh = new Shell();
 
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
 
         sh.run("echo foobar | " + installation.executables().elasticsearchKeystore + " add --stdin foo.bar");
         Stream.of(

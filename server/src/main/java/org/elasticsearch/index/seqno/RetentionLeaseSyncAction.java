@@ -125,15 +125,13 @@ public class RetentionLeaseSyncAction extends
     @Override
     protected void shardOperationOnPrimary(Request request, IndexShard primary,
             ActionListener<PrimaryResult<Request, Response>> listener) {
-        try {
+        ActionListener.completeWith(listener, () -> {
             assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
             Objects.requireNonNull(request);
             Objects.requireNonNull(primary);
             primary.persistRetentionLeases();
-            listener.onResponse(new WritePrimaryResult<>(request, new Response(), null, null, primary, getLogger()));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+            return new WritePrimaryResult<>(request, new Response(), null, null, primary, getLogger());
+        });
     }
 
     @Override

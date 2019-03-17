@@ -66,12 +66,8 @@ public class TransportBulkShardOperationsAction
         if (logger.isTraceEnabled()) {
             logger.trace("index [{}] on the following primary shard {}", request.getOperations(), primary.routingEntry());
         }
-        try {
-            listener.onResponse(shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(), request.getOperations(),
-                request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        ActionListener.completeWith(listener, () -> shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(),
+            request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger));
     }
 
     public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {

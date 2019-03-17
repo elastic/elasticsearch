@@ -869,12 +869,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         @Override
         protected void performOnPrimary(IndexShard primary, GlobalCheckpointSyncAction.Request request,
                 ActionListener<PrimaryResult> listener) {
-            try {
+            ActionListener.completeWith(listener, () -> {
                 primary.sync();
-                listener.onResponse(new PrimaryResult(request, new ReplicationResponse()));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+                return new PrimaryResult(request, new ReplicationResponse());
+            });
         }
 
         @Override
@@ -891,13 +889,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected void performOnPrimary(IndexShard primary, ResyncReplicationRequest request, ActionListener<PrimaryResult> listener) {
-            try {
+            ActionListener.completeWith(listener, () -> {
                 final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
                     executeResyncOnPrimary(primary, request);
-                listener.onResponse(new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+                return new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful);
+            });
         }
 
         @Override
@@ -939,12 +935,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         @Override
         protected void performOnPrimary(IndexShard primary, RetentionLeaseSyncAction.Request request,
                 ActionListener<PrimaryResult> listener) {
-            try {
+            ActionListener.completeWith(listener, () -> {
                 primary.persistRetentionLeases();
-                listener.onResponse(new PrimaryResult(request, new RetentionLeaseSyncAction.Response()));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+                return new PrimaryResult(request, new RetentionLeaseSyncAction.Response());
+            });
         }
 
         @Override

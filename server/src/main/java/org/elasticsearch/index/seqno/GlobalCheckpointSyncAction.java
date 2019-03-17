@@ -119,12 +119,10 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     @Override
     protected void shardOperationOnPrimary(Request request, IndexShard indexShard,
                                            ActionListener<PrimaryResult<Request, ReplicationResponse>> listener) {
-        try {
+        ActionListener.completeWith(listener, () -> {
             maybeSyncTranslog(indexShard);
-            listener.onResponse(new PrimaryResult<>(request, new ReplicationResponse()));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+            return new PrimaryResult<>(request, new ReplicationResponse());
+        });
     }
 
     @Override

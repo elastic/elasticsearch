@@ -328,8 +328,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     /**
      * Creates a new bulk item result from the given requests and result of performing the update operation on the shard.
      */
-    private static BulkItemResponse processUpdateResponse(UpdateRequest updateRequest, String concreteIndex,
-                                                          BulkItemResponse operationResponse, UpdateHelper.Result translate) {
+    static BulkItemResponse processUpdateResponse(final UpdateRequest updateRequest, final String concreteIndex,
+                                                  BulkItemResponse operationResponse,
+                                                  final UpdateHelper.Result translate) {
         final BulkItemResponse response;
         DocWriteResponse.Result translatedResult = translate.getResponseResult();
         if (operationResponse.isFailed()) {

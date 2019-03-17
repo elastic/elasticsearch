@@ -853,7 +853,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     assertThat(response.status(), equalTo(RestStatus.CREATED));
                     assertThat(response.getSeqNo(), equalTo(13L));
                 }), latch), threadPool);
-
         latch.await();
     }
 

@@ -641,25 +641,22 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
 
         @Override
-        protected void performOnPrimary(IndexShard primary, BulkShardOperationsRequest request,
-                ActionListener<PrimaryResult> listener) {
-            final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
-            primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
-            final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
-            try {
+        protected void performOnPrimary(IndexShard primary, BulkShardOperationsRequest request, ActionListener<PrimaryResult> listener) {
+            ActionListener.completeWith(listener, () -> {
+                final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
+                primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
+                final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
                 try (Releasable ignored = permitFuture.get()) {
                     ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getHistoryUUID(),
                         request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
                 }
-                listener.onResponse(new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful) {
+                return new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful) {
                     @Override
                     public void respond(ActionListener<BulkShardOperationsResponse> listener) {
                         ccrResult.respond(listener);
                     }
-                });
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+                };
+            });
         }
 
         @Override

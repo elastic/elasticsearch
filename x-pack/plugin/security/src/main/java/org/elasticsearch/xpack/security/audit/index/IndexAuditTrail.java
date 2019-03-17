@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -666,6 +667,30 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
+    public void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String index,
+                                         String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo) {
+        assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
+        final User user = authentication.getUser();
+        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
+        if (isSystem && eventType == ACCESS_GRANTED) {
+            eventType = SYSTEM_ACCESS_GRANTED;
+        }
+        if (events.contains(eventType)) {
+            try {
+                assert authentication.getAuthenticatedBy() != null;
+                final String eventTypeString = eventType == ACCESS_DENIED ? "access_denied" : "access_granted";
+                final String authRealmName = authentication.getAuthenticatedBy().getName();
+                final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
+                enqueue(message(eventTypeString, action, user, roleNames, new Tuple(authRealmName, lookRealmName), Sets.newHashSet(index),
+                        remoteAddress, requestName), eventTypeString);
+            } catch (final Exception e) {
+                logger.warn("failed to index audit event: [access_denied]", e);
+            }
+        }
+    }
+
+    @Override
     public void tamperedRequest(String requestId, RestRequest request) {
         if (events.contains(TAMPERED_REQUEST)) {
             try {
@@ -773,10 +798,15 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private Message message(String type, @Nullable String action, @Nullable User user, @Nullable String[] roleNames,
                             @Nullable Tuple<String, String> realms, @Nullable Set<String> indices, TransportMessage message)
             throws Exception {
+        return message(type, action, user, roleNames, realms, indices, message.remoteAddress(), message.getClass().getSimpleName());
+    }
 
+    private Message message(String type, @Nullable String action, @Nullable User user, @Nullable String[] roleNames,
+                            @Nullable Tuple<String, String> realms, @Nullable Set<String> indices,
+                            TransportAddress address, String requestName) throws Exception {
         Message msg = new Message().start();
         common("transport", type, msg.builder);
-        originAttributes(message, msg.builder, clusterService.localNode(), threadPool.getThreadContext());
+        originAttributes(address, msg.builder, clusterService.localNode(), threadPool.getThreadContext());
 
         if (action != null) {
             msg.builder.field(Field.ACTION, action);
@@ -788,7 +818,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         if (indices != null) {
             msg.builder.array(Field.INDICES, indices.toArray(Strings.EMPTY_ARRAY));
         }
-        msg.builder.field(Field.REQUEST, message.getClass().getSimpleName());
+        msg.builder.field(Field.REQUEST, requestName);
 
         return msg.end();
     }
@@ -943,6 +973,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     private static XContentBuilder originAttributes(TransportMessage message, XContentBuilder builder,
                                                     DiscoveryNode localNode, ThreadContext threadContext) throws IOException {
+        return originAttributes(message.remoteAddress(), builder, localNode, threadContext);
+    }
+
+    private static XContentBuilder originAttributes(TransportAddress address, XContentBuilder builder,
+                                                    DiscoveryNode localNode, ThreadContext threadContext) throws IOException {
 
         // first checking if the message originated in a rest call
         InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
@@ -953,7 +988,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         }
 
         // we'll see if was originated in a remote node
-        TransportAddress address = message.remoteAddress();
         if (address != null) {
             builder.field(Field.ORIGIN_TYPE, "transport");
             builder.field(Field.ORIGIN_ADDRESS,

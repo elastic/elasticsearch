@@ -26,8 +26,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
@@ -48,7 +48,13 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     @Override
     public String[] indices() {
-        List<String> indices = new ArrayList<>();
+        // A bulk shard request encapsulates items targeted at a specific shard of an index.
+        // However, items could be targeting aliases of the index, so the bulk request although
+        // targeting a single concrete index shard might do so using several alias names.
+        // These alias names have to be exposed by this method because authorization works with
+        // aliases too, specifically, the item's target alias can be authorized but the concrete
+        // index might not be.
+        Set<String> indices = new HashSet<>(1);
         for (BulkItemRequest item : items) {
             if (item != null) {
                 indices.add(item.index());

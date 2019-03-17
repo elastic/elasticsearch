@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
@@ -17,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.security.Security;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -58,12 +61,19 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             + " privileges over all the indices that the alias points to is deprecated and will be removed in a future version of"
             + " Elasticsearch. Instead define permissions exclusively on index names or index name patterns.";
 
+    private static final Logger logger = LogManager.getLogger(DeprecationRoleDescriptorConsumer.class);
+
     private final DeprecationLogger deprecationLogger;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Set<String> dailyRoleCache;
 
-    public DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool, DeprecationLogger deprecationLogger) {
+    public DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool) {
+        this(clusterService, threadPool, new DeprecationLogger(logger));
+    }
+
+    // package-private for testing
+    DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool, DeprecationLogger deprecationLogger) {
         this.deprecationLogger = deprecationLogger;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -88,7 +98,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     }
 
     private void logDeprecatedPermission(Collection<RoleDescriptor> effectiveRoleDescriptors,
-            SortedMap<String, AliasOrIndex> aliasOrIndexMap) {
+                                         SortedMap<String, AliasOrIndex> aliasOrIndexMap) {
         for (RoleDescriptor roleDescriptor : effectiveRoleDescriptors) {
             if (dailyRoleCache.add(buildCacheKey(roleDescriptor))) {
                 final Map<String, Set<String>> privilegesByAliasMap = new HashMap<>();

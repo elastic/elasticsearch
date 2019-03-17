@@ -31,7 +31,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
@@ -84,26 +84,12 @@ public class MappingUpdatedAction {
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(unwrapException(e));
+                    listener.onFailure(unwrapException(e.getCause()));
                 }
             });
     }
 
-    private static Exception unwrapException(Exception e) {
-        final Throwable cause = e.getCause();
-        if (cause instanceof ElasticsearchException) {
-            ElasticsearchException esEx = (ElasticsearchException) cause;
-            Throwable root = esEx.unwrapCause();
-            if (root instanceof ElasticsearchException) {
-                return (ElasticsearchException) root;
-            } else if (root instanceof RuntimeException) {
-                return (RuntimeException) root;
-            }
-            return new UncategorizedExecutionException("Failed execution", root);
-        } else if (cause instanceof RuntimeException) {
-            return (RuntimeException) cause;
-        } else {
-            return e;
-        }
+    private static Exception unwrapException(Throwable cause) {
+        return cause instanceof ElasticsearchException ? FutureUtils.unwrapEsException((ElasticsearchException) cause) : (Exception) cause;
     }
 }

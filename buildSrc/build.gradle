@@ -18,6 +18,8 @@
  */
 import org.gradle.util.GradleVersion
 
+import java.util.regex.Matcher
+
 plugins {
   id 'java-gradle-plugin'
   id 'groovy'
@@ -226,7 +228,10 @@ if (project != rootProject) {
     systemProperty 'test.local-test-repo-path', "${rootProject.buildDir}/local-test-repo"
     systemProperty 'test.local-test-downloads-path', localDownloads
     systemProperty 'test.version_under_test', version
-    systemProperty 'test.lucene-snapshot-revision', (versions.lucene =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
+    Matcher isLuceneSnapshot = (/\w+-snapshot-([a-z0-9]+)/ =~ versions.lucene)
+    if (isLuceneSnapshot) {
+      systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
+    }
   }
   check.dependsOn(integTest)
 

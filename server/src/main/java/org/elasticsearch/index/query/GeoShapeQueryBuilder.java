@@ -33,7 +33,6 @@ import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -205,11 +204,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             indexedShapeType = in.readOptionalString();
             indexedShapeIndex = in.readOptionalString();
             indexedShapePath = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-                indexedShapeRouting = in.readOptionalString();
-            } else {
-                indexedShapeRouting = null;
-            }
+            indexedShapeRouting = in.readOptionalString();
         }
         relation = ShapeRelation.readFromStream(in);
         strategy = in.readOptionalWriteable(SpatialStrategy::readFromStream);
@@ -232,11 +227,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             out.writeOptionalString(indexedShapeType);
             out.writeOptionalString(indexedShapeIndex);
             out.writeOptionalString(indexedShapePath);
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-                out.writeOptionalString(indexedShapeRouting);
-            } else if (indexedShapeRouting != null) {
-                throw new IllegalStateException("indexed shape routing cannot be serialized to older nodes");
-            }
+            out.writeOptionalString(indexedShapeRouting);
         }
         relation.writeTo(out);
         out.writeOptionalWriteable(strategy);

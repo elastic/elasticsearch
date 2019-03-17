@@ -407,6 +407,30 @@ https://en.wikipedia.org/wiki/Kurtosis[Quantify] the shape of the distribution o
 include-tagged::{sql-specs}/docs.csv-spec[aggKurtosis]
 --------------------------------------------------
 
+[[sql-functions-aggs-mad]]
+===== `MAD`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+MAD(field_name<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> a numeric field
+
+*Output*: `double` numeric value
+
+.Description:
+
+https://en.wikipedia.org/wiki/Median_absolute_deviation[Measure] the variability of the input values in the field `field_name`.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[aggMad]
+--------------------------------------------------
+
 [[sql-functions-aggs-percentile]]
 ===== `PERCENTILE`
 

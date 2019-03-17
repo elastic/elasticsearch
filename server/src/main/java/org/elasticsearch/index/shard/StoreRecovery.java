@@ -492,7 +492,7 @@ final class StoreRecovery {
                         assert false : "mapping is not ready for [" + operation + "]";
                         throw new IndexShardRestoreFailedException(shardId, "mapping is not ready for [" + operation + "]");
                     }
-                    assert result.getFailure() != null : "unexpected failure while applying translog operation" + result.getFailure();
+                    assert result.getFailure() == null : "unexpected failure while applying translog operation" + result.getFailure();
                     ExceptionsHelper.reThrowIfNotNull(result.getFailure());
                     indexShard.sync();
                     indexShard.afterWriteOperation();

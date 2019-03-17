@@ -130,6 +130,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
          * Synchronization is not necessary here; the field is volatile and the map is a copy-on-write map, any new auto-followers will not
          * start since we check started status of the coordinator before starting them.
          */
+        LOGGER.trace("stopping all auto-followers");
         autoFollowers.values().forEach(AutoFollower::stop);
     }
 
@@ -267,7 +268,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
             };
             newAutoFollowers.put(remoteCluster, autoFollower);
-            LOGGER.info("starting auto follower for remote cluster [{}]", remoteCluster);
+            LOGGER.info("starting auto-follower for remote cluster [{}]", remoteCluster);
             if (lifecycleState() == Lifecycle.State.STARTED) {
                 autoFollower.start();
             }
@@ -280,11 +281,11 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             boolean exist = autoFollowMetadata.getPatterns().values().stream()
                 .anyMatch(pattern -> pattern.getRemoteCluster().equals(remoteCluster));
             if (exist == false) {
-                LOGGER.info("removing auto follower for remote cluster [{}]", remoteCluster);
+                LOGGER.info("removing auto-follower for remote cluster [{}]", remoteCluster);
                 autoFollower.removed = true;
                 removedRemoteClusters.add(remoteCluster);
             } else if (autoFollower.remoteClusterConnectionMissing) {
-                LOGGER.info("retrying auto follower [{}] after remote cluster connection was missing", remoteCluster);
+                LOGGER.info("retrying auto-follower for remote cluster [{}] after remote cluster connection was missing", remoteCluster);
                 autoFollower.remoteClusterConnectionMissing = false;
                 if (lifecycleState() == Lifecycle.State.STARTED) {
                     autoFollower.start();
@@ -352,7 +353,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
         void start() {
             if (stop) {
-                LOGGER.trace("stopping auto-follower for [{}]", remoteCluster);
+                LOGGER.trace("auto-follow is stopped for remote cluster [{}]", remoteCluster);
                 return;
             }
             if (removed) {
@@ -420,6 +421,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         }
 
         void stop() {
+            LOGGER.trace("stopping auto-follower for remote cluster [{}]", remoteCluster);
             stop = true;
         }
 

@@ -84,7 +84,7 @@ public class MappingUpdatedAction {
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(unwrapException(e.getCause()));
+                    listener.onFailure(unwrapException(e));
                 }
             });
     }

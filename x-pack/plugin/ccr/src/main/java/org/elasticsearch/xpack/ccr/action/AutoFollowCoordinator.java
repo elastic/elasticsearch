@@ -353,7 +353,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
         void start() {
             if (stop) {
-                LOGGER.trace("auto-follow is stopped for remote cluster [{}]", remoteCluster);
+                LOGGER.trace("auto-follower is stopped for remote cluster [{}]", remoteCluster);
                 return;
             }
             if (removed) {

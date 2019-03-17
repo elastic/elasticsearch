@@ -19,19 +19,21 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.security.Security;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
@@ -67,6 +69,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Set<String> dailyRoleCache;
+    private final Queue<Collection<RoleDescriptor>> workQueue;
 
     public DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool) {
         this(clusterService, threadPool, new DeprecationLogger(logger));
@@ -78,80 +81,102 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         // this String Set keeps "<date>-<role>" pairs so that we only log a role once a day.
-        this.dailyRoleCache = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<String, Boolean>() {
+        this.dailyRoleCache = Collections.newSetFromMap(new LinkedHashMap<String, Boolean>() {
             @Override
             protected boolean removeEldestEntry(final Map.Entry<String, Boolean> eldest) {
                 return false == eldest.getKey().startsWith(todayISODate());
             }
-        }));
+        });
+        this.workQueue = new LinkedList<>();
     }
 
     @Override
-    public void accept(Collection<RoleDescriptor> effectiveRoleDescriptors) {
-        threadPool.generic().execute(() -> {
-            final SortedMap<String, AliasOrIndex> aliasOrIndexMap = clusterService.state().metaData().getAliasAndIndexLookup();
-            // executing the check asynchronously will not conserve the generated deprecation response headers (which is what we want,
-            // because it's not the request that uses deprecated features, but rather the role definition. Plus, due to caching, we can't
-            // reliably associate response headers to every request).
-            logDeprecatedPermission(effectiveRoleDescriptors, aliasOrIndexMap);
-        });
-    }
-
-    private void logDeprecatedPermission(Collection<RoleDescriptor> effectiveRoleDescriptors,
-                                         SortedMap<String, AliasOrIndex> aliasOrIndexMap) {
+    public synchronized void accept(Collection<RoleDescriptor> effectiveRoleDescriptors) {
+        final Collection<RoleDescriptor> uncachedEffectiveRoleDescriptors = new ArrayList<>();
         for (RoleDescriptor roleDescriptor : effectiveRoleDescriptors) {
             if (dailyRoleCache.add(buildCacheKey(roleDescriptor))) {
-                final Map<String, Set<String>> privilegesByAliasMap = new HashMap<>();
-                // sort answer by alias for tests
-                final SortedMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();
-                // collate privileges by index and by alias separately
-                for (final IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
-                    final Predicate<String> namePatternPredicate = IndicesPermission
-                            .indexMatcher(Arrays.asList(indexPrivilege.getIndices()));
-                    for (final Map.Entry<String, AliasOrIndex> aliasOrIndex : aliasOrIndexMap.entrySet()) {
-                        final String aliasOrIndexName = aliasOrIndex.getKey();
-                        if (namePatternPredicate.test(aliasOrIndexName)) {
-                            if (aliasOrIndex.getValue().isAlias()) {
-                                final Set<String> privilegesByAlias = privilegesByAliasMap.computeIfAbsent(aliasOrIndexName,
-                                        k -> new HashSet<String>());
-                                privilegesByAlias.addAll(Arrays.asList(indexPrivilege.getPrivileges()));
-                            } else {
-                                final Set<String> privilegesByIndex = privilegesByIndexMap.computeIfAbsent(aliasOrIndexName,
-                                        k -> new HashSet<String>());
-                                privilegesByIndex.addAll(Arrays.asList(indexPrivilege.getPrivileges()));
-                            }
+                uncachedEffectiveRoleDescriptors.add(roleDescriptor);
+            }
+        }
+        if (false == uncachedEffectiveRoleDescriptors.isEmpty()) {
+            workQueue.add(uncachedEffectiveRoleDescriptors);
+            if (workQueue.size() == 1) {
+                threadPool.generic().execute(() -> {
+                    // executing the check asynchronously will not conserve the generated deprecation response headers (which is what we
+                    // want, because it's not the request that uses deprecated features, but rather the role definition. Furthermore, due to
+                    // caching, we can't reliably associate response headers to every request).
+                    logDeprecatedPermission(uncachedEffectiveRoleDescriptors);
+                    // this thread will continue to pop work items
+                    while (true) {
+                        // synchronize access for the next work item
+                        final Collection<RoleDescriptor> workItem = tryGetNextWorkItem();
+                        if (workItem == null) {
+                            break;
+                        }
+                        logDeprecatedPermission(workItem);
+                    }
+                });
+            }
+        }
+    }
+
+    private synchronized Collection<RoleDescriptor> tryGetNextWorkItem() {
+        assert workQueue.poll() != null; // this was the processed item
+        return workQueue.peek();
+    }
+
+    private void logDeprecatedPermission(Collection<RoleDescriptor> effectiveRoleDescriptors) {
+        final SortedMap<String, AliasOrIndex> aliasOrIndexMap = clusterService.state().metaData().getAliasAndIndexLookup();
+        for (RoleDescriptor roleDescriptor : effectiveRoleDescriptors) {
+            final Map<String, Set<String>> privilegesByAliasMap = new HashMap<>();
+            // sort answer by alias for tests
+            final SortedMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();
+            // collate privileges by index and by alias separately
+            for (final IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
+                final Predicate<String> namePatternPredicate = IndicesPermission.indexMatcher(Arrays.asList(indexPrivilege.getIndices()));
+                for (final Map.Entry<String, AliasOrIndex> aliasOrIndex : aliasOrIndexMap.entrySet()) {
+                    final String aliasOrIndexName = aliasOrIndex.getKey();
+                    if (namePatternPredicate.test(aliasOrIndexName)) {
+                        if (aliasOrIndex.getValue().isAlias()) {
+                            final Set<String> privilegesByAlias = privilegesByAliasMap.computeIfAbsent(aliasOrIndexName,
+                                    k -> new HashSet<String>());
+                            privilegesByAlias.addAll(Arrays.asList(indexPrivilege.getPrivileges()));
+                        } else {
+                            final Set<String> privilegesByIndex = privilegesByIndexMap.computeIfAbsent(aliasOrIndexName,
+                                    k -> new HashSet<String>());
+                            privilegesByIndex.addAll(Arrays.asList(indexPrivilege.getPrivileges()));
                         }
                     }
                 }
-                // compute privileges Automaton for each alias and for each of the indices it points to
-                final Map<String, Automaton> indexAutomatonMap = new HashMap<>();
-                for (Map.Entry<String, Set<String>> privilegesByAlias : privilegesByAliasMap.entrySet()) {
-                    final String aliasName = privilegesByAlias.getKey();
-                    final Set<String> aliasPrivilegeNames = privilegesByAlias.getValue();
-                    final Automaton aliasPrivilegeAutomaton = IndexPrivilege.get(aliasPrivilegeNames).getAutomaton();
-                    final SortedSet<String> inferiorIndexNames = new TreeSet<>();
-                    // check if the alias grants superiors privileges than the indices it points to
-                    for (IndexMetaData indexMetadata : aliasOrIndexMap.get(aliasName).getIndices()) {
-                        final String indexName = indexMetadata.getIndex().getName();
-                        final Set<String> indexPrivileges = privilegesByIndexMap.get(indexName);
-                        // null iff the index does not have *any* privilege
-                        if (indexPrivileges != null) {
-                            // compute automaton once per index no matter how many times it is pointed to
-                            final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(indexName,
-                                    i -> IndexPrivilege.get(indexPrivileges).getAutomaton());
-                            if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
-                                inferiorIndexNames.add(indexName);
-                            }
-                        } else {
+            }
+            // compute privileges Automaton for each alias and for each of the indices it points to
+            final Map<String, Automaton> indexAutomatonMap = new HashMap<>();
+            for (Map.Entry<String, Set<String>> privilegesByAlias : privilegesByAliasMap.entrySet()) {
+                final String aliasName = privilegesByAlias.getKey();
+                final Set<String> aliasPrivilegeNames = privilegesByAlias.getValue();
+                final Automaton aliasPrivilegeAutomaton = IndexPrivilege.get(aliasPrivilegeNames).getAutomaton();
+                final SortedSet<String> inferiorIndexNames = new TreeSet<>();
+                // check if the alias grants superiors privileges than the indices it points to
+                for (IndexMetaData indexMetadata : aliasOrIndexMap.get(aliasName).getIndices()) {
+                    final String indexName = indexMetadata.getIndex().getName();
+                    final Set<String> indexPrivileges = privilegesByIndexMap.get(indexName);
+                    // null iff the index does not have *any* privilege
+                    if (indexPrivileges != null) {
+                        // compute automaton once per index no matter how many times it is pointed to
+                        final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(indexName,
+                                i -> IndexPrivilege.get(indexPrivileges).getAutomaton());
+                        if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
                             inferiorIndexNames.add(indexName);
                         }
+                    } else {
+                        inferiorIndexNames.add(indexName);
                     }
-                    // log inferior indices for this role, for this alias
-                    if (false == inferiorIndexNames.isEmpty()) {
-                        final String logMessage = String.format(Locale.ROOT, ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
-                                aliasName, String.join(", ", inferiorIndexNames));
-                        deprecationLogger.deprecated(logMessage);
-                    }
+                }
+                // log inferior indices for this role, for this alias
+                if (false == inferiorIndexNames.isEmpty()) {
+                    final String logMessage = String.format(Locale.ROOT, ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
+                            aliasName, String.join(", ", inferiorIndexNames));
+                    deprecationLogger.deprecated(logMessage);
                 }
             }
         }

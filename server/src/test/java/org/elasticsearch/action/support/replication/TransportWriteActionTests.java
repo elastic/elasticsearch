@@ -431,13 +431,13 @@ public class TransportWriteActionTests extends ESTestCase {
         @Override
         protected void shardOperationOnPrimary(
                 TestRequest request, IndexShard primary, ActionListener<PrimaryResult<TestRequest, TestResponse>> listener) {
-            final WritePrimaryResult<TestRequest, TestResponse> primaryResult;
-            if (withDocumentFailureOnPrimary) {
-                primaryResult = new WritePrimaryResult<>(request, null, null, new RuntimeException("simulated"), primary, logger);
-            } else {
-                primaryResult = new WritePrimaryResult<>(request, new TestResponse(), location, null, primary, logger);
-            }
-            listener.onResponse(primaryResult);
+            ActionListener.completeWith(listener, () -> {
+                if (withDocumentFailureOnPrimary) {
+                    return new WritePrimaryResult<>(request, null, null, new RuntimeException("simulated"), primary, logger);
+                } else {
+                    return new WritePrimaryResult<>(request, new TestResponse(), location, null, primary, logger);
+                }
+            });
         }
 
         @Override

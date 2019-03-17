@@ -164,6 +164,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected final NamedXContentRegistry namedXContentRegistry;
 
+    private final ThreadPool threadPool;
+
     private static final int BUFFER_SIZE = 4096;
 
     private static final String SNAPSHOT_PREFIX = "snap-";
@@ -236,10 +238,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *  @param metadata       The metadata for this repository including name and settings
      * @param settings Settings for the node this repository object is created on
      */
-    protected BlobStoreRepository(RepositoryMetaData metadata, Settings settings,
-                                  NamedXContentRegistry namedXContentRegistry) {
+    protected BlobStoreRepository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry,
+                                  ThreadPool threadPool) {
         this.settings = settings;
         this.metadata = metadata;
+        this.threadPool = threadPool;
         this.namedXContentRegistry = namedXContentRegistry;
         this.compress = COMPRESS_SETTING.get(metadata.settings());
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));

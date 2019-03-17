@@ -110,6 +110,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
@@ -425,56 +427,88 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try {
             snapshot = getSnapshotInfo(snapshotId);
         } catch (SnapshotMissingException ex) {
-            throw ex;
+            listener.onFailure(ex);
+            return;
         } catch (IllegalStateException | SnapshotException | ElasticsearchParseException ex) {
             logger.warn(() -> new ParameterizedMessage("cannot read snapshot file [{}]", snapshotId), ex);
         }
 
+        // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
+        final RepositoryData updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
         try {
-            // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
-            final RepositoryData updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
             writeIndexGen(updatedRepositoryData, repositoryStateId);
+        } catch (IOException | ResourceNotFoundException ex) {
+            listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex));
+            return;
+        }
+        deleteSnapshotBlobs(snapshot, snapshotId, repositoryData, updatedRepositoryData, listener);
+    }
 
+    private void deleteSnapshotBlobs(SnapshotInfo snapshot, SnapshotId snapshotId, RepositoryData repositoryData,
+                                     RepositoryData updatedRepositoryData, ActionListener<Void> listener) {
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final AtomicInteger outstanding = new AtomicInteger(2);
+        final ActionListener<Void> deleteListener = ActionListener.wrap(() -> {
+            if (outstanding.decrementAndGet() == 0) {
+                deleteIndices(snapshot, repositoryData, snapshotId, updatedRepositoryData, listener);
+            }
+        });
+        executor.execute(() -> {
             // delete the snapshot file
             deleteSnapshotBlobIgnoringErrors(snapshot, snapshotId.getUUID());
+            deleteListener.onResponse(null);
+        });
+        executor.execute(() -> {
             // delete the global metadata file
             deleteGlobalMetaDataBlobIgnoringErrors(snapshot, snapshotId.getUUID());
+            deleteListener.onResponse(null);
+        });
+    }
 
-            // Now delete all indices
-            if (snapshot != null) {
-                final List<String> indices = snapshot.indices();
-                for (String index : indices) {
-                    final IndexId indexId = repositoryData.resolveIndexId(index);
+    private void deleteIndices(SnapshotInfo snapshot, RepositoryData repositoryData, SnapshotId snapshotId,
+                               RepositoryData updatedRepositoryData, ActionListener<Void> listener) {
+        // Now delete all indices
+        if (snapshot != null) {
+            final List<String> indices = snapshot.indices();
+            for (String index : indices) {
+                final IndexId indexId = repositoryData.resolveIndexId(index);
 
-                    IndexMetaData indexMetaData = null;
-                    try {
-                        indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
-                    } catch (ElasticsearchParseException | IOException ex) {
-                        logger.warn(() ->
-                            new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index), ex);
-                    }
+                IndexMetaData indexMetaData = null;
+                try {
+                    indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
+                } catch (ElasticsearchParseException | IOException ex) {
+                    logger.warn(() ->
+                        new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index), ex);
+                }
 
-                    deleteIndexMetaDataBlobIgnoringErrors(snapshot, indexId);
+                deleteIndexMetaDataBlobIgnoringErrors(snapshot, indexId);
 
-                    if (indexMetaData != null) {
-                        for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
-                            try {
-                                delete(snapshotId, indexId, new ShardId(indexMetaData.getIndex(), shardId));
-                            } catch (SnapshotException ex) {
-                                final int finalShardId = shardId;
-                                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
-                                    snapshotId, index, finalShardId), ex);
-                            }
+                if (indexMetaData != null) {
+                    for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
+                        try {
+                            final ShardId sid = new ShardId(indexMetaData.getIndex(), shardId);
+                            new Context(snapshotId, indexId, sid, sid).delete();
+                        } catch (SnapshotException ex) {
+                            final int finalShardId = shardId;
+                            logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
+                                snapshotId, index, finalShardId), ex);
                         }
                     }
                 }
             }
+        }
 
-            // cleanup indices that are no longer part of the repository
-            final Collection<IndexId> indicesToCleanUp = Sets.newHashSet(repositoryData.getIndices().values());
-            indicesToCleanUp.removeAll(updatedRepositoryData.getIndices().values());
-            final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
-            for (final IndexId indexId : indicesToCleanUp) {
+        // cleanup indices that are no longer part of the repository
+        final Collection<IndexId> indicesToCleanUp = Sets.newHashSet(repositoryData.getIndices().values());
+        indicesToCleanUp.removeAll(updatedRepositoryData.getIndices().values());
+        final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
+        if (indicesToCleanUp.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
+        final AtomicInteger outstanding = new AtomicInteger(indicesToCleanUp.size());
+        for (final IndexId indexId : indicesToCleanUp) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                 try {
                     indicesBlobContainer.deleteBlob(indexId.getId());
                 } catch (DirectoryNotEmptyException dnee) {
@@ -482,16 +516,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // we'll ignore that and accept that cleanup didn't fully succeed.
                     // since we are using UUIDs for path names, this won't be an issue for
                     // snapshotting indices of the same name
-                    logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
+                    logger.error(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
                         "but failed to clean up its index folder due to the directory not being empty.", metadata.name(), indexId), dnee);
-                } catch (IOException ioe) {
+                } catch (Exception e) {
                     // a different IOException occurred while trying to delete - will just log the issue for now
-                    logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
-                        "but failed to clean up its index folder.", metadata.name(), indexId), ioe);
+                    logger.error(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
+                        "but failed to clean up its index folder.", metadata.name(), indexId), e);
                 }
-            }
-        } catch (IOException | ResourceNotFoundException ex) {
-            throw new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex);
+                if (outstanding.decrementAndGet() == 0) {
+                    listener.onResponse(null);
+                }
+            });
         }
     }
 
@@ -918,17 +953,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     "that permissions on the store don't allow reading files written by the master node");
             }
         }
-    }
-
-    /**
-     * Delete shard snapshot
-     *
-     * @param snapshotId snapshot id
-     * @param shardId    shard id
-     */
-    private void delete(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        Context context = new Context(snapshotId, indexId, shardId, shardId);
-        context.delete();
     }
 
     @Override

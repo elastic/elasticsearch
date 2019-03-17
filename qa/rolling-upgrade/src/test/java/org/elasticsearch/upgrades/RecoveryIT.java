@@ -456,4 +456,15 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertThat(XContentMapValues.extractValue("index.verified_before_close", settings), nullValue());
         }
     }
+
+    public void testTooManyReplicas() throws Exception {
+        final String index = "recover_with_too_many_replicas";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 10);
+            createIndex(index, settings.build());
+            ensureGreen(index);
+        }
+    }
 }

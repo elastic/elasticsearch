@@ -453,7 +453,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
     public void testFollowExistingIndex() throws Exception {
         int numberOfReplicas = between(0, 1);
         assertAcked(followerClient().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), new ByteSizeValue(between(1, 100 * 1024)))));
+            .put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), new ByteSizeValue(between(1024, 100 * 1024)))));
         String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));

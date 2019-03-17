@@ -72,7 +72,6 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAwareRequest;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
@@ -365,15 +364,15 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         final RestoreSession restoreSession = openSession(metadata.name(), remoteClient, leaderShardId, indexShard, recoveryState);
         try {
             restoreSession.restoreFiles();
-            final AtomicLong syncedMappingVersion = new AtomicLong(
-                updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, indexShard.routingEntry().index()));
-            return restoreSession.getHistorySnapshot(
-                requiredMappingVersion -> {
-                    if (requiredMappingVersion > syncedMappingVersion.get()) {
-                        syncedMappingVersion.set(
-                            updateMappings(remoteClient, leaderIndex, requiredMappingVersion, client, indexShard.routingEntry().index()));
-                    }
-                }, () -> IOUtils.close(restoreSession, cancelRenewable));
+            final AtomicLong syncedMappingVersion = new AtomicLong();
+            final LongConsumer syncMapping = leaderMappingVersion -> {
+                if (leaderMappingVersion > syncedMappingVersion.get()) {
+                    syncedMappingVersion.set(
+                        updateMappings(remoteClient, leaderIndex, leaderMappingVersion, client, indexShard.routingEntry().index()));
+                }
+            };
+            syncMapping.accept(restoreSession.mappingVersion);
+            return restoreSession.getHistorySnapshot(leaderShardId, syncMapping, () -> IOUtils.close(restoreSession, cancelRenewable));
         } catch (Exception e) {
             try {
                 IOUtils.close(restoreSession, cancelRenewable);
@@ -582,19 +581,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             logger.trace("[{}] completed CCR restore", shardId);
         }
 
-        static final class GetHistoryRequest extends ShardChangesAction.Request implements RemoteClusterAwareRequest {
-            private final DiscoveryNode targetNode;
-            GetHistoryRequest(ShardId shardId, String expectedHistoryUUID, DiscoveryNode targetNode) {
-                super(shardId, expectedHistoryUUID);
-                this.targetNode = targetNode;
-            }
-            @Override
-            public DiscoveryNode getPreferredTargetNode() {
-                return targetNode;
-            }
-        }
-
-        Translog.Snapshot getHistorySnapshot(final LongConsumer syncMapping, final Closeable onClose) {
+        Translog.Snapshot getHistorySnapshot(final ShardId leaderShardId, final LongConsumer syncMapping, final Closeable onClose) {
             final SequenceNumbers.CommitInfo commitInfo =
                 SequenceNumbers.loadSeqNoInfoFromLuceneCommit(sourceMetaData.getCommitUserData().entrySet());
             final String historyUUID = sourceMetaData.getCommitUserData().get(Engine.HISTORY_UUID_KEY);
@@ -612,13 +599,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 @Override
                 public Translog.Operation next() {
                     if (localCheckpoint < commitInfo.maxSeqNo && index >= operations.length) {
-                        // We prefer to send the request to the primary node because the global checkpoint on replicas
-                        // may be lagged behind the max_seq_no of the copying index commit.
-                        final GetHistoryRequest request = new GetHistoryRequest(shardId, historyUUID, node);
+                        final ShardChangesAction.Request request = new ShardChangesAction.Request(leaderShardId, historyUUID);
                         request.setFromSeqNo(localCheckpoint + 1);
                         request.setMaxOperationCount(Math.toIntExact(commitInfo.maxSeqNo - localCheckpoint));
                         request.setMaxBatchSize(ccrSettings.getChunkSize());
-                        request.setPollTimeout(TimeValue.MINUS_ONE); // do not wait for the advancement of the global checkpoint
+                        request.setPollTimeout(ccrSettings.getRecoveryActionTimeout());
                         final ShardChangesAction.Response response = remoteClient.execute(ShardChangesAction.INSTANCE, request)
                             .actionGet(ccrSettings.getRecoveryActionTimeout());
                         syncMapping.accept(response.getMappingVersion());

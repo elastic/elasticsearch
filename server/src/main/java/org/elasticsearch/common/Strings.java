@@ -770,12 +770,22 @@ public class Strings {
      *
      */
     public static String toString(ToXContent toXContent, boolean pretty, boolean human) {
+        return toString(toXContent, pretty, human, ToXContent.EMPTY_PARAMS);
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object if needed. Allows to control whether the outputted
+     * json needs to be pretty printed, human readable, and set params while parsing XContent.
+     *
+     */
+    public static String toString(ToXContent toXContent, boolean pretty, boolean human, ToXContent.Params params) {
         try {
             XContentBuilder builder = createBuilder(pretty, human);
             if (toXContent.isFragment()) {
                 builder.startObject();
             }
-            toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            toXContent.toXContent(builder, params);
             if (toXContent.isFragment()) {
                 builder.endObject();
             }

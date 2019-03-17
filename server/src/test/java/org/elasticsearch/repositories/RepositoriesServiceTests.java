@@ -21,6 +21,7 @@ package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -149,7 +150,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId) {
+        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener) {
 
         }
 

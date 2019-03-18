@@ -139,4 +139,13 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals(10, exec("staticAddIntsTest(7, 3)"));
         assertEquals(15.5f, exec("staticAddFloatsTest(6.5f, 9.0f)"));
     }
+
+    public void testReadOnlyField() {
+        assertEquals(10.0, exec("DistanceUnit.Distance d = new DistanceUnit.Distance(10.0, DistanceUnit.METERS); d.value"));
+        expectScriptThrows(IllegalArgumentException.class,
+                () -> exec("DistanceUnit.Distance d = new DistanceUnit.Distance(10.0, DistanceUnit.METERS); d.value = 5.0"));
+        assertEquals(10.0, exec("def d = new DistanceUnit.Distance(10.0, DistanceUnit.METERS); d.value"));
+        expectScriptThrows(IllegalArgumentException.class,
+                () -> exec("def d = new DistanceUnit.Distance(10.0, DistanceUnit.METERS); d.value = 5.0"));
+    }
 }

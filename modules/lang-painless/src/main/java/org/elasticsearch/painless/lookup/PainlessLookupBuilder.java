@@ -679,13 +679,15 @@ public final class PainlessLookupBuilder {
                         "with the same name and different type parameters");
             }
         } else {
-            MethodHandle methodHandleSetter;
+            MethodHandle methodHandleSetter = null;
 
-            try {
-                methodHandleSetter = MethodHandles.publicLookup().unreflectSetter(javaField);
-            } catch (IllegalAccessException iae) {
-                throw new IllegalArgumentException(
-                        "setter method handle not found for field [[" + targetCanonicalClassName + "], [" + fieldName + "]]");
+            if (Modifier.isFinal(javaField.getModifiers()) == false) {
+                try {
+                    methodHandleSetter = MethodHandles.publicLookup().unreflectSetter(javaField);
+                } catch (IllegalAccessException iae) {
+                    throw new IllegalArgumentException(
+                            "setter method handle not found for field [[" + targetCanonicalClassName + "], [" + fieldName + "]]");
+                }
             }
 
             PainlessField existingPainlessField = painlessClassBuilder.fields.get(painlessFieldKey);

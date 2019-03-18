@@ -241,6 +241,112 @@ class org.elasticsearch.index.query.IntervalFilterScript$Interval {
   int getGaps()
 }
 
+# ES Geo
+class org.elasticsearch.common.unit.DistanceUnit {
+  DistanceUnit INCH
+  DistanceUnit YARD
+  DistanceUnit FEET
+  DistanceUnit KILOMETERS
+  DistanceUnit NAUTICALMILES
+  DistanceUnit MILLIMETERS
+  DistanceUnit CENTIMETERS
+  DistanceUnit MILES
+  DistanceUnit METERS
+  double convert(double, DistanceUnit, DistanceUnit)
+  double parse(String, DistanceUnit, DistanceUnit)
+  DistanceUnit parseUnit(String, DistanceUnit)
+  DistanceUnit fromString(String)
+  double getEarthCircumference()
+  double getEarthRadius()
+  double getDistancePerDegree()
+  double toMeters(double)
+  double fromMeters(double)
+  double convert(double, DistanceUnit)
+  double parse(String, DistanceUnit)
+  String toString(double)
+}
+
+class org.elasticsearch.common.unit.DistanceUnit$Distance {
+  double value
+  DistanceUnit unit
+  DistanceUnit.Distance parseDistance(String)
+  (double, DistanceUnit)
+  DistanceUnit.Distance convert(DistanceUnit)
+}
+
+class org.elasticsearch.common.geo.GeoPoint {
+  GeoPoint parseFromLatLon(String)
+  GeoPoint fromGeohash(String)
+  ()
+  (String)
+  (double, double)
+  GeoPoint reset(double, double)
+  GeoPoint resetLat(double)
+  GeoPoint resetLon(double)
+  GeoPoint resetFromString(String)
+  GeoPoint resetFromString(String, boolean)
+  GeoPoint resetFromCoordinates(String, boolean)
+  GeoPoint resetFromIndexHash(long)
+  GeoPoint resetFromGeoHash(String)
+  double getLat()
+  double getLon()
+  String getGeohash()
+}
+
+class org.elasticsearch.common.geo.GeoUtils {
+  double MAX_LAT
+  double MIN_LAT
+  double MAX_LON
+  double MIN_LON
+  String LATITUDE
+  String LONGITUDE
+  String GEOHASH
+  double EARTH_SEMI_MAJOR_AXIS
+  double EARTH_SEMI_MINOR_AXIS
+  double EARTH_MEAN_RADIUS
+  double EARTH_AXIS_RATIO
+  double EARTH_EQUATOR
+  double EARTH_POLAR_DISTANCE
+  double TOLERANCE
+  boolean isValidLatitude(double)
+  boolean isValidLongitude(double)
+  double geoHashCellWidth(int)
+  double quadTreeCellWidth(int)
+  double geoHashCellHeight(int)
+  double quadTreeCellHeight(int)
+  double geoHashCellSize(int)
+  double quadTreeCellSize(int)
+  int quadTreeLevelsForPrecision(double)
+  int geoHashLevelsForPrecision(double)
+  double normalizeLon(double)
+  double normalizeLat(double)
+  void normalizePoint(GeoPoint)
+  void normalizePoint(GeoPoint, boolean, boolean)
+  double maxRadialDistanceMeters(double, double)
+  double arcDistance(double, double, double, double)
+  double planeDistance(double, double, double, double)
+  boolean rectangleContainsPoint(org.apache.lucene.geo.Rectangle, double, double)
+}
+
+class org.apache.lucene.geo.Rectangle no_import {
+  double minLat
+  double maxLat
+  double minLon
+  double maxLon
+  (double, double, double, double)
+  boolean crossesDateline()
+  boolean containsPoint(double, double, double, double, double, double)
+  org.apache.lucene.geo.Rectangle fromPointDistance(double, double, double)
+  double axisLat(double, double)
+}
+
+class org.elasticsearch.common.geo.GeoDistance {
+  GeoDistance PLANE
+  GeoDistance ARC
+  GeoDistance fromString(String)
+  double calculate(double, double, double, double, DistanceUnit)
+}
+
 # for testing
 class org.elasticsearch.painless.FeatureTest no_import {
   int z

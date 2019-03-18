@@ -369,11 +369,11 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
 
-        Archives.runElasticsearch(installation);
-        Archives.stopElasticsearch(installation);
-
-        final Shell sh = new Shell();
+        final Shell sh = newShell();
         sh.setWorkingDirectory(getTempDir());
+
+        Archives.runElasticsearch(installation, sh);
+        Archives.stopElasticsearch(installation);
 
         Result result = sh.run("echo y | " + installation.executables().elasticsearchNode + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));

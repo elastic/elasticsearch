@@ -31,7 +31,6 @@ import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 
 /**
  * The atomic field data implementation for {@link JsonFieldMapper.KeyedJsonFieldType}.
@@ -57,7 +56,7 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
 
     @Override
     public Collection<Accountable> getChildResources() {
-        return Collections.emptyList();
+        return delegate.getChildResources();
     }
 
     @Override

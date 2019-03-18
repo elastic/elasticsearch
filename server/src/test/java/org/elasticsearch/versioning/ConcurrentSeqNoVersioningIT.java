@@ -22,7 +22,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;

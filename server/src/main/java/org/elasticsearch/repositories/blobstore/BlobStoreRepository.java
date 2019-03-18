@@ -199,7 +199,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * files that are already compressed by default. Changing the setting does not invalidate existing files since reads
      * do not observe the setting, instead they examine the file to see if it is compressed or not.
      */
-    public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Setting.Property.NodeScope);
+    public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", true, Setting.Property.NodeScope);
 
     private final Settings settings;
 

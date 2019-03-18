@@ -31,10 +31,15 @@ import java.util.Collections;
 import java.util.function.Predicate;
 
 public class DataFrameTransformConfigTests extends AbstractXContentTestCase<DataFrameTransformConfig> {
-    @Override
-    protected DataFrameTransformConfig createTestInstance() {
+
+    public static DataFrameTransformConfig randomDataFrameTransformConfig() {
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
                 randomAlphaOfLengthBetween(1, 10), QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+    }
+
+    @Override
+    protected DataFrameTransformConfig createTestInstance() {
+        return randomDataFrameTransformConfig();
     }
 
     @Override

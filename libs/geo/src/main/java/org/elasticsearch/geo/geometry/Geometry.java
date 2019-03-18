@@ -29,4 +29,8 @@ public interface Geometry {
     <T> T visit(GeometryVisitor<T> visitor);
 
     boolean isEmpty();
+
+    default boolean hasAlt() {
+        return false;
+    }
 }

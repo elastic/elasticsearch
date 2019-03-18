@@ -266,6 +266,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40089")
     public void testRetentionLeasesAreNotBeingRenewedAfterRecoveryCompletes() throws Exception {
         final String leaderIndex = "leader";
         final int numberOfShards = randomIntBetween(1, 3);
@@ -462,6 +463,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40089")
     public void testUnfollowFailsToRemoveRetentionLeases() throws Exception {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
@@ -532,6 +534,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40089")
     public void testRetentionLeaseRenewedWhileFollowing() throws Exception {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
@@ -745,6 +748,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         assertRetentionLeaseRenewal(numberOfShards, numberOfReplicas, followerIndex, leaderIndex);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40089")
     public void testRetentionLeaseIsAddedIfItDisappearsWhileFollowing() throws Exception {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";

@@ -141,6 +141,7 @@ public interface Repository extends LifecycleComponent {
      *
      * @param snapshotId snapshot id
      * @param repositoryStateId the unique id identifying the state of the repository when the snapshot deletion began
+     * @param listener completion listener
      */
     void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener);
 

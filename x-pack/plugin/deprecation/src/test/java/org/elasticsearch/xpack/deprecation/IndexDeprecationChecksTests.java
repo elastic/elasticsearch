@@ -446,7 +446,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 }
                 mappingBuilder.endObject();
             } else {
-                mappingBuilder.field("type", randomFrom("array", "binary", "range", "boolean", "date", "ip", "keyword", "text"));
+                mappingBuilder.field("type", randomFrom("array", "range", "boolean", "date", "ip", "keyword", "text"));
                 fieldCount.incrementAndGet();
             }
         }

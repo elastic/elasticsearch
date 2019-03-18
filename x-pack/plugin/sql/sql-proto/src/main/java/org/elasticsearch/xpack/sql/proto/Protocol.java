@@ -22,6 +22,7 @@ public final class Protocol {
     public static final int FETCH_SIZE = 1000;
     public static final TimeValue REQUEST_TIMEOUT = TimeValue.timeValueSeconds(90);
     public static final TimeValue PAGE_TIMEOUT = TimeValue.timeValueSeconds(45);
+    public static final boolean FIELD_MULTI_VALUE_LENIENCY = false;
 
     /**
      * SQL-related endpoints

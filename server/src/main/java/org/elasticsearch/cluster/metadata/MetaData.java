@@ -48,6 +48,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,13 +56,16 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1231,8 +1235,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return aliasAndIndexLookup;
         }
 
-        public static String toXContent(MetaData metaData) throws IOException {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        public static String toXContent(MetaData metaData, NamedXContentRegistry registry) throws IOException {
+            XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream(), registry);
             builder.startObject();
             toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
@@ -1280,9 +1284,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             for (ObjectObjectCursor<String, Custom> cursor : metaData.customs()) {
                 if (cursor.value.context().contains(context)) {
-                    builder.startObject(cursor.key);
-                    cursor.value.toXContent(builder, params);
-                    builder.endObject();
+                    builder.writeNamedXContent(Custom.class, cursor.key, cursor.value, params);
                 }
             }
             builder.endObject();
@@ -1369,16 +1371,23 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     /**
      * State format for {@link MetaData} to write to and load from disk
      */
-    public static final MetaDataStateFormat<MetaData> FORMAT = new MetaDataStateFormat<MetaData>(GLOBAL_STATE_FILE_PREFIX) {
 
-        @Override
-        public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
-            Builder.toXContent(state, builder, FORMAT_PARAMS);
-        }
+    public static MetaDataStateFormat<MetaData> format(final NamedXContentRegistry registry) {
+        return new MetaDataStateFormat<MetaData>(GLOBAL_STATE_FILE_PREFIX) {
+            @Override
+            public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
+                Builder.toXContent(state, builder, FORMAT_PARAMS);
+            }
 
-        @Override
-        public MetaData fromXContent(XContentParser parser) throws IOException {
-            return Builder.fromXContent(parser);
-        }
-    };
+            @Override
+            protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {
+                return XContentFactory.contentBuilder(type, stream, registry);
+            }
+
+            @Override
+            public MetaData fromXContent(XContentParser parser) throws IOException {
+                return Builder.fromXContent(parser);
+            }
+        };
+    }
 }

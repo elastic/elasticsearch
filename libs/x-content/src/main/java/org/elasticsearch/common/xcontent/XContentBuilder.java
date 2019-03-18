@@ -62,6 +62,10 @@ public final class XContentBuilder implements Closeable, Flushable {
         return new XContentBuilder(xContent, new ByteArrayOutputStream());
     }
 
+    public static XContentBuilder builder(XContent xContent, NamedXContentRegistry registry) throws IOException {
+        return new XContentBuilder(xContent, new ByteArrayOutputStream(), Collections.emptySet(), Collections.emptySet(), registry);
+    }
+
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content and some inclusive and/or exclusive filters.
      * <p>
@@ -76,7 +80,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @throws IOException if an {@link IOException} occurs while building the content
      */
     public static XContentBuilder builder(XContent xContent, Set<String> includes, Set<String> excludes) throws IOException {
-        return new XContentBuilder(xContent, new ByteArrayOutputStream(), includes, excludes);
+        return new XContentBuilder(xContent, new ByteArrayOutputStream(), includes, excludes, NamedXContentRegistry.EMPTY);
     }
 
     private static final Map<Class<?>, Writer> WRITERS;
@@ -160,6 +164,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     private final OutputStream bos;
 
+    private final NamedXContentRegistry registry;
+
     /**
      * When this flag is set to true, some types of values are written in a format easier to read for a human.
      */
@@ -195,8 +201,17 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
      */
     public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
+        this(xContent, os, includes, excludes, NamedXContentRegistry.EMPTY);
+    }
+
+    public XContentBuilder(XContent xContent, OutputStream os, NamedXContentRegistry registry) throws IOException {
+        this(xContent, os, Collections.emptySet(), Collections.emptySet(), registry);
+    }
+
+    public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes, NamedXContentRegistry registry) throws IOException {
         this.bos = os;
         this.generator = xContent.createGenerator(bos, includes, excludes);
+        this.registry = registry;
     }
 
     public XContentType contentType() {
@@ -986,6 +1001,18 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     public XContentBuilder copyCurrentStructure(XContentParser parser) throws IOException {
         generator.copyCurrentStructure(parser);
+        return this;
+    }
+
+    public XContentBuilder writeNamedXContent(Class<?> categoryClass,
+                                              String name,
+                                              ToXContent object,
+                                              ToXContent.Params params) throws IOException {
+        registry.assertNamedXContent(categoryClass, name);
+
+        startObject(name);
+        object.toXContent(this, params);
+        endObject();
         return this;
     }
 

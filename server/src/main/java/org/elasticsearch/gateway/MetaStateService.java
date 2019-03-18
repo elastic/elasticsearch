@@ -47,13 +47,14 @@ public class MetaStateService {
     private final NamedXContentRegistry namedXContentRegistry;
 
     // we allow subclasses in tests to redefine formats, e.g. to inject failures
-    protected MetaDataStateFormat<MetaData> META_DATA_FORMAT = MetaData.FORMAT;
+    protected MetaDataStateFormat<MetaData> META_DATA_FORMAT;
     protected MetaDataStateFormat<IndexMetaData> INDEX_META_DATA_FORMAT = IndexMetaData.FORMAT;
     protected MetaDataStateFormat<Manifest> MANIFEST_FORMAT = Manifest.FORMAT;
 
     public MetaStateService(NodeEnvironment nodeEnv, NamedXContentRegistry namedXContentRegistry) {
         this.nodeEnv = nodeEnv;
         this.namedXContentRegistry = namedXContentRegistry;
+        META_DATA_FORMAT = MetaData.format(namedXContentRegistry);
     }
 
     /**

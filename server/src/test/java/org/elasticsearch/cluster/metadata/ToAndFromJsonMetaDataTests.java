@@ -145,7 +145,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         .putAlias(newAliasMetaDataBuilder("alias-bar3").routing("routing-bar")))
                 .build();
 
-        String metaDataSource = MetaData.Builder.toXContent(metaData);
+        String metaDataSource = MetaData.Builder.toXContent(metaData, xContentRegistry());
 
         MetaData parsedMetaData = MetaData.Builder.fromXContent(createParser(JsonXContent.jsonXContent, metaDataSource));
 

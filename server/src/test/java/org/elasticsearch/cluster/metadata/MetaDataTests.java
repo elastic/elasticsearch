@@ -401,7 +401,7 @@ public class MetaDataTests extends ESTestCase {
     public void testXContentWithIndexGraveyard() throws IOException {
         final IndexGraveyard graveyard = IndexGraveyardTests.createRandom();
         final MetaData originalMeta = MetaData.builder().indexGraveyard(graveyard).build();
-        final XContentBuilder builder = JsonXContent.contentBuilder();
+        final XContentBuilder builder = xContentBuilder(JsonXContent.jsonXContent);
         builder.startObject();
         originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -414,7 +414,7 @@ public class MetaDataTests extends ESTestCase {
     public void testXContentClusterUUID() throws IOException {
         final MetaData originalMeta = MetaData.builder().clusterUUID(UUIDs.randomBase64UUID())
             .clusterUUIDCommitted(randomBoolean()).build();
-        final XContentBuilder builder = JsonXContent.contentBuilder();
+        final XContentBuilder builder = xContentBuilder(JsonXContent.jsonXContent);
         builder.startObject();
         originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -467,7 +467,7 @@ public class MetaDataTests extends ESTestCase {
 
         MetaData metaData = MetaData.builder().coordinationMetaData(originalMeta).build();
 
-        final XContentBuilder builder = JsonXContent.contentBuilder();
+        final XContentBuilder builder = xContentBuilder(JsonXContent.jsonXContent);
         builder.startObject();
         metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();

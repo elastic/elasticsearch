@@ -322,7 +322,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
 
         MetaStateServiceWithFailures(int invertedFailRate, NodeEnvironment nodeEnv, NamedXContentRegistry namedXContentRegistry) {
             super(nodeEnv, namedXContentRegistry);
-            META_DATA_FORMAT = wrap(MetaData.FORMAT);
+            META_DATA_FORMAT = wrap(MetaData.format(namedXContentRegistry));
             INDEX_META_DATA_FORMAT = wrap(IndexMetaData.FORMAT);
             MANIFEST_FORMAT = wrap(Manifest.FORMAT);
             failRandomly = false;

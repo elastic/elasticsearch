@@ -34,6 +34,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -60,12 +61,14 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     static final String WRITE_METADATA_EXCEPTION_MSG = "exception occurred when writing new metadata to disk";
     static final String ABORTED_BY_USER_MSG = "aborted by user";
     final OptionSpec<Integer> nodeOrdinalOption;
+    final MetaDataStateFormat<MetaData> format;
 
     public ElasticsearchNodeCommand(String description) {
         super(description);
         nodeOrdinalOption = parser.accepts("ordinal", "Optional node ordinal, 0 if not specified")
                 .withRequiredArg().ofType(Integer.class);
         namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
+        format = MetaData.format(namedXContentRegistry);
     }
 
     protected void processNodePathsWithLock(Terminal terminal, OptionSet options, Environment env) throws IOException {
@@ -98,8 +101,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
             throw new ElasticsearchException(GLOBAL_GENERATION_MISSING_MSG);
         }
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading global metadata file");
-        final MetaData metaData = MetaData.FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(),
-                dataPaths);
+        final MetaData metaData = format.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(), dataPaths);
         if (metaData == null) {
             throw new ElasticsearchException(NO_GLOBAL_METADATA_MSG + " [generation = " + manifest.getGlobalGeneration() + "]");
         }
@@ -132,7 +134,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
                          "[clusterUUID = " + newMetaData.clusterUUID() + ", committed = " + newMetaData.clusterUUIDCommitted() + "]");
             terminal.println(Terminal.Verbosity.VERBOSE, "New coordination metadata is " + newMetaData.coordinationMetaData());
             terminal.println(Terminal.Verbosity.VERBOSE, "Writing new global metadata to disk");
-            newGeneration = MetaData.FORMAT.write(newMetaData, dataPaths);
+            newGeneration = format.write(newMetaData, dataPaths);
             Manifest newManifest = new Manifest(newCurrentTerm, oldManifest.getClusterStateVersion(), newGeneration,
                     oldManifest.getIndexGenerations());
             terminal.println(Terminal.Verbosity.VERBOSE, "New manifest is " + newManifest);
@@ -140,7 +142,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
             Manifest.FORMAT.writeAndCleanup(newManifest, dataPaths);
         } catch (Exception e) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Cleaning up new metadata");
-            MetaData.FORMAT.cleanupOldFiles(oldManifest.getGlobalGeneration(), dataPaths);
+            format.cleanupOldFiles(oldManifest.getGlobalGeneration(), dataPaths);
             throw new ElasticsearchException(WRITE_METADATA_EXCEPTION_MSG, e);
         }
         // if cleaning old files fail, we still succeeded.
@@ -154,7 +156,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
     protected void cleanUpOldMetaData(Terminal terminal, Path[] dataPaths, long newGeneration) {
         terminal.println(Terminal.Verbosity.VERBOSE, "Cleaning up old metadata");
-        MetaData.FORMAT.cleanupOldFiles(newGeneration, dataPaths);
+        format.cleanupOldFiles(newGeneration, dataPaths);
     }
 
 

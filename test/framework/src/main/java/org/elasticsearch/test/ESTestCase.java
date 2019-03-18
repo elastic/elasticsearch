@@ -125,6 +125,7 @@ import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -1276,6 +1277,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
         return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data.streamInput());
+    }
+
+    protected final XContentBuilder xContentBuilder(XContent xContent) throws IOException {
+        return new XContentBuilder(xContent, new ByteArrayOutputStream(), xContentRegistry());
     }
 
     /**

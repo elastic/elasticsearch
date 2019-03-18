@@ -190,7 +190,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
     }
 
     protected void write(T obj, StreamOutput streamOutput) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, streamOutput)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, streamOutput, namedXContentRegistry)) {
             builder.startObject();
             obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
             builder.endObject();

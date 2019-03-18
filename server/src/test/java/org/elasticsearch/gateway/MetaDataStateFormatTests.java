@@ -39,7 +39,9 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
@@ -419,11 +421,15 @@ public class MetaDataStateFormatTests extends ESTestCase {
         writeAndReadStateSuccessfully(format, paths);
     }
 
-    private static MetaDataStateFormat<MetaData> metaDataFormat() {
+    private MetaDataStateFormat<MetaData> metaDataFormat() {
         return new MetaDataStateFormat<MetaData>(MetaData.GLOBAL_STATE_FILE_PREFIX) {
             @Override
             public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
                 MetaData.Builder.toXContent(state, builder, ToXContent.EMPTY_PARAMS);
+            }
+
+            protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {
+                return XContentFactory.contentBuilder(type, stream, xContentRegistry());
             }
 
             @Override

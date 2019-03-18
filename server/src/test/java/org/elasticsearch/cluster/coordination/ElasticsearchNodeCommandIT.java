@@ -33,10 +33,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -55,6 +57,13 @@ import static org.hamcrest.Matchers.greaterThan;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
 public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
+
+    private MetaDataStateFormat<MetaData> format;
+
+    @Before
+    public void setup() {
+        format = MetaData.format(xContentRegistry());
+    }
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, int nodeOrdinal, boolean abort)
             throws Exception {
@@ -216,7 +225,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
-        MetaData.FORMAT.cleanupOldFiles(-1, nodeEnvironment.nodeDataPaths());
+        format.cleanupOldFiles(-1, nodeEnvironment.nodeDataPaths());
 
         expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.NO_GLOBAL_METADATA_MSG);
     }
@@ -229,7 +238,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
-        MetaData.FORMAT.cleanupOldFiles(-1, nodeEnvironment.nodeDataPaths());
+        format.cleanupOldFiles(-1, nodeEnvironment.nodeDataPaths());
 
         expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.NO_GLOBAL_METADATA_MSG);
     }
@@ -300,7 +309,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
         logger.info("--> unsafely-bootstrap 1st master-eligible node");
         MockTerminal terminal = unsafeBootstrap(environment);
-        MetaData metaData = MetaData.FORMAT.loadLatestState(logger, xContentRegistry(), nodeEnvironment.nodeDataPaths());
+        MetaData metaData = format.loadLatestState(logger, xContentRegistry(), nodeEnvironment.nodeDataPaths());
         assertThat(terminal.getOutput(), containsString(
                 String.format(Locale.ROOT, UnsafeBootstrapMasterCommand.CLUSTER_STATE_TERM_VERSION_MSG_FORMAT,
                         metaData.coordinationMetaData().term(), metaData.version())));
@@ -480,6 +489,6 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     }
 
     private MetaData loadMetaData(Path[] dataPaths, NamedXContentRegistry namedXContentRegistry, Manifest manifest) {
-        return MetaData.FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(), dataPaths);
+        return format.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(), dataPaths);
     }
 }

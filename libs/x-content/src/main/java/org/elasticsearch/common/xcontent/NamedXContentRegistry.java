@@ -119,15 +119,7 @@ public class NamedXContentRegistry {
      * @throws NamedObjectNotFoundException if the categoryClass or name is not registered
      */
     public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
-        Map<String, Entry> parsers = registry.get(categoryClass);
-        if (parsers == null) {
-            if (registry.isEmpty()) {
-                // The "empty" registry will never work so we throw a better exception as a hint.
-                throw new NamedObjectNotFoundException("named objects are not supported for this parser");
-            }
-            throw new NamedObjectNotFoundException("unknown named object category [" + categoryClass.getName() + "]");
-        }
-        Entry entry = parsers.get(name);
+        Entry entry = getEntry(categoryClass, name);
         if (entry == null) {
             throw new NamedObjectNotFoundException(parser.getTokenLocation(), "unable to parse " + categoryClass.getSimpleName() +
                 " with name [" + name + "]: parser not found");
@@ -139,6 +131,26 @@ public class NamedXContentRegistry {
                     "unable to parse " + categoryClass.getSimpleName() + " with name [" + name + "]: parser didn't match");
         }
         return categoryClass.cast(entry.parser.parse(parser, context));
+    }
+
+    public void assertNamedXContent(Class<?> categoryClass, String name) throws IOException {
+        Entry entry = getEntry(categoryClass, name);
+        if (entry == null) {
+            throw new NamedObjectNotFoundException("unable to serialize " + categoryClass.getSimpleName() + " with name [" + name +
+                "]: parser not found");
+        }
+    }
+
+    private Entry getEntry(Class<?> categoryClass, String name) {
+        Map<String, Entry> parsers = registry.get(categoryClass);
+        if (parsers == null) {
+            if (registry.isEmpty()) {
+                // The "empty" registry will never work so we throw a better exception as a hint.
+                throw new NamedObjectNotFoundException("named objects are not supported for this parser");
+            }
+            throw new NamedObjectNotFoundException("unknown named object category [" + categoryClass.getName() + "]");
+        }
+        return parsers.get(name);
     }
 
 }

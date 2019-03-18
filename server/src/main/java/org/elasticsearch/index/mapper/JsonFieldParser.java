@@ -38,6 +38,7 @@ import java.util.List;
  */
 public class JsonFieldParser {
     private static final String SEPARATOR = "\0";
+    private static final byte SEPARATOR_BYTE = '\0';
 
     private final String rootFieldName;
     private final String keyedFieldName;
@@ -161,7 +162,17 @@ public class JsonFieldParser {
         }
     }
 
-    public static String createKeyedValue(String key, String value) {
+    static String createKeyedValue(String key, String value) {
         return key + SEPARATOR + value;
+    }
+
+    static BytesRef extractKey(BytesRef keyedValue) {
+        int length;
+        for (length = 0; length < keyedValue.length; length++){
+            if (keyedValue.bytes[keyedValue.offset + length] == SEPARATOR_BYTE) {
+                break;
+            }
+        }
+        return new BytesRef(keyedValue.bytes, keyedValue.offset, length);
     }
 }

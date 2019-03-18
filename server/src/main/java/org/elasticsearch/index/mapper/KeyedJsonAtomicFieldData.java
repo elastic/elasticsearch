@@ -62,7 +62,7 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
     @Override
     public SortedSetDocValues getOrdinalsValues() {
         SortedSetDocValues values = delegate.getOrdinalsValues();
-        return new KeyedJsonDocValues(key, values);
+        return KeyedJsonDocValues.create(key, values);
     }
 
     @Override
@@ -81,14 +81,39 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
         return FieldData.toString(getOrdinalsValues());
     }
 
-    private static class KeyedJsonDocValues extends AbstractSortedSetDocValues {
+    static class KeyedJsonDocValues extends AbstractSortedSetDocValues {
 
-        private final BytesRef prefix;
+        private final BytesRef key;
         private final SortedSetDocValues delegate;
 
-        KeyedJsonDocValues(String key, SortedSetDocValues delegate) {
-            this.prefix = new BytesRef(JsonFieldParser.createKeyedValue(key, ""));
+        /**
+         * The first and last ordinals whose term has 'key' as a prefix.
+         */
+        private final long minOrd;
+        private final long maxOrd;
+
+        public static KeyedJsonDocValues create(String key, SortedSetDocValues delegate) {
+            BytesRef keyBytes = new BytesRef(key);
+
+            long minOrd, maxOrd;
+            try {
+                minOrd = findMinOrd(keyBytes, delegate);
+                maxOrd = minOrd != -1 ? findMaxOrd(keyBytes, delegate) : -1;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            return new KeyedJsonDocValues(keyBytes, delegate, minOrd, maxOrd);
+        }
+
+        private KeyedJsonDocValues(BytesRef key,
+                                   SortedSetDocValues delegate,
+                                   long minOrd,
+                                   long maxOrd) {
+            this.key = key;
             this.delegate = delegate;
+            this.minOrd = minOrd;
+            this.maxOrd = maxOrd;
         }
 
         @Override
@@ -96,18 +121,34 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
             return delegate.getValueCount();
         }
 
+        /**
+         * Returns the (un-prefixed) term value for the requested ordinal.
+         *
+         * Note that this method can only be called on ordinals returned from {@link #nextOrd()}.
+         * Otherwise it may attempt to look up values that do not share the correct prefix, which
+         * can result in undefined behavior or an error.
+         */
         @Override
         public BytesRef lookupOrd(long ord) throws IOException {
             BytesRef keyedValue = delegate.lookupOrd(ord);
-            int valueLength = keyedValue.length - prefix.length;
-            return new BytesRef(keyedValue.bytes, prefix.length, valueLength);
+            int prefixLength = key.length + 1;
+            int valueLength = keyedValue.length - prefixLength;
+            return new BytesRef(keyedValue.bytes, prefixLength, valueLength);
         }
 
         @Override
         public long nextOrd() throws IOException {
+            if (minOrd < 0) {
+                return NO_MORE_ORDS;
+            }
+
             for (long ord = delegate.nextOrd(); ord != NO_MORE_ORDS; ord = delegate.nextOrd()) {
-                if (accepted(ord)) {
-                    return ord;
+                if (minOrd <= ord) {
+                    if (ord <= maxOrd) {
+                        return ord;
+                    } else {
+                        return NO_MORE_ORDS;
+                    }
                 }
             }
             return NO_MORE_ORDS;
@@ -115,30 +156,75 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
 
         @Override
         public boolean advanceExact(int target) throws IOException {
+            if (minOrd < 0) {
+                return false;
+            }
+
             if (delegate.advanceExact(target)) {
                 for (long ord = delegate.nextOrd(); ord != NO_MORE_ORDS; ord = delegate.nextOrd()) {
-                    if (accepted(ord)) {
-                        boolean advanced = delegate.advanceExact(target);
-                        assert advanced;
-                        return true;
+                     if (minOrd <= ord && ord <= maxOrd) {
+                         boolean advanced = delegate.advanceExact(target);
+                         assert advanced;
+                         return true;
                     }
                 }
             }
             return false;
         }
 
-        private boolean accepted(long ord) throws IOException {
-            BytesRef value = delegate.lookupOrd(ord);
-            if (value.length < prefix.length) {
-                return false;
-            }
+        /**
+         * Performs a binary search to find the first term with 'key' as a prefix.
+         */
+        static long findMinOrd(BytesRef key, SortedSetDocValues delegate) throws IOException {
+            long low = 0;
+            long high = delegate.getValueCount() - 1;
 
-            for (int i = 0; i < prefix.length; i++ ) {
-                if (value.bytes[value.offset + i] != prefix.bytes[prefix.offset + i]) {
-                    return false;
+            long result = -1;
+            while (low <= high) {
+                long mid = (low + high) / 2;
+                final BytesRef term = delegate.lookupOrd(mid);
+                int cmp = compare(key, term);
+
+                if (cmp == 0) {
+                    result = mid;
+                    high = mid - 1;
+                } else if (cmp < 0) {
+                    high = mid - 1;
+                } else {
+                    low = mid + 1;
                 }
             }
-            return true;
+            return result;
+        }
+
+        /**
+         * Performs a binary search to find the last term with 'key' as a prefix.
+         */
+        static long findMaxOrd(BytesRef key, SortedSetDocValues delegate) throws IOException {
+            long low = 0;
+            long high = delegate.getValueCount() - 1;
+
+            long result = -1;
+            while (low <= high) {
+                long mid = (low + high) / 2;
+                final BytesRef term = delegate.lookupOrd(mid);
+                int cmp = compare(key, term);
+
+                if (cmp == 0) {
+                    result = mid;
+                    low = mid + 1;
+                } else if (cmp < 0) {
+                    high = mid - 1;
+                } else {
+                    low = mid + 1;
+                }
+            }
+            return result;
+        }
+
+        private static int compare(BytesRef key, BytesRef term) {
+            BytesRef extractedKey = JsonFieldParser.extractKey(term);
+            return key.compareTo(extractedKey);
         }
     }
 }

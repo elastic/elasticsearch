@@ -374,7 +374,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         form.setEntity(new UrlEncodedFormEntity(params));
 
         final String redirect = execute(client, form, context, response -> {
-            logger.debug(EntityUtils.toString(response.getEntity()));
+            logger.info(EntityUtils.toString(response.getEntity()));
             assertThat(response.getStatusLine().getStatusCode(), equalTo(302));
             return response.getFirstHeader("Location").getValue();
         });

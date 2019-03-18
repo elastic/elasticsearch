@@ -22,7 +22,6 @@ package org.elasticsearch.client;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -48,6 +47,14 @@ public final class Request {
     public Request(String method, String endpoint) {
         this.method = Objects.requireNonNull(method, "method cannot be null");
         this.endpoint = Objects.requireNonNull(endpoint, "endpoint cannot be null");
+    }
+
+    /**
+     * Copy the parameters from {@literal RequestConverters.Params} into {@linkplain Request}.
+     * @param requestConverterParams the request converter parameter map
+     */
+    public void setParameters(Map<String, String> requestConverterParams){
+        this.parameters.putAll(requestConverterParams);
     }
 
     /**
@@ -150,7 +157,7 @@ public final class Request {
         b.append("Request{");
         b.append("method='").append(method).append('\'');
         b.append(", endpoint='").append(endpoint).append('\'');
-        if (false == parameters.isEmpty()) {
+        if (!parameters.isEmpty()) {
             b.append(", params=").append(parameters);
         }
         if (entity != null) {

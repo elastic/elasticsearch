@@ -99,8 +99,8 @@ public class BytesStreamOutput extends BytesStream {
     @Override
     public void reset() {
         // shrink list of pages
-        if (bytes.size() > PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
-            bytes = bigArrays.resize(bytes, PageCacheRecycler.PAGE_SIZE_IN_BYTES);
+        if (bytes.size() > PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE) {
+            bytes = bigArrays.resize(bytes, PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE);
         }
 
         // go back to start

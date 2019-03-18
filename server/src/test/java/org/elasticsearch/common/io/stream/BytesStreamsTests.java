@@ -128,7 +128,7 @@ public class BytesStreamsTests extends ESTestCase {
     public void testSingleFullPageBulkWrite() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
-        int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE;
+        int expectedSize = PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
 
         // write in bulk
@@ -144,7 +144,7 @@ public class BytesStreamsTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
 
         int initialOffset = 10;
-        int additionalLength = PageCacheRecycler.BYTE_PAGE_SIZE;
+        int additionalLength = PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE;
         byte[] expectedData = randomizedByteArrayWithSize(initialOffset + additionalLength);
 
         // first create initial offset
@@ -163,7 +163,7 @@ public class BytesStreamsTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
 
         int initialOffset = 10;
-        int additionalLength = PageCacheRecycler.BYTE_PAGE_SIZE * 2;
+        int additionalLength = PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE * 2;
         byte[] expectedData = randomizedByteArrayWithSize(initialOffset + additionalLength);
         out.writeBytes(expectedData, 0, initialOffset);
         assertEquals(initialOffset, out.size());
@@ -181,7 +181,7 @@ public class BytesStreamsTests extends ESTestCase {
     public void testSingleFullPage() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
-        int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE;
+        int expectedSize = PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
 
         // write byte-by-byte
@@ -198,7 +198,7 @@ public class BytesStreamsTests extends ESTestCase {
     public void testOneFullOneShortPage() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
-        int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE + 10;
+        int expectedSize = PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE + 10;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
 
         // write byte-by-byte
@@ -215,7 +215,7 @@ public class BytesStreamsTests extends ESTestCase {
     public void testTwoFullOneShortPage() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
-        int expectedSize = (PageCacheRecycler.BYTE_PAGE_SIZE * 2) + 1;
+        int expectedSize = (PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE * 2) + 1;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
 
         // write byte-by-byte
@@ -236,9 +236,9 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(position, out.position());
 
         out.seek(position += 10);
-        out.seek(position += PageCacheRecycler.BYTE_PAGE_SIZE);
-        out.seek(position += PageCacheRecycler.BYTE_PAGE_SIZE + 10);
-        out.seek(position += PageCacheRecycler.BYTE_PAGE_SIZE * 2);
+        out.seek(position += PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE);
+        out.seek(position += PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE + 10);
+        out.seek(position += PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE * 2);
         assertEquals(position, out.position());
         assertEquals(position, BytesReference.toBytes(out.bytes()).length);
 

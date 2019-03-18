@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.nio.BytesWriteHandler;
@@ -36,6 +37,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class SSLChannelContextTests extends ESTestCase {
 
     private CheckedFunction<InboundChannelBuffer, Integer, IOException> readConsumer;

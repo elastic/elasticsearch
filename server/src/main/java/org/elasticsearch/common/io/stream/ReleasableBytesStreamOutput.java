@@ -41,7 +41,7 @@ public class ReleasableBytesStreamOutput extends BytesStreamOutput
     private Releasable releasable;
 
     public ReleasableBytesStreamOutput(BigArrays bigarrays) {
-        this(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigarrays);
+        this(PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE, bigarrays);
     }
 
     public ReleasableBytesStreamOutput(int expectedSize, BigArrays bigArrays) {

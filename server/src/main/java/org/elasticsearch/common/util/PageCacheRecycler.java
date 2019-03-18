@@ -60,7 +60,9 @@ public class PageCacheRecycler implements Releasable {
     public static final int OBJECT_PAGE_SIZE = PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     public static final int LONG_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Long.BYTES;
     public static final int INT_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Integer.BYTES;
-    public static final int BYTE_PAGE_SIZE = PAGE_SIZE_IN_BYTES;
+    public static final int BYTE_PAGE_SIZE = 16709;
+    /** The largest power of two integer that is smaller than the byte page size */
+    public static final int BYTE_PAGE_POWER_OF_TWO_SIZE = PAGE_SIZE_IN_BYTES;
 
     private final Recycler<byte[]> bytePage;
     private final Recycler<int[]> intPage;

@@ -45,7 +45,7 @@ import java.util.Map;
 
 public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
-    protected static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
+    protected static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE;
     protected final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), CircuitBreaker.REQUEST);
 
     public void testGet() throws IOException {

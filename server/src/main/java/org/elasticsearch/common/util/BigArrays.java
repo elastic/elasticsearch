@@ -460,12 +460,12 @@ public class BigArrays {
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
     public ByteArray newByteArray(long size, boolean clearOnResize) {
-        if (size > PageCacheRecycler.BYTE_PAGE_SIZE) {
+        if (size > PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE) {
             // when allocating big arrays, we want to first ensure we have the capacity by
             // checking with the circuit breaker before attempting to allocate
             adjustBreaker(BigByteArray.estimateRamBytes(size), false);
             return new BigByteArray(size, this, clearOnResize);
-        } else if (size >= PageCacheRecycler.BYTE_PAGE_SIZE / 2 && recycler != null) {
+        } else if (size >= PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE / 2 && recycler != null) {
             final Recycler.V<byte[]> page = recycler.bytePage(clearOnResize);
             return validate(new ByteArrayWrapper(this, page.v(), size, page, clearOnResize));
         } else {
@@ -501,7 +501,7 @@ public class BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, PageCacheRecycler.BYTE_PAGE_SIZE, 1);
+        final long newSize = overSize(minSize, PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE, 1);
         return resize(array, newSize);
     }
 

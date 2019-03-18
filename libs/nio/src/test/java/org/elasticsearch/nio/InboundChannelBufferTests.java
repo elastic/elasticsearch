@@ -19,6 +19,7 @@
 
 package org.elasticsearch.nio;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -27,9 +28,10 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class InboundChannelBufferTests extends ESTestCase {
 
-    private static final int PAGE_SIZE = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+    private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
     private final Supplier<InboundChannelBuffer.Page> defaultPageSupplier = () ->
         new InboundChannelBuffer.Page(ByteBuffer.allocate(PageCacheRecycler.BYTE_PAGE_SIZE), () -> {
         });

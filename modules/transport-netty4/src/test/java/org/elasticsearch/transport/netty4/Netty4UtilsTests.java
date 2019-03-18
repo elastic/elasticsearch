@@ -37,7 +37,7 @@ import java.io.IOException;
 
 public class Netty4UtilsTests extends ESTestCase {
 
-    private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
+    private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE;
     private final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), CircuitBreaker.REQUEST);
 
     public void testToChannelBufferWithEmptyRef() throws IOException {
@@ -90,8 +90,7 @@ public class Netty4UtilsTests extends ESTestCase {
             return new BytesArray(ref.toBytesRef());
         } else if (randomBoolean()) {
             BytesRef bytesRef = ref.toBytesRef();
-            return Netty4Utils.toBytesReference(Unpooled.wrappedBuffer(bytesRef.bytes, bytesRef.offset,
-                bytesRef.length));
+            return Netty4Utils.toBytesReference(Unpooled.wrappedBuffer(bytesRef.bytes, bytesRef.offset, bytesRef.length));
         } else {
             return ref;
         }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.nio;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
@@ -37,6 +38,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class BytesChannelContextTests extends ESTestCase {
 
     private CheckedFunction<InboundChannelBuffer, Integer, IOException> readConsumer;

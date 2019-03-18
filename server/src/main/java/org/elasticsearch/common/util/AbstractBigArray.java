@@ -117,7 +117,7 @@ abstract class AbstractBigArray extends AbstractArray {
             final Recycler.V<byte[]> v = recycler.bytePage(clearOnResize);
             return registerNewPage(v, page, PageCacheRecycler.BYTE_PAGE_SIZE);
         } else {
-            return new byte[PageCacheRecycler.BYTE_PAGE_SIZE];
+            return new byte[PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE];
         }
     }
 

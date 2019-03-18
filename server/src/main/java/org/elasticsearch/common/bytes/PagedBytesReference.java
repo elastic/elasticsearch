@@ -32,7 +32,7 @@ import java.io.IOException;
  */
 public class PagedBytesReference extends BytesReference {
 
-    private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
+    private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_POWER_OF_TWO_SIZE;
 
     private final ByteArray byteArray;
     private final int offset;

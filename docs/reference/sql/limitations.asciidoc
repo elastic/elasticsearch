@@ -7,8 +7,8 @@
 === Nested fields in `SYS COLUMNS` and `DESCRIBE TABLE`
 
 {es} has a special type of relationship fields called `nested` fields. In {es-sql} they can be used by referencing their inner
-sub-fields. Even though `SYS COLUMNS` and `DESCRIBE TABLE` will still display them as having the type `NESTED`, they cannot
-be used in a query. One can only reference its sub-fields in the form:
+sub-fields. Even though `SYS COLUMNS` in non-driver mode (in the CLI and in REST calls) and `DESCRIBE TABLE` will still display
+them as having the type `NESTED`, they cannot be used in a query. One can only reference its sub-fields in the form:
 
 [source, sql]
 --------------------------------------------------

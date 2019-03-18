@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -111,13 +110,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         super(in);
         fieldName = in.readString();
         value = in.readGenericValue();
-        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
-            MatchQuery.Type.readFromStream(in);  // deprecated type
-        }
         operator = Operator.readFromStream(in);
-        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
-            in.readVInt(); // deprecated slop
-        }
         prefixLength = in.readVInt();
         maxExpansions = in.readVInt();
         fuzzyTranspositions = in.readBoolean();
@@ -129,22 +122,14 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         fuzzyRewrite = in.readOptionalString();
         fuzziness = in.readOptionalWriteable(Fuzziness::new);
         cutoffFrequency = in.readOptionalFloat();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            autoGenerateSynonymsPhraseQuery = in.readBoolean();
-        }
+        autoGenerateSynonymsPhraseQuery = in.readBoolean();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeGenericValue(value);
-        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
-            MatchQuery.Type.BOOLEAN.writeTo(out); // deprecated type
-        }
         operator.writeTo(out);
-        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
-            out.writeVInt(MatchQuery.DEFAULT_PHRASE_SLOP); // deprecated slop
-        }
         out.writeVInt(prefixLength);
         out.writeVInt(maxExpansions);
         out.writeBoolean(fuzzyTranspositions);
@@ -156,9 +141,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalWriteable(fuzziness);
         out.writeOptionalFloat(cutoffFrequency);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeBoolean(autoGenerateSynonymsPhraseQuery);
-        }
+        out.writeBoolean(autoGenerateSynonymsPhraseQuery);
     }
 
     /** Returns the field name used in this query. */

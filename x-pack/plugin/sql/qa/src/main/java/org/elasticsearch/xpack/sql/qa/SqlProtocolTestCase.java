@@ -121,7 +121,8 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     @SuppressWarnings({ "unchecked" })
     private void assertQuery(String sql, String columnName, String columnType, Object columnValue, int displaySize, Mode mode)
             throws IOException {
-        Map<String, Object> response = runSql(mode.toString(), sql);
+        boolean columnar = randomBoolean();
+        Map<String, Object> response = runSql(mode.toString(), sql, columnar);
         List<Object> columns = (ArrayList<Object>) response.get("columns");
         assertEquals(1, columns.size());
 
@@ -135,7 +136,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             assertEquals(2, column.size());
         }
         
-        List<Object> rows = (ArrayList<Object>) response.get("rows");
+        List<Object> rows = (ArrayList<Object>) response.get(columnar == true ? "values" : "rows");
         assertEquals(1, rows.size());
         List<Object> row = (ArrayList<Object>) rows.get(0);
         assertEquals(1, row.size());
@@ -149,7 +150,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         }
     }
     
-    private Map<String, Object> runSql(String mode, String sql) throws IOException {
+    private Map<String, Object> runSql(String mode, String sql, boolean columnar) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         String requestContent = "{\"query\":\"" + sql + "\"" + mode(mode) + "}";
         String format = randomFrom(XContentType.values()).name().toLowerCase(Locale.ROOT);
@@ -176,6 +177,11 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("Accept", randomFrom("*/*", "application/" + format));
             request.setOptions(options);
+        }
+        if ((false == columnar && randomBoolean()) || columnar) {
+            // randomly set the "columnar" parameter, either "true" (non-default) or explicit "false" (the default anyway)
+            requestContent = new StringBuilder(requestContent)
+                    .insert(requestContent.length() - 1, ",\"columnar\":" + columnar).toString();
         }
         
         // send the query either as body or as request parameter

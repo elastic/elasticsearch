@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.sql.expression.AttributeMap;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
-import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.function.Function;
@@ -152,7 +151,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         queryC.pseudoFunctions(),
                         new AttributeMap<>(processors),
                         queryC.sort(),
-                        queryC.limit());
+                        queryC.limit(),
+                        queryC.shouldTrackHits());
                 return new EsQueryExec(exec.source(), exec.index(), project.output(), clone);
             }
             return project;
@@ -180,7 +180,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         qContainer.pseudoFunctions(),
                         qContainer.scalarFunctions(),
                         qContainer.sort(),
-                        qContainer.limit());
+                        qContainer.limit(),
+                        qContainer.shouldTrackHits());
 
                 return exec.with(qContainer);
             }
@@ -391,10 +392,16 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             if (f instanceof Count) {
                 Count c = (Count) f;
                 // COUNT(*) or COUNT(<literal>)
-                if (c.field() instanceof Literal) {
-                    AggRef ref = groupingAgg == null ?
-                            GlobalCountRef.INSTANCE :
-                            new GroupByRef(groupingAgg.id(), Property.COUNT, null);
+                if (c.field().foldable()) {
+                    AggRef ref = null;
+
+                    if (groupingAgg == null) {
+                        ref = GlobalCountRef.INSTANCE;
+                        // if the count points to the total track hits, enable accurate count retrieval
+                        queryC = queryC.withTrackHits();
+                    } else {
+                        ref = new GroupByRef(groupingAgg.id(), Property.COUNT, null);
+                    }
 
                     Map<String, GroupByKey> pseudoFunctions = new LinkedHashMap<>(queryC.pseudoFunctions());
                     pseudoFunctions.put(functionId, groupingAgg);
@@ -406,7 +413,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
                     return new Tuple<>(queryC, a);
                 }
-                // the only variant left - COUNT(DISTINCT) - will be covered by the else branch below
+                // the only variant left - COUNT(DISTINCT) - will be covered by the else branch below as it maps to an aggregation
             }
 
             AggPathInput aggInput = null;

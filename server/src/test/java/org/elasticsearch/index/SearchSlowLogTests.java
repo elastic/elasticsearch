@@ -55,7 +55,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
         ThreadPool threadPool = indexService.getThreadPool();
-        return new TestSearchContext(threadPool, bigArrays, indexService) {
+        return new TestSearchContext(bigArrays, indexService) {
             final ShardSearchRequest request = new ShardSearchRequest() {
                 private SearchSourceBuilder searchSourceBuilder;
                 @Override

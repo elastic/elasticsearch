@@ -40,6 +40,11 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         this.indices = indices;
     }
 
+    protected BroadcastRequest(String[] indices, IndicesOptions indicesOptions) {
+        this.indices = indices;
+        this.indicesOptions = indicesOptions;
+    }
+
     @Override
     public String[] indices() {
         return indices;

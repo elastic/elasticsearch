@@ -25,9 +25,16 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-stats"
 
 ---
 teardown:
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-stats"
+
   - do:
       data_frame.delete_data_frame_transform:
         transform_id: "airline-transform-stats"
@@ -39,7 +46,7 @@ teardown:
         transform_id: "airline-transform-stats"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-stats" }
-  - match: { transforms.0.state.transform_state: "stopped" }
+  - match: { transforms.0.state.transform_state: "started" }
   - match: { transforms.0.state.generation: 0 }
   - match: { transforms.0.stats.pages_processed: 0 }
   - match: { transforms.0.stats.documents_processed: 0 }
@@ -75,6 +82,9 @@ teardown:
             }
           }
   - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-stats-dos"
+  - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "*"
   - match: { count: 2 }
@@ -88,6 +98,9 @@ teardown:
   - match: { transforms.0.id: "airline-transform-stats" }
   - match: { transforms.1.id: "airline-transform-stats-dos" }
 
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-stats-dos"
   - do:
       data_frame.delete_data_frame_transform:
         transform_id: "airline-transform-stats-dos"

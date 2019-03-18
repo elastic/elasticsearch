@@ -72,7 +72,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -165,7 +164,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         builder.add(node);
                     }
                     ClusterState build = ClusterState.builder(clusterName).nodes(builder.build()).build();
-                    channel.sendResponse(new ClusterStateResponse(clusterName, build, 0L, false));
+                    channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
                 });
             newService.start();
             newService.acceptIncomingRequests();
@@ -508,8 +507,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 };
 
                 ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport);
-                StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport,
-                    threadPool);
+                StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport);
 
                 connectionManager.addConnectBehavior(seedNode.getAddress(), (cm, discoveryNode) -> {
                     if (discoveryNode == seedNode) {
@@ -854,33 +852,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-    public void testRemoteConnectionInfoBwComp() throws IOException {
-        final Version version = VersionUtils.randomVersionBetween(random(),
-            Version.V_6_1_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
-        RemoteConnectionInfo expected =
-                new RemoteConnectionInfo("test_cluster", Arrays.asList("0.0.0.0:1"), 4, 4, new TimeValue(30, TimeUnit.MINUTES), false);
-
-        // This version was created using the serialization code in use from 6.1 but before 7.0
-        String encoded = "AQQAAAAABzAuMC4wLjAAAAABAQQAAAAABzAuMC4wLjAAAABQBDwEBAx0ZXN0X2NsdXN0ZXIA";
-        final byte[] data = Base64.getDecoder().decode(encoded);
-
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            RemoteConnectionInfo deserialized = new RemoteConnectionInfo(in);
-            assertEquals(expected, deserialized);
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                deserialized.writeTo(out);
-                try (StreamInput in2 = StreamInput.wrap(out.bytes().toBytesRef().bytes)) {
-                    in2.setVersion(version);
-                    RemoteConnectionInfo deserialized2 = new RemoteConnectionInfo(in2);
-                    assertEquals(expected, deserialized2);
-                }
-            }
-        }
-    }
-
     public void testRenderConnectionInfoXContent() throws IOException {
         RemoteConnectionInfo stats =
                 new RemoteConnectionInfo("test_cluster", Arrays.asList("seed:1"), 4, 3, TimeValue.timeValueMinutes(30), true);
@@ -1162,8 +1133,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 };
 
                 ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport);
-                StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport,
-                    threadPool);
+                StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport);
 
                 connectionManager.addNodeConnectedBehavior(connectedNode.getAddress(), (cm, discoveryNode)
                     -> discoveryNode.equals(connectedNode));

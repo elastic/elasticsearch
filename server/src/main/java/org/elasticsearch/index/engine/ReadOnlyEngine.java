@@ -348,6 +348,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public boolean maybeRefresh(String source) throws EngineException {
+        return false;
+    }
+
+    @Override
     public void writeIndexingBuffer() throws EngineException {
     }
 

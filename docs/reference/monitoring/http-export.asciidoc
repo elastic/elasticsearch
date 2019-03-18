@@ -91,27 +91,3 @@ monitoring clusters.
 
 For more information about the configuration options for the `http` exporter, 
 see <<http-exporter-settings>>.
-
-[float]
-[[http-exporter-dns]]
-==== Using DNS Hosts in HTTP Exporters
-
-{monitoring} runs inside of the JVM security manager. When the JVM has the
-security manager enabled, the JVM changes the duration so that it caches DNS
-lookups indefinitely (for example, the mapping of a DNS hostname to an IP 
-address). For this reason, if you are in an environment where the DNS response 
-might change from time-to-time (for example, talking to any load balanced cloud 
-provider), you are strongly discouraged from using DNS hostnames. 
-
-Alternatively, you can set the JVM security property `networkaddress.cache.ttl`, 
-which accepts values in seconds. This property must be set for the node's JVM that 
-uses {monitoring} for {es} when using DNS that can change IP addresses. If you 
-do not apply this setting, the connection consistently fails after the IP 
-address changes.
-
-IMPORTANT: JVM security properties are different than system properties. They
-cannot be set at startup via `-D` system property settings and instead they must 
-be set in code before the security manager has been setup _or_, more 
-appropriately, in the `$JAVA_HOME/lib/security/java.security` file.
-
-Restarting the node (and therefore the JVM) results in its cache being flushed.

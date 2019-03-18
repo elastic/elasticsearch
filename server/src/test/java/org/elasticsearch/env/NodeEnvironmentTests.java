@@ -135,11 +135,11 @@ public class NodeEnvironmentTests extends ESTestCase {
         final NodeEnvironment env = newNodeEnvironment();
 
         Index index = new Index("foo", "fooUUID");
-        ShardLock fooLock = env.shardLock(new ShardId(index, 0));
+        ShardLock fooLock = env.shardLock(new ShardId(index, 0), "1");
         assertEquals(new ShardId(index, 0), fooLock.getShardId());
 
         try {
-            env.shardLock(new ShardId(index, 0));
+            env.shardLock(new ShardId(index, 0), "2");
             fail("shard is locked");
         } catch (ShardLockObtainFailedException ex) {
             // expected
@@ -149,7 +149,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             Files.createDirectories(path.resolve("1"));
         }
         try {
-            env.lockAllForIndex(index, idxSettings, randomIntBetween(0, 10));
+            env.lockAllForIndex(index, idxSettings, "3", randomIntBetween(0, 10));
             fail("shard 0 is locked");
         } catch (ShardLockObtainFailedException ex) {
             // expected
@@ -157,11 +157,11 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         fooLock.close();
         // can lock again?
-        env.shardLock(new ShardId(index, 0)).close();
+        env.shardLock(new ShardId(index, 0), "4").close();
 
-        List<ShardLock> locks = env.lockAllForIndex(index, idxSettings, randomIntBetween(0, 10));
+        List<ShardLock> locks = env.lockAllForIndex(index, idxSettings, "5", randomIntBetween(0, 10));
         try {
-            env.shardLock(new ShardId(index, 0));
+            env.shardLock(new ShardId(index, 0), "6");
             fail("shard is locked");
         } catch (ShardLockObtainFailedException ex) {
             // expected
@@ -239,7 +239,7 @@ public class NodeEnvironmentTests extends ESTestCase {
     public void testDeleteSafe() throws Exception {
         final NodeEnvironment env = newNodeEnvironment();
         final Index index = new Index("foo", "fooUUID");
-        ShardLock fooLock = env.shardLock(new ShardId(index, 0));
+        ShardLock fooLock = env.shardLock(new ShardId(index, 0), "1");
         assertEquals(new ShardId(index, 0), fooLock.getShardId());
 
         for (Path path : env.indexPaths(index)) {
@@ -295,7 +295,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 @Override
                 protected void doRun() throws Exception {
                     start.await();
-                    try (ShardLock autoCloses = env.shardLock(new ShardId(index, 0))) {
+                    try (ShardLock autoCloses = env.shardLock(new ShardId(index, 0), "2")) {
                         blockLatch.countDown();
                         Thread.sleep(randomIntBetween(1, 10));
                     }
@@ -353,7 +353,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                     for (int i = 0; i < iters; i++) {
                         int shard = randomIntBetween(0, counts.length - 1);
                         try {
-                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), 
+                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), "1",
                                     scaledRandomIntBetween(0, 10))) {
                                 counts[shard].value++;
                                 countsAtomic[shard].incrementAndGet();

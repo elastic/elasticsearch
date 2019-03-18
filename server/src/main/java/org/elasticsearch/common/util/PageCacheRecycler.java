@@ -107,7 +107,7 @@ public class PageCacheRecycler implements Releasable {
         final int maxBytePageCount = (int) (bytesWeight * maxPageCount / totalWeight);
         bytePage = build(type, maxBytePageCount, availableProcessors, new AbstractRecyclerC<byte[]>() {
             @Override
-            public byte[] newInstance(int sizing) {
+            public byte[] newInstance() {
                 return new byte[BYTE_PAGE_SIZE];
             }
             @Override
@@ -119,7 +119,7 @@ public class PageCacheRecycler implements Releasable {
         final int maxIntPageCount = (int) (intsWeight * maxPageCount / totalWeight);
         intPage = build(type, maxIntPageCount, availableProcessors, new AbstractRecyclerC<int[]>() {
             @Override
-            public int[] newInstance(int sizing) {
+            public int[] newInstance() {
                 return new int[INT_PAGE_SIZE];
             }
             @Override
@@ -131,7 +131,7 @@ public class PageCacheRecycler implements Releasable {
         final int maxLongPageCount = (int) (longsWeight * maxPageCount / totalWeight);
         longPage = build(type, maxLongPageCount, availableProcessors, new AbstractRecyclerC<long[]>() {
             @Override
-            public long[] newInstance(int sizing) {
+            public long[] newInstance() {
                 return new long[LONG_PAGE_SIZE];
             }
             @Override
@@ -143,7 +143,7 @@ public class PageCacheRecycler implements Releasable {
         final int maxObjectPageCount = (int) (objectsWeight * maxPageCount / totalWeight);
         objectPage = build(type, maxObjectPageCount, availableProcessors, new AbstractRecyclerC<Object[]>() {
             @Override
-            public Object[] newInstance(int sizing) {
+            public Object[] newInstance() {
                 return new Object[OBJECT_PAGE_SIZE];
             }
             @Override

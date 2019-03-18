@@ -14,8 +14,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -112,6 +115,15 @@ public class IndexDeprecationChecks {
         return null;
     }
 
+
+    private static final Set<String> TYPES_THAT_DONT_COUNT;
+    static {
+        HashSet<String> typesThatDontCount = new HashSet<>();
+        typesThatDontCount.add("binary");
+        typesThatDontCount.add("geo_point");
+        typesThatDontCount.add("geo_shape");
+        TYPES_THAT_DONT_COUNT = Collections.unmodifiableSet(typesThatDontCount);
+    }
     /* Counts the number of fields in a mapping, designed to count the as closely as possible to
      * org.elasticsearch.index.search.QueryParserHelper#checkForTooManyFields
      */
@@ -125,7 +137,8 @@ public class IndexDeprecationChecks {
         for (Map.Entry<?, ?> entry : properties.entrySet()) {
             Map<String, Object> valueMap = (Map<String, Object>) entry.getValue();
             if (valueMap.containsKey("type")
-                && (valueMap.get("type").equals("object") && valueMap.containsKey("properties") == false) == false) {
+                && (valueMap.get("type").equals("object") && valueMap.containsKey("properties") == false) == false
+                && (TYPES_THAT_DONT_COUNT.contains(valueMap.get("type")) == false)) {
                 fields++;
             }
 
@@ -133,7 +146,8 @@ public class IndexDeprecationChecks {
             if (values != null) {
                 for (Map.Entry<?, ?> multifieldEntry : values.entrySet()) {
                     Map<String, Object> multifieldValueMap = (Map<String, Object>) multifieldEntry.getValue();
-                    if (multifieldValueMap.containsKey("type")) {
+                    if (multifieldValueMap.containsKey("type")
+                        && (TYPES_THAT_DONT_COUNT.contains(valueMap.get("type")) == false)) {
                         fields++;
                     }
                     if (multifieldValueMap.containsKey("properties")) {

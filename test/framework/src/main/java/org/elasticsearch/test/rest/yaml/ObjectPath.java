@@ -159,7 +159,7 @@ public class ObjectPath {
             list.add(current.toString());
         }
 
-        return list.toArray(new String[list.size()]);
+        return list.toArray(new String[0]);
     }
 
     /**

@@ -132,9 +132,10 @@ subprojects {
   }
 
   String output = "${buildDir}/generated-resources/${project.name}"
-  task copyTestNodeKeystore(type: Copy) {
-    from project(':x-pack:plugin:core')
-      .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+  task copyTestNodeKeyMaterial(type: Copy) {
+    from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
     into outputDir
   }
 
@@ -152,7 +153,7 @@ subprojects {
 
     Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-      dependsOn copyTestNodeKeystore
+      dependsOn copyTestNodeKeyMaterial
       if (version.before('6.3.0')) {
           String depVersion = version;
           if (project.bwcVersions.unreleased.contains(version)) {
@@ -174,12 +175,20 @@ subprojects {
 
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.transport.ssl.enabled', version.onOrAfter("5.2.0").toString()
-      setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      setting 'xpack.ssl.keystore.password', 'testnode'
+      if (project.inFipsJvm && version.onOrAfter('6.4.0')) {
+        setting 'xpack.ssl.key', 'testnode.pem'
+        setting 'xpack.ssl.certificate', 'testnode.crt'
+        keystoreSetting 'xpack.ssl.secure_key_passphrase', 'testnode'
+      } else {
+        setting 'xpack.ssl.keystore.path', 'testnode.jks'
+        setting 'xpack.ssl.keystore.password', 'testnode'
+      }
       if (version.onOrAfter('6.3.0')) {
         setting 'xpack.license.self_generated.type', 'trial'
       }
-      dependsOn copyTestNodeKeystore
+      dependsOn copyTestNodeKeyMaterial
+      extraConfigFile 'testnode.pem', new File(outputDir + '/testnode.pem')
+      extraConfigFile 'testnode.crt', new File(outputDir + '/testnode.crt')
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (version.before('5.1.2')) {
         // Disable monitoring if version is before 5.1.2 because form 5.1.2 we changed how we get DocStats 
@@ -226,11 +235,19 @@ subprojects {
       // some tests rely on the translog not being flushed
       setting 'indices.memory.shard_inactive_time', '20m'
       setting 'xpack.security.enabled', 'true'
-      setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
+      if (project.inFipsJvm) {
+        setting 'xpack.ssl.key', 'testnode.pem'
+        setting 'xpack.ssl.certificate', 'testnode.crt'
+        keystoreSetting 'xpack.ssl.secure_key_passphrase', 'testnode'
+      } else {
+        setting 'xpack.ssl.keystore.path', 'testnode.jks'
+        keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
+      }
       setting 'xpack.license.self_generated.type', 'trial'
-      dependsOn copyTestNodeKeystore
+      dependsOn copyTestNodeKeyMaterial
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+      extraConfigFile 'testnode.pem', new File(outputDir + '/testnode.pem')
+      extraConfigFile 'testnode.crt', new File(outputDir + '/testnode.crt')
       if (withSystemKey) {
           setting 'xpack.watcher.encrypt_sensitive_data', 'true'
           keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"

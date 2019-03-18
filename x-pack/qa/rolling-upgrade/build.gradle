@@ -111,9 +111,10 @@ subprojects {
   }
 
   String output = "${buildDir}/generated-resources/${project.name}"
-  task copyTestNodeKeystore(type: Copy) {
-    from project(':x-pack:plugin:core')
-            .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+  task copyTestNodeKeyMaterial(type: Copy) {
+    from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
     into outputDir
   }
 
@@ -125,7 +126,7 @@ subprojects {
     }
 
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-      dependsOn copyTestNodeKeystore
+      dependsOn copyTestNodeKeyMaterial
       if (version.before('6.3.0')) {
           String depVersion = version;
           if (project.bwcVersions.unreleased.contains(version)) {
@@ -152,15 +153,23 @@ subprojects {
       setting 'xpack.security.authc.token.enabled', 'true'
       setting 'xpack.security.audit.enabled', 'true'
       setting 'xpack.security.audit.outputs', 'index'
-      setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      setting 'xpack.ssl.keystore.password', 'testnode'
+      if (project.inFipsJvm && version.onOrAfter('6.4.0')) {
+        setting 'xpack.ssl.key', 'testnode.pem'
+        setting 'xpack.ssl.certificate', 'testnode.crt'
+        keystoreSetting 'xpack.ssl.secure_key_passphrase', 'testnode'
+      } else {
+        setting 'xpack.ssl.keystore.path', 'testnode.jks'
+        setting 'xpack.ssl.keystore.password', 'testnode'
+      }
       setting 'logger.org.elasticsearch.xpack.security.audit.index', 'DEBUG'
       if (version.onOrAfter('6.0.0') == false) {
         // this is needed since in 5.6 we don't bootstrap the token service if there is no explicit initial password
         keystoreSetting 'xpack.security.authc.token.passphrase', 'xpack_token_passphrase'
       }
-      dependsOn copyTestNodeKeystore
+      dependsOn copyTestNodeKeyMaterial
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+      extraConfigFile 'testnode.pem', new File(outputDir + '/testnode.pem')
+      extraConfigFile 'testnode.crt', new File(outputDir + '/testnode.crt')
       if (withSystemKey) {
         if (version.onOrAfter('5.1.0') && version.before('6.0.0')) {
           // The setting didn't exist until 5.1.0
@@ -210,8 +219,14 @@ subprojects {
         setting 'xpack.license.self_generated.type', 'trial'
         setting 'xpack.security.enabled', 'true'
         setting 'xpack.security.transport.ssl.enabled', 'true'
-        setting 'xpack.ssl.keystore.path', 'testnode.jks'
-        keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
+        if (project.inFipsJvm) {
+          setting 'xpack.ssl.key', 'testnode.pem'
+          setting 'xpack.ssl.certificate', 'testnode.crt'
+          keystoreSetting 'xpack.ssl.secure_key_passphrase', 'testnode'
+        } else {
+          setting 'xpack.ssl.keystore.path', 'testnode.jks'
+          keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
+        }
         setting 'logger.org.elasticsearch.xpack.security.audit.index', 'DEBUG'
         if (version.onOrAfter('6.0.0') == false) {
           // this is needed since in 5.6 we don't bootstrap the token service if there is no explicit initial password
@@ -223,8 +238,10 @@ subprojects {
         setting 'xpack.security.audit.enabled', 'true'
         setting 'xpack.security.audit.outputs', 'index'
         setting 'node.name', "upgraded-node-${stopNode}"
-        dependsOn copyTestNodeKeystore
+        dependsOn copyTestNodeKeyMaterial
         extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+        extraConfigFile 'testnode.pem', new File(outputDir + '/testnode.pem')
+        extraConfigFile 'testnode.crt', new File(outputDir + '/testnode.crt')
         if (withSystemKey) {
           setting 'xpack.watcher.encrypt_sensitive_data', 'true'
           keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"

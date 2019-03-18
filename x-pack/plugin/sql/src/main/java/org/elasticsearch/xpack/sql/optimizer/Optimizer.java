@@ -94,6 +94,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.sql.expression.Expressions.equalsAsAttribute;
 import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.sql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.combineAnd;
@@ -884,7 +885,26 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 for (Order o : nonConstant) {
                     Expression fieldToOrder = o.child();
                     for (Expression group : a.groupings()) {
-                        if (Expressions.equalsAsAttribute(fieldToOrder, group)) {
+                        Holder<Boolean> isMatching = new Holder<>(Boolean.FALSE);
+                        if (equalsAsAttribute(fieldToOrder, group)) {
+                            isMatching.set(Boolean.TRUE);
+                        } else {
+                            a.aggregates().forEach(alias -> {
+                                if (alias instanceof Alias) {
+                                    Expression child = ((Alias) alias).child();
+                                    // Check if the groupings (a, y) match the orderings (b, x) through the aggregates' aliases (x, y)
+                                    // e.g. SELECT a AS x, b AS y ... GROUP BY a, y ORDER BY b, x
+                                    if ((equalsAsAttribute(child, group)
+                                            && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder))) 
+                                        || (equalsAsAttribute(alias, group)
+                                                && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))) {
+                                        isMatching.set(Boolean.TRUE);
+                                    }
+                                }
+                            });
+                        }
+                        
+                        if (isMatching.get() == true) {
                             // move grouping in front
                             groupings.remove(group);
                             groupings.add(0, group);

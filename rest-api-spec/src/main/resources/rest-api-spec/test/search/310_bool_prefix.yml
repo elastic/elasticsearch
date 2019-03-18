@@ -1,6 +1,6 @@
 setup:
   - skip:
-      version: " - 7.0.99"
+      version: " - 7.1.0"
       reason: index_prefixes is only available as of 6.3.0
 
   - do:

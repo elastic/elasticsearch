@@ -47,13 +47,6 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
     private final Logger logger = LogManager.getLogger(getClass());
 
-    static {
-        final String property = System.getProperty("es.cluster_state.size");
-        if (property != null) {
-                throw new IllegalArgumentException("es.cluster_state.size is no longer respected but was [" + property + "]");
-        }
-    }
-
     @Inject
     public TransportClusterStateAction(TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters,

@@ -36,7 +36,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     public static FieldHitExtractor randomFieldHitExtractor() {
         String hitName = randomAlphaOfLength(5);
         String name = randomAlphaOfLength(5) + "." + hitName;
-        return new FieldHitExtractor(name, null, randomBoolean(), hitName);
+        return new FieldHitExtractor(name, null, randomBoolean(), hitName, false);
     }
 
     @Override
@@ -51,7 +51,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     @Override
     protected FieldHitExtractor mutateInstance(FieldHitExtractor instance) {
-        return new FieldHitExtractor(instance.fieldName() + "mutated", null, true, instance.hitName());
+        return new FieldHitExtractor(instance.fieldName() + "mutated", null, true, instance.hitName(), false);
     }
 
     public void testGetDottedValueWithDocValues() {
@@ -174,7 +174,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testToString() {
-        assertEquals("hit.field@hit", new FieldHitExtractor("hit.field", null, true, "hit").toString());
+        assertEquals("hit.field@hit", new FieldHitExtractor("hit.field", null, true, "hit", false).toString());
     }
 
     public void testMultiValuedDocValue() {
@@ -238,6 +238,14 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         Map<String, Object> map = singletonMap("a", asList(value, value));
         SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
+    }
+
+    public void testMultiValuedSourceAllowed() {
+        FieldHitExtractor fe = new FieldHitExtractor("a", null, false, true);
+        Object valueA = randomValue();
+        Object valueB = randomValue();
+        Map<String, Object> map = singletonMap("a", asList(valueA, valueB));
+        assertEquals(valueA, fe.extractFromSource(map));
     }
 
     public void testFieldWithDots() {

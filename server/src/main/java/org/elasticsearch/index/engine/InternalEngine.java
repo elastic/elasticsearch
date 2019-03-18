@@ -1384,7 +1384,9 @@ public class InternalEngine extends Engine {
             return new DeleteResult(
                 plan.versionOfDeletion, getPrimaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
         } catch (Exception ex) {
-            assert indexWriter.getTragicException() != null : "delete operation should never fail at document level";
+            if (indexWriter.getTragicException() == null) {
+                throw new AssertionError("delete operation should never fail at document level", ex);
+            }
             throw ex;
         }
     }

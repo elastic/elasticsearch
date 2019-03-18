@@ -31,7 +31,6 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -57,7 +56,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -93,7 +91,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public static final String TRANSLOG_OPS = "internal:index/shard/recovery/translog_ops";
         public static final String PREPARE_TRANSLOG = "internal:index/shard/recovery/prepare_translog";
         public static final String FINALIZE = "internal:index/shard/recovery/finalize";
-        public static final String WAIT_CLUSTERSTATE = "internal:index/shard/recovery/wait_clusterstate";
         public static final String HANDOFF_PRIMARY_CONTEXT = "internal:index/shard/recovery/handoff_primary_context";
     }
 
@@ -112,7 +109,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         this.transportService = transportService;
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
-        this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool, this::waitForClusterState);
+        this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool);
 
         transportService.registerRequestHandler(Actions.FILES_INFO, RecoveryFilesInfoRequest::new, ThreadPool.Names.GENERIC, new
                 FilesInfoRequestHandler());
@@ -126,8 +123,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 new TranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new
                 FinalizeRecoveryRequestHandler());
-        transportService.registerRequestHandler(Actions.WAIT_CLUSTERSTATE, RecoveryWaitForClusterStateRequest::new,
-            ThreadPool.Names.GENERIC, new WaitForClusterStateRequestHandler());
         transportService.registerRequestHandler(
                 Actions.HANDOFF_PRIMARY_CONTEXT,
                 RecoveryHandoffPrimaryContextRequest::new,
@@ -452,18 +447,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
     }
 
-    class WaitForClusterStateRequestHandler implements TransportRequestHandler<RecoveryWaitForClusterStateRequest> {
-
-        @Override
-        public void messageReceived(RecoveryWaitForClusterStateRequest request, TransportChannel channel, Task task) throws Exception {
-            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
-            )) {
-                recoveryRef.target().ensureClusterStateVersion(request.clusterStateVersion());
-            }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-    }
-
     class HandoffPrimaryContextRequestHandler implements TransportRequestHandler<RecoveryHandoffPrimaryContextRequest> {
 
         @Override
@@ -534,46 +517,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                                     }
                                 })
                 );
-            }
-        }
-    }
-
-    private void waitForClusterState(long clusterStateVersion) {
-        final ClusterState clusterState = clusterService.state();
-        ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, TimeValue.timeValueMinutes(5), logger,
-            threadPool.getThreadContext());
-        if (clusterState.getVersion() >= clusterStateVersion) {
-            logger.trace("node has cluster state with version higher than {} (current: {})", clusterStateVersion,
-                clusterState.getVersion());
-            return;
-        } else {
-            logger.trace("waiting for cluster state version {} (current: {})", clusterStateVersion, clusterState.getVersion());
-            final PlainActionFuture<Long> future = new PlainActionFuture<>();
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    future.onResponse(state.getVersion());
-                }
-
-                @Override
-                public void onClusterServiceClose() {
-                    future.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    future.onFailure(new IllegalStateException("cluster state never updated to version " + clusterStateVersion));
-                }
-            }, newState -> newState.getVersion() >= clusterStateVersion);
-            try {
-                long currentVersion = future.get();
-                logger.trace("successfully waited for cluster state with version {} (current: {})", clusterStateVersion, currentVersion);
-            } catch (Exception e) {
-                logger.debug(() -> new ParameterizedMessage(
-                        "failed waiting for cluster state with version {} (current: {})",
-                        clusterStateVersion, clusterService.state().getVersion()), e);
-                throw ExceptionsHelper.convertToRuntime(e);
             }
         }
     }

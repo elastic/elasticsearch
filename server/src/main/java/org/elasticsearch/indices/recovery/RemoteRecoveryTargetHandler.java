@@ -96,14 +96,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void ensureClusterStateVersion(long clusterStateVersion) {
-        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.WAIT_CLUSTERSTATE,
-            new RecoveryWaitForClusterStateRequest(recoveryId, shardId, clusterStateVersion),
-            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
-                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-    }
-
-    @Override
     public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
         transportService.submitRequest(
                 targetNode,

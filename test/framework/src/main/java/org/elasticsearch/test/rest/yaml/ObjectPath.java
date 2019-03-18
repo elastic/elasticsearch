@@ -103,9 +103,12 @@ public class ObjectPath {
 
         if (object instanceof Map) {
             final Map<String, Object> objectAsMap = (Map<String, Object>) object;
-            if ("_unique_key_".equals(key)) {
-                if (objectAsMap.size() != 1) {
-                    throw new IllegalArgumentException("requested [" + key + "] but the map had keys " + objectAsMap.keySet());
+            if ("_arbitrary_key_".equals(key)) {
+                if (objectAsMap.isEmpty()) {
+                    throw new IllegalArgumentException("requested [" + key + "] but the map was empty");
+                }
+                if (objectAsMap.containsKey(key)) {
+                    throw new IllegalArgumentException("requested meta-key [" + key + "] but the map unexpectedly contains this key");
                 }
                 return objectAsMap.keySet().iterator().next();
             }

@@ -1,7 +1,7 @@
 setup:
   - skip:
       version: " - 7.1.0"
-      reason: "search-as-you-type field type was introduced in 7.1.0"
+      reason: "added in 7.1.0"
 
   - do:
       indices.create:

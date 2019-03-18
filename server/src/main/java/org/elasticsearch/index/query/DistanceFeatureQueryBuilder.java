@@ -123,8 +123,7 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         Object originObj = origin.origin();
         if (fieldType instanceof DateFieldType) {
             long originLong = ((DateFieldType) fieldType).parseToLong(originObj, true, null, null, context);
-            TimeValue pivotVal = TimeValue.parseTimeValue(pivot, TimeValue.timeValueHours(24),
-                DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
+            TimeValue pivotVal = TimeValue.parseTimeValue(pivot, DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
             if (((DateFieldType) fieldType).resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
                 return LongPoint.newDistanceFeatureQuery(field, boost, originLong, pivotVal.getMillis());
             } else { // NANOSECONDS
@@ -173,15 +172,15 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         private final Object origin;
 
         public Origin(Long origin) {
-            this.origin = origin;
+            this.origin = Objects.requireNonNull(origin);
         }
 
         public Origin(String origin) {
-            this.origin = origin;
+            this.origin = Objects.requireNonNull(origin);
         }
 
         public Origin(GeoPoint origin) {
-            this.origin = origin;
+            this.origin = Objects.requireNonNull(origin);
         }
 
         private static Origin originFromXContent(XContentParser parser) throws IOException {

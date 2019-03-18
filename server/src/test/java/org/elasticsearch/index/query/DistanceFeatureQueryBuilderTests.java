@@ -34,11 +34,9 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
-import static org.elasticsearch.common.time.DateUtils.toLong;
 
 
 import java.io.IOException;
-import java.time.Duration;
 import java.time.Instant;
 
 import static org.hamcrest.Matchers.containsString;
@@ -56,15 +54,17 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
                 pivot = randomFrom(DistanceUnit.values()).toString(randomDouble());
                 break;
             case DATE_FIELD_NAME:
-                long randomDateMills = System.currentTimeMillis() - randomLongBetween(0, 1_000_000);
+                long randomDateMills = randomLongBetween(0, 2_000_000_000_000l);
                 origin = randomBoolean() ? new Origin(randomDateMills) : new Origin(new DateTime(randomDateMills).toString());
                 pivot = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
                 break;
             default: // DATE_NANOS_FIELD_NAME
-                Instant randomDateNanos = Instant.now().minus(Duration.ofNanos(randomLongBetween(0, 100_000_000)));
+                randomDateMills = randomLongBetween(0, 2_000_000_000_000l);
                 if (randomBoolean()) {
-                    origin = new Origin(toLong(randomDateNanos) / 1_000_000); // get milliseconds since epoch
+                    origin = new Origin(randomDateMills); // nano_dates long accept milliseconds since epoch
                 } else {
+                    long randomNanos = randomLongBetween(0, 1_000_000l);
+                    Instant randomDateNanos = Instant.ofEpochMilli(randomDateMills).plusNanos(randomNanos);
                     origin = new Origin(randomDateNanos.toString());
                 }
                 pivot = randomTimeValue(1, 100_000_000, "nanos");
@@ -88,8 +88,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             MapperService mapperService = context.getQueryShardContext().getMapperService();
             DateFieldType fieldType = (DateFieldType) mapperService.fullName(fieldName);
             long originLong = fieldType.parseToLong(origin, true, null, null, context.getQueryShardContext());
-            TimeValue pivotVal = TimeValue.parseTimeValue(pivot, TimeValue.timeValueHours(24),
-                DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
+            TimeValue pivotVal = TimeValue.parseTimeValue(pivot, DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
             long pivotLong;
             if (fieldType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
                 pivotLong = pivotVal.getMillis();

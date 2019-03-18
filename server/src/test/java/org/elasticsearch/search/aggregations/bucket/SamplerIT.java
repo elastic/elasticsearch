@@ -178,4 +178,11 @@ public class SamplerIT extends ESIntegTestCase {
         assertThat(authors.getBuckets().size(), greaterThan(0));
     }
 
+    public void testRidiculousShardSizeSampler() throws Exception {
+        SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(Integer.MAX_VALUE);
+        sampleAgg.subAggregation(terms("authors").field("author"));
+        SearchResponse response = client().prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setQuery(new TermQueryBuilder("genre", "fantasy")).setFrom(0).setSize(60).addAggregation(sampleAgg).get();
+        assertSearchResponse(response);
+    }
 }

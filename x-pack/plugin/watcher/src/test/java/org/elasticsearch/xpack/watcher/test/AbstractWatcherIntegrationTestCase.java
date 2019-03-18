@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -53,7 +54,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
-import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.notification.email.Authentication;
 import org.elasticsearch.xpack.watcher.notification.email.Email;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
@@ -235,7 +235,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
                 // Now replace it with a randomly named index
                 watchIndexName = randomAlphaOfLengthBetween(5,10).toLowerCase(Locale.ROOT);
-                replaceWatcherIndexWithRandomlyNamedIndex(Watch.INDEX, watchIndexName, Watch.DOC_TYPE);
+                replaceWatcherIndexWithRandomlyNamedIndex(Watch.INDEX, watchIndexName);
 
                 logger.info("set alias for .watches index to [{}]", watchIndexName);
             } else {
@@ -259,8 +259,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 // Now replace it with a randomly-named index
                 triggeredWatchIndexName = randomValueOtherThan(watchIndexName,
                     () -> randomAlphaOfLengthBetween(5,10).toLowerCase(Locale.ROOT));
-                replaceWatcherIndexWithRandomlyNamedIndex(TriggeredWatchStoreField.INDEX_NAME, triggeredWatchIndexName,
-                    TriggeredWatchStoreField.DOC_TYPE);
+                replaceWatcherIndexWithRandomlyNamedIndex(TriggeredWatchStoreField.INDEX_NAME, triggeredWatchIndexName);
                 logger.info("set alias for .triggered-watches index to [{}]", triggeredWatchIndexName);
             } else {
                 triggeredWatchIndexName = TriggeredWatchStoreField.INDEX_NAME;
@@ -274,9 +273,9 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
     }
 
-    public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to, String docType) {
+    public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to) {
         GetIndexResponse index = client().admin().indices().prepareGetIndex().setIndices(originalIndexOrAlias).get();
-        MappingMetaData mapping = index.getMappings().get(index.getIndices()[0]).get(docType);
+        MappingMetaData mapping = index.getMappings().get(index.getIndices()[0]).get(MapperService.SINGLE_MAPPING_NAME);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
         Settings.Builder newSettings = Settings.builder().put(settings);
@@ -286,7 +285,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         newSettings.remove("index.version.created");
 
         CreateIndexResponse createIndexResponse = client().admin().indices().prepareCreate(to)
-            .addMapping(docType, mapping.sourceAsMap())
+            .addMapping(MapperService.SINGLE_MAPPING_NAME, mapping.sourceAsMap())
             .setSettings(newSettings)
             .get();
         assertTrue(createIndexResponse.isAcknowledged());
@@ -315,22 +314,18 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return false;
     }
 
-    protected long docCount(String index, String type, QueryBuilder query) {
+    protected long docCount(String index, QueryBuilder query) {
         refresh();
-        return docCount(index, type, SearchSourceBuilder.searchSource().query(query));
+        return docCount(index, SearchSourceBuilder.searchSource().query(query));
     }
 
     protected long watchRecordCount(QueryBuilder query) {
         refresh();
-        return docCount(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*",
-                HistoryStore.DOC_TYPE, SearchSourceBuilder.searchSource().query(query));
+        return docCount(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*", SearchSourceBuilder.searchSource().query(query));
     }
 
-    protected long docCount(String index, String type, SearchSourceBuilder source) {
+    protected long docCount(String index, SearchSourceBuilder source) {
         SearchRequestBuilder builder = client().prepareSearch(index).setSource(source).setSize(0);
-        if (type != null) {
-            builder.setTypes(type);
-        }
         return builder.get().getHits().getTotalHits().value;
     }
 
@@ -407,7 +402,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected SearchResponse searchWatchRecords(Consumer<SearchRequestBuilder> requestBuilderCallback) {
         SearchRequestBuilder builder =
-                client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setTypes(HistoryStore.DOC_TYPE);
+                client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*");
         requestBuilderCallback.accept(builder);
         return builder.get();
     }

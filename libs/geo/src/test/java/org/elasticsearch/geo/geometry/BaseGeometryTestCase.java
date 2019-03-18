@@ -30,9 +30,19 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTestCase<T> {
+
+    @Override
+    protected final T createTestInstance() {
+        boolean hasAlt = randomBoolean();
+        T obj = createTestInstance(hasAlt);
+        assertEquals(hasAlt, obj.hasAlt());
+        return obj;
+    }
+
+    protected abstract T createTestInstance(boolean hasAlt);
 
     @Override
     protected Writeable.Reader<T> instanceReader() {
@@ -127,48 +137,86 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
         return randomDoubleBetween(-180, 180, true);
     }
 
-    public static Circle randomCircle() {
-        return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDoubleBetween(0, 100, false));
+    public static Circle randomCircle(boolean hasAlt) {
+        if (hasAlt) {
+            return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDouble(),
+                randomDoubleBetween(0, 100, false));
+        } else {
+            return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDoubleBetween(0, 100, false));
+        }
     }
 
     public static Line randomLine() {
+        return randomLine(randomBoolean());
+    }
+
+    public static Line randomLine(boolean hasAlts) {
         int size = randomIntBetween(2, 10);
         double[] lats = new double[size];
         double[] lons = new double[size];
+        double[] alts = hasAlts ? new double[size] : null;
         for (int i = 0; i < size; i++) {
             lats[i] = randomLat();
             lons[i] = randomLon();
+            if (hasAlts) {
+                alts[i] = randomDouble();
+            }
+        }
+        if (hasAlts) {
+            return new Line(lats, lons, alts);
         }
         return new Line(lats, lons);
     }
 
     public static Point randomPoint() {
-        return new Point(randomLat(), randomLon());
+        return randomPoint(randomBoolean());
     }
 
-    public static LinearRing randomLinearRing() {
+    public static Point randomPoint(boolean hasAlt) {
+        if (hasAlt) {
+            return new Point(randomLat(), randomLon(), randomDouble());
+        } else {
+            return new Point(randomLat(), randomLon());
+        }
+    }
+
+    public static LinearRing randomLinearRing(boolean hasAlt) {
         int size = randomIntBetween(3, 10);
         double[] lats = new double[size + 1];
         double[] lons = new double[size + 1];
+        double[] alts;
+        if (hasAlt) {
+            alts = new double[size + 1];
+        } else {
+            alts = null;
+        }
         for (int i = 0; i < size; i++) {
             lats[i] = randomLat();
             lons[i] = randomLon();
+            if (hasAlt) {
+                alts[i] = randomDouble();
+            }
         }
         lats[size] = lats[0];
         lons[size] = lons[0];
-        return new LinearRing(lats, lons);
+        if (hasAlt) {
+            alts[size] = alts[0];
+            return new LinearRing(lats, lons, alts);
+        } else {
+            return new LinearRing(lats, lons);
+        }
     }
 
-    public static Polygon randomPolygon() {
+    public static Polygon randomPolygon(boolean hasAlt) {
         int size = randomIntBetween(0, 10);
         List<LinearRing> holes = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            holes.add(randomLinearRing());
+            holes.add(randomLinearRing(hasAlt));
         }
         if (holes.size() > 0) {
-            return new Polygon(randomLinearRing(), holes);
+            return new Polygon(randomLinearRing(hasAlt), holes);
         } else {
-            return new Polygon(randomLinearRing());
+            return new Polygon(randomLinearRing(hasAlt));
         }
     }
 
@@ -180,23 +228,23 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
         return new Rectangle(Math.min(lat1, lat2), Math.max(lat1, lat2), minLon, maxLon);
     }
 
-    public static GeometryCollection<Geometry> randomGeometryCollection() {
-        return randomGeometryCollection(0);
+    public static GeometryCollection<Geometry> randomGeometryCollection(boolean hasAlt) {
+        return randomGeometryCollection(0, hasAlt);
     }
 
-    private static GeometryCollection<Geometry> randomGeometryCollection(int level) {
+    private static GeometryCollection<Geometry> randomGeometryCollection(int level, boolean hasAlt) {
         int size = randomIntBetween(1, 10);
         List<Geometry> shapes = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            @SuppressWarnings("unchecked") Supplier<Geometry> geometry = randomFrom(
+            @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = randomFrom(
                 BaseGeometryTestCase::randomCircle,
                 BaseGeometryTestCase::randomLine,
                 BaseGeometryTestCase::randomPoint,
                 BaseGeometryTestCase::randomPolygon,
-                BaseGeometryTestCase::randomRectangle,
-                level < 3 ? () -> randomGeometryCollection(level + 1) : BaseGeometryTestCase::randomPoint // don't build too deep
+                hasAlt ? BaseGeometryTestCase::randomPoint : (b) -> randomRectangle(),
+                level < 3 ? (b) -> randomGeometryCollection(level + 1, b) : BaseGeometryTestCase::randomPoint // don't build too deep
             );
-            shapes.add(geometry.get());
+            shapes.add(geometry.apply(hasAlt));
         }
         return new GeometryCollection<>(shapes);
     }

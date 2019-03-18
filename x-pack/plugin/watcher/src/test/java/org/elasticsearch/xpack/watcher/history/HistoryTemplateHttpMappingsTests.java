@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -158,8 +159,8 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         Iterator<ImmutableOpenMap<String, MappingMetaData>> iterator = mappingsResponse.getMappings().valuesIt();
         while (iterator.hasNext()) {
             ImmutableOpenMap<String, MappingMetaData> mapping = iterator.next();
-            assertThat(mapping.containsKey("doc"), is(true));
-            Map<String, Object> docMapping = mapping.get("doc").getSourceAsMap();
+            assertThat(mapping.containsKey(SINGLE_MAPPING_NAME), is(true));
+            Map<String, Object> docMapping = mapping.get(SINGLE_MAPPING_NAME).getSourceAsMap();
             if (abortAtInput) {
                 Boolean enabled = ObjectPath.eval("properties.result.properties.input.properties.error.enabled", docMapping);
                 indexed.add(enabled);

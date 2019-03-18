@@ -104,7 +104,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
      * format of the response is incompatible i.e. it is not a JSON object.
      */
     static shouldAddShardFailureCheck(String path) {
-        return path.startsWith('_cat') == false &&  path.startsWith('_ml/datafeeds/') == false
+        return path.startsWith('_cat') == false && path.startsWith('_ml/datafeeds/') == false
     }
 
     /**
@@ -294,7 +294,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         }
 
         void emitDo(String method, String pathAndQuery, String body,
-                String catchPart, List warnings, boolean inSetup) {
+                String catchPart, List warnings, boolean inSetup, boolean skipShardFailures) {
             def (String path, String query) = pathAndQuery.tokenize('?')
             if (path == null) {
                 path = '' // Catch requests to the root...
@@ -346,7 +346,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
              * section so we have to skip it there. We also omit the assertion
              * from APIs that don't return a JSON object
              */
-            if (false == inSetup && shouldAddShardFailureCheck(path)) {
+            if (false == inSetup && skipShardFailures == false && shouldAddShardFailureCheck(path)) {
                 current.println("  - is_false: _shards.failures")
             }
         }
@@ -394,7 +394,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                     pathAndQuery = pathAndQuery.substring(1)
                 }
                 emitDo(method, pathAndQuery, body, catchPart, snippet.warnings,
-                    inSetup)
+                    inSetup, snippet.skipShardsFailures)
             }
         }
 

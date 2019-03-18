@@ -4,13 +4,13 @@
 ifndef::include-xpack[]
 The _remote clusters_ module enables you to establish uni-directional
 connections to a remote cluster. This functionality is used in
-<<modules-cross-cluster-search,cross-cluster search>>.
+<<modules-cross-cluster-search,{ccs}>>.
 endif::[]
 ifdef::include-xpack[]
 The _remote clusters_ module enables you to establish uni-directional
 connections to a remote cluster. This functionality is used in
 {stack-ov}/xpack-ccr.html[{ccr}] and
-<<modules-cross-cluster-search,cross-cluster search>>.
+<<modules-cross-cluster-search,{ccs}>>.
 endif::[]
 
 Remote cluster connections work by configuring a remote cluster and connecting

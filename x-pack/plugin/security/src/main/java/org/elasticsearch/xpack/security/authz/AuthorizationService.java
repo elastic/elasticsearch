@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
@@ -308,10 +309,12 @@ public class AuthorizationService {
             // if this is performing multiple actions on the index, then check each of those actions.
             assert request instanceof BulkShardRequest
                 : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
-            authorizeBulkItems(requestInfo, authzInfo, authzEngine, resolvedIndicesAsyncSupplier, authorizedIndicesSupplier,
-                metaData, requestId,
-                ActionListener.wrap(ignore -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
-                    listener::onFailure));
+            authorizeBulkItems(requestInfo, authzInfo, authzEngine, resolvedIndicesAsyncSupplier, authorizedIndicesSupplier, metaData,
+                    requestId,
+                    wrapPreservingContext(
+                            ActionListener.wrap(ignore -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
+                                    listener::onFailure),
+                            threadContext));
         } else {
             runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
         }
@@ -493,14 +496,16 @@ public class AuthorizationService {
                         for (BulkItemRequest item : request.items()) {
                             final String resolvedIndex = resolvedIndexNames.get(item.index());
                             final String itemAction = getAction(item);
-                            final IndicesAccessControl indicesAccessControl = actionToIndicesAccessControl.get(getAction(item));
+                            final IndicesAccessControl indicesAccessControl = actionToIndicesAccessControl.get(itemAction);
                             final IndicesAccessControl.IndexAccessControl indexAccessControl
                                 = indicesAccessControl.getIndexPermissions(resolvedIndex);
                             if (indexAccessControl == null || indexAccessControl.isGranted() == false) {
-                                auditTrail.accessDenied(requestId, authentication, itemAction, request, authzInfo);
+                                auditTrail.explicitIndexAccessEvent(requestId, AuditLevel.ACCESS_DENIED, authentication, itemAction,
+                                        resolvedIndex, item.getClass().getSimpleName(), request.remoteAddress(), authzInfo);
                                 item.abort(resolvedIndex, denialException(authentication, itemAction, null));
                             } else if (audit.get()) {
-                                auditTrail.accessGranted(requestId, authentication, itemAction, request, authzInfo);
+                                auditTrail.explicitIndexAccessEvent(requestId, AuditLevel.ACCESS_GRANTED, authentication, itemAction,
+                                        resolvedIndex, item.getClass().getSimpleName(), request.remoteAddress(), authzInfo);
                             }
                         }
                         listener.onResponse(null);
@@ -521,7 +526,7 @@ public class AuthorizationService {
             }, listener::onFailure));
     }
 
-    private IllegalArgumentException illegalArgument(String message) {
+    private static IllegalArgumentException illegalArgument(String message) {
         assert false : message;
         return new IllegalArgumentException(message);
     }

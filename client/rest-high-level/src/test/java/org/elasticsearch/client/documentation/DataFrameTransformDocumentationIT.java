@@ -204,10 +204,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             request.setTimeout(TimeValue.timeValueSeconds(20));  // <1>
             // end::start-data-frame-transform-request-options
 
-
-            // TODO null the timeout value until it is supported in the REST api
-            request.setTimeout(null);
-
             // tag::start-data-frame-transform-execute
             StartDataFrameTransformResponse response =
                     client.dataFrame().startDataFrameTransform(

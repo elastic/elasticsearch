@@ -29,7 +29,6 @@ import java.util.Optional;
 public class StartDataFrameTransformRequest implements Validatable {
 
     private final String id;
-    // TODO The REST endpoint does not accept the timeout parameter yet
     private TimeValue timeout;
 
     public StartDataFrameTransformRequest(String id) {

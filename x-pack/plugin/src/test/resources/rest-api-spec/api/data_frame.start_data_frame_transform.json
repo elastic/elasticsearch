@@ -11,6 +11,13 @@
           "required": true,
           "description": "The id of the transform to start"
         }
+      },
+      "params": {
+        "timeout": {
+          "type": "time",
+          "required": false,
+          "description": "Controls the time to wait for the transform to start"
+        }
       }
     },
     "body": null

@@ -123,7 +123,8 @@ public class InternalAggregationsTests extends ESTestCase {
                     //TODO update version after backport
                     if (version.onOrAfter(Version.V_8_0_0)) {
                         assertNotNull(deserialized.getTopLevelPipelineAggregators());
-                        assertEquals(aggregations.getTopLevelPipelineAggregators().size(), deserialized.getTopLevelPipelineAggregators().size());
+                        assertEquals(aggregations.getTopLevelPipelineAggregators().size(),
+                            deserialized.getTopLevelPipelineAggregators().size());
                         for (int i = 0; i < aggregations.getTopLevelPipelineAggregators().size(); i++) {
                             SiblingPipelineAggregator siblingPipelineAggregator1 = aggregations.getTopLevelPipelineAggregators().get(i);
                             SiblingPipelineAggregator siblingPipelineAggregator2 = deserialized.getTopLevelPipelineAggregators().get(i);

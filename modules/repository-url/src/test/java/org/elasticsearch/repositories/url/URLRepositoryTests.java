@@ -26,37 +26,22 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class URLRepositoryTests extends ESTestCase {
 
-    private ThreadPool threadPool;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        threadPool = new TestThreadPool("URLRepositoryTests");
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        ThreadPool.terminate(threadPool, 1L, TimeUnit.MINUTES);
-    }
-
     private URLRepository createRepository(Settings baseSettings, RepositoryMetaData repositoryMetaData) {
         return new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-            new NamedXContentRegistry(Collections.emptyList()), threadPool) {
+            new NamedXContentRegistry(Collections.emptyList()), mock(ThreadPool.class)) {
             @Override
             protected void assertSnapshotOrGenericThread() {
                 // eliminate thread name check as we create repo manually on test/main threads

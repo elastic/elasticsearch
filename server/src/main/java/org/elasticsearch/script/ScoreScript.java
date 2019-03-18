@@ -62,6 +62,11 @@ public abstract class ScoreScript {
 
     private DoubleSupplier scoreSupplier = () -> 0.0;
 
+    private final int docBase;
+    private int docId;
+    private int shardId = -1;
+    private String indexName = null;
+
     public ScoreScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         // null check needed b/c of expression engine subclass
         if (lookup == null) {
@@ -69,11 +74,13 @@ public abstract class ScoreScript {
             assert leafContext == null;
             this.params = null;
             this.leafLookup = null;
+            this.docBase = 0;
         } else {
             this.leafLookup = lookup.getLeafSearchLookup(leafContext);
             params = new HashMap<>(params);
             params.putAll(leafLookup.asMap());
             this.params = new DeprecationMap(params, DEPRECATIONS, "score-script");
+            this.docBase = leafContext.docBase;
         }
     }
 
@@ -91,6 +98,7 @@ public abstract class ScoreScript {
 
     /** Set the current document to run the script on next. */
     public void setDocument(int docid) {
+        this.docId = docid;
         leafLookup.setDocument(docid);
     }
 
@@ -104,9 +112,54 @@ public abstract class ScoreScript {
         };
     }
 
+    /**
+     * Accessed as _score in the painless script
+     * @return the score of the inner query
+     */
     public double get_score() {
         return scoreSupplier.getAsDouble();
     }
+
+    /**
+     * Accessed as _doc in the painless script
+     * @return the internal document ID
+     */
+    public int get_doc() {
+        return docBase + docId;
+    }
+
+    /**
+     * Accessed as _shard in the painless script
+     * @return shard id or throws an exception if shard is not set up for this script instance
+     */
+    public int get_shard() {
+        if (shardId > -1) {
+            return shardId;
+        } else {
+            throw new IllegalArgumentException("shard id can not be looked up!");
+        }
+    }
+
+    /**
+     * Accessed as _index in the painless script
+     * @return index name or throws an exception if the index name is not set up for this script instance
+     */
+    public String get_index() {
+        if (indexName != null) {
+            return indexName;
+        } else {
+            throw new IllegalArgumentException("index name can not be looked up!");
+        }
+    }
+
+    public void setShard(int shardId) {
+        this.shardId = shardId;
+    }
+
+    public void setIndexName(String indexName) {
+        this.indexName = indexName;
+    }
+
 
     /** A factory to construct {@link ScoreScript} instances. */
     public interface LeafFactory {

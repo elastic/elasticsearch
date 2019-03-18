@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -31,12 +30,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.time.ZoneId;
-import java.util.Random;
 
-/**
- * ScoringScriptImpl can be used as {@link ScoreScript}
- * to run a previously compiled Painless script.
- */
+import static com.carrotsearch.hppc.BitMixer.mix32;
+
 public final class ScoreScriptUtils {
 
     /****** STATIC FUNCTIONS that can be used by users for score calculations **/
@@ -53,26 +49,13 @@ public final class ScoreScriptUtils {
         return Math.pow(value,a) / (Math.pow(k,a) + Math.pow(value,a));
     }
 
-
     // reproducible random
-    public static double randomReproducible(String seedValue, int seed) {
-        int hash = StringHelper.murmurhash3_x86_32(new BytesRef(seedValue), seed);
+    public static double randomScore(String seedValue, String indexName, int shardId, int seed) {
+        int salt = (indexName.hashCode() << 10) | shardId;
+        int saltedSeed = mix32(salt ^ seed);
+        int hash = StringHelper.murmurhash3_x86_32(new BytesRef(seedValue), saltedSeed);
         return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
     }
-
-    // not reproducible random
-    public static final class RandomNotReproducible {
-        private final Random rnd;
-
-        public RandomNotReproducible() {
-           this.rnd = Randomness.get();
-        }
-
-        public double randomNotReproducible() {
-           return rnd.nextDouble();
-        }
-    }
-
 
     // **** Decay functions on geo field
     public static final class DecayGeoLinear {

@@ -39,6 +39,7 @@ import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -176,8 +177,16 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         {
             // tag::start-data-frame-transform-request
             StartDataFrameTransformRequest request =
-                    new StartDataFrameTransformRequest("mega-transform");
+                    new StartDataFrameTransformRequest("mega-transform");  // <1>
             // end::start-data-frame-transform-request
+
+            // tag::start-data-frame-transform-request-options
+            request.setTimeout(TimeValue.timeValueSeconds(20));  // <1>
+            // end::start-data-frame-transform-request-options
+
+
+            // TODO null the timeout value until it is supported in the REST api
+            request.setTimeout(null);
 
             // tag::start-data-frame-transform-execute
             StartDataFrameTransformResponse response =
@@ -190,8 +199,16 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         {
             // tag::stop-data-frame-transform-request
             StopDataFrameTransformRequest request =
-                    new StopDataFrameTransformRequest("mega-transform");
+                    new StopDataFrameTransformRequest("mega-transform"); // <1>
             // end::stop-data-frame-transform-request
+
+            // tag::stop-data-frame-transform-request-options
+            request.setWaitForCompletion(Boolean.TRUE);  // <1>
+            request.setTimeout(TimeValue.timeValueSeconds(30));  // <2>
+            // end::stop-data-frame-transform-request-options
+
+            // TODO null the timeout value until it is supported in the REST api
+            request.setTimeout(null);
 
             // tag::stop-data-frame-transform-execute
             StopDataFrameTransformResponse response =

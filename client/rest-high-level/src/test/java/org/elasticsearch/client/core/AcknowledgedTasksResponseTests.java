@@ -33,6 +33,7 @@ import java.util.Objects;
 import java.util.function.BiPredicate;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.hamcrest.Matchers.containsString;
 
 public class AcknowledgedTasksResponseTests extends ESTestCase {
 
@@ -47,13 +48,13 @@ public class AcknowledgedTasksResponseTests extends ESTestCase {
                 .test();
     }
 
-    // Serialisation of TaskOperationFailure changes the error
-    // so use a custom compare method
-    private void assertEqualInstances(AcknowledgedTasksResponse expectedInstance, AcknowledgedTasksResponse actual) {
-        assertNotSame(expectedInstance, actual);
-        assertEquals(expectedInstance.isAcknowledged(), actual.isAcknowledged());
+    // Serialisation of TaskOperationFailure and ElasticsearchException changes
+    // the object so use a custom compare method rather than Object.equals
+    private void assertEqualInstances(AcknowledgedTasksResponse expected, AcknowledgedTasksResponse actual) {
+        assertNotSame(expected, actual);
+        assertEquals(expected.isAcknowledged(), actual.isAcknowledged());
 
-        List<TaskOperationFailure> expectedTaskFailures = expectedInstance.getTaskFailures();
+        List<TaskOperationFailure> expectedTaskFailures = expected.getTaskFailures();
         List<TaskOperationFailure> actualTaskFailures = actual.getTaskFailures();
 
         assertListEquals(expectedTaskFailures, actualTaskFailures, (a, b) ->
@@ -62,11 +63,16 @@ public class AcknowledgedTasksResponseTests extends ESTestCase {
                         && Objects.equals(a.getStatus(), b.getStatus())
         );
 
-
-        List<ElasticsearchException> expectedExceptions = expectedInstance.getNodeFailures();
+        List<ElasticsearchException> expectedExceptions = expected.getNodeFailures();
         List<ElasticsearchException> actualExceptions = actual.getNodeFailures();
 
-        assertListEquals(expectedExceptions, actualExceptions, (a, b) -> a != null && b != null);
+        // actualException is a wrapped copy of expectedException so the
+        // error messages won't be the same but actualException should contain
+        // the error message from expectedException
+        assertListEquals(expectedExceptions, actualExceptions, (expectedException, actualException) -> {
+            assertThat(actualException.getDetailedMessage(), containsString(expectedException.getMessage()));
+            return true;
+        });
     }
 
     private <T> void assertListEquals(List<T> expected, List<T> actual, BiPredicate<T, T> comparator) {

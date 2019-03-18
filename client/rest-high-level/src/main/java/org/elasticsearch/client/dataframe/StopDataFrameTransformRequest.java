@@ -21,7 +21,6 @@ package org.elasticsearch.client.dataframe;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Objects;
@@ -30,8 +29,8 @@ import java.util.Optional;
 public class StopDataFrameTransformRequest implements Validatable {
 
     private final String id;
-    private final Boolean waitForCompletion;
-    private final TimeValue timeout;
+    private Boolean waitForCompletion;
+    private TimeValue timeout;
 
     public StopDataFrameTransformRequest(String id) {
         this.id = id;
@@ -39,7 +38,7 @@ public class StopDataFrameTransformRequest implements Validatable {
         timeout = null;
     }
 
-    public StopDataFrameTransformRequest(String id, @Nullable Boolean waitForCompletion, @Nullable TimeValue timeout) {
+    public StopDataFrameTransformRequest(String id, Boolean waitForCompletion, TimeValue timeout) {
         this.id = id;
         this.waitForCompletion = waitForCompletion;
         this.timeout = timeout;
@@ -49,8 +48,16 @@ public class StopDataFrameTransformRequest implements Validatable {
         return id;
     }
 
+    public void setWaitForCompletion(Boolean waitForCompletion) {
+        this.waitForCompletion = waitForCompletion;
+    }
+
     public Boolean getWaitForCompletion() {
         return waitForCompletion;
+    }
+
+    public void setTimeout(TimeValue timeout) {
+        this.timeout = timeout;
     }
 
     public TimeValue getTimeout() {

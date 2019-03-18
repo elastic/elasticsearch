@@ -169,7 +169,7 @@ public final class DataFrameClient {
      *
      * @param request The stop data frame transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return An AcknowledgedResponse object indicating request success
+     * @return A response object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public StopDataFrameTransformResponse stopDataFrameTransform(StopDataFrameTransformRequest request, RequestOptions options)

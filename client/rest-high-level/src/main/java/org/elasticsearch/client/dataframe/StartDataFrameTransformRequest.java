@@ -21,7 +21,6 @@ package org.elasticsearch.client.dataframe;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Objects;
@@ -31,14 +30,13 @@ public class StartDataFrameTransformRequest implements Validatable {
 
     private final String id;
     // TODO The REST endpoint does not accept the timeout parameter yet
-    private final TimeValue timeout;
+    private TimeValue timeout;
 
     public StartDataFrameTransformRequest(String id) {
         this.id = id;
-        this.timeout = null;
     }
 
-    public StartDataFrameTransformRequest(String id, @Nullable TimeValue timeout) {
+    public StartDataFrameTransformRequest(String id, TimeValue timeout) {
         this.id = id;
         this.timeout = timeout;
     }
@@ -47,9 +45,12 @@ public class StartDataFrameTransformRequest implements Validatable {
         return id;
     }
 
-    @Nullable
     public TimeValue getTimeout() {
         return timeout;
+    }
+
+    public void setTimeout(TimeValue timeout) {
+        this.timeout = timeout;
     }
 
     @Override

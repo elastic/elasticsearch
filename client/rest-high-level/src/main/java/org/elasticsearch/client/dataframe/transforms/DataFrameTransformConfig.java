@@ -77,9 +77,9 @@ public class DataFrameTransformConfig implements ToXContentObject {
                                     final String dest,
                                     final QueryConfig queryConfig,
                                     final PivotConfig pivotConfig) {
-        this.id = Objects.requireNonNull(id);
+        this.id = id;
         this.source = Objects.requireNonNull(source);
-        this.dest = Objects.requireNonNull(dest);
+        this.dest = dest;
         this.queryConfig = queryConfig;
         this.pivotConfig = pivotConfig;
     }
@@ -119,9 +119,13 @@ public class DataFrameTransformConfig implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field(ID.getPreferredName(), id);
+        if (id != null) {
+            builder.field(ID.getPreferredName(), id);
+        }
         builder.field(SOURCE.getPreferredName(), source);
-        builder.field(DEST.getPreferredName(), dest);
+        if (dest != null) {
+            builder.field(DEST.getPreferredName(), dest);
+        }
         if (queryConfig != null) {
             builder.field(QUERY.getPreferredName(), queryConfig);
         }

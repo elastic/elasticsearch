@@ -65,7 +65,7 @@ class JdbcConfiguration extends ConnectionConfiguration {
     static {
         // trigger version initialization
         // typically this should have already happened but in case the
-        // Esriver/EsDataSource are not used and the impl. classes used directly
+        // EsDriver/EsDataSource are not used and the impl. classes used directly
         // this covers that case
         Version.CURRENT.toString();
     }

@@ -80,7 +80,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
     
     public void testMultiValueFieldWithMultiValueLeniencyEnabled() throws Exception {
-        createRandomMultiValue();
+        createTestDataForMultiValueTests();
 
         doWithQuery(() -> esWithLeniency(true), "SELECT int, keyword FROM test", (results) -> {
             results.next();
@@ -93,7 +93,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testMultiValueFieldWithMultiValueLeniencyDisabled() throws Exception {
-        createRandomMultiValue();
+        createTestDataForMultiValueTests();
 
         SQLException expected = expectThrows(SQLException.class,
                 () -> doWithQuery(() -> esWithLeniency(false), "SELECT int, keyword FROM test", (results) -> {
@@ -1381,7 +1381,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         client().performRequest(request);
     }
 
-    private void createRandomMultiValue() throws Exception {
+    private void createTestDataForMultiValueTests() throws Exception {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("int").field("type", "integer").endObject();

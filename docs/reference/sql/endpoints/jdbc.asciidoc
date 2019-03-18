@@ -124,7 +124,7 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 
 [float]
 ==== Mapping
-`field.multi.value.leniency` (default `true`):: Whether to lenient and return the first value for fields with multiple values (true) or throw an exception.
+`field.multi.value.leniency` (default `true`):: Whether to be lenient and return the first value for fields with multiple values (true) or throw an exception.
 
 [float]
 ==== Additional

@@ -49,10 +49,15 @@ class JdbcHttpClient {
 
     Cursor query(String sql, List<SqlTypedParamValue> params, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
-                SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, null, conCfg.zoneId(),
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, conCfg.zoneId(),
                 fetch,
-                TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
-                false, new RequestInfo(Mode.JDBC));
+                TimeValue.timeValueMillis(meta.timeoutInMs()),
+                TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+                null,
+                Boolean.FALSE,
+                null,
+                new RequestInfo(Mode.JDBC),
+                conCfg.fieldMultiValueLeniency());
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }

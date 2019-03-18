@@ -118,13 +118,13 @@ public class Querier {
 
         if (query.isAggsOnly()) {
             if (query.aggs().useImplicitGroupBy()) {
-                l = new ImplicitGroupActionListener(listener, client, timeout, output, query, search);
+                l = new ImplicitGroupActionListener(listener, client, cfg, output, query, search);
             } else {
-                l = new CompositeActionListener(listener, client, timeout, output, query, search);
+                l = new CompositeActionListener(listener, client, cfg, output, query, search);
             }
         } else {
             search.scroll(keepAlive);
-            l = new ScrollActionListener(listener, client, timeout, output, query);
+            l = new ScrollActionListener(listener, client, cfg, output, query);
         }
 
         client.search(search, l);
@@ -309,9 +309,9 @@ public class Querier {
             }
         });
 
-        ImplicitGroupActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, List<Attribute> output,
+        ImplicitGroupActionListener(ActionListener<SchemaRowSet> listener, Client client, Configuration cfg, List<Attribute> output,
                 QueryContainer query, SearchRequest request) {
-            super(listener, client, keepAlive, output, query, request);
+            super(listener, client, cfg, output, query, request);
         }
 
         @Override
@@ -360,9 +360,9 @@ public class Querier {
      */
     static class CompositeActionListener extends BaseAggActionListener {
 
-        CompositeActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive,
+        CompositeActionListener(ActionListener<SchemaRowSet> listener, Client client, Configuration cfg,
                 List<Attribute> output, QueryContainer query, SearchRequest request) {
-            super(listener, client, keepAlive, output, query, request);
+            super(listener, client, cfg, output, query, request);
         }
 
 
@@ -404,9 +404,9 @@ public class Querier {
         final SearchRequest request;
         final BitSet mask;
 
-        BaseAggActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, List<Attribute> output,
+        BaseAggActionListener(ActionListener<SchemaRowSet> listener, Client client, Configuration cfg, List<Attribute> output,
                 QueryContainer query, SearchRequest request) {
-            super(listener, client, keepAlive, output);
+            super(listener, client, cfg, output);
 
             this.query = query;
             this.request = request;
@@ -467,12 +467,14 @@ public class Querier {
     static class ScrollActionListener extends BaseActionListener {
         private final QueryContainer query;
         private final BitSet mask;
+        private final boolean multiValueFieldLeniency;
 
-        ScrollActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive,
+        ScrollActionListener(ActionListener<SchemaRowSet> listener, Client client, Configuration cfg,
                 List<Attribute> output, QueryContainer query) {
-            super(listener, client, keepAlive, output);
+            super(listener, client, cfg, output);
             this.query = query;
             this.mask = query.columnMask(output);
+            this.multiValueFieldLeniency = cfg.multiValueFieldLeniency();
         }
 
         @Override
@@ -516,12 +518,12 @@ public class Querier {
         private HitExtractor createExtractor(FieldExtraction ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
-                return new FieldHitExtractor(f.name(), f.getDataType(), f.useDocValue(), f.hitName());
+                return new FieldHitExtractor(f.name(), f.getDataType(), f.useDocValue(), f.hitName(), multiValueFieldLeniency);
             }
 
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
-                return new FieldHitExtractor(f.name(), null, true);
+                return new FieldHitExtractor(f.name(), null, true, multiValueFieldLeniency);
             }
 
             if (ref instanceof ComputedRef) {
@@ -558,14 +560,16 @@ public class Querier {
         final ActionListener<SchemaRowSet> listener;
 
         final Client client;
+        final Configuration cfg;
         final TimeValue keepAlive;
         final Schema schema;
 
-        BaseActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, List<Attribute> output) {
+        BaseActionListener(ActionListener<SchemaRowSet> listener, Client client, Configuration cfg, List<Attribute> output) {
             this.listener = listener;
 
             this.client = client;
-            this.keepAlive = keepAlive;
+            this.cfg = cfg;
+            this.keepAlive = cfg.requestTimeout();
             this.schema = Rows.schema(output);
         }
 

@@ -22,6 +22,10 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
@@ -48,6 +52,7 @@ import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldMap
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -58,13 +63,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainingInAnyOrder;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -541,6 +549,60 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             expectThrows(IllegalArgumentException.class,
                 () -> new MatchPhraseQueryBuilder("a_field._index_prefix", "one two three four").toQuery(queryShardContext));
         }
+    }
+
+    private static BooleanQuery buildBoolPrefixQuery(String shingleFieldName, String prefixFieldName, List<String> terms) {
+        final BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (int i = 0; i < terms.size() - 1; i++) {
+            final String term = terms.get(i);
+            builder.add(new BooleanClause(new TermQuery(new Term(shingleFieldName, term)), BooleanClause.Occur.SHOULD));
+        }
+        final String finalTerm = terms.get(terms.size() - 1);
+        builder.add(new BooleanClause(
+            new ConstantScoreQuery(new TermQuery(new Term(prefixFieldName, finalTerm))), BooleanClause.Occur.SHOULD));
+        return builder.build();
+    }
+
+    public void testMultiMatchBoolPrefix() throws IOException {
+        final IndexService indexService = createIndex("test", Settings.EMPTY);
+        final QueryShardContext queryShardContext = indexService.newQueryShardContext(randomInt(20), null,
+            () -> { throw new UnsupportedOperationException(); }, null);
+        final String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("a_field")
+                            .field("type", "search_as_you_type")
+                            .field("max_shingle_size", 4)
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+
+        queryShardContext.getMapperService().merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+
+        final MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder(
+            "quick red fox lazy brown dog",
+            "a_field",
+            "a_field._2gram",
+            "a_field._3gram",
+            "a_field._4gram"
+        );
+        builder.type(MultiMatchQueryBuilder.Type.BOOL_PREFIX);
+
+        final Query actual = builder.toQuery(queryShardContext);
+        assertThat(actual, instanceOf(DisjunctionMaxQuery.class));
+        final DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) actual;
+        assertThat(disMaxQuery.getDisjuncts(), hasSize(4));
+        assertThat(disMaxQuery.getDisjuncts(), containsInAnyOrder(
+            buildBoolPrefixQuery(
+                "a_field", "a_field._index_prefix", asList("quick", "red", "fox", "lazy", "brown", "dog")),
+            buildBoolPrefixQuery(
+                "a_field._2gram", "a_field._index_prefix", asList("quick red", "red fox", "fox lazy", "lazy brown", "brown dog")),
+            buildBoolPrefixQuery(
+                "a_field._3gram", "a_field._index_prefix", asList("quick red fox", "red fox lazy", "fox lazy brown", "lazy brown dog")),
+            buildBoolPrefixQuery(
+                "a_field._4gram", "a_field._index_prefix", asList("quick red fox lazy", "red fox lazy brown", "fox lazy brown dog"))));
     }
 
     private void documentParsingTestCase(Collection<String> values) throws IOException {

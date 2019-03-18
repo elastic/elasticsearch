@@ -469,3 +469,47 @@ null           |   1           |   10
 F              |   4           |   6
 M              |   1           |   4
 ;
+
+medianAbsoluteDeviation
+schema::gender:s|mad:d
+SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |      mad      
+---------------+---------------
+null           |10789.0        
+F              |12719.0        
+M              |8905.0         
+;
+
+medianAbsoluteDeviationOnTwoFields
+schema::gender:s|avg:l|mad_s:l|mad_l:d
+SELECT gender, FLOOR(AVG(salary)) AS avg, FLOOR(MAD(salary)) AS mad_s, MAD(languages) AS mad_l FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |      avg      |     mad_s     |     mad_l     
+---------------+---------------+---------------+---------------
+null           |48760          |10789          |2.0            
+F              |50490          |12719          |1.5            
+M              |46860          |8905           |1.0     
+;
+
+medianAbsoluteDeviationOnSecondaryFieldWithOrder
+schema::gender:s|mad:d
+SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender ORDER BY mad ASC;
+
+    gender     |      mad      
+---------------+---------------
+M              |8905.0         
+null           |10789.0        
+F              |12719.0         
+;
+
+
+medianAbsoluteDeviationOnSecondaryFieldWithOrderAndHaving
+schema::gender:s|mad:d
+SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender HAVING mad > 10000 ORDER BY mad ASC;
+
+    gender     |      mad      
+---------------+---------------
+null           |10789.0        
+F              |12719.0         
+;

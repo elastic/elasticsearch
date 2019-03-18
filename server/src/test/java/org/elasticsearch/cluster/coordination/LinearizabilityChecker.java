@@ -419,36 +419,34 @@ public class LinearizabilityChecker {
         }
 
         private boolean addSmall(Object state, long bits) {
-            Set<Object> objects = smallMap.get(bits);
-            if (objects == null) {
-                objects = uniquePermutation(Collections.singleton(state));
+            int index = smallMap.indexOf(bits);
+            Set<Object> states;
+            if (index < 0) {
+                states = Collections.singleton(state);
             } else {
-                if (objects.contains(state)) {
+                Set<Object> oldStates = smallMap.indexGet(index);
+                if (oldStates.contains(state))
                     return false;
-                }
-                objects = add(objects, state);
+                states = new HashSet<>(oldStates.size() + 1);
+                states.addAll(oldStates);
+                states.add(state);
             }
-            smallMap.put(bits, objects);
+
+            // Get a unique set object per state permutation. We assume that the number of permutations of states are small.
+            // We thus avoid the overhead of the set data structure.
+            states = statePermutations.computeIfAbsent(states, k -> k);
+
+            if (index < 0) {
+                smallMap.indexInsert(index, bits, states);
+            } else {
+                smallMap.indexReplace(index, states);
+            }
+
             return true;
         }
 
         private boolean addLarge(Object state, FixedBitSet bitSet) {
             return largeMap.computeIfAbsent(state, k -> new HashSet<>()).add(bitSet);
-        }
-
-        private Set<Object> add(Set<Object> objects, Object state) {
-            Set<Object> newObjects = new HashSet<>(objects.size() + 1);
-            newObjects.addAll(objects);
-            newObjects.add(state);
-            return uniquePermutation(newObjects);
-        }
-
-        /**
-         * Get a unique set object per state permutation. We assume that the number of permutations of states are small.
-         * We thus avoid the overhead of the set data structure.
-         */
-        private Set<Object> uniquePermutation(Set<Object> newObjects) {
-            return statePermutations.computeIfAbsent(newObjects, k -> k);
         }
     }
 }

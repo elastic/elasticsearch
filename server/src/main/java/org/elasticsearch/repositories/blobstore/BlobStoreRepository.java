@@ -31,7 +31,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -419,29 +418,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener) {
         if (isReadOnly()) {
-            throw new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository");
+            listener.onFailure(new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository"));
+        } else {
+            SnapshotInfo snapshot = null;
+            try {
+                snapshot = getSnapshotInfo(snapshotId);
+            } catch (SnapshotMissingException ex) {
+                listener.onFailure(ex);
+                return;
+            } catch (IllegalStateException | SnapshotException | ElasticsearchParseException ex) {
+                logger.warn(() -> new ParameterizedMessage("cannot read snapshot file [{}]", snapshotId), ex);
+            }
+            // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
+            final RepositoryData repositoryData;
+            final RepositoryData updatedRepositoryData;
+            try {
+                repositoryData = getRepositoryData();
+                updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
+                writeIndexGen(updatedRepositoryData, repositoryStateId);
+            } catch (Exception ex) {
+                listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex));
+                return;
+            }
+            deleteSnapshotBlobs(snapshot, snapshotId, repositoryData, updatedRepositoryData, listener);
         }
-
-        final RepositoryData repositoryData = getRepositoryData();
-        SnapshotInfo snapshot = null;
-        try {
-            snapshot = getSnapshotInfo(snapshotId);
-        } catch (SnapshotMissingException ex) {
-            listener.onFailure(ex);
-            return;
-        } catch (IllegalStateException | SnapshotException | ElasticsearchParseException ex) {
-            logger.warn(() -> new ParameterizedMessage("cannot read snapshot file [{}]", snapshotId), ex);
-        }
-
-        // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
-        final RepositoryData updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
-        try {
-            writeIndexGen(updatedRepositoryData, repositoryStateId);
-        } catch (IOException | ResourceNotFoundException ex) {
-            listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex));
-            return;
-        }
-        deleteSnapshotBlobs(snapshot, snapshotId, repositoryData, updatedRepositoryData, listener);
     }
 
     private void deleteSnapshotBlobs(SnapshotInfo snapshot, SnapshotId snapshotId, RepositoryData repositoryData,
@@ -503,6 +503,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         indicesToCleanUp.removeAll(updatedRepositoryData.getIndices().values());
         final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
         if (indicesToCleanUp.isEmpty()) {
+            // We're done, no indices to clean up
             listener.onResponse(null);
             return;
         }

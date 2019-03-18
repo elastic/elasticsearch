@@ -31,7 +31,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Builder for {@link IntervalQuery}
@@ -131,6 +133,18 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         if (fieldType.tokenized() == false ||
             fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
             throw new IllegalArgumentException("Cannot create IntervalQuery over field [" + field + "] with no indexed positions");
+        }
+        Set<String> maskedFields = new HashSet<>();
+        sourceProvider.extractFields(maskedFields);
+        for (String maskedField : maskedFields) {
+            MappedFieldType ft = context.fieldMapper(maskedField);
+            if (ft == null) {
+                return new MatchNoDocsQuery();
+            }
+            if (ft.tokenized() == false ||
+                ft.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                throw new IllegalArgumentException("Cannot create IntervalQuery over field [" + maskedField + "] with no indexed positions");
+            }
         }
         return new IntervalQuery(field, sourceProvider.getSource(context, fieldType));
     }

@@ -168,10 +168,16 @@ final class SearchResponseMerger {
                 assert trackTotalHits == null || trackTotalHits;
                 trackTotalHits = true;
             }
+
             TopDocs topDocs = searchHitsToTopDocs(searchHits, totalHits, shards);
             topDocsStats.add(new TopDocsAndMaxScore(topDocs, searchHits.getMaxScore()),
                 searchResponse.isTimedOut(), searchResponse.isTerminatedEarly());
-            topDocsList.add(topDocs);
+            if (searchHits.getHits().length > 0) {
+                //there is no point in adding empty search hits and merging them with the others. Also, empty search hits always come
+                //without sort fields and collapse info, despite sort by field and/or field collapsing was requested, which causes
+                //issues reconstructing the proper TopDocs instance and breaks mergeTopDocs which expects the same type for each result.
+                topDocsList.add(topDocs);
+            }
         }
 
         //after going through all the hits and collecting all their distinct shards, we can assign shardIndex and set it to the ScoreDocs
@@ -297,12 +303,17 @@ final class SearchResponseMerger {
     }
 
     private static SearchHits topDocsToSearchHits(TopDocs topDocs, TopDocsStats topDocsStats) {
-        SearchHit[] searchHits = new SearchHit[topDocs.scoreDocs.length];
-        for (int i = 0; i < topDocs.scoreDocs.length; i++) {
-            FieldDocAndSearchHit scoreDoc = (FieldDocAndSearchHit)topDocs.scoreDocs[i];
-            searchHits[i] = scoreDoc.searchHit;
+        SearchHit[] searchHits;
+        if (topDocs == null) {
+            //merged TopDocs is null whenever all clusters have returned empty hits
+            searchHits = new SearchHit[0];
+        } else {
+            searchHits = new SearchHit[topDocs.scoreDocs.length];
+            for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                FieldDocAndSearchHit scoreDoc = (FieldDocAndSearchHit)topDocs.scoreDocs[i];
+                searchHits[i] = scoreDoc.searchHit;
+            }
         }
-
         SortField[] sortFields = null;
         String collapseField = null;
         Object[] collapseValues = null;
@@ -370,7 +381,7 @@ final class SearchResponseMerger {
             }
             int clusterAliasCompareTo = clusterAlias.compareTo(o.clusterAlias);
             if (clusterAliasCompareTo != 0) {
-                //TODO we may want to fix this, CCS returns remote results before local ones (TransportSearchAction#mergeShardsIterators)
+                //CCS returns remote results before local ones (TransportSearchAction#mergeShardsIterators), fixed from 7.1 on
                 if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
                     return 1;
                 }

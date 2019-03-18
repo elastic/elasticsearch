@@ -28,6 +28,11 @@ import java.util.Collections;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
+/**
+ * Provides basic tools around scrolling over documents and gathering the data in some Collection
+ * @param <T> The object type that is being collected
+ * @param <E> The collection that should be used (i.e. Set, Deque, etc.)
+ */
 public abstract class BatchedDataIterator<T, E extends Collection<T>> {
     private static final Logger LOGGER = LogManager.getLogger(BatchedDataIterator.class);
 
@@ -62,10 +67,10 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
 
     /**
      * The first time next() is called, the search will be performed and the first
-     * batch will be returned. Any subsequent call will return the following batches.
+     * batch will be given to the listener. Any subsequent call will return the following batches.
      * <p>
      * Note that in some implementations it is possible that when there are no
-     * results at all, the first time this method is called an empty {@code Deque} is returned.
+     * results at all, the first time this method is called an empty Collection is given to the listener.
      */
     public void next(ActionListener<E> listener) {
         if (!hasNext()) {
@@ -106,7 +111,6 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
             .fetchSource(getFetchSourceContext())
             .size(BATCH_SIZE)
             .query(getQuery())
-            .fetchSource(shouldFetchSource())
             .trackTotalHits(true)
             .sort(sortField(), sortOrder()));
 
@@ -155,14 +159,6 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
     }
 
     /**
-     * Should fetch source? Defaults to {@code true}
-     * @return whether the source should be fetched
-     */
-    protected boolean shouldFetchSource() {
-        return true;
-    }
-
-    /**
      * Get the query to use for the search
      * @return the search query
      */
@@ -170,8 +166,7 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
 
     /**
      * Maps the search hit to the document type
-     * @param hit
-     *            the search hit
+     * @param hit the search hit
      * @return The mapped document or {@code null} if the mapping failed
      */
     protected abstract T map(SearchHit hit);
@@ -182,6 +177,11 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
 
     protected abstract String sortField();
 
+    /**
+     * Should we fetch the source and what fields specifically.
+     *
+     * Defaults to all fields and true.
+     */
     protected FetchSourceContext getFetchSourceContext() {
         return FetchSourceContext.FETCH_SOURCE;
     }

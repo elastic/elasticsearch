@@ -22,11 +22,13 @@ import joptsimple.OptionSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
@@ -37,6 +39,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -47,9 +50,10 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE")
+@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
 public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, int nodeOrdinal, boolean abort)
@@ -149,7 +153,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     public void testBootstrapNotBootstrappedCluster() throws Exception {
         internalCluster().startNode(
                 Settings.builder()
-                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
+                        .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
                         .build());
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().setLocal(true)
@@ -166,7 +170,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     public void testDetachNotBootstrappedCluster() throws Exception {
         internalCluster().startNode(
                 Settings.builder()
-                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
+                        .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
                         .build());
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().setLocal(true)
@@ -256,12 +260,12 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
         logger.info("--> start 1st master-eligible node");
         masterNodes.add(internalCluster().startMasterOnlyNode(Settings.builder()
-                .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
+                .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
                 .build())); // node ordinal 0
 
         logger.info("--> start one data-only node");
         String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
-                .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
+                .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
                 .build()); // node ordinal 1
 
         logger.info("--> start 2nd and 3rd master-eligible nodes and bootstrap");
@@ -385,7 +389,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
         String node = internalCluster().startMasterOnlyNode(Settings.builder()
                 // give the cluster 2 seconds to elect the master (it should not)
-                .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "2s")
+                .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "2s")
                 .build());
 
         ClusterState state = internalCluster().client().admin().cluster().prepareState().setLocal(true)
@@ -418,5 +422,64 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         state = internalCluster().client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.metaData().settings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
                 equalTo("1234kb"));
+    }
+
+    private static class SimulatedDeleteFailureException extends RuntimeException {
+    }
+
+    public void testCleanupOldMetaDataFails() throws Exception {
+        // establish some metadata.
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
+        Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+        internalCluster().stopRandomDataNode();
+
+        // find data paths
+        Path[] dataPaths;
+        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(environment.settings(), environment)) {
+            dataPaths = nodeEnvironment.nodeDataPaths();
+        }
+
+        NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
+
+        final Manifest originalManifest = loadLatestManifest(dataPaths, namedXContentRegistry);
+        final MetaData originalMetaData = loadMetaData(dataPaths, namedXContentRegistry, originalManifest);
+
+        executeCommand(new UnsafeBootstrapMasterCommand() {
+            @Override
+            protected void cleanUpOldMetaData(Terminal terminal, Path[] dataPaths, long newGeneration) {
+                throw new SimulatedDeleteFailureException();
+            }
+        }, environment, 0, false);
+
+
+        // check original meta-data left untouched.
+        assertEquals(loadMetaData(dataPaths, namedXContentRegistry, originalManifest).clusterUUID(), originalMetaData.clusterUUID());
+
+        // check that we got new clusterUUID despite deletion failing
+        final Manifest secondManifest = loadLatestManifest(dataPaths, namedXContentRegistry);
+        final MetaData secondMetaData = loadMetaData(dataPaths, namedXContentRegistry, secondManifest);
+        assertThat(secondManifest.getGlobalGeneration(), greaterThan(originalManifest.getGlobalGeneration()));
+        assertNotEquals(originalMetaData.clusterUUID(), secondMetaData.clusterUUID());
+
+        // check that a new run will cleanup.
+        executeCommand(new UnsafeBootstrapMasterCommand(), environment, 0, false);
+
+        assertNull(loadMetaData(dataPaths, namedXContentRegistry, originalManifest));
+        assertNull(loadMetaData(dataPaths, namedXContentRegistry, secondManifest));
+
+        final Manifest finalManifest = loadLatestManifest(dataPaths, namedXContentRegistry);
+        final MetaData finalMetaData = loadMetaData(dataPaths, namedXContentRegistry, finalManifest);
+
+        assertNotNull(finalMetaData);
+        assertNotEquals(secondMetaData.clusterUUID(), finalMetaData.clusterUUID());
+    }
+
+    private Manifest loadLatestManifest(Path[] dataPaths, NamedXContentRegistry namedXContentRegistry) throws IOException {
+        return Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, dataPaths);
+    }
+
+    private MetaData loadMetaData(Path[] dataPaths, NamedXContentRegistry namedXContentRegistry, Manifest manifest) {
+        return MetaData.FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(), dataPaths);
     }
 }

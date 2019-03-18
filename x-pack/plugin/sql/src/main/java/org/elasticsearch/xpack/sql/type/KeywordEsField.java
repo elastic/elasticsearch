@@ -33,8 +33,8 @@ public class KeywordEsField extends EsField {
     }
 
     @Override
-    public boolean isExact() {
-        return normalized == false;
+    public Exact getExactInfo() {
+        return new Exact(normalized == false, "Normalized keyword field cannot be used for exact match operations");
     }
 
     @Override

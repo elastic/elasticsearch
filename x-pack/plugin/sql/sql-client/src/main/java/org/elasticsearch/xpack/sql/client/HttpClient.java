@@ -66,7 +66,7 @@ public class HttpClient {
         // method called only from CLI
         SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), null, ZoneId.of("Z"),
             fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()),
-            new RequestInfo(Mode.CLI));
+            false, new RequestInfo(Mode.CLI));
         return query(sqlRequest);
     }
 

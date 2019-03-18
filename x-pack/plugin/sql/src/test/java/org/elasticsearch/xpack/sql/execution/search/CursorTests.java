@@ -72,7 +72,7 @@ public class CursorTests extends ESTestCase {
                 columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), randomInt(25)));
             }
         }
-        return new SqlQueryResponse("", randomFrom(Mode.values()), columns, Collections.emptyList());
+        return new SqlQueryResponse("", randomFrom(Mode.values()), false, columns, Collections.emptyList());
     }
 
     @SuppressWarnings("unchecked")

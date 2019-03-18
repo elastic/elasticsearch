@@ -654,8 +654,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<Role> roles = response.getRoles();
             assertNotNull(response);
-            // 25 system roles plus the three we created
-            assertThat(roles.size(), equalTo(28));
+            // 27 system roles plus the three we created
+            assertThat(roles.size(), equalTo(30));
         }
 
         {
@@ -979,39 +979,39 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(certificates.size(), Matchers.equalTo(9));
             final Iterator<CertificateInfo> it = certificates.iterator();
             CertificateInfo c = it.next();
-            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=testnode-client-profile"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("c0ea4216e8ff0fd8"));
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
             c = it.next();
-            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("b8b96c37e332cccb"));
             assertThat(c.getPath(), Matchers.equalTo("testnode.crt"));
             assertThat(c.getFormat(), Matchers.equalTo("PEM"));
             c = it.next();
-            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=OpenLDAP, OU=Elasticsearch, O=Elastic, L=Mountain View, ST=CA, C=US"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("d3850b2b1995ad5f"));
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
             c = it.next();
-            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("b8b96c37e332cccb"));
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
             c = it.next();
-            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=Elasticsearch Test Client, OU=elasticsearch, O=org"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("b9d497f2924bbe29"));
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
             c = it.next();
-            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=ad-ELASTICSEARCHAD-CA, DC=ad, DC=test, DC=elasticsearch, DC=com"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("580db8ad52bb168a4080e1df122a3f56"));
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
             c = it.next();
-            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=Elasticsearch Test Node"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("7268203b"));
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
             c = it.next();
-            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=samba4"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("3151a81eec8d4e34c56a8466a8510bcfbe63cc31"));
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
             c = it.next();
-            assertThat(c.getSubjectDn(), Matchers.equalTo("CN=Elasticsearch Test Node"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("223c736a"));
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
         }

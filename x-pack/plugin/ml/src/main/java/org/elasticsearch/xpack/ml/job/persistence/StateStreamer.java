@@ -15,7 +15,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 
@@ -75,7 +74,6 @@ public class StateStreamer {
 
             try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
                 SearchResponse stateResponse = client.prepareSearch(indexName)
-                    .setTypes(ElasticsearchMappings.DOC_TYPE)
                     .setSize(1)
                     .setQuery(QueryBuilders.idsQuery().addIds(stateDocId)).get();
                 if (stateResponse.getHits().getHits().length == 0) {
@@ -102,7 +100,6 @@ public class StateStreamer {
 
             try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
                 SearchResponse stateResponse = client.prepareSearch(indexName)
-                    .setTypes(ElasticsearchMappings.DOC_TYPE)
                     .setSize(1)
                     .setQuery(QueryBuilders.idsQuery().addIds(docId)).get();
                 if (stateResponse.getHits().getHits().length == 0) {

@@ -45,6 +45,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+
 
 public class ElasticsearchMappingsTests extends ESTestCase {
 
@@ -117,11 +119,12 @@ public class ElasticsearchMappingsTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testTermFieldMapping() throws IOException {
 
-        XContentBuilder builder = ElasticsearchMappings.termFieldsMapping(null, Arrays.asList("apple", "strawberry",
+        XContentBuilder builder = ElasticsearchMappings.termFieldsMapping(Arrays.asList("apple", "strawberry",
                 AnomalyRecord.BUCKET_SPAN.getPreferredName()));
 
         XContentParser parser = createParser(builder);
-        Map<String, Object> properties = (Map<String, Object>) parser.map().get(ElasticsearchMappings.PROPERTIES);
+        Map<String, Object> mapping = (Map<String, Object>) parser.map().get(SINGLE_MAPPING_NAME);
+        Map<String, Object> properties = (Map<String, Object>) mapping.get(ElasticsearchMappings.PROPERTIES);
 
         Map<String, Object> instanceMapping = (Map<String, Object>) properties.get("apple");
         assertNotNull(instanceMapping);
@@ -217,7 +220,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             }
             mapping.put("_meta", meta);
 
-            indexMetaData.putMapping(new MappingMetaData(ElasticsearchMappings.DOC_TYPE, mapping));
+            indexMetaData.putMapping(new MappingMetaData("_doc", mapping));
 
             metaDataBuilder.put(indexMetaData);
         }
@@ -230,7 +233,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private Set<String> collectResultsDocFieldNames() throws IOException {
         // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
-        return collectFieldNames(ElasticsearchMappings.resultsMapping());
+        return collectFieldNames(ElasticsearchMappings.resultsMapping("_doc"));
     }
 
     private Set<String> collectConfigDocFieldNames() throws IOException {

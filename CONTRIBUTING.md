@@ -202,14 +202,14 @@ Run all build commands from within the root directory:
 cd elasticsearch/
 ```
 
-To build a tar distribution, run this command:
+To build a darwin-tar distribution, run this command:
 
 ```sh
-./gradlew -p distribution/archives/tar assemble --parallel
+./gradlew -p distribution/archives/darwin-tar assemble --parallel
 ```
 
 You will find the distribution under:
-`./distribution/archives/tar/build/distributions/`
+`./distribution/archives/darwin-tar/build/distributions/`
 
 To create all build artifacts (e.g., plugins and Javadocs) as well as
 distributions in all formats, run this command:
@@ -219,10 +219,10 @@ distributions in all formats, run this command:
 ```
 
 The package distributions (Debian and RPM) can be found under:
-`./distribution/packages/(deb|rpm)/build/distributions/`
+`./distribution/packages/(deb|rpm|oss-deb|oss-rpm)/build/distributions/`
 
 The archive distributions (tar and zip) can be found under:
-`./distribution/archives/(tar|zip)/build/distributions/`
+`./distribution/archives/(darwin-tar|linux-tar|windows-zip|oss-darwin-tar|oss-linux-tar|oss-windows-zip)/build/distributions/`
 
 ### Running The Full Test Suite
 

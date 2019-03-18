@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
@@ -126,9 +127,9 @@ public final class TransportFreezeIndexAction extends
             .masterNodeTimeout(request.masterNodeTimeout())
             .indices(concreteIndices);
 
-        indexStateService.closeIndices(closeRequest, new ActionListener<AcknowledgedResponse>() {
+        indexStateService.closeIndices(closeRequest, new ActionListener<CloseIndexResponse>() {
             @Override
-            public void onResponse(final AcknowledgedResponse response) {
+            public void onResponse(final CloseIndexResponse response) {
                 if (response.isAcknowledged()) {
                     toggleFrozenSettings(concreteIndices, request, listener);
                 } else {

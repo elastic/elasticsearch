@@ -66,6 +66,6 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
     @Override
     protected void assertResults(ResultSet expected, ResultSet elastic) throws SQLException {
         Logger log = logEsResultSet() ? logger : null;
-        JdbcAssert.assertResultSets(expected, elastic, log, false, false);
+        JdbcAssert.assertResultSets(expected, elastic, log, false, true);
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackClient;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyUtils;
@@ -46,11 +47,16 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
     public static final TemplateConfig TEMPLATE_CONFIG_TRIGGERED_WATCHES = new TemplateConfig(
             WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, "triggered-watches");
     public static final TemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY = new TemplateConfig(
-            WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, "watch-history");
+        WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, "watch-history");
+    public static final TemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM = new TemplateConfig(
+        WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM, "watch-history-no-ilm");
     public static final TemplateConfig TEMPLATE_CONFIG_WATCHES = new TemplateConfig(
             WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME, "watches");
     public static final TemplateConfig[] TEMPLATE_CONFIGS = new TemplateConfig[]{
-            TEMPLATE_CONFIG_TRIGGERED_WATCHES, TEMPLATE_CONFIG_WATCH_HISTORY, TEMPLATE_CONFIG_WATCHES
+        TEMPLATE_CONFIG_TRIGGERED_WATCHES, TEMPLATE_CONFIG_WATCH_HISTORY, TEMPLATE_CONFIG_WATCHES
+    };
+    public static final TemplateConfig[] TEMPLATE_CONFIGS_NO_ILM = new TemplateConfig[]{
+        TEMPLATE_CONFIG_TRIGGERED_WATCHES, TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM, TEMPLATE_CONFIG_WATCHES
     };
 
     public static final PolicyConfig POLICY_WATCH_HISTORY = new PolicyConfig("watch-history-ilm-policy", "/watch-history-ilm-policy.json");
@@ -59,7 +65,6 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
 
     private final Client client;
     private final ThreadPool threadPool;
-    private final TemplateConfig[] indexTemplates;
     private final NamedXContentRegistry xContentRegistry;
     private final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
     private final AtomicBoolean historyPolicyCreationInProgress = new AtomicBoolean();
@@ -68,7 +73,6 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
                                         NamedXContentRegistry xContentRegistry) {
         this.client = client;
         this.threadPool = threadPool;
-        this.indexTemplates = TEMPLATE_CONFIGS;
         this.xContentRegistry = xContentRegistry;
         clusterService.addListener(this);
     }
@@ -100,6 +104,8 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addTemplatesIfMissing(ClusterState state) {
+        boolean ilmSupported = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(state.metaData().settings());
+        final TemplateConfig[] indexTemplates = ilmSupported ? TEMPLATE_CONFIGS : TEMPLATE_CONFIGS_NO_ILM;
         for (TemplateConfig template : indexTemplates) {
             final String templateName = template.getTemplateName();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
@@ -147,7 +153,8 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addIndexLifecyclePolicyIfMissing(ClusterState state) {
-        if (historyPolicyCreationInProgress.compareAndSet(false, true)) {
+        boolean ilmSupported = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(state.metaData().settings());
+        if (ilmSupported && historyPolicyCreationInProgress.compareAndSet(false, true)) {
             final LifecyclePolicy policyOnDisk = loadWatcherHistoryPolicy();
 
             Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE));

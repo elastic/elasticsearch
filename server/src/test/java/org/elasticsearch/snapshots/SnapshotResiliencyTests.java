@@ -748,6 +748,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
                         return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue);
                     }
+
+                    @Override
+                    protected void connectToNodesAndWait(ClusterState newClusterState) {
+                        // don't do anything, and don't block
+                    }
                 });
             mockTransport = new DisruptableMockTransport(node, logger) {
                 @Override
@@ -992,23 +997,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             coordinator.start();
             masterService.start();
             clusterService.getClusterApplierService().setNodeConnectionsService(
-                new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService) {
-                    @Override
-                    public void connectToNodes(DiscoveryNodes discoveryNodes) {
-                        // override this method as it does blocking calls
-                        boolean callSuper = true;
-                        for (final DiscoveryNode node : discoveryNodes) {
-                            try {
-                                transportService.connectToNode(node);
-                            } catch (Exception e) {
-                                callSuper = false;
-                            }
-                        }
-                        if (callSuper) {
-                            super.connectToNodes(discoveryNodes);
-                        }
-                    }
-                });
+                new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService));
             clusterService.getClusterApplierService().start();
             indicesService.start();
             indicesClusterStateService.start();

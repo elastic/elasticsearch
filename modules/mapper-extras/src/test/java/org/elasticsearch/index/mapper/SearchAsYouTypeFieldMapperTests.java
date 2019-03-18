@@ -341,7 +341,7 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
         documentParsingTestCase(Collections.singleton(randomAlphaOfLengthBetween(5, 20)));
     }
 
-    public void testDocumentParsingMultipleValues2() throws IOException {
+    public void testDocumentParsingMultipleValues() throws IOException {
         documentParsingTestCase(randomUnique(() -> randomAlphaOfLengthBetween(3, 20), randomIntBetween(2, 10)));
     }
 
@@ -534,7 +534,6 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             final Query actual = new MatchPhraseQueryBuilder("a_field._index_prefix", "one two three")
                 .toQuery(queryShardContext);
             final Query expected = new TermQuery(new Term("a_field._index_prefix", "one two three"));
-            logger.error("ACTUAL PREFIX " + actual.getClass() + " " + actual);
             assertThat(actual, equalTo(expected));
         }
 

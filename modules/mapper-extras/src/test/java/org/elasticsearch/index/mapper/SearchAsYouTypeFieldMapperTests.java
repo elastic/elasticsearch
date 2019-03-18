@@ -419,9 +419,6 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             expected.setSlop(1);
             expected.add(new Term("field._3gram", "one two three"));
             expected.add(new Term("field._3gram", "two three four"));
-            //expected.add(new Term("field._3gram", "three"));
-            //expected.add(new Term("field._3gram", "four"));
-            logger.error("PREFIX ACTUAL " + actual.getClass() + " " + actual);
             assertThat(actual, equalTo(expected));
         }
 

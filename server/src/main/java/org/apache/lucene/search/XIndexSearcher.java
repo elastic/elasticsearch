@@ -16,26 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.migration;
 
-import java.util.Locale;
+package org.apache.lucene.search;
+
+import org.apache.lucene.index.LeafReaderContext;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
- * Indicates the type of the upgrade required for the index
+ * A wrapper for {@link IndexSearcher} that makes {@link IndexSearcher#search(List, Weight, Collector)}
+ * visible by sub-classes.
  */
-public enum UpgradeActionRequired {
-    NOT_APPLICABLE,   // Indicates that the check is not applicable to this index type, the next check will be performed
-    UP_TO_DATE,       // Indicates that the check finds this index to be up to date - no additional checks are required
-    REINDEX,          // The index should be reindex
-    UPGRADE;          // The index should go through the upgrade procedure
+public class XIndexSearcher extends IndexSearcher {
+    private final IndexSearcher in;
 
-    public static UpgradeActionRequired fromString(String value) {
-        return UpgradeActionRequired.valueOf(value.toUpperCase(Locale.ROOT));
+    public XIndexSearcher(IndexSearcher in) {
+        super(in.getIndexReader());
+        this.in = in;
+        setSimilarity(in.getSimilarity());
+        setQueryCache(in.getQueryCache());
+        setQueryCachingPolicy(in.getQueryCachingPolicy());
     }
 
     @Override
-    public String toString() {
-        return name().toLowerCase(Locale.ROOT);
+    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        in.search(leaves, weight, collector);
     }
-
 }

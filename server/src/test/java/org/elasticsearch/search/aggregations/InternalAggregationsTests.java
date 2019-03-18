@@ -46,18 +46,15 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
-
 public class InternalAggregationsTests extends ESTestCase {
 
     private final NamedWriteableRegistry registry = new NamedWriteableRegistry(
-        new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
+        new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedWriteables());
 
     public void testReduceEmptyAggs() {
         List<InternalAggregations> aggs = Collections.emptyList();
-        List<SiblingPipelineAggregator> topLevelPipelineAggs = randomBoolean() ? Collections.emptyList() : null;
         InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(null, null, randomBoolean());
-        assertNull(InternalAggregations.reduce(aggs, topLevelPipelineAggs, reduceContext));
+        assertNull(InternalAggregations.reduce(aggs, Collections.emptyList(), reduceContext));
     }
 
     public void testNonFinalReduceTopLevelPipelineAggs() throws IOException  {
@@ -90,7 +87,7 @@ public class InternalAggregationsTests extends ESTestCase {
             List<SiblingPipelineAggregator> topLevelPipelineAggs = Collections.singletonList(siblingPipelineAggregator);
             reducedAggs = InternalAggregations.reduce(Collections.singletonList(aggs), topLevelPipelineAggs, reduceContext);
         }
-        assertNull(reducedAggs.getTopLevelPipelineAggregators());
+        assertEquals(0, reducedAggs.getTopLevelPipelineAggregators().size());
         assertEquals(2, reducedAggs.aggregations.size());
     }
 
@@ -111,9 +108,8 @@ public class InternalAggregationsTests extends ESTestCase {
             InternalSimpleValueTests simpleValueTests = new InternalSimpleValueTests();
             aggsList.add(simpleValueTests.createTestInstance());
         }
-        List<SiblingPipelineAggregator> topLevelPipelineAggs = null;
+        List<SiblingPipelineAggregator> topLevelPipelineAggs = new ArrayList<>();
         if (randomBoolean()) {
-            topLevelPipelineAggs = new ArrayList<>();
             if (randomBoolean()) {
                 topLevelPipelineAggs.add((SiblingPipelineAggregator)new MaxBucketPipelineAggregationBuilder("name1", "bucket1").create());
             }
@@ -124,10 +120,12 @@ public class InternalAggregationsTests extends ESTestCase {
                 topLevelPipelineAggs.add((SiblingPipelineAggregator)new SumBucketPipelineAggregationBuilder("name3", "bucket3").create());
             }
         }
-
-        Version version = VersionUtils.randomVersion(random());
-
         InternalAggregations aggregations = new InternalAggregations(aggsList, topLevelPipelineAggs);
+        writeToAndReadFrom(aggregations, 0);
+    }
+
+    private void writeToAndReadFrom(InternalAggregations aggregations, int iteration) throws IOException {
+        Version version = VersionUtils.randomVersion(random());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             aggregations.writeTo(out);
@@ -136,11 +134,12 @@ public class InternalAggregationsTests extends ESTestCase {
                 InternalAggregations deserialized = InternalAggregations.readAggregations(in);
                 assertEquals(aggregations.aggregations, deserialized.aggregations);
                 if (aggregations.getTopLevelPipelineAggregators() == null) {
-                    assertNull(deserialized.getTopLevelPipelineAggregators());
+                    assertEquals(0, deserialized.getTopLevelPipelineAggregators().size());
                 } else {
                     //TODO update version after backport
-                    if (version.onOrAfter(Version.V_8_0_0)) {
-                        assertNotNull(deserialized.getTopLevelPipelineAggregators());
+                    if (version.before(Version.V_8_0_0)) {
+                        assertEquals(0, deserialized.getTopLevelPipelineAggregators().size());
+                    } else {
                         assertEquals(aggregations.getTopLevelPipelineAggregators().size(),
                             deserialized.getTopLevelPipelineAggregators().size());
                         for (int i = 0; i < aggregations.getTopLevelPipelineAggregators().size(); i++) {
@@ -149,9 +148,11 @@ public class InternalAggregationsTests extends ESTestCase {
                             assertArrayEquals(siblingPipelineAggregator1.bucketsPaths(), siblingPipelineAggregator2.bucketsPaths());
                             assertEquals(siblingPipelineAggregator1.name(), siblingPipelineAggregator2.name());
                         }
-                    } else {
-                        assertNull(deserialized.getTopLevelPipelineAggregators());
                     }
+                }
+                if (iteration < 2) {
+                    //serialize this enough times to make sure that we are able to write again what we read
+                    writeToAndReadFrom(deserialized, iteration + 1);
                 }
             }
         }

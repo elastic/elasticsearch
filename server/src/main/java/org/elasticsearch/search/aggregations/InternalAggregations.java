@@ -28,10 +28,12 @@ import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 
@@ -51,7 +53,7 @@ public final class InternalAggregations extends Aggregations implements Streamab
         }
     };
 
-    private List<SiblingPipelineAggregator> topLevelPipelineAggregators;
+    private List<SiblingPipelineAggregator> topLevelPipelineAggregators = Collections.emptyList();
 
     private InternalAggregations() {
     }
@@ -68,7 +70,7 @@ public final class InternalAggregations extends Aggregations implements Streamab
      */
     public InternalAggregations(List<InternalAggregation> aggregations, List<SiblingPipelineAggregator> topLevelPipelineAggregators) {
         super(aggregations);
-        this.topLevelPipelineAggregators = topLevelPipelineAggregators;
+        this.topLevelPipelineAggregators = Objects.requireNonNull(topLevelPipelineAggregators);
     }
 
     /**
@@ -126,7 +128,7 @@ public final class InternalAggregations extends Aggregations implements Streamab
             reducedAggregations.add(first.reduce(aggregations, context));
         }
 
-        if (topLevelPipelineAggregators != null && context.isFinalReduce()) {
+        if (context.isFinalReduce()) {
             for (SiblingPipelineAggregator pipelineAggregator : topLevelPipelineAggregators) {
                 InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(reducedAggregations), context);
                 reducedAggregations.add(newAgg);
@@ -150,10 +152,10 @@ public final class InternalAggregations extends Aggregations implements Streamab
         }
         //TODO update version after backport
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            if (in.readBoolean()) {
-                this.topLevelPipelineAggregators = in.readList(
-                    stream -> (SiblingPipelineAggregator)in.readNamedWriteable(PipelineAggregator.class));
-            }
+            this.topLevelPipelineAggregators = in.readList(
+                stream -> (SiblingPipelineAggregator)in.readNamedWriteable(PipelineAggregator.class));
+        } else {
+            this.topLevelPipelineAggregators = Collections.emptyList();
         }
     }
 
@@ -163,12 +165,7 @@ public final class InternalAggregations extends Aggregations implements Streamab
         out.writeNamedWriteableList((List<InternalAggregation>)aggregations);
         //TODO update version after backport
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            if (topLevelPipelineAggregators == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeNamedWriteableList(topLevelPipelineAggregators);
-            }
+            out.writeNamedWriteableList(topLevelPipelineAggregators);
         }
     }
 }

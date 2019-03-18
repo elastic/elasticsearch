@@ -1043,3 +1043,207 @@ setup:
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"multi match bool prefix query with 1 prefix term":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "qui"
+              type: "bool_prefix"
+              fields: [ "a_field", "a_field._2gram", "a_field._3gram", "a_field._4gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"multi match bool prefix query with 2 prefix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "quick re"
+              type: "bool_prefix"
+              fields: [ "a_field", "a_field._2gram", "a_field._3gram", "a_field._4gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"multi match bool prefix query with 3 prefix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "quick red f"
+              type: "bool_prefix"
+              fields: [ "a_field", "a_field._2gram", "a_field._3gram", "a_field._4gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"multi match bool prefix query with 4 prefix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "quick red fox la"
+              type: "bool_prefix"
+              fields: [ "a_field", "a_field._2gram", "a_field._3gram", "a_field._4gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"multi match bool prefix query with 5 prefix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "quick red fox lazy br"
+              type: "bool_prefix"
+              fields: [ "a_field", "a_field._2gram", "a_field._3gram", "a_field._4gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"multi match bool prefix query with 1 infix term":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "re"
+              type: "bool_prefix"
+              fields: [ "a_field", "a_field._2gram", "a_field._3gram", "a_field._4gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"multi match bool prefix query with 2 infix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "red f"
+              type: "bool_prefix"
+              fields: [ "a_field", "a_field._2gram", "a_field._3gram", "a_field._4gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"multi match bool prefix query with 3 infix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "red fox la"
+              type: "bool_prefix"
+              fields: [ "a_field", "a_field._2gram", "a_field._3gram", "a_field._4gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"multi match bool prefix query with 4 infix terms":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "red fox lazy br"
+              type: "bool_prefix"
+              fields: [ "a_field", "a_field._2gram", "a_field._3gram", "a_field._4gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"multi match bool prefix query with trailing term":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "do"
+              type: "bool_prefix"
+              fields: [ "a_field", "a_field._2gram", "a_field._3gram", "a_field._4gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"multi match bool prefix query out of order with partial trailing term":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "fox lazy red do"
+              type: "bool_prefix"
+              fields: [ "a_field", "a_field._2gram", "a_field._3gram", "a_field._4gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }
+
+---
+"multi match bool prefix query out of order with partial leading term":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "fox lazy red qui"
+              type: "bool_prefix"
+              fields: [ "a_field", "a_field._2gram", "a_field._3gram", "a_field._4gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.a_field: "quick red fox lazy brown dog" }

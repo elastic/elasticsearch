@@ -1585,7 +1585,7 @@ public class DateFormatters {
             if (printer == null) {
                 printer = javaDateFormatter.getPrinter();
             }
-            dateTimeFormatters.add(javaDateFormatter.getParser());
+            dateTimeFormatters.addAll(javaDateFormatter.getParsers());
             roundupBuilder.appendOptional(javaDateFormatter.getRoundupParser());
         }
         DateTimeFormatter roundUpParser = roundupBuilder.toFormatter(Locale.ROOT);

@@ -154,13 +154,13 @@ public class CommandLineHttpClient {
                 // this sucks but a port can be specified with a value of 0, we'll never be able to connect to it so just default to
                 // what we know
                 if (port <= 0) {
-                    throw new IllegalStateException("unable to determine http port from settings, please use the -u option to provide the" +
-                            " url");
+                    throw new IllegalStateException("unable to determine http port from settings");
                 }
             }
             return scheme + "://" + InetAddresses.toUriString(publishAddress) + ":" + port;
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to resolve default URL", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("unable to determine default URL from settings, please use the -u option to explicitly " +
+                "provide the url", e);
         }
     }
 

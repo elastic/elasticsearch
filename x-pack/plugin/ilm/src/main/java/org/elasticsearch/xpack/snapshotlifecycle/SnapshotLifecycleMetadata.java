@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.XPackPlugin.XPackMetaDataCustom;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -35,7 +36,7 @@ public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
     private final Map<String, SnapshotLifecyclePolicyMetadata> snapshotConfigurations;
 
     public SnapshotLifecycleMetadata(Map<String, SnapshotLifecyclePolicyMetadata> snapshotConfigurations) {
-        this.snapshotConfigurations = Collections.unmodifiableMap(snapshotConfigurations);
+        this.snapshotConfigurations = new HashMap<>(snapshotConfigurations);
         // TODO: maybe operation mode here so it can be disabled/re-enabled separately like ILM is
     }
 
@@ -44,7 +45,7 @@ public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
     }
 
     public Map<String, SnapshotLifecyclePolicyMetadata> getSnapshotConfigurations() {
-        return this.snapshotConfigurations;
+        return Collections.unmodifiableMap(this.snapshotConfigurations);
     }
 
     @Override

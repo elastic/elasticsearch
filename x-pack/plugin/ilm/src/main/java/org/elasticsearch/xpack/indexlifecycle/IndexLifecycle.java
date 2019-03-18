@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.indexlifecycle.action.TransportRetryAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportStartILMAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportStopILMAction;
 import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleService;
+import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleTask;
 import org.elasticsearch.xpack.snapshotlifecycle.action.DeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.snapshotlifecycle.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.snapshotlifecycle.action.PutSnapshotLifecycleAction;
@@ -151,7 +152,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         }
         indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
                 getClock(), System::currentTimeMillis, xContentRegistry));
-        snapshotLifecycleService.set(new SnapshotLifecycleService(settings, client, clusterService, getClock()));
+        snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
+            () -> new SnapshotLifecycleTask(client), clusterService, getClock()));
         return Arrays.asList(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get());
     }
 

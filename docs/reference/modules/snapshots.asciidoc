@@ -28,7 +28,9 @@ back up a cluster is by using the snapshot and restore functionality.
 [float]
 === Version compatibility
 
-IMPORTANT: Version compatibility refers to the underlying Lucene index compatibility. Follow the {ref}/set-upgrade.html[upgrade Elasticsearch documentation] when migrating between versions.
+IMPORTANT: Version compatibility refers to the underlying Lucene index
+compatibility. Follow the <<setup-upgrade,Upgrade documentation>>
+when migrating between versions.
 
 A snapshot contains a copy of the on-disk data structures that make up an
 index. This means that snapshots can only be restored to versions of

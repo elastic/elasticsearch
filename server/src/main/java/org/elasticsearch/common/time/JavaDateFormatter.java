@@ -169,7 +169,8 @@ class JavaDateFormatter implements DateFormatter {
             return this;
         }
 
-        return new JavaDateFormatter(format, printer.withLocale(locale), roundupParser.withLocale(locale), firstParser().withLocale(locale));
+        return new JavaDateFormatter(format, printer.withLocale(locale), roundupParser.withLocale(locale),
+            firstParser().withLocale(locale));
     }
 
     @Override

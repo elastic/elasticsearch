@@ -37,6 +37,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 class JavaDateFormatter implements DateFormatter {
 
@@ -159,18 +160,20 @@ class JavaDateFormatter implements DateFormatter {
             return this;
         }
 
-        return new JavaDateFormatter(format, printer.withZone(zoneId), roundupParser.withZone(zoneId), firstParser().withZone(zoneId));
+        return new JavaDateFormatter(format, printer.withZone(zoneId),
+            parsers.stream().map(p->p.withZone(zoneId)).toArray(size->new DateTimeFormatter[size]));
     }
 
     @Override
     public DateFormatter withLocale(Locale locale) {
+        //TODO not sure that we can keep that shortcut, and the one above
         // shortcurt to not create new objects unnecessarily
         if (locale.equals(firstParser().getLocale())) {
             return this;
         }
 
-        return new JavaDateFormatter(format, printer.withLocale(locale), roundupParser.withLocale(locale),
-            firstParser().withLocale(locale));
+        return new JavaDateFormatter(format, printer.withLocale(locale),
+            parsers.stream().map(p->p.withLocale(locale)).toArray(size->new DateTimeFormatter[size]));
     }
 
     @Override

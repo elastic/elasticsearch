@@ -31,10 +31,13 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     @Nullable
     private final ToXContent filter;
     private final List<SqlTypedParamValue> params;
+    private final boolean fieldMultiValueLeniency;
 
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize,
-                           TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, String cursor, RequestInfo requestInfo) {
+                           TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter,
+                           String cursor, RequestInfo requestInfo,
+                           boolean fieldMultiValueLeniency) {
         super(requestInfo);
         this.query = query;
         this.params = params;
@@ -44,16 +47,12 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.pageTimeout = pageTimeout;
         this.filter = filter;
         this.cursor = cursor;
-    }
-
-    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ToXContent filter, ZoneId zoneId,
-                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
-        this(query, params, zoneId, fetchSize, requestTimeout, pageTimeout, filter, null, requestInfo);
+        this.fieldMultiValueLeniency = fieldMultiValueLeniency;
     }
 
     public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
         this("", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
-             null, cursor, requestInfo);
+                null, cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY);
     }
 
     /**
@@ -114,6 +113,10 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         return filter;
     }
 
+    public boolean fieldMultiValueLeniency() {
+        return fieldMultiValueLeniency;
+    }
+    
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -133,12 +136,14 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             Objects.equals(requestTimeout, that.requestTimeout) &&
             Objects.equals(pageTimeout, that.pageTimeout) &&
             Objects.equals(filter, that.filter) &&
-            Objects.equals(cursor, that.cursor);
+            Objects.equals(cursor, that.cursor) &&
+            fieldMultiValueLeniency == that.fieldMultiValueLeniency;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout, filter, cursor);
+        return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout,
+                filter, cursor, fieldMultiValueLeniency);
     }
 
     @Override
@@ -172,6 +177,9 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         if (filter != null) {
             builder.field("filter");
             filter.toXContent(builder, params);
+        }
+        if (fieldMultiValueLeniency) {
+            builder.field("field_multi_value_leniency", fieldMultiValueLeniency);
         }
         if (cursor != null) {
             builder.field("cursor", cursor);

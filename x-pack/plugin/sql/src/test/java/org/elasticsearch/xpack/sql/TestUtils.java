@@ -30,7 +30,7 @@ public class TestUtils {
 
     public static final Configuration TEST_CFG = new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE,
             Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN,
-            null, null, null);
+            null, null, null, false);
 
     /**
      * Returns the current UTC date-time with milliseconds precision.
@@ -54,7 +54,8 @@ public class TestUtils {
                 randomFrom(Mode.values()),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
-                randomAlphaOfLength(10));
+                randomAlphaOfLength(10),
+                false);
     }
 
     public static Configuration randomConfiguration(ZoneId providedZoneId) {
@@ -66,7 +67,8 @@ public class TestUtils {
                 randomFrom(Mode.values()),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
-                randomAlphaOfLength(10));
+                randomAlphaOfLength(10),
+                false);
     }
 
 }

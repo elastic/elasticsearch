@@ -31,13 +31,22 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public abstract class AbstractResponseTestCase<SERVER_INSTANCE extends ToXContent, HLRC_INSTANCE> extends ESTestCase {
+/**
+ * Base class for HLRC response parsing tests.
+ *
+ * This case class facilitates generating server side reponse test instances and
+ * verifies that they are correctly parsed into HLRC response instances.
+ *
+ * @param <S> The class representing the response on the server side.
+ * @param <H> The HLRC response class.
+ */
+public abstract class AbstractResponseTestCase<S extends ToXContent, H> extends ESTestCase {
 
     private static final int NUMBER_OF_TEST_RUNS = 20;
 
     public final void testFromXContent() throws IOException {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
-            final SERVER_INSTANCE serverTestInstance = createServerTestInstance();
+            final S serverTestInstance = createServerTestInstance();
 
             final XContentType xContentType = randomFrom(XContentType.values());
             final BytesReference bytes = toShuffledXContent(serverTestInstance, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
@@ -47,15 +56,15 @@ public abstract class AbstractResponseTestCase<SERVER_INSTANCE extends ToXConten
                 new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
                 LoggingDeprecationHandler.INSTANCE,
                 bytes.streamInput());
-            final HLRC_INSTANCE hlrcInstance = doParseInstance(parser);
+            final H hlrcInstance = doParseInstance(parser);
             assertInstances(serverTestInstance, hlrcInstance);
         }
     }
 
-    protected abstract SERVER_INSTANCE createServerTestInstance();
+    protected abstract S createServerTestInstance();
 
-    protected abstract HLRC_INSTANCE doParseInstance(XContentParser parser) throws IOException;
+    protected abstract H doParseInstance(XContentParser parser) throws IOException;
 
-    protected abstract void assertInstances(SERVER_INSTANCE serverTestInstance, HLRC_INSTANCE hlrcInstance);
+    protected abstract void assertInstances(S serverTestInstance, H hlrcInstance);
 
 }

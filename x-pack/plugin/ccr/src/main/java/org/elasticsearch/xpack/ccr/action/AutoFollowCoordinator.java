@@ -101,7 +101,6 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
         this.relativeMillisTimeProvider = relativeMillisTimeProvider;
         this.absoluteMillisTimeProvider = absoluteMillisTimeProvider;
-        clusterService.addListener(this);
         this.recentAutoFollowErrors = new LinkedHashMap<String, Tuple<Long, ElasticsearchException>>() {
             @Override
             protected boolean removeEldestEntry(final Map.Entry<String, Tuple<Long, ElasticsearchException>> eldest) {
@@ -121,11 +120,12 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
     @Override
     protected void doStart() {
-
+        clusterService.addListener(this);
     }
 
     @Override
     protected void doStop() {
+        clusterService.removeListener(this);
         LOGGER.trace("stopping all auto-followers");
         /*
          * Synchronization is not necessary here; the field is volatile and the map is a copy-on-write map, any new auto-followers will not

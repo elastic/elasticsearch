@@ -44,14 +44,12 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
     private volatile long count;
     private volatile long totalHits;
     private volatile String scrollId;
-    private volatile boolean isScrollInitialised;
 
     protected BatchedDataIterator(Client client, String index) {
         this.client = Objects.requireNonNull(client);
         this.index = Objects.requireNonNull(index);
         this.totalHits = 0;
         this.count = 0;
-        this.isScrollInitialised = false;
     }
 
     /**
@@ -62,7 +60,7 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
      * @return {@code true} if the iteration has more elements
      */
     public boolean hasNext() {
-        return !isScrollInitialised || count != totalHits;
+        return scrollId == null || count != totalHits;
     }
 
     /**
@@ -70,7 +68,8 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
      * batch will be given to the listener. Any subsequent call will return the following batches.
      * <p>
      * Note that in some implementations it is possible that when there are no
-     * results at all, the first time this method is called an empty Collection is given to the listener.
+     * results at all. {@link BatchedDataIterator#hasNext()} will return {@code true} the first time it is called but then a call
+     * to this function returns an empty Collection to the listener.
      */
     public void next(ActionListener<E> listener) {
         if (!hasNext()) {
@@ -98,14 +97,8 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
     private void initScroll(ActionListener<SearchResponse> listener) {
         LOGGER.trace("ES API CALL: search index {}", index);
 
-        isScrollInitialised = true;
-
-        IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
-        indicesOptions = IndicesOptions.fromOptions(true, indicesOptions.allowNoIndices(), indicesOptions.expandWildcardsOpen(),
-            indicesOptions.expandWildcardsClosed(), indicesOptions);
-
         SearchRequest searchRequest = new SearchRequest(index);
-        searchRequest.indicesOptions(indicesOptions);
+        searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         searchRequest.scroll(CONTEXT_ALIVE_DURATION);
         searchRequest.source(new SearchSourceBuilder()
             .fetchSource(getFetchSourceContext())

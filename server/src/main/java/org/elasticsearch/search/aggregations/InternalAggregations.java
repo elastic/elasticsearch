@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,19 +53,26 @@ public final class InternalAggregations extends Aggregations implements Streamab
     }
 
     /**
-     * Constructs a new addAggregation.
+     * Constructs a new aggregation.
      */
     public InternalAggregations(List<InternalAggregation> aggregations) {
         super(aggregations);
     }
 
     /**
-     * Reduces the given lists of addAggregation.
-     *
-     * @param aggregationsList  A list of aggregation to reduce
-     * @return                  The reduced addAggregation
+     * Reduces the given list of aggregations
      */
     public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
+        return reduce(aggregationsList, null, context);
+    }
+
+    /**
+     * Reduces the given list of aggregations as well as the provided sibling pipeline aggregators.
+     * Note that sibling pipeline aggregators are ignored when non final reduction is performed.
+     */
+    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList,
+                                              List<SiblingPipelineAggregator> siblingPipelineAggregators,
+                                              ReduceContext context) {
         if (aggregationsList.isEmpty()) {
             return null;
         }
@@ -88,6 +96,15 @@ public final class InternalAggregations extends Aggregations implements Streamab
             aggregations.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
             reducedAggregations.add(first.reduce(aggregations, context));
+        }
+
+        if (siblingPipelineAggregators != null) {
+            if (context.isFinalReduce()) {
+                for (SiblingPipelineAggregator pipelineAggregator : siblingPipelineAggregators) {
+                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(reducedAggregations), context);
+                    reducedAggregations.add(newAgg);
+                }
+            }
         }
         return new InternalAggregations(reducedAggregations);
     }

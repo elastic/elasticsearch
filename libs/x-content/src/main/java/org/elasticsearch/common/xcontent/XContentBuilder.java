@@ -208,7 +208,8 @@ public final class XContentBuilder implements Closeable, Flushable {
         this(xContent, os, Collections.emptySet(), Collections.emptySet(), registry);
     }
 
-    public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes, NamedXContentRegistry registry) throws IOException {
+    public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes,
+                           NamedXContentRegistry registry) throws IOException {
         this.bos = os;
         this.generator = xContent.createGenerator(bos, includes, excludes);
         this.registry = registry;

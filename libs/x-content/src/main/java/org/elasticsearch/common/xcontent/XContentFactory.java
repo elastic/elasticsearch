@@ -109,7 +109,8 @@ public class XContentFactory {
         throw new IllegalArgumentException("No matching content type for " + type);
     }
 
-    public static XContentBuilder contentBuilder(XContentType type, OutputStream stream, NamedXContentRegistry registry) throws IOException {
+    public static XContentBuilder contentBuilder(XContentType type, OutputStream stream,
+                                                 NamedXContentRegistry registry) throws IOException {
         XContent xContent;
         switch (type) {
             case JSON:

@@ -10,18 +10,16 @@ setup:
             settings:
               number_of_replicas: 0
             mappings:
-              _doc:
-                properties:
-                  pagerank:
-                     type: rank_feature
-                  url_length:
-                     type: rank_feature
-                     positive_score_impact: false
+              properties:
+                pagerank:
+                   type: rank_feature
+                url_length:
+                   type: rank_feature
+                   positive_score_impact: false
 
   - do:
       index:
         index: test
-        type: _doc
         id: 1
         body:
           pagerank: 10
@@ -30,9 +28,8 @@ setup:
   - do:
       index:
         index: test
-        type: _doc
         id: 2
-        body: 
+        body:
           pagerank: 100
           url_length: 20
 

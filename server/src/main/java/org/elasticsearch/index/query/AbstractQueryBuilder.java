@@ -64,6 +64,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     protected AbstractQueryBuilder(StreamInput in) throws IOException {
         boost = in.readFloat();
+        checkNegativeBoost(boost);
         queryName = in.readOptionalString();
     }
 
@@ -139,6 +140,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return this.boost;
     }
 
+    protected final void checkNegativeBoost(float boost) {
+        if (Float.compare(boost, 0f) < 0) {
+            throw new IllegalArgumentException("negative [boost] are not allowed in [" + toString() + "], " +
+                "use a value between 0 and 1 to deboost");
+        }
+    }
+
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
@@ -146,10 +154,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     @SuppressWarnings("unchecked")
     @Override
     public final QB boost(float boost) {
-        if (Float.compare(boost, 0f) < 0) {
-            throw new IllegalArgumentException("negative [boost] are not allowed in [" + toString() + "], " +
-                "use a value between 0 and 1 to deboost");
-        }
+        checkNegativeBoost(boost);
         this.boost = boost;
         return (QB) this;
     }

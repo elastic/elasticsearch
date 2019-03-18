@@ -36,10 +36,10 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
 
     @Override
     protected SqlQueryResponse createTestInstance() {
-        return createRandomInstance(randomStringCursor(), randomFrom(Mode.values()));
+        return createRandomInstance(randomStringCursor(), randomFrom(Mode.values()), randomBoolean());
     }
 
-    public static SqlQueryResponse createRandomInstance(String cursor, Mode mode) {
+    public static SqlQueryResponse createRandomInstance(String cursor, Mode mode, boolean columnar) {
         int columnCount = between(1, 10);
 
         List<ColumnInfo> columns = null;
@@ -55,6 +55,12 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
             rows = Collections.emptyList();
         } else {
             int rowCount = between(1, 10);
+            if (columnar && columns != null) {
+                int temp = rowCount;
+                rowCount = columnCount;
+                columnCount = temp;
+            }
+            
             rows = new ArrayList<>(rowCount);
             for (int r = 0; r < rowCount; r++) {
                 List<Object> row = new ArrayList<>(rowCount);
@@ -65,12 +71,11 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
                             ESTestCase::randomDouble,
                             () -> null));
                     row.add(value.get());
-
                 }
                 rows.add(row);
             }
         }
-        return new SqlQueryResponse(cursor, mode, columns, rows);
+        return new SqlQueryResponse(cursor, mode, false, columns, rows);
     }
 
     @Override
@@ -100,7 +105,13 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
             assertNull(rootMap.get("columns"));
         }
 
-        List<?> rows = ((List<?>) rootMap.get("rows"));
+        List<?> rows;
+        if (testInstance.columnar()) {
+            rows = ((List<?>) rootMap.get("values"));
+        } else {
+            rows = ((List<?>) rootMap.get("rows"));
+        }
+        assertNotNull(rows);
         assertThat(rows, hasSize(testInstance.rows().size()));
         for (int i = 0; i < rows.size(); i++) {
             List<?> row = (List<?>) rows.get(i);
@@ -116,6 +127,6 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
     protected SqlQueryResponse doParseInstance(XContentParser parser) {
         org.elasticsearch.xpack.sql.proto.SqlQueryResponse response =
             org.elasticsearch.xpack.sql.proto.SqlQueryResponse.fromXContent(parser);
-        return new SqlQueryResponse(response.cursor(), Mode.JDBC, response.columns(), response.rows());
+        return new SqlQueryResponse(response.cursor(), Mode.JDBC, false, response.columns(), response.rows());
     }
 }

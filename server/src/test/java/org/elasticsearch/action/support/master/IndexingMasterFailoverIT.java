@@ -1,5 +1,3 @@
-package org.elasticsearch.action.support.master;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,16 +16,13 @@ package org.elasticsearch.action.support.master;
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
@@ -54,12 +49,6 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
         return classes;
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
-    }
-
     /**
      * Indexing operations which entail mapping changes require a blocking request to the master node to update the mapping.
      * If the master node is being disrupted or if it cannot commit cluster state changes, it needs to retry within timeout limits.
@@ -70,13 +59,10 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
         logger.info("--> start 4 nodes, 3 master, 1 data");
 
         final Settings sharedSettings = Settings.builder()
-                .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
-                .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
-                .put(TestZenDiscovery.USE_ZEN2.getKey(), false)
-                .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
-                .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
+                .put("cluster.join.timeout", "10s")  // still long to induce failures but not too long so test won't time out
                 .build();
+
+        internalCluster().setBootstrapMasterNodeIndex(2);
 
         internalCluster().startMasterOnlyNodes(3, sharedSettings);
 

@@ -3,8 +3,6 @@
 [[sql-functions-grouping]]
 === Grouping Functions
 
-beta[]
-
 Functions for creating special __grouping__s (also known as _bucketing_); as such these need to be used
 as part of the <<sql-syntax-group-by, grouping>>.
 

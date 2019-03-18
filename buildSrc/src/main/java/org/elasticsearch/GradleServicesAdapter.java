@@ -18,6 +18,7 @@
  */
 package org.elasticsearch;
 
+import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.file.CopySpec;
@@ -25,6 +26,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.WorkResult;
 import org.gradle.process.ExecResult;
+import org.gradle.process.ExecSpec;
 import org.gradle.process.JavaExecSpec;
 
 import java.io.File;
@@ -69,5 +71,9 @@ public class GradleServicesAdapter {
 
     public FileCollection fileTree(File dir) {
         return project.fileTree(dir);
+    }
+
+    public void loggedExec(Action<ExecSpec> action) {
+        LoggedExec.exec(project, action);
     }
 }

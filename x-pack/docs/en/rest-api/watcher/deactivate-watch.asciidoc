@@ -44,6 +44,8 @@ GET _watcher/watch/my_watch
   "found": true,
   "_id": "my_watch",
   "_version": 1,
+  "_seq_no": 0,
+  "_primary_term": 1,
   "status": {
     "state" : {
       "active" : true,

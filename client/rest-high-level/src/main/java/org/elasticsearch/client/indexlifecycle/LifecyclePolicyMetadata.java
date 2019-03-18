@@ -38,7 +38,8 @@ public class LifecyclePolicyMetadata implements ToXContentObject {
     static final ParseField MODIFIED_DATE = new ParseField("modified_date");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<LifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>("policy_metadata",
+    public static final ConstructingObjectParser<LifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>(
+            "policy_metadata", true,
             a -> {
                 LifecyclePolicy policy = (LifecyclePolicy) a[0];
                 return new LifecyclePolicyMetadata(policy, (long) a[1], ZonedDateTime.parse((String) a[2]).toInstant().toEpochMilli());

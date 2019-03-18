@@ -28,6 +28,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ESCCRRestTestCase extends ESRestTestCase {
@@ -73,7 +74,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     }
 
     protected static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
+        final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
         request.setJsonEntity("{\"remote_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex +
             "\", \"read_poll_timeout\": \"10ms\"}");
         assertOK(client.performRequest(request));
@@ -85,6 +86,22 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void pauseFollow(RestClient client, String followIndex) throws IOException {
         assertOK(client.performRequest(new Request("POST", "/" + followIndex + "/_ccr/pause_follow")));
+    }
+
+    protected static void putAutoFollowPattern(String patternName, String remoteCluster, String indexPattern) throws IOException {
+        Request putPatternRequest = new Request("PUT", "/_ccr/auto_follow/" + patternName);
+        putPatternRequest.setJsonEntity("{\"leader_index_patterns\": [\"" + indexPattern + "\"], \"remote_cluster\": \"" +
+            remoteCluster + "\"}");
+        assertOK(client().performRequest(putPatternRequest));
+    }
+
+    protected static void deleteAutoFollowPattern(String patternName) throws IOException {
+        Request putPatternRequest = new Request("DELETE", "/_ccr/auto_follow/" + patternName);
+        assertOK(client().performRequest(putPatternRequest));
+    }
+
+    protected static void unfollow(String followIndex) throws IOException {
+        assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/unfollow")));
     }
 
     protected static void verifyDocuments(final String index, final int expectedNumDocs, final String query) throws IOException {
@@ -123,8 +140,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             throw new AssertionError("error while searching", e);
         }
 
-        int numberOfOperationsReceived = 0;
-        int numberOfOperationsIndexed = 0;
+        int followerMaxSeqNo = 0;
+        int followerMappingVersion = 0;
+        int followerSettingsVersion = 0;
 
         List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
         assertThat(hits.size(), greaterThanOrEqualTo(1));
@@ -137,16 +155,20 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             final String followerIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.follower_index", hit);
             assertThat(followerIndex, equalTo(expectedFollowerIndex));
 
-            int foundNumberOfOperationsReceived =
-                (int) XContentMapValues.extractValue("_source.ccr_stats.operations_read", hit);
-            numberOfOperationsReceived = Math.max(numberOfOperationsReceived, foundNumberOfOperationsReceived);
-            int foundNumberOfOperationsIndexed =
-                (int) XContentMapValues.extractValue("_source.ccr_stats.operations_written", hit);
-            numberOfOperationsIndexed = Math.max(numberOfOperationsIndexed, foundNumberOfOperationsIndexed);
+            int foundFollowerMaxSeqNo =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.follower_max_seq_no", hit);
+            followerMaxSeqNo = Math.max(followerMaxSeqNo, foundFollowerMaxSeqNo);
+            int foundFollowerMappingVersion =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.follower_mapping_version", hit);
+            followerMappingVersion = Math.max(followerMappingVersion, foundFollowerMappingVersion);
+            int foundFollowerSettingsVersion =
+                    (int) XContentMapValues.extractValue("_source.ccr_stats.follower_settings_version", hit);
+            followerSettingsVersion = Math.max(followerSettingsVersion, foundFollowerSettingsVersion);
         }
 
-        assertThat(numberOfOperationsReceived, greaterThanOrEqualTo(1));
-        assertThat(numberOfOperationsIndexed, greaterThanOrEqualTo(1));
+        assertThat(followerMaxSeqNo, greaterThan(0));
+        assertThat(followerMappingVersion, greaterThan(0));
+        assertThat(followerSettingsVersion, greaterThan(0));
     }
 
     protected static void verifyAutoFollowMonitoring() throws IOException {
@@ -186,6 +208,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     protected static void ensureYellow(String index) throws IOException {
         Request request = new Request("GET", "/_cluster/health/" + index);
         request.addParameter("wait_for_status", "yellow");
+        request.addParameter("wait_for_active_shards", "1");
         request.addParameter("wait_for_no_relocating_shards", "true");
         request.addParameter("wait_for_no_initializing_shards", "true");
         request.addParameter("timeout", "70s");
@@ -232,16 +255,25 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         return buildClient(System.getProperty("tests.leader_host"));
     }
 
+    protected RestClient buildLeaderClient(final Settings settings) throws IOException {
+        assert "leader".equals(targetCluster) == false;
+        return buildClient(System.getProperty("tests.leader_host"), settings);
+    }
+
     protected RestClient buildMiddleClient() throws IOException {
         assert "middle".equals(targetCluster) == false;
         return buildClient(System.getProperty("tests.middle_host"));
     }
 
     private RestClient buildClient(final String url) throws IOException {
+        return buildClient(url, restAdminSettings());
+    }
+
+    private RestClient buildClient(final String url, final Settings settings) throws IOException {
         int portSeparator = url.lastIndexOf(':');
         HttpHost httpHost = new HttpHost(url.substring(0, portSeparator),
-            Integer.parseInt(url.substring(portSeparator + 1)), getProtocol());
-        return buildClient(restAdminSettings(), new HttpHost[]{httpHost});
+                Integer.parseInt(url.substring(portSeparator + 1)), getProtocol());
+        return buildClient(settings, new HttpHost[]{httpHost});
     }
 
 }

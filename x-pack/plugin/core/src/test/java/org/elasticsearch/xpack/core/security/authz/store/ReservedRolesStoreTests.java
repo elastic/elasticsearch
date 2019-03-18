@@ -7,8 +7,13 @@ package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -36,12 +41,21 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
+import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
@@ -82,6 +96,7 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
@@ -132,13 +147,15 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
 
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -163,6 +180,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("reporting_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("machine_learning_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("machine_learning_admin"), is(true));
+        assertThat(ReservedRolesStore.isReserved("data_frame_transforms_user"), is(true));
+        assertThat(ReservedRolesStore.isReserved("data_frame_transforms_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("kibana_dashboard_only_user"), is(true));
@@ -173,9 +192,56 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved(APMSystemUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(RemoteMonitoringUser.COLLECTION_ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(RemoteMonitoringUser.INDEXING_ROLE_NAME), is(true));
+        assertThat(ReservedRolesStore.isReserved("snapshot_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("code_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("code_user"), is(true));
+    }
 
+    public void testSnapshotUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("snapshot_user");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role snapshotUserRole = Role.builder(roleDescriptor, null).build();
+        assertThat(snapshotUserRole.cluster().check(GetRepositoriesAction.NAME, request), is(true));
+        assertThat(snapshotUserRole.cluster().check(CreateSnapshotAction.NAME, request), is(true));
+        assertThat(snapshotUserRole.cluster().check(SnapshotsStatusAction.NAME, request), is(true));
+        assertThat(snapshotUserRole.cluster().check(GetSnapshotsAction.NAME, request), is(true));
+
+        assertThat(snapshotUserRole.cluster().check(PutRepositoryAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(GetIndexTemplatesAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(DeleteIndexTemplateAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(PutPipelineAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(GetPipelineAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(DeletePipelineAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(MonitoringBulkAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(GetWatchAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(PutWatchAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(DeleteWatchAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(ExecuteWatchAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(AckWatchAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(ActivateWatchAction.NAME, request), is(false));
+        assertThat(snapshotUserRole.cluster().check(WatcherServiceAction.NAME, request), is(false));
+
+        assertThat(snapshotUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(randomAlphaOfLengthBetween(8, 24)), is(false));
+        assertThat(snapshotUserRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)), is(false));
+        assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(randomAlphaOfLengthBetween(8, 24)), is(false));
+        assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(randomAlphaOfLengthBetween(8, 24)), is(false));
+
+        assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME)
+                .test(randomAlphaOfLengthBetween(8, 24)), is(true));
+
+        for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
+            // This test might cease to be true if we ever have non-security restricted names
+            // but that depends on how users are supposed to perform snapshots of those new indices.
+            assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(index), is(true));
+        }
+
+        assertNoAccessAllowed(snapshotUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testIngestAdminRole() {
@@ -203,7 +269,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ingestAdminRole.indices().allowedIndicesMatcher(GetAction.NAME).test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
 
-        assertNoAccessAllowed(ingestAdminRole, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(ingestAdminRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testKibanaSystemRole() {
@@ -304,7 +370,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(index), is(false));
 
-        assertNoAccessAllowed(kibanaRole, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(kibanaRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testKibanaUserRole() {
@@ -341,7 +407,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"),
             "*"), is(false));
 
-        assertNoAccessAllowed(kibanaUserRole, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(kibanaUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testMonitoringUserRole() {
@@ -353,6 +419,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Role monitoringUserRole = Role.builder(roleDescriptor, null).build();
         assertThat(monitoringUserRole.cluster().check(MainAction.NAME, request), is(true));
+        assertThat(monitoringUserRole.cluster().check(XPackInfoAction.NAME, request), is(true));
         assertThat(monitoringUserRole.cluster().check(ClusterHealthAction.NAME, request), is(false));
         assertThat(monitoringUserRole.cluster().check(ClusterStateAction.NAME, request), is(false));
         assertThat(monitoringUserRole.cluster().check(ClusterStatsAction.NAME, request), is(false));
@@ -384,7 +451,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(index), is(true));
 
-        assertNoAccessAllowed(monitoringUserRole, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(monitoringUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testRemoteMonitoringAgentRole() {
@@ -443,7 +510,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(metricbeatIndex), is(false));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(metricbeatIndex), is(false));
 
-        assertNoAccessAllowed(remoteMonitoringAgentRole, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(remoteMonitoringAgentRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testRemoteMonitoringCollectorRole() {
@@ -491,28 +558,57 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(index), is(false));
         });
 
+        // These tests might need to change if we add new non-security restricted indices that the monitoring user isn't supposed to see
+        // (but ideally, the monitoring user should see all indices).
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetSettingsAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX, RestrictedIndicesNames.SECURITY_INDEX_NAME)), is(true));
+                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(true));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesShardStoresAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX, RestrictedIndicesNames.SECURITY_INDEX_NAME)), is(true));
+                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(true));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpgradeStatusAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX, RestrictedIndicesNames.SECURITY_INDEX_NAME)), is(true));
+                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(true));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(RecoveryAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX, RestrictedIndicesNames.SECURITY_INDEX_NAME)), is(true));
+                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(true));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX, RestrictedIndicesNames.SECURITY_INDEX_NAME)), is(true));
+                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(true));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesSegmentsAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX, RestrictedIndicesNames.SECURITY_INDEX_NAME)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX, RestrictedIndicesNames.SECURITY_INDEX_NAME)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX, RestrictedIndicesNames.SECURITY_INDEX_NAME)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX, RestrictedIndicesNames.SECURITY_INDEX_NAME)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME)
-                .test(randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX, RestrictedIndicesNames.SECURITY_INDEX_NAME)), is(false));
+                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(true));
 
-        assertNoAccessAllowed(remoteMonitoringAgentRole, RestrictedIndicesNames.NAMES_SET);
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME)
+                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME)
+                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME)
+                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME)
+                .test(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES)), is(false));
+
+        assertMonitoringOnRestrictedIndices(remoteMonitoringAgentRole);
+
+        assertNoAccessAllowed(remoteMonitoringAgentRole, RestrictedIndicesNames.RESTRICTED_NAMES);
+    }
+
+    private void assertMonitoringOnRestrictedIndices(Role role) {
+        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6,
+            RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
+        final MetaData metaData = new MetaData.Builder()
+                .put(new IndexMetaData.Builder(internalSecurityIndex)
+                        .settings(indexSettings)
+                        .numberOfShards(1)
+                        .numberOfReplicas(0)
+                        .putAlias(new AliasMetaData.Builder(RestrictedIndicesNames.SECURITY_INDEX_NAME).build())
+                        .build(), true)
+                .build();
+        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        final List<String> indexMonitoringActionNamesList = Arrays.asList(IndicesStatsAction.NAME, IndicesSegmentsAction.NAME,
+                GetSettingsAction.NAME, IndicesShardStoresAction.NAME, UpgradeStatusAction.NAME, RecoveryAction.NAME);
+        for (final String indexMonitoringActionName : indexMonitoringActionNamesList) {
+            final Map<String, IndexAccessControl> authzMap = role.indices().authorize(indexMonitoringActionName,
+                Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_INDEX_NAME),
+                metaData.getAliasAndIndexLookup(), fieldPermissionsCache);
+            assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(true));
+            assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_INDEX_NAME).isGranted(), is(true));
+        }
     }
 
     public void testReportingUserRole() {
@@ -552,7 +648,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(false));
 
-        assertNoAccessAllowed(reportingUserRole, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(reportingUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testKibanaDashboardOnlyUserRole() {
@@ -586,7 +682,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(dashboardsOnlyUserRole.application().grants(
             new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"), "*"), is(false));
 
-        assertNoAccessAllowed(dashboardsOnlyUserRole, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(dashboardsOnlyUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testSuperuserRole() {
@@ -605,6 +701,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(superuserRole.cluster().check("internal:admin/foo", request), is(false));
 
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6,
+            RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
         final MetaData metaData = new MetaData.Builder()
                 .put(new IndexMetaData.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -617,7 +715,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                         .putAlias(new AliasMetaData.Builder("ab").build())
                         .putAlias(new AliasMetaData.Builder("ba").build())
                         .build(), true)
-                .put(new IndexMetaData.Builder(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX)
+                .put(new IndexMetaData.Builder(internalSecurityIndex)
                         .settings(indexSettings)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
@@ -626,24 +724,26 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 .build();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        SortedMap<String, AliasOrIndex> lookup = metaData.getAliasAndIndexLookup();
         Map<String, IndexAccessControl> authzMap =
-                superuserRole.indices().authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), metaData, fieldPermissionsCache);
+                superuserRole.indices().authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
         assertThat(authzMap.get("a1").isGranted(), is(true));
         assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap = superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), metaData, fieldPermissionsCache);
+        authzMap =
+            superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
         assertThat(authzMap.get("a1").isGranted(), is(true));
         assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), metaData, fieldPermissionsCache);
+        authzMap = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache);
         assertThat(authzMap.get("a2").isGranted(), is(true));
         assertThat(authzMap.get("b").isGranted(), is(true));
         authzMap = superuserRole.indices()
-                .authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), metaData, fieldPermissionsCache);
+                .authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache);
         assertThat(authzMap.get("aaaaaa").isGranted(), is(true));
         assertThat(authzMap.get("b").isGranted(), is(true));
         authzMap = superuserRole.indices().authorize(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME),
-                Sets.newHashSet(RestrictedIndicesNames.SECURITY_INDEX_NAME), metaData, fieldPermissionsCache);
+                Sets.newHashSet(RestrictedIndicesNames.SECURITY_INDEX_NAME), lookup, fieldPermissionsCache);
         assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_INDEX_NAME).isGranted(), is(true));
-        assertThat(authzMap.get(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX).isGranted(), is(true));
+        assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(true));
         assertTrue(superuserRole.indices().check(SearchAction.NAME));
         assertFalse(superuserRole.indices().check("unknown"));
 
@@ -652,7 +752,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(superuserRole.indices().allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME))
                 .test(RestrictedIndicesNames.SECURITY_INDEX_NAME), is(true));
         assertThat(superuserRole.indices().allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME))
-                .test(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX), is(true));
+                .test(internalSecurityIndex), is(true));
     }
 
     public void testLogstashSystemRole() {
@@ -678,7 +778,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
 
-        assertNoAccessAllowed(logstashSystemRole, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(logstashSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testBeatsAdminRole() {
@@ -716,7 +816,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(beatsAdminRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
         assertThat(beatsAdminRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
 
-        assertNoAccessAllowed(beatsAdminRole, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(beatsAdminRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testBeatsSystemRole() {
@@ -742,7 +842,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
 
-        assertNoAccessAllowed(logstashSystemRole, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(logstashSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testAPMSystemRole() {
@@ -768,7 +868,24 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(APMSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
 
-        assertNoAccessAllowed(APMSystemRole, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(APMSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
+    }
+
+    public void testAPMUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
+        final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("apm_user");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.builder(roleDescriptor, null).build();
+
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
+
+        assertNoAccessAllowed(role, "foo");
+
+        assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
     }
 
     public void testMachineLearningAdminRole() {
@@ -818,6 +935,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(PutFilterAction.NAME, request), is(true));
         assertThat(role.cluster().check(PutJobAction.NAME, request), is(true));
         assertThat(role.cluster().check(RevertModelSnapshotAction.NAME, request), is(true));
+        assertThat(role.cluster().check(SetUpgradeModeAction.NAME, request), is(true));
         assertThat(role.cluster().check(StartDatafeedAction.NAME, request), is(true));
         assertThat(role.cluster().check(StopDatafeedAction.NAME, request), is(true));
         assertThat(role.cluster().check(UpdateCalendarJobAction.NAME, request), is(true));
@@ -838,7 +956,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX);
         assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
 
-        assertNoAccessAllowed(role, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testMachineLearningUserRole() {
@@ -888,6 +1006,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(PutFilterAction.NAME, request), is(false));
         assertThat(role.cluster().check(PutJobAction.NAME, request), is(false));
         assertThat(role.cluster().check(RevertModelSnapshotAction.NAME, request), is(false));
+        assertThat(role.cluster().check(SetUpgradeModeAction.NAME, request), is(false));
         assertThat(role.cluster().check(StartDatafeedAction.NAME, request), is(false));
         assertThat(role.cluster().check(StopDatafeedAction.NAME, request), is(false));
         assertThat(role.cluster().check(UpdateCalendarJobAction.NAME, request), is(false));
@@ -908,7 +1027,53 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX);
         assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
 
-        assertNoAccessAllowed(role, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
+    }
+
+    public void testDataFrameTransformsAdminRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("data_frame_transforms_admin");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.builder(roleDescriptor, null).build();
+        assertThat(role.cluster().check(DeleteDataFrameTransformAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetDataFrameTransformsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetDataFrameTransformsStatsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PreviewDataFrameTransformAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PutDataFrameTransformAction.NAME, request), is(true));
+        assertThat(role.cluster().check(StartDataFrameTransformAction.NAME, request), is(true));
+        assertThat(role.cluster().check(StopDataFrameTransformAction.NAME, request), is(true));
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
+
+        assertNoAccessAllowed(role, "foo");
+        assertNoAccessAllowed(role, ".data-frame-internal-1"); // internal use only
+
+        assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
+    }
+
+    public void testDataFrameTransformsUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("data_frame_transforms_user");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.builder(roleDescriptor, null).build();
+        assertThat(role.cluster().check(DeleteDataFrameTransformAction.NAME, request), is(false));
+        assertThat(role.cluster().check(GetDataFrameTransformsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetDataFrameTransformsStatsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PreviewDataFrameTransformAction.NAME, request), is(false));
+        assertThat(role.cluster().check(PutDataFrameTransformAction.NAME, request), is(false));
+        assertThat(role.cluster().check(StartDataFrameTransformAction.NAME, request), is(false));
+        assertThat(role.cluster().check(StopDataFrameTransformAction.NAME, request), is(false));
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
+
+        assertNoAccessAllowed(role, "foo");
+        assertNoAccessAllowed(role, ".data-frame-internal-1");
+
+        assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testWatcherAdminRole() {
@@ -931,13 +1096,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(now);
         for (String index : new String[]{ Watch.INDEX, historyIndex, TriggeredWatchStoreField.INDEX_NAME }) {
             assertOnlyReadAllowed(role, index);
         }
 
-        assertNoAccessAllowed(role, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testWatcherUserRole() {
@@ -961,13 +1126,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(TriggeredWatchStoreField.INDEX_NAME), is(false));
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(now);
         for (String index : new String[]{ Watch.INDEX, historyIndex }) {
             assertOnlyReadAllowed(role, index);
         }
 
-        assertNoAccessAllowed(role, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     private void assertReadWriteDocsButNotDeleteIndexAllowed(Role role, String index) {
@@ -991,7 +1156,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
         assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(false));
 
-        assertNoAccessAllowed(role, RestrictedIndicesNames.NAMES_SET);
+        assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     private void assertNoAccessAllowed(Role role, Collection<String> indices) {

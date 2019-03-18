@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -36,7 +37,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -97,7 +97,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
 
             setState(clusterService,
                 ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder()
-                    .addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ALL)
+                    .addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ALL)
                     .addIndexBlock(indexName, IndexMetaData.INDEX_WRITE_BLOCK)));
 
             try (MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,

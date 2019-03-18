@@ -32,6 +32,7 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.TranslogHandler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -58,6 +59,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.engine.EngineTestCase.getDocIds;
+import static org.elasticsearch.index.engine.EngineTestCase.getTranslog;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -270,7 +272,7 @@ public class FollowingEngineTests extends ESTestCase {
                 null,
                 new NoneCircuitBreakerService(),
                 globalCheckpoint::longValue,
-                Collections::emptyList,
+                () -> RetentionLeases.EMPTY,
                 () -> primaryTerm.get(),
                 EngineTestCase.tombstoneDocSupplier());
     }
@@ -336,7 +338,7 @@ public class FollowingEngineTests extends ESTestCase {
             for (int i = 0; i < numDocs; i++) {
                 leader.index(indexForPrimary(Integer.toString(i)));
             }
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(-1L));
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(numDocs));
             assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
@@ -349,7 +351,7 @@ public class FollowingEngineTests extends ESTestCase {
                     leader.delete(deleteForPrimary(Integer.toString(i)));
                 }
             }
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(numDocs));
             assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
@@ -361,7 +363,7 @@ public class FollowingEngineTests extends ESTestCase {
                 docIds.add(docId);
                 leader.index(indexForPrimary(docId));
             }
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(numDocs + moreDocs));
             assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
@@ -377,7 +379,7 @@ public class FollowingEngineTests extends ESTestCase {
         runFollowTest((leader, follower) -> {
             EngineTestCase.concurrentlyApplyOps(ops, leader);
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(-1L));
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo((long) numOps));
         });
     }
@@ -395,13 +397,13 @@ public class FollowingEngineTests extends ESTestCase {
         Randomness.shuffle(ops);
         runFollowTest((leader, follower) -> {
             EngineTestCase.concurrentlyApplyOps(ops, leader);
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             final List<Engine.Operation> appendOps = new ArrayList<>();
             for (int numAppends = scaledRandomIntBetween(0, 100), i = 0; i < numAppends; i++) {
                 appendOps.add(indexForPrimary("append-" + i));
             }
             EngineTestCase.concurrentlyApplyOps(appendOps, leader);
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), greaterThanOrEqualTo((long) appendOps.size()));
         });
     }
@@ -409,19 +411,19 @@ public class FollowingEngineTests extends ESTestCase {
     public void testOptimizeSingleDocSequentially() throws Exception {
         runFollowTest((leader, follower) -> {
             leader.index(indexForPrimary("id"));
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(1L));
 
             leader.delete(deleteForPrimary("id"));
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(1L));
 
             leader.index(indexForPrimary("id"));
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(2L));
 
             leader.index(indexForPrimary("id"));
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(2L));
         });
     }
@@ -431,20 +433,20 @@ public class FollowingEngineTests extends ESTestCase {
         Randomness.shuffle(ops);
         runFollowTest((leader, follower) -> {
             EngineTestCase.concurrentlyApplyOps(ops, leader);
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
             long numOptimized = follower.getNumberOfOptimizedIndexing();
 
             leader.delete(deleteForPrimary("id"));
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(numOptimized));
 
             leader.index(indexForPrimary("id"));
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(numOptimized + 1L));
 
             leader.index(indexForPrimary("id"));
-            follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+            EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             assertThat(follower.getNumberOfOptimizedIndexing(), equalTo(numOptimized + 1L));
         });
     }
@@ -471,7 +473,7 @@ public class FollowingEngineTests extends ESTestCase {
                 latch.countDown();
                 latch.await();
                 task.accept(leader, follower);
-                follower.waitForOpsToComplete(leader.getLocalCheckpoint());
+                EngineTestCase.waitForOpsToComplete(follower, leader.getLocalCheckpoint());
             } finally {
                 taskIsCompleted.set(true);
                 for (Thread thread : threads) {
@@ -636,6 +638,70 @@ public class FollowingEngineTests extends ESTestCase {
                 for (DocIdSeqNoAndTerm docId : getDocIds(followingEngine, true)) {
                     assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));
                 }
+            }
+        }
+    }
+
+    /**
+     * Test that {@link FollowingEngine#verifyEngineBeforeIndexClosing()} never fails
+     * whatever the value of the global checkpoint to check is.
+     */
+    public void testVerifyShardBeforeIndexClosingIsNoOp() throws IOException {
+        final long seqNo = randomIntBetween(0, Integer.MAX_VALUE);
+        runIndexTest(
+            seqNo,
+            Engine.Operation.Origin.PRIMARY,
+            (followingEngine, index) -> {
+                globalCheckpoint.set(randomNonNegativeLong());
+                try {
+                    followingEngine.verifyEngineBeforeIndexClosing();
+                } catch (final IllegalStateException e) {
+                    fail("Following engine pre-closing verifications failed");
+                }
+            });
+    }
+
+    public void testMaxSeqNoInCommitUserData() throws Exception {
+        final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+        final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+        try (Store store = createStore(shardId, indexSettings, newDirectory())) {
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
+            try (FollowingEngine engine = createEngine(store, engineConfig)) {
+                AtomicBoolean running = new AtomicBoolean(true);
+                Thread rollTranslog = new Thread(() -> {
+                    while (running.get() && getTranslog(engine).currentFileGeneration() < 500) {
+                        engine.rollTranslogGeneration(); // make adding operations to translog slower
+                    }
+                });
+                rollTranslog.start();
+
+                Thread indexing = new Thread(() -> {
+                    List<Engine.Operation> ops = EngineTestCase.generateSingleDocHistory(true, VersionType.EXTERNAL, 2, 50, 500, "id");
+                    engine.advanceMaxSeqNoOfUpdatesOrDeletes(ops.stream().mapToLong(Engine.Operation::seqNo).max().getAsLong());
+                    for (Engine.Operation op : ops) {
+                        if (running.get() == false) {
+                            return;
+                        }
+                        try {
+                            EngineTestCase.applyOperation(engine, op);
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                });
+                indexing.start();
+
+                int numCommits = between(5, 20);
+                for (int i = 0; i < numCommits; i++) {
+                    engine.flush(false, true);
+                }
+                running.set(false);
+                indexing.join();
+                rollTranslog.join();
+                EngineTestCase.assertMaxSeqNoInCommitUserData(engine);
             }
         }
     }

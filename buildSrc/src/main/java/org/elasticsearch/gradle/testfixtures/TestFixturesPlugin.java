@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.testfixtures;
 import com.avast.gradle.dockercompose.ComposeExtension;
 import com.avast.gradle.dockercompose.DockerComposePlugin;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.precommit.JarHellTask;
 import org.elasticsearch.gradle.precommit.TestingConventionsTasks;
 import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask;
@@ -32,7 +33,6 @@ import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskContainer;
-import org.gradle.internal.os.OperatingSystem;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -59,14 +59,17 @@ public class TestFixturesPlugin implements Plugin<Project> {
             disableTaskByType(tasks, JarHellTask.class);
 
             Task buildFixture = project.getTasks().create("buildFixture");
+            Task pullFixture = project.getTasks().create("pullFixture");
             Task preProcessFixture = project.getTasks().create("preProcessFixture");
             buildFixture.dependsOn(preProcessFixture);
+            pullFixture.dependsOn(preProcessFixture);
             Task postProcessFixture = project.getTasks().create("postProcessFixture");
 
             if (dockerComposeSupported(project) == false) {
                 preProcessFixture.setEnabled(false);
                 postProcessFixture.setEnabled(false);
                 buildFixture.setEnabled(false);
+                pullFixture.setEnabled(false);
                 return;
             }
 
@@ -81,7 +84,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
             );
 
             buildFixture.dependsOn(tasks.getByName("composeUp"));
+            pullFixture.dependsOn(tasks.getByName("composePull"));
             tasks.getByName("composeUp").mustRunAfter(preProcessFixture);
+            tasks.getByName("composePull").mustRunAfter(preProcessFixture);
             postProcessFixture.dependsOn(buildFixture);
 
             configureServiceInfoForTask(
@@ -152,7 +157,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
     @Input
     public boolean dockerComposeSupported(Project project) {
-        if (OperatingSystem.current().isWindows()) {
+        if (OS.current().equals(OS.WINDOWS)) {
             return false;
         }
         final boolean hasDockerCompose = project.file("/usr/local/bin/docker-compose").exists() ||

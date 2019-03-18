@@ -35,6 +35,7 @@ public class NodeToolCli extends MultiCommand {
         super("A CLI tool to unsafely recover a cluster after the permanent loss of too many master-eligible nodes", ()->{});
         CommandLoggingConfigurator.configureLoggingWithoutConfig();
         subcommands.put("unsafe-bootstrap", new UnsafeBootstrapMasterCommand());
+        subcommands.put("detach-cluster", new DetachClusterCommand());
     }
 
     public static void main(String[] args) throws Exception {

@@ -23,7 +23,6 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -169,7 +168,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         defaultField = in.readOptionalString();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            fieldsAndWeights.put(in.readString(), in.readFloat());
+            String field = in.readString();
+            Float weight = in.readFloat();
+            checkNegativeBoost(weight);
+            fieldsAndWeights.put(field, weight);
         }
         defaultOperator = Operator.readFromStream(in);
         analyzer = in.readOptionalString();
@@ -192,10 +194,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         timeZone = in.readOptionalZoneId();
         escape = in.readBoolean();
         maxDeterminizedStates = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            autoGenerateSynonymsPhraseQuery = in.readBoolean();
-            fuzzyTranspositions = in.readBoolean();
-        }
+        autoGenerateSynonymsPhraseQuery = in.readBoolean();
+        fuzzyTranspositions = in.readBoolean();
     }
 
     @Override
@@ -227,10 +227,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeOptionalZoneId(timeZone);
         out.writeBoolean(this.escape);
         out.writeVInt(this.maxDeterminizedStates);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeBoolean(autoGenerateSynonymsPhraseQuery);
-            out.writeBoolean(fuzzyTranspositions);
-        }
+        out.writeBoolean(autoGenerateSynonymsPhraseQuery);
+        out.writeBoolean(fuzzyTranspositions);
     }
 
     public String queryString() {
@@ -264,6 +262,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * Adds a field to run the query string against with a specific boost.
      */
     public QueryStringQueryBuilder field(String field, float boost) {
+        checkNegativeBoost(boost);
         this.fieldsAndWeights.put(field, boost);
         return this;
     }
@@ -272,6 +271,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * Add several fields to run the query against with a specific boost.
      */
     public QueryStringQueryBuilder fields(Map<String, Float> fields) {
+        for (float fieldBoost : fields.values()) {
+            checkNegativeBoost(fieldBoost);
+        }
         this.fieldsAndWeights.putAll(fields);
         return this;
     }

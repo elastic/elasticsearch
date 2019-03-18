@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -334,6 +335,37 @@ public class StreamTests extends ESTestCase {
 
         final Set<Long> targetSet = out.bytes().streamInput().readSet(StreamInput::readLong);
         assertThat(targetSet, equalTo(sourceSet));
+    }
+
+    public void testInstantSerialization() throws IOException {
+        final Instant instant = Instant.now();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeInstant(instant);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final Instant serialized = in.readInstant();
+                assertEquals(instant, serialized);
+            }
+        }
+    }
+
+    public void testOptionalInstantSerialization() throws IOException {
+        final Instant instant = Instant.now();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeOptionalInstant(instant);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final Instant serialized = in.readOptionalInstant();
+                assertEquals(instant, serialized);
+            }
+        }
+
+        final Instant missing = null;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeOptionalInstant(missing);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final Instant serialized = in.readOptionalInstant();
+                assertEquals(missing, serialized);
+            }
+        }
     }
 
     static final class WriteableString implements Writeable {

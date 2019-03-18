@@ -453,8 +453,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                     return Intervals.notContaining(input, filterSource);
                 case "not_contained_by":
                     return Intervals.notContainedBy(input, filterSource);
+                case "overlapping":
+                    return Intervals.overlapping(input, filterSource);
                 case "not_overlapping":
                     return Intervals.nonOverlapping(input, filterSource);
+                case "before":
+                    return Intervals.before(input, filterSource);
+                case "after":
+                    return Intervals.after(input, filterSource);
                 default:
                     throw new IllegalArgumentException("Unknown filter type [" + type + "]");
             }

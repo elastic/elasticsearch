@@ -9,11 +9,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.sql.jdbc.EsDataSource;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 
 import java.io.IOException;
@@ -22,7 +22,6 @@ import java.io.Reader;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -80,6 +79,34 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         dateTimeTestingFields.put(new Tuple<String, Object>("test_keyword", "true"), EsType.KEYWORD);
     }
     
+    public void testMultiValueFieldWithMultiValueLeniencyEnabled() throws Exception {
+        createTestDataForMultiValueTests();
+
+        doWithQuery(() -> esWithLeniency(true), "SELECT int, keyword FROM test", (results) -> {
+            results.next();
+            Object number = results.getObject(1);
+            Object string = results.getObject(2);
+            assertEquals(-10, number);
+            assertEquals("-10", string);
+            assertFalse(results.next());
+        });
+    }
+
+    public void testMultiValueFieldWithMultiValueLeniencyDisabled() throws Exception {
+        createTestDataForMultiValueTests();
+
+        SQLException expected = expectThrows(SQLException.class,
+                () -> doWithQuery(() -> esWithLeniency(false), "SELECT int, keyword FROM test", (results) -> {
+        }));
+        assertTrue(expected.getMessage().contains("Arrays (returned by [int]) are not supported"));
+        
+        // default has multi value disabled
+        expected = expectThrows(SQLException.class,
+                () -> doWithQuery(() -> esJdbc(), "SELECT int, keyword FROM test", (results) -> {
+        }));
+
+    }
+
     // Byte values testing
     public void testGettingValidByteWithoutCasting() throws Exception {
         byte random1 = randomByte();
@@ -1006,7 +1033,67 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertNull(results.getTimestamp("test_date"));
         });
     }
-    
+
+    public void testScalarOnDates() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
+
+        // 2018-03-12 17:00:00 UTC
+        Long dateInMillis = 1520874000000L;
+        index("test", "1", builder -> builder.field("test_date", dateInMillis));
+
+        // UTC +10 hours
+        String timeZoneId1 = "Etc/GMT-10";
+        Calendar connCalendar1 = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId1), Locale.ROOT);
+
+        doWithQueryAndTimezone("SELECT test_date, DAY_OF_MONTH(test_date) as day FROM test", timeZoneId1, results -> {
+            results.next();
+            connCalendar1.setTimeInMillis(dateInMillis);
+            connCalendar1.set(HOUR_OF_DAY, 0);
+            connCalendar1.set(MINUTE, 0);
+            connCalendar1.set(SECOND, 0);
+            connCalendar1.set(MILLISECOND, 0);
+
+            assertEquals(new java.sql.Date(connCalendar1.getTimeInMillis()), results.getDate("test_date"));
+            assertEquals(new java.sql.Date(connCalendar1.getTimeInMillis()), results.getDate(1));
+            assertEquals(new java.sql.Date(dateInMillis - (dateInMillis % 86400000L)), results.getObject("test_date", java.sql.Date.class));
+            assertEquals(new java.sql.Date(dateInMillis - (dateInMillis % 86400000L)), results.getObject(1, java.sql.Date.class));
+
+            // +1 day
+            assertEquals(13, results.getInt("day"));
+        });
+
+        delete("test", "1");
+
+        // 2018-03-12 05:00:00 UTC
+        Long dateInMillis2 = 1520830800000L;
+        index("test", "1", builder -> builder.field("test_date", dateInMillis2));
+
+        // UTC -10 hours
+        String timeZoneId2 = "Etc/GMT+10";
+        Calendar connCalendar2 = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId2), Locale.ROOT);
+
+
+        doWithQueryAndTimezone("SELECT test_date, DAY_OF_MONTH(test_date) as day FROM test", timeZoneId2, results -> {
+            results.next();
+            connCalendar2.setTimeInMillis(dateInMillis2);
+            connCalendar2.set(HOUR_OF_DAY, 0);
+            connCalendar2.set(MINUTE, 0);
+            connCalendar2.set(SECOND, 0);
+            connCalendar2.set(MILLISECOND, 0);
+
+            assertEquals(new java.sql.Date(connCalendar2.getTimeInMillis()), results.getDate("test_date"));
+            assertEquals(new java.sql.Date(connCalendar2.getTimeInMillis()), results.getDate(1));
+            assertEquals(new java.sql.Date(dateInMillis2 - (dateInMillis2 % 86400000L)),
+                results.getObject("test_date", java.sql.Date.class));
+            assertEquals(new java.sql.Date(dateInMillis2 - (dateInMillis2 % 86400000L)),
+                results.getObject(1, java.sql.Date.class));
+
+            // -1 day
+            assertEquals(11, results.getInt("day"));
+        });
+    }
+
     public void testValidGetObjectCalls() throws Exception {
         createIndex("test");
         updateMappingForNumericValuesTests("test");
@@ -1072,7 +1159,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
     /*
      * Checks StackOverflowError fix for https://github.com/elastic/elasticsearch/pull/31735
      */
-    public void testNoInfiniteRecursiveGetObjectCalls() throws SQLException, IOException {
+    public void testNoInfiniteRecursiveGetObjectCalls() throws Exception {
         index("library", "1", builder -> {
             builder.field("name", "Don Quixote");
             builder.field("page_count", 1072);
@@ -1243,17 +1330,16 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
     
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement(query)) {
-                try (ResultSet results = statement.executeQuery()) {
-                    consumer.accept(results);
-                }
-            }
-        }
+        doWithQuery(() -> esJdbc(), query, consumer);
     }
     
     private void doWithQueryAndTimezone(String query, String tz, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
-        try (Connection connection = esJdbc(tz)) {
+        doWithQuery(() -> esJdbc(tz), query, consumer);
+    }
+    
+    private void doWithQuery(CheckedSupplier<Connection, SQLException> con, String query, CheckedConsumer<ResultSet, SQLException> consumer)
+            throws SQLException {
+        try (Connection connection = con.get()) {
             try (PreparedStatement statement = connection.prepareStatement(query)) {
                 try (ResultSet results = statement.executeQuery()) {
                     consumer.accept(results);
@@ -1262,7 +1348,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         }
     }
     
-    private void createIndex(String index) throws Exception {
+    protected static void createIndex(String index) throws Exception {
         Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
@@ -1282,7 +1368,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         client().performRequest(request);
     }
 
-    private void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws Exception {
+    protected static void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws Exception {
         Request request = new Request("PUT", "/" + index + "/_mapping");
         XContentBuilder updateMapping = JsonXContent.contentBuilder().startObject();
         updateMapping.startObject("properties");
@@ -1295,7 +1381,29 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         client().performRequest(request);
     }
 
-    private void createTestDataForByteValueTests(byte random1, byte random2, byte random3) throws Exception, IOException {
+    private void createTestDataForMultiValueTests() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> {
+            builder.startObject("int").field("type", "integer").endObject();
+            builder.startObject("keyword").field("type", "keyword").endObject();
+        });
+
+        Integer[] values = randomArray(3, 15, s -> new Integer[s], () -> Integer.valueOf(randomInt(50)));
+        // add the minimal value in the middle yet the test will pick it up since the results are sorted
+        values[2] = Integer.valueOf(-10);
+
+        String[] stringValues = new String[values.length];
+        for (int i = 0; i < values.length; i++) {
+            stringValues[i] = String.valueOf(values[i]);
+        }
+
+        index("test", "1", builder -> {
+            builder.array("int", (Object[]) values);
+            builder.array("keyword", stringValues);
+        });
+    }
+
+    private void createTestDataForByteValueTests(byte random1, byte random2, byte random3) throws Exception {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("test_byte").field("type", "byte").endObject();
@@ -1313,7 +1421,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void createTestDataForShortValueTests(short random1, short random2, short random3) throws Exception, IOException {
+    private void createTestDataForShortValueTests(short random1, short random2, short random3) throws Exception {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("test_short").field("type", "short").endObject();
@@ -1331,7 +1439,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void createTestDataForIntegerValueTests(int random1, int random2, int random3) throws Exception, IOException {
+    private void createTestDataForIntegerValueTests(int random1, int random2, int random3) throws Exception {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("test_integer").field("type", "integer").endObject();
@@ -1349,7 +1457,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void createTestDataForLongValueTests(long random1, long random2, long random3) throws Exception, IOException {
+    private void createTestDataForLongValueTests(long random1, long random2, long random3) throws Exception {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("test_long").field("type", "long").endObject();
@@ -1367,7 +1475,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void createTestDataForDoubleValueTests(double random1, double random2, double random3) throws Exception, IOException {
+    private void createTestDataForDoubleValueTests(double random1, double random2, double random3) throws Exception {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("test_double").field("type", "double").endObject();
@@ -1385,7 +1493,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void createTestDataForFloatValueTests(float random1, float random2, float random3) throws Exception, IOException {
+    private void createTestDataForFloatValueTests(float random1, float random2, float random3) throws Exception {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("test_float").field("type", "float").endObject();
@@ -1421,7 +1529,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
      * Creates test data for all numeric get* methods. All values random and different from the other numeric fields already generated.
      * It returns a map containing the field name and its randomly generated value to be later used in checking the returned values.
      */
-    private Map<String,Number> createTestDataForNumericValueTypes(Supplier<Number> randomGenerator) throws Exception, IOException {
+    private Map<String, Number> createTestDataForNumericValueTypes(Supplier<Number> randomGenerator) throws Exception {
         Map<String,Number> map = new HashMap<>();
         createIndex("test");
         updateMappingForNumericValuesTests("test");
@@ -1460,7 +1568,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         return map;
     }
 
-    private void updateMappingForNumericValuesTests(String indexName) throws Exception {
+    private static void updateMappingForNumericValuesTests(String indexName) throws Exception {
         updateMapping(indexName, builder -> {
             for(String field : fieldsNames) {
                 builder.startObject(field).field("type", field.substring(5)).endObject();
@@ -1515,31 +1623,19 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private Connection esJdbc(String timeZoneId) throws SQLException {
-        return randomBoolean() ? useDriverManager(timeZoneId) : useDataSource(timeZoneId);
-    }
-
-    private Connection useDriverManager(String timeZoneId) throws SQLException {
-        String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
-        String address = "jdbc:es://" + elasticsearchAddress;
         Properties connectionProperties = connectionProperties();
         connectionProperties.put(JDBC_TIMEZONE, timeZoneId);
-        Connection connection = DriverManager.getConnection(address, connectionProperties);
-        
+        Connection connection = esJdbc(connectionProperties);
         assertNotNull("The timezone should be specified", connectionProperties.getProperty(JDBC_TIMEZONE));
         return connection;
     }
 
-    private Connection useDataSource(String timeZoneId) throws SQLException {
-        String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
-        EsDataSource dataSource = new EsDataSource();
-        String address = "jdbc:es://" + elasticsearchAddress;
-        dataSource.setUrl(address);
+    private Connection esWithLeniency(boolean multiValueLeniency) throws SQLException {
+        String property = "field.multi.value.leniency";
         Properties connectionProperties = connectionProperties();
-        connectionProperties.put(JDBC_TIMEZONE, timeZoneId);
-        dataSource.setProperties(connectionProperties);
-        Connection connection = dataSource.getConnection();
-        
-        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JDBC_TIMEZONE));
+        connectionProperties.setProperty(property, Boolean.toString(multiValueLeniency));
+        Connection connection = esJdbc(connectionProperties);
+        assertNotNull("The leniency should be specified", connectionProperties.getProperty(property));
         return connection;
     }
 }

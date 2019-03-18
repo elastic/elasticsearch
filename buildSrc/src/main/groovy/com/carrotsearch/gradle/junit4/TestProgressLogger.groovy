@@ -32,6 +32,7 @@ import com.carrotsearch.ant.tasks.junit4.events.aggregated.HeartBeatEvent
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
 import org.gradle.internal.logging.progress.ProgressLogger
 import org.gradle.internal.logging.progress.ProgressLoggerFactory
+import org.junit.runner.Description
 
 import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.formatDurationInSeconds
 import static com.carrotsearch.ant.tasks.junit4.events.aggregated.TestStatus.ERROR
@@ -113,7 +114,7 @@ class TestProgressLogger implements AggregatedEventListener {
 
     @Subscribe
     void onSuiteStart(AggregatedSuiteStartedEvent e) throws IOException {
-        String suiteName = simpleName(e.suiteStartedEvent.description.className)
+        String suiteName = simpleName(e.suiteStartedEvent.description)
         slaveLoggers[e.slave.id].progress("J${e.slave.id}: ${suiteName} - initializing")
     }
 
@@ -146,21 +147,32 @@ class TestProgressLogger implements AggregatedEventListener {
             throw new IllegalArgumentException("Unknown test status: [${e.status}]")
         }
         testLogger.progress("Tests: completed: ${testsCompleted}, failed: ${testsFailed}, ignored: ${testsIgnored}")
-        String testName = simpleName(e.description.className) + '.' + e.description.methodName
+        String testName = testName(e.description)
         slaveLoggers[e.slave.id].progress("J${e.slave.id}: ${testName} ${statusMessage}")
     }
 
     @Subscribe
     void onTestStarted(TestStartedEvent e) throws IOException {
-        String testName = simpleName(e.description.className) + '.' + e.description.methodName
+        String testName = testName(e.description)
         slaveLoggers[e.slave.id].progress("J${e.slave.id}: ${testName} ...")
     }
 
     @Subscribe
     void onHeartbeat(HeartBeatEvent e) throws IOException {
-        String testName = simpleName(e.description.className) + '.' + e.description.methodName
+        String testName = testName(e.description)
         String time = formatDurationInSeconds(e.getNoEventDuration())
         slaveLoggers[e.slave.id].progress("J${e.slave.id}: ${testName} stalled for ${time}")
+    }
+
+    /**
+     * Build the test name in the format of <className>.<methodName>
+     */
+    private static String testName(Description description) {
+        String className = simpleName(description)
+        if (description == null) {
+            return className + "." + "<unknownMethod>"
+        }
+        return className + "." + description.methodName
     }
 
     /**
@@ -169,8 +181,11 @@ class TestProgressLogger implements AggregatedEventListener {
      * don't always set the class field but they always set the className
      * field.
      */
-    private static String simpleName(String className) {
-        return className.substring(className.lastIndexOf('.') + 1)
+    private static String simpleName(Description description) {
+        if (description == null) {
+            return "<unknownClass>"
+        }
+        return description.className.substring(description.className.lastIndexOf('.') + 1)
     }
 
     @Override

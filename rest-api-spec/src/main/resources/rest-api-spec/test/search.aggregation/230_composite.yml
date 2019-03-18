@@ -5,59 +5,52 @@ setup:
           index: test
           body:
               mappings:
-                doc:
-                  properties:
-                    date:
-                      type: date
-                    keyword:
-                      type: keyword
-                    long:
-                      type: long
-                    nested:
-                      type: nested
-                      properties:
-                        nested_long:
-                          type: long
+                properties:
+                  date:
+                    type: date
+                  keyword:
+                    type: keyword
+                  long:
+                    type: long
+                  nested:
+                    type: nested
+                    properties:
+                      nested_long:
+                        type: long
 
   - do:
       index:
         index: test
-        type:  doc
         id:    1
         body:  { "keyword": "foo", "long": [10, 20], "nested": [{"nested_long": 10}, {"nested_long": 20}] }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    2
         body:  { "keyword": ["foo", "bar"] }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    3
         body:  { "keyword": "bar", "long": [100, 0], "nested": [{"nested_long": 10}, {"nested_long": 0}] }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    4
         body:  { "keyword": "bar", "long": [1000, 0], "nested": [{"nested_long": 1000}, {"nested_long": 20}] }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    5
         body:  { "date": "2017-10-20T03:08:45" }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    6
         body:  { "date": "2017-10-21T07:00:00" }
 

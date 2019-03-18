@@ -23,7 +23,7 @@ public class DateUtils {
             // Try parsing using complete date/time format
             return dateTimeFormatter.parseMillis(date);
         } catch (ElasticsearchParseException | IllegalArgumentException ex) {
-            ZonedDateTime dateTime = DateFormatters.toZonedDateTime(dateOnlyFormatter.parse(date));
+            ZonedDateTime dateTime = DateFormatters.from(dateOnlyFormatter.parse(date));
             dateTime.with(ChronoField.MILLI_OF_DAY, ChronoField.MILLI_OF_DAY.range().getMaximum());
             return dateTime.toInstant().toEpochMilli();
         }
@@ -35,7 +35,7 @@ public class DateUtils {
             return dateTimeFormatter.parseMillis(date);
         } catch (ElasticsearchParseException | IllegalArgumentException ex) {
             // Fall back to the date only format
-            return DateFormatters.toZonedDateTime(dateOnlyFormatter.parse(date)).toInstant().toEpochMilli();
+            return DateFormatters.from(dateOnlyFormatter.parse(date)).toInstant().toEpochMilli();
         }
     }
 }

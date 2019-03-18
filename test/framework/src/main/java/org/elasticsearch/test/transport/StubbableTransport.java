@@ -76,7 +76,9 @@ public final class StubbableTransport implements Transport {
     }
 
     void clearBehaviors() {
+        this.defaultSendRequest = null;
         sendBehaviors.clear();
+        this.defaultConnectBehavior = null;
         connectBehaviors.clear();
     }
 

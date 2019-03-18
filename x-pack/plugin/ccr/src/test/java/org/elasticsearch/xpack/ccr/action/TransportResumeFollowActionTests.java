@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -150,7 +149,10 @@ public class TransportResumeFollowActionTests extends ESTestCase {
                 .put("index.analysis.analyzer.my_analyzer.type", "custom")
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
-            assertThat(e.getMessage(), equalTo("the leader and follower index settings must be identical"));
+            assertThat(e.getMessage(), equalTo("the leader index setting[{\"index.analysis.analyzer.my_analyzer.tokenizer\"" +
+                ":\"whitespace\",\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\"}] " +
+                "and follower index settings [{\"index.analysis.analyzer.my_analyzer.tokenizer\":\"standard\"," +
+                "\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\"}] must be identical"));
         }
         {
             // should fail because the following index does not have the following_index settings
@@ -230,7 +232,6 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(MapperService.INDEX_MAPPER_DYNAMIC_SETTING);
         replicatedSettings.add(IndexSettings.MAX_NGRAM_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.MAX_SHINGLE_DIFF_SETTING);
-        replicatedSettings.add(EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS);
 
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
             if (setting.isDynamic()) {
@@ -240,6 +241,21 @@ public class TransportResumeFollowActionTests extends ESTestCase {
                     notReplicated ^ replicated, is(true));
             }
         }
+    }
+
+    public void testFilter() {
+        Settings.Builder settings = Settings.builder();
+        settings.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "");
+        settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "");
+        settings.put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), "");
+        settings.put(IndexMetaData.SETTING_INDEX_UUID, "");
+        settings.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, "");
+        settings.put(IndexMetaData.SETTING_CREATION_DATE, "");
+        settings.put(IndexMetaData.SETTING_VERSION_UPGRADED, "");
+        settings.put(IndexMetaData.SETTING_VERSION_UPGRADED_STRING, "");
+
+        Settings result = TransportResumeFollowAction.filter(settings.build());
+        assertThat(result.size(), equalTo(0));
     }
 
     private static IndexMetaData createIMD(String index,

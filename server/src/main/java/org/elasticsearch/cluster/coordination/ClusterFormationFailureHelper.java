@@ -54,14 +54,16 @@ public class ClusterFormationFailureHelper {
     private final Supplier<ClusterFormationState> clusterFormationStateSupplier;
     private final ThreadPool threadPool;
     private final TimeValue clusterFormationWarningTimeout;
+    private final Runnable logLastFailedJoinAttempt;
     @Nullable // if no warning is scheduled
     private volatile WarningScheduler warningScheduler;
 
     public ClusterFormationFailureHelper(Settings settings, Supplier<ClusterFormationState> clusterFormationStateSupplier,
-                                         ThreadPool threadPool) {
+                                         ThreadPool threadPool, Runnable logLastFailedJoinAttempt) {
         this.clusterFormationStateSupplier = clusterFormationStateSupplier;
         this.threadPool = threadPool;
         this.clusterFormationWarningTimeout = DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.get(settings);
+        this.logLastFailedJoinAttempt = logLastFailedJoinAttempt;
     }
 
     public boolean isRunning() {
@@ -94,6 +96,7 @@ public class ClusterFormationFailureHelper {
                 @Override
                 protected void doRun() {
                     if (isActive()) {
+                        logLastFailedJoinAttempt.run();
                         logger.warn(clusterFormationStateSupplier.get().getDescription());
                     }
                 }
@@ -166,6 +169,12 @@ public class ClusterFormationFailureHelper {
             }
 
             assert clusterState.getLastCommittedConfiguration().isEmpty() == false;
+
+            if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
+                return String.format(Locale.ROOT,
+                        "master not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
+                        foundPeers, discoveryWillContinueDescription);
+            }
 
             final String quorumDescription;
             if (clusterState.getLastAcceptedConfiguration().equals(clusterState.getLastCommittedConfiguration())) {

@@ -39,8 +39,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -56,6 +55,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 import java.util.List;
@@ -69,7 +69,9 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -97,8 +99,6 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
         indexShard = mock(IndexShard.class);
         when(indexShard.getActiveOperationsCount()).thenReturn(0);
-        when(indexShard.getGlobalCheckpoint()).thenReturn(0L);
-        when(indexShard.seqNoStats()).thenReturn(new SeqNoStats(0L, 0L, 0L));
 
         final ShardId shardId = new ShardId("index", "_na_", randomIntBetween(0, 3));
         when(indexShard.shardId()).thenReturn(shardId);
@@ -144,9 +144,13 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         }
     }
 
-    public void testOperationSuccessful() throws Exception {
+    public void testShardIsFlushed() throws Exception {
+        final ArgumentCaptor<FlushRequest> flushRequest = ArgumentCaptor.forClass(FlushRequest.class);
+        when(indexShard.flush(flushRequest.capture())).thenReturn(new Engine.CommitId(new byte[0]));
+
         executeOnPrimaryOrReplica();
         verify(indexShard, times(1)).flush(any(FlushRequest.class));
+        assertThat(flushRequest.getValue().force(), is(true));
     }
 
     public void testOperationFailsWithOnGoingOps() {
@@ -167,17 +171,16 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 
-    public void testOperationFailsWithGlobalCheckpointNotCaughtUp() {
-        final long maxSeqNo = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, Long.MAX_VALUE);
-        final long localCheckpoint = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, maxSeqNo);
-        final long globalCheckpoint = randomValueOtherThan(maxSeqNo,
-            () -> randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, localCheckpoint));
-        when(indexShard.seqNoStats()).thenReturn(new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint));
-        when(indexShard.getGlobalCheckpoint()).thenReturn(globalCheckpoint);
+    public void testVerifyShardBeforeIndexClosing() throws Exception {
+        executeOnPrimaryOrReplica();
+        verify(indexShard, times(1)).verifyShardBeforeIndexClosing();
+        verify(indexShard, times(1)).flush(any(FlushRequest.class));
+    }
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
-        assertThat(exception.getMessage(), equalTo("Global checkpoint [" + globalCheckpoint + "] mismatches maximum sequence number ["
-            + maxSeqNo + "] on index shard " + indexShard.shardId()));
+    public void testVerifyShardBeforeIndexClosingFailed() {
+        doThrow(new IllegalStateException("test")).when(indexShard).verifyShardBeforeIndexClosing();
+        expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
+        verify(indexShard, times(1)).verifyShardBeforeIndexClosing();
         verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 

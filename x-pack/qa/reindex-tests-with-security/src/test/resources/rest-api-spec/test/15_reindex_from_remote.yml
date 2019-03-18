@@ -26,7 +26,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: test_admin
               password: x-pack-test-password
             index: source
@@ -63,7 +63,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: minimal_user
               password: x-pack-test-password
             index: source
@@ -110,7 +110,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: readonly_user
               password: x-pack-test-password
             index: source
@@ -156,7 +156,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: dest_only_user
               password: x-pack-test-password
             index: source
@@ -198,7 +198,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: test_admin
               password: x-pack-test-password
             index: source
@@ -259,7 +259,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: can_not_see_hidden_docs_user
               password: x-pack-test-password
             index: source
@@ -318,7 +318,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: can_not_see_hidden_fields_user
               password: x-pack-test-password
             index: source
@@ -386,7 +386,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
               username: test_admin
               password: badpass
             index: source
@@ -422,7 +422,7 @@
         body:
           source:
             remote:
-              host: http://${host}
+              host: https://${host}
             index: source
           dest:
             index: dest

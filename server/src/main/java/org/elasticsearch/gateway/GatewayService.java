@@ -40,7 +40,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -115,8 +114,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         // default the recover after master nodes to the minimum master nodes in the discovery
         if (RECOVER_AFTER_MASTER_NODES_SETTING.exists(settings)) {
             recoverAfterMasterNodes = RECOVER_AFTER_MASTER_NODES_SETTING.get(settings);
-        } else if (discovery instanceof ZenDiscovery) {
-            recoverAfterMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", -1);
         } else {
             recoverAfterMasterNodes = -1;
         }
@@ -206,22 +203,29 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         if (enforceRecoverAfterTime && recoverAfterTime != null) {
             if (scheduledRecovery.compareAndSet(false, true)) {
                 logger.info("delaying initial state recovery for [{}]. {}", recoverAfterTime, reason);
-                threadPool.schedule(recoverAfterTime, ThreadPool.Names.GENERIC, () -> {
-                    if (recovered.compareAndSet(false, true)) {
-                        logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
-                        recoveryRunnable.run();
+                threadPool.schedule(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("delayed state recovery failed", e);
+                        resetRecoveredFlags();
                     }
-                });
+
+                    @Override
+                    protected void doRun() {
+                        if (recovered.compareAndSet(false, true)) {
+                            logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
+                            recoveryRunnable.run();
+                        }
+                    }
+                }, recoverAfterTime, ThreadPool.Names.GENERIC);
             }
         } else {
             if (recovered.compareAndSet(false, true)) {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(final Exception e) {
-                        logger.warn("Recovery failed", e);
-                        // we reset `recovered` in the listener don't reset it here otherwise there might be a race
-                        // that resets it to false while a new recover is already running?
-                        GatewayService.this.onFailure("state recovery failed: " + e.getMessage());
+                        logger.warn("state recovery failed", e);
+                        resetRecoveredFlags();
                     }
 
                     @Override
@@ -233,11 +237,9 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         }
     }
 
-    private void onFailure(final String message) {
+    private void resetRecoveredFlags() {
         recovered.set(false);
         scheduledRecovery.set(false);
-        // don't remove the block here, we don't want to allow anything in such a case
-        logger.info("metadata state not restored, reason: {}", message);
     }
 
     class RecoverStateUpdateTask extends ClusterStateUpdateTask {
@@ -258,9 +260,15 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         }
 
         @Override
+        public void onNoLongerMaster(String source) {
+            logger.debug("stepped down as master before recovering state [{}]", source);
+            resetRecoveredFlags();
+        }
+
+        @Override
         public void onFailure(final String source, final Exception e) {
             logger.info(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-            GatewayService.this.onFailure("failed to update cluster state");
+            resetRecoveredFlags();
         }
     }
 
@@ -280,7 +288,8 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
         @Override
         public void onFailure(final String msg) {
-            GatewayService.this.onFailure(msg);
+            logger.info("state recovery failed: {}", msg);
+            resetRecoveredFlags();
         }
 
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.ISODateTimeFormat;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -62,11 +63,14 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         formatter3.parse("20181126T121212.123-0830");
     }
 
+    public void testCustomTimeFormats() {
+        assertSameDate("2010 12 06 11:05:15", "yyyy dd MM HH:mm:ss");
+        assertSameDate("12/06", "dd/MM");
+        assertSameDate("Nov 24 01:29:01 -0800", "MMM dd HH:mm:ss Z");
+    }
+
     // this test requires tests to run with -Djava.locale.providers=COMPAT in order to work
-//    public void testCustomTimeFormats() {
-//        assertSameDate("2010 12 06 11:05:15", "yyyy dd MM HH:mm:ss");
-//        assertSameDate("12/06", "dd/MM");
-//        assertSameDate("Nov 24 01:29:01 -0800", "MMM dd HH:mm:ss Z");
+//    public void testCustomLocales() {
 //
 //        // also ensure that locale based dates are the same
 //        assertSameDate("Di., 05 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
@@ -97,18 +101,21 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("20181126T121212+0100", "basic_date_time_no_millis");
         assertSameDate("2018363", "basic_ordinal_date");
         assertSameDate("2018363T121212.123Z", "basic_ordinal_date_time");
+        assertSameDate("2018363T121212.123456789Z", "basic_ordinal_date_time");
         assertSameDate("2018363T121212.123+0100", "basic_ordinal_date_time");
         assertSameDate("2018363T121212.123+01:00", "basic_ordinal_date_time");
         assertSameDate("2018363T121212Z", "basic_ordinal_date_time_no_millis");
         assertSameDate("2018363T121212+0100", "basic_ordinal_date_time_no_millis");
         assertSameDate("2018363T121212+01:00", "basic_ordinal_date_time_no_millis");
         assertSameDate("121212.123Z", "basic_time");
+        assertSameDate("121212.123456789Z", "basic_time");
         assertSameDate("121212.123+0100", "basic_time");
         assertSameDate("121212.123+01:00", "basic_time");
         assertSameDate("121212Z", "basic_time_no_millis");
         assertSameDate("121212+0100", "basic_time_no_millis");
         assertSameDate("121212+01:00", "basic_time_no_millis");
         assertSameDate("T121212.123Z", "basic_t_time");
+        assertSameDate("T121212.123456789Z", "basic_t_time");
         assertSameDate("T121212.123+0100", "basic_t_time");
         assertSameDate("T121212.123+01:00", "basic_t_time");
         assertSameDate("T121212Z", "basic_t_time_no_millis");
@@ -118,6 +125,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("1W313", "basic_week_date");
         assertSameDate("18W313", "basic_week_date");
         assertSameDate("2018W313T121212.123Z", "basic_week_date_time");
+        assertSameDate("2018W313T121212.123456789Z", "basic_week_date_time");
         assertSameDate("2018W313T121212.123+0100", "basic_week_date_time");
         assertSameDate("2018W313T121212.123+01:00", "basic_week_date_time");
         assertSameDate("2018W313T121212Z", "basic_week_date_time_no_millis");
@@ -138,7 +146,9 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-12-31T12:12:1", "date_hour_minute_second");
 
         assertSameDate("2018-12-31T12:12:12.123", "date_hour_minute_second_fraction");
+        assertSameDate("2018-12-31T12:12:12.123456789", "date_hour_minute_second_fraction");
         assertSameDate("2018-12-31T12:12:12.123", "date_hour_minute_second_millis");
+        assertParseException("2018-12-31T12:12:12.123456789", "date_hour_minute_second_millis");
         assertSameDate("2018-12-31T12:12:12.1", "date_hour_minute_second_millis");
         assertSameDate("2018-12-31T12:12:12.1", "date_hour_minute_second_fraction");
 
@@ -148,7 +158,9 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-05-30T20:21", "date_optional_time");
         assertSameDate("2018-05-30T20:21:23", "date_optional_time");
         assertSameDate("2018-05-30T20:21:23.123", "date_optional_time");
+        assertSameDate("2018-05-30T20:21:23.123456789", "date_optional_time");
         assertSameDate("2018-05-30T20:21:23.123Z", "date_optional_time");
+        assertSameDate("2018-05-30T20:21:23.123456789Z", "date_optional_time");
         assertSameDate("2018-05-30T20:21:23.123+0100", "date_optional_time");
         assertSameDate("2018-05-30T20:21:23.123+01:00", "date_optional_time");
         assertSameDate("2018-12-1", "date_optional_time");
@@ -158,12 +170,14 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-12-31T1:15:30", "date_optional_time");
 
         assertSameDate("2018-12-31T10:15:30.123Z", "date_time");
+        assertSameDate("2018-12-31T10:15:30.123456789Z", "date_time");
         assertSameDate("2018-12-31T10:15:30.123+0100", "date_time");
         assertSameDate("2018-12-31T10:15:30.123+01:00", "date_time");
         assertSameDate("2018-12-31T10:15:30.11Z", "date_time");
         assertSameDate("2018-12-31T10:15:30.11+0100", "date_time");
         assertSameDate("2018-12-31T10:15:30.11+01:00", "date_time");
         assertSameDate("2018-12-31T10:15:3.123Z", "date_time");
+        assertSameDate("2018-12-31T10:15:3.123456789Z", "date_time");
         assertSameDate("2018-12-31T10:15:3.123+0100", "date_time");
         assertSameDate("2018-12-31T10:15:3.123+01:00", "date_time");
 
@@ -193,9 +207,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("12:12:1", "hour_minute_second");
 
         assertSameDate("12:12:12.123", "hour_minute_second_fraction");
+        assertSameDate("12:12:12.123456789", "hour_minute_second_fraction");
         assertSameDate("12:12:12.1", "hour_minute_second_fraction");
         assertParseException("12:12:12", "hour_minute_second_fraction");
         assertSameDate("12:12:12.123", "hour_minute_second_millis");
+        assertParseException("12:12:12.123456789", "hour_minute_second_millis");
         assertSameDate("12:12:12.1", "hour_minute_second_millis");
         assertParseException("12:12:12", "hour_minute_second_millis");
 
@@ -203,9 +219,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-1", "ordinal_date");
 
         assertSameDate("2018-128T10:15:30.123Z", "ordinal_date_time");
+        assertSameDate("2018-128T10:15:30.123456789Z", "ordinal_date_time");
         assertSameDate("2018-128T10:15:30.123+0100", "ordinal_date_time");
         assertSameDate("2018-128T10:15:30.123+01:00", "ordinal_date_time");
         assertSameDate("2018-1T10:15:30.123Z", "ordinal_date_time");
+        assertSameDate("2018-1T10:15:30.123456789Z", "ordinal_date_time");
         assertSameDate("2018-1T10:15:30.123+0100", "ordinal_date_time");
         assertSameDate("2018-1T10:15:30.123+01:00", "ordinal_date_time");
 
@@ -217,6 +235,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-1T10:15:30+01:00", "ordinal_date_time_no_millis");
 
         assertSameDate("10:15:30.123Z", "time");
+        assertSameDate("10:15:30.123456789Z", "time");
         assertSameDate("10:15:30.123+0100", "time");
         assertSameDate("10:15:30.123+01:00", "time");
         assertSameDate("1:15:30.123Z", "time");
@@ -249,6 +268,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertParseException("10:15:3", "time_no_millis");
 
         assertSameDate("T10:15:30.123Z", "t_time");
+        assertSameDate("T10:15:30.123456789Z", "t_time");
         assertSameDate("T10:15:30.123+0100", "t_time");
         assertSameDate("T10:15:30.123+01:00", "t_time");
         assertSameDate("T1:15:30.123Z", "t_time");
@@ -286,6 +306,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertJavaTimeParseException("2012-W1-8", "week_date");
 
         assertSameDate("2012-W48-6T10:15:30.123Z", "week_date_time");
+        assertSameDate("2012-W48-6T10:15:30.123456789Z", "week_date_time");
         assertSameDate("2012-W48-6T10:15:30.123+0100", "week_date_time");
         assertSameDate("2012-W48-6T10:15:30.123+01:00", "week_date_time");
         assertSameDate("2012-W1-6T10:15:30.123Z", "week_date_time");
@@ -326,9 +347,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018W313", "strict_basic_week_date");
         assertParseException("18W313", "strict_basic_week_date");
         assertSameDate("2018W313T121212.123Z", "strict_basic_week_date_time");
+        assertSameDate("2018W313T121212.123456789Z", "strict_basic_week_date_time");
         assertSameDate("2018W313T121212.123+0100", "strict_basic_week_date_time");
         assertSameDate("2018W313T121212.123+01:00", "strict_basic_week_date_time");
         assertParseException("2018W313T12128.123Z", "strict_basic_week_date_time");
+        assertParseException("2018W313T12128.123456789Z", "strict_basic_week_date_time");
         assertParseException("2018W313T81212.123Z", "strict_basic_week_date_time");
         assertParseException("2018W313T12812.123Z", "strict_basic_week_date_time");
         assertParseException("2018W313T12812.1Z", "strict_basic_week_date_time");
@@ -354,6 +377,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-12-31T12:12:12", "strict_date_hour_minute_second");
         assertParseException("2018-12-31T12:12:1", "strict_date_hour_minute_second");
         assertSameDate("2018-12-31T12:12:12.123", "strict_date_hour_minute_second_fraction");
+        assertSameDate("2018-12-31T12:12:12.123456789", "strict_date_hour_minute_second_fraction");
         assertSameDate("2018-12-31T12:12:12.123", "strict_date_hour_minute_second_millis");
         assertSameDate("2018-12-31T12:12:12.1", "strict_date_hour_minute_second_millis");
         assertSameDate("2018-12-31T12:12:12.1", "strict_date_hour_minute_second_fraction");
@@ -373,6 +397,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertParseException("2018-12-31T9:15:30", "strict_date_optional_time");
         assertSameDate("2015-01-04T00:00Z", "strict_date_optional_time");
         assertSameDate("2018-12-31T10:15:30.123Z", "strict_date_time");
+        assertSameDate("2018-12-31T10:15:30.123456789Z", "strict_date_time");
         assertSameDate("2018-12-31T10:15:30.123+0100", "strict_date_time");
         assertSameDate("2018-12-31T10:15:30.123+01:00", "strict_date_time");
         assertSameDate("2018-12-31T10:15:30.11Z", "strict_date_time");
@@ -397,6 +422,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("12:12:01", "strict_hour_minute_second");
         assertParseException("12:12:1", "strict_hour_minute_second");
         assertSameDate("12:12:12.123", "strict_hour_minute_second_fraction");
+        assertSameDate("12:12:12.123456789", "strict_hour_minute_second_fraction");
         assertSameDate("12:12:12.1", "strict_hour_minute_second_fraction");
         assertParseException("12:12:12", "strict_hour_minute_second_fraction");
         assertSameDate("12:12:12.123", "strict_hour_minute_second_millis");
@@ -406,6 +432,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertParseException("2018-1", "strict_ordinal_date");
 
         assertSameDate("2018-128T10:15:30.123Z", "strict_ordinal_date_time");
+        assertSameDate("2018-128T10:15:30.123456789Z", "strict_ordinal_date_time");
         assertSameDate("2018-128T10:15:30.123+0100", "strict_ordinal_date_time");
         assertSameDate("2018-128T10:15:30.123+01:00", "strict_ordinal_date_time");
         assertParseException("2018-1T10:15:30.123Z", "strict_ordinal_date_time");
@@ -416,6 +443,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertParseException("2018-1T10:15:30Z", "strict_ordinal_date_time_no_millis");
 
         assertSameDate("10:15:30.123Z", "strict_time");
+        assertSameDate("10:15:30.123456789Z", "strict_time");
         assertSameDate("10:15:30.123+0100", "strict_time");
         assertSameDate("10:15:30.123+01:00", "strict_time");
         assertParseException("1:15:30.123Z", "strict_time");
@@ -436,6 +464,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertParseException("10:15:3", "strict_time_no_millis");
 
         assertSameDate("T10:15:30.123Z", "strict_t_time");
+        assertSameDate("T10:15:30.123456789Z", "strict_t_time");
         assertSameDate("T10:15:30.123+0100", "strict_t_time");
         assertSameDate("T10:15:30.123+01:00", "strict_t_time");
         assertParseException("T1:15:30.123Z", "strict_t_time");
@@ -466,6 +495,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertJavaTimeParseException("2012-W01-8", "strict_week_date");
 
         assertSameDate("2012-W48-6T10:15:30.123Z", "strict_week_date_time");
+        assertSameDate("2012-W48-6T10:15:30.123456789Z", "strict_week_date_time");
         assertSameDate("2012-W48-6T10:15:30.123+0100", "strict_week_date_time");
         assertSameDate("2012-W48-6T10:15:30.123+01:00", "strict_week_date_time");
         assertParseException("2012-W1-6T10:15:30.123Z", "strict_week_date_time");
@@ -636,6 +666,29 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         }
     }
 
+    // the iso 8601 parser is available via Joda.forPattern(), so we have to test this slightly differently
+    public void testIso8601Parsers() {
+        String format = "iso8601";
+        org.joda.time.format.DateTimeFormatter isoFormatter = ISODateTimeFormat.dateTimeParser().withZone(DateTimeZone.UTC);
+        JodaDateFormatter jodaFormatter = new JodaDateFormatter(format, isoFormatter, isoFormatter);
+        DateFormatter javaFormatter = DateFormatter.forPattern(format);
+
+        assertSameDate("2018-10-10T", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12.123", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12.123Z", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12,123", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12,123Z", format, jodaFormatter, javaFormatter);
+    }
+
+    public void testParsingMissingTimezone() {
+        long millisJava = DateFormatter.forPattern("8yyyy-MM-dd HH:mm:ss").parseMillis("2018-02-18 17:47:17");
+        long millisJoda = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss").parseMillis("2018-02-18 17:47:17");
+        assertThat(millisJava, is(millisJoda));
+    }
+
     private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate) {
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
         String javaTimeOut = DateFormatter.forPattern(format).format(javaDate);
@@ -662,7 +715,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         DateTime jodaDateTime = jodaFormatter.parseJoda(input);
 
         TemporalAccessor javaTimeAccessor = javaFormatter.parse(input);
-        ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(javaTimeAccessor);
+        ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
 
         String msg = String.format(Locale.ROOT, "Input [%s] Format [%s] Joda [%s], Java [%s]", input, format, jodaDateTime,
             DateTimeFormatter.ISO_INSTANT.format(zonedDateTime.toInstant()));

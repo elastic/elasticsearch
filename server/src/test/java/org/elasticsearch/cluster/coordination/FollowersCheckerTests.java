@@ -33,7 +33,6 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -73,7 +72,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class FollowersCheckerTests extends ESTestCase {
 
@@ -548,14 +546,16 @@ public class FollowersCheckerTests extends ESTestCase {
         }
     }
 
-    private void testPreferMasterNodes() {
+   public void testPreferMasterNodes() {
         List<DiscoveryNode> nodes = randomNodes(10);
         DiscoveryNodes.Builder discoNodesBuilder = DiscoveryNodes.builder();
         nodes.forEach(dn -> discoNodesBuilder.add(dn));
         DiscoveryNodes discoveryNodes = discoNodesBuilder.localNodeId(nodes.get(0).getId()).build();
         CapturingTransport capturingTransport = new CapturingTransport();
-        TransportService transportService = capturingTransport.createTransportService(Settings.EMPTY, mock(ThreadPool.class),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> nodes.get(0), null, emptySet());
+        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), nodes.get(0).getName()).build();
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        TransportService transportService = capturingTransport.createTransportService(Settings.EMPTY,
+                deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> nodes.get(0), null, emptySet());
         final FollowersChecker followersChecker = new FollowersChecker(Settings.EMPTY, transportService, fcr -> {
             assert false : fcr;
         }, (node, reason) -> {

@@ -21,11 +21,11 @@ package org.elasticsearch.common.util.concurrent;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Objects;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -37,7 +37,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
     private final ThreadPool threadPool;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final boolean autoReschedule;
-    private volatile ScheduledFuture<?> scheduledFuture;
+    private volatile Scheduler.Cancellable cancellable;
     private volatile boolean isScheduledOrRunning;
     private volatile Exception lastThrownException;
     private volatile TimeValue interval;
@@ -56,7 +56,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
      */
     public synchronized void setInterval(TimeValue interval) {
         this.interval = interval;
-        if (scheduledFuture != null) {
+        if (cancellable != null) {
             rescheduleIfNecessary();
         }
     }
@@ -84,18 +84,18 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
         if (isClosed()) {
             return;
         }
-        if (scheduledFuture != null) {
-            FutureUtils.cancel(scheduledFuture);
+        if (cancellable != null) {
+            cancellable.cancel();
         }
         if (interval.millis() > 0 && mustReschedule()) {
             if (logger.isTraceEnabled()) {
                 logger.trace("scheduling {} every {}", toString(), interval);
             }
-            scheduledFuture = threadPool.schedule(interval, getThreadPool(), this);
+            cancellable = threadPool.schedule(this, interval, getThreadPool());
             isScheduledOrRunning = true;
         } else {
             logger.trace("scheduled {} disabled", toString());
-            scheduledFuture = null;
+            cancellable = null;
             isScheduledOrRunning = false;
         }
     }
@@ -110,8 +110,10 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
      * Cancel any scheduled run, but do not prevent subsequent restarts.
      */
     public synchronized void cancel() {
-        FutureUtils.cancel(scheduledFuture);
-        scheduledFuture = null;
+        if (cancellable != null) {
+            cancellable.cancel();
+            cancellable = null;
+        }
         isScheduledOrRunning = false;
     }
 
@@ -132,7 +134,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
     @Override
     public final void run() {
         synchronized (this) {
-            scheduledFuture = null;
+            cancellable = null;
             isScheduledOrRunning = autoReschedule;
         }
         try {

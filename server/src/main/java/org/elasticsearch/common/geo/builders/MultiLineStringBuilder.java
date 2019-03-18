@@ -151,6 +151,9 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasti
 
     @Override
     public org.elasticsearch.geo.geometry.Geometry buildGeometry() {
+        if (lines.isEmpty()) {
+            return MultiLine.EMPTY;
+        }
         if (wrapdateline) {
             List<org.elasticsearch.geo.geometry.Line> parts = new ArrayList<>();
             for (LineStringBuilder line : lines) {

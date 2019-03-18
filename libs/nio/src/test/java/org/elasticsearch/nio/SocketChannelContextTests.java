@@ -476,7 +476,7 @@ public class SocketChannelContextTests extends ESTestCase {
 
         @Override
         public boolean selectorShouldClose() {
-            return false;
+            return isClosing.get();
         }
 
         @Override

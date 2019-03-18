@@ -129,7 +129,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
     private volatile BoundTransportAddress boundAddress;
-    private final String transportName;
 
     private final MeanMetric readBytesMetric = new MeanMetric();
     private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
@@ -141,9 +140,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final OutboundHandler outboundHandler;
     private final String nodeName;
 
-    public TcpTransport(String transportName, Settings settings, Version version, ThreadPool threadPool,
-                        PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService,
-                        NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
+    public TcpTransport(Settings settings, Version version, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
+                        CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
+                        NetworkService networkService) {
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
         this.version = version;
@@ -152,7 +151,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
-        this.transportName = transportName;
         this.transportLogger = new TransportLogger();
         this.outboundHandler = new OutboundHandler(threadPool, bigArrays, transportLogger);
         this.handshaker = new TransportHandshaker(version, threadPool,
@@ -326,7 +324,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         TimeValue connectTimeout = connectionProfile.getConnectTimeout();
-        threadPool.schedule(connectTimeout, ThreadPool.Names.GENERIC, channelsConnectedListener::onTimeout);
+        threadPool.schedule(channelsConnectedListener::onTimeout, connectTimeout, ThreadPool.Names.GENERIC);
         return channels;
     }
 
@@ -388,28 +386,28 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
-        boolean success = portsRange.iterate(portNumber -> {
-            try {
-                TcpServerChannel channel = bind(name, new InetSocketAddress(hostAddress, portNumber));
-                synchronized (serverChannels) {
-                    List<TcpServerChannel> list = serverChannels.get(name);
-                    if (list == null) {
-                        list = new ArrayList<>();
-                        serverChannels.put(name, list);
-                    }
-                    list.add(channel);
-                    boundSocket.set(channel.getLocalAddress());
-                }
-            } catch (Exception e) {
-                lastException.set(e);
-                return false;
+        closeLock.writeLock().lock();
+        try {
+            if (lifecycle.initialized() == false && lifecycle.started() == false) {
+                throw new IllegalStateException("transport has been stopped");
             }
-            return true;
-        });
-        if (!success) {
-            throw new BindTransportException("Failed to bind to [" + port + "]", lastException.get());
+            boolean success = portsRange.iterate(portNumber -> {
+                try {
+                    TcpServerChannel channel = bind(name, new InetSocketAddress(hostAddress, portNumber));
+                    serverChannels.computeIfAbsent(name, k -> new ArrayList<>()).add(channel);
+                    boundSocket.set(channel.getLocalAddress());
+                } catch (Exception e) {
+                    lastException.set(e);
+                    return false;
+                }
+                return true;
+            });
+            if (!success) {
+                throw new BindTransportException("Failed to bind to [" + port + "]", lastException.get());
+            }
+        } finally {
+            closeLock.writeLock().unlock();
         }
-
         if (logger.isDebugEnabled()) {
             logger.debug("Bound profile [{}] to address {{}}", name, NetworkAddress.format(boundSocket.get()));
         }
@@ -553,6 +551,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final void doStop() {
         final CountDownLatch latch = new CountDownLatch(1);
         // make sure we run it on another thread than a possible IO handler thread
+        assert threadPool.generic().isShutdown() == false : "Must stop transport before terminating underlying threadpool";
         threadPool.generic().execute(() -> {
             closeLock.writeLock().lock();
             try {
@@ -839,11 +838,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 + Integer.toHexString(headerBuffer.get(2) & 0xFF) + ","
                 + Integer.toHexString(headerBuffer.get(3) & 0xFF) + ")");
         }
-        final int messageLength;
-        try (StreamInput input = headerBuffer.streamInput()) {
-            input.skip(TcpHeader.MARKER_BYTES_SIZE);
-            messageLength = input.readInt();
-        }
+        final int messageLength = headerBuffer.getInt(TcpHeader.MARKER_BYTES_SIZE);
 
         if (messageLength == TransportKeepAlive.PING_DATA_SIZE) {
             // This is a ping
@@ -1026,7 +1021,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 } else {
                     getInFlightRequestBreaker().addWithoutBreaking(messageLengthBytes);
                 }
-                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, features, profileName,
+                transportChannel = new TcpTransportChannel(this, channel, action, requestId, version, features, profileName,
                     messageLengthBytes, message.isCompress());
                 final TransportRequest request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
@@ -1037,7 +1032,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             // the circuit breaker tripped
             if (transportChannel == null) {
-                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, features,
+                transportChannel = new TcpTransportChannel(this, channel, action, requestId, version, features,
                     profileName, 0, message.isCompress());
             }
             try {
@@ -1110,6 +1105,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     final long getNumHandshakes() {
         return handshaker.getNumHandshakes();
+    }
+
+    final Set<TcpChannel> getAcceptedChannels() {
+        return Collections.unmodifiableSet(acceptedChannels);
     }
 
     /**

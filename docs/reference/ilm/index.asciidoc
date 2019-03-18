@@ -46,6 +46,16 @@ to a single shard.
 . After 7 days, move the index into the cold stage and move it to less expensive
 hardware.
 . Delete the index once the required 30 day retention period is reached.
+
+[IMPORTANT]
+===========================
+{ilm} does not support mixed-version cluster usage. Although it
+may be possible to create such new policies against
+newer-versioned nodes, there is no guarantee they will
+work as intended. New policies using new actions that
+do not exist in the oldest versioned node will cause errors.
+===========================
+
 --
 
 include::getting-started-ilm.asciidoc[]

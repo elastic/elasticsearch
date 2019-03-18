@@ -145,6 +145,36 @@ The length of time that a token is valid for. By default this value is `20m` or
 20 minutes. The maximum value is 1 hour.
 
 [float]
+[[api-key-service-settings]]
+==== API key service settings
+
+You can set the following API key service settings in
+`elasticsearch.yml`.
+
+`xpack.security.authc.api_key.enabled`::
+Set to `false` to disable the built-in API key service. Defaults to `true` unless
+ `xpack.security.http.ssl.enabled` is `false`. This prevents sniffing the API key
+  from a connection over plain http.
+
+`xpack.security.authc.api_key.hashing.algorithm`::
+Specifies the hashing algorithm that is used for securing API key credentials.
+See <<password-hashing-algorithms>>. Defaults to `pbkdf2`.
+
+`xpack.security.authc.api_key.cache.ttl`::
+The time-to-live for cached API key entries. A API key id and a hash of its
+API key are cached for this period of time. Specify the time period using
+the standard {es} <<time-units,time units>>. Defaults to `1d`.
+
+`xpack.security.authc.api_key.cache.max_keys`::
+The maximum number of API key entries that can live in the
+cache at any given time. Defaults to 10,000.
+
+`xpack.security.authc.api_key.cache.hash_algo`:: (Expert Setting)
+The hashing algorithm that is used for the
+in-memory cached API key credentials. For possible values, see <<cache-hash-algo>>.
+Defaults to `ssha256`.
+
+[float]
 [[realm-settings]]
 ==== Realm settings
 You configure realm settings in the `xpack.security.authc.realms`
@@ -480,7 +510,8 @@ and `full`. Defaults to `full`.
 See <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of these values.
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.2,TLSv1.1`.
+Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
+the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the LDAP server. 
@@ -724,7 +755,8 @@ and `full`. Defaults to `full`.
 See <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of these values.
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.2, TLSv1.1`.
+Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
+the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the Active Directory server. 
@@ -1132,7 +1164,8 @@ Defaults to `full`.
 See <<ssl-tls-settings,`ssl.verification_mode`>> for a more detailed explanation of these values.
 
 `ssl.supported_protocols`::
-Specifies the supported protocols for TLS/SSL.
+Specifies the supported protocols for TLS/SSL. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
+the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
 
 `ssl.cipher_suites`::
 Specifies the
@@ -1206,7 +1239,8 @@ settings. For more information, see
 
 `ssl.supported_protocols`::
 Supported protocols with versions. Valid protocols: `SSLv2Hello`,
-`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`. Defaults to `TLSv1.2`, `TLSv1.1`. 
+`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
+the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
 +
 --
 NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hello` 

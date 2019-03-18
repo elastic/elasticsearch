@@ -137,7 +137,6 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
             .andThen(ClusterStateUpdaters::addStateNotRecoveredBlock)
             .andThen(state -> ClusterStateUpdaters.setLocalNode(state, transportService.getLocalNode()))
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
-            .andThen(state -> ClusterStateUpdaters.closeBadIndices(state, indicesService))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(previousClusterState);
     }

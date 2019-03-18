@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -49,7 +50,7 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
     }
 
     private static Set<ResourcePrivileges> sorted(Collection<ResourcePrivileges> resources) {
-        final Set<ResourcePrivileges> set = new TreeSet<>(Comparator.comparing(o -> o.resource));
+        final Set<ResourcePrivileges> set = new TreeSet<>(Comparator.comparing(o -> o.getResource()));
         set.addAll(resources);
         return set;
     }
@@ -116,11 +117,11 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
 
     private static Set<ResourcePrivileges> readResourcePrivileges(StreamInput in) throws IOException {
         final int count = in.readVInt();
-        final Set<ResourcePrivileges> set = new TreeSet<>(Comparator.comparing(o -> o.resource));
+        final Set<ResourcePrivileges> set = new TreeSet<>(Comparator.comparing(o -> o.getResource()));
         for (int i = 0; i < count; i++) {
             final String index = in.readString();
             final Map<String, Boolean> privileges = in.readMap(StreamInput::readString, StreamInput::readBoolean);
-            set.add(new ResourcePrivileges(index, privileges));
+            set.add(ResourcePrivileges.builder(index).addPrivileges(privileges).build());
         }
         return set;
     }
@@ -144,8 +145,8 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
     private static void writeResourcePrivileges(StreamOutput out, Set<ResourcePrivileges> privileges) throws IOException {
         out.writeVInt(privileges.size());
         for (ResourcePrivileges priv : privileges) {
-            out.writeString(priv.resource);
-            out.writeMap(priv.privileges, StreamOutput::writeString, StreamOutput::writeBoolean);
+            out.writeString(priv.getResource());
+            out.writeMap(priv.getPrivileges(), StreamOutput::writeString, StreamOutput::writeBoolean);
         }
     }
 
@@ -181,60 +182,14 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         return builder;
     }
 
-    private void appendResources(XContentBuilder builder, String field, Set<HasPrivilegesResponse.ResourcePrivileges> privileges)
+    private void appendResources(XContentBuilder builder, String field, Set<ResourcePrivileges> privileges)
         throws IOException {
         builder.startObject(field);
-        for (HasPrivilegesResponse.ResourcePrivileges privilege : privileges) {
+        for (ResourcePrivileges privilege : privileges) {
             builder.field(privilege.getResource());
             builder.map(privilege.getPrivileges());
         }
         builder.endObject();
     }
 
-
-    public static class ResourcePrivileges {
-        private final String resource;
-        private final Map<String, Boolean> privileges;
-
-        public ResourcePrivileges(String resource, Map<String, Boolean> privileges) {
-            this.resource = Objects.requireNonNull(resource);
-            this.privileges = Collections.unmodifiableMap(privileges);
-        }
-
-        public String getResource() {
-            return resource;
-        }
-
-        public Map<String, Boolean> getPrivileges() {
-            return privileges;
-        }
-
-        @Override
-        public String toString() {
-            return getClass().getSimpleName() + "{" +
-                    "resource='" + resource + '\'' +
-                    ", privileges=" + privileges +
-                    '}';
-        }
-
-        @Override
-        public int hashCode() {
-            int result = resource.hashCode();
-            result = 31 * result + privileges.hashCode();
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            final ResourcePrivileges other = (ResourcePrivileges) o;
-            return this.resource.equals(other.resource) && this.privileges.equals(other.privileges);
-        }
-    }
 }

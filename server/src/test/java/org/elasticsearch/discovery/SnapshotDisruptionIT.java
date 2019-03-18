@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.discovery;
 
-import java.util.Arrays;
-import java.util.Collection;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -29,7 +27,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -39,20 +36,20 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import org.elasticsearch.test.transport.MockTransportService;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests snapshot operations during disruptions.
@@ -70,8 +67,6 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(AbstractDisruptionTestCase.DEFAULT_SETTINGS)
-            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
-            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s")
             .build();
     }
 
@@ -157,9 +152,6 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
                 logger.info("--> got exception from race in master operation retries");
             } else {
                 logger.info("--> got exception from hanged master", ex);
-                assertThat(cause, instanceOf(MasterNotDiscoveredException.class));
-                cause = cause.getCause();
-                assertThat(cause, instanceOf(FailedToCommitClusterStateException.class));
             }
         }
 

@@ -12,10 +12,9 @@ import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.sql.SQLException;
@@ -31,7 +30,7 @@ import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 class JdbcHttpClient {
     private final HttpClient httpClient;
     private final JdbcConfiguration conCfg;
-    private InfoResponse serverInfo;
+    private final InfoResponse serverInfo;
 
     /**
      * The SQLException is the only type of Exception the JDBC API can throw (and that the user expects).
@@ -40,6 +39,8 @@ class JdbcHttpClient {
     JdbcHttpClient(JdbcConfiguration conCfg) throws SQLException {
         httpClient = new HttpClient(conCfg);
         this.conCfg = conCfg;
+        this.serverInfo = fetchServerInfo();
+        checkServerVersion();
     }
 
     boolean ping(long timeoutInMs) throws SQLException {
@@ -48,10 +49,15 @@ class JdbcHttpClient {
 
     Cursor query(String sql, List<SqlTypedParamValue> params, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
-                SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, null, Protocol.TIME_ZONE,
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, conCfg.zoneId(),
                 fetch,
-                TimeValue.timeValueMillis(meta.timeoutInMs()), TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
-                new RequestInfo(Mode.JDBC));
+                TimeValue.timeValueMillis(meta.timeoutInMs()),
+                TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+                null,
+                Boolean.FALSE,
+                null,
+                new RequestInfo(Mode.JDBC),
+                conCfg.fieldMultiValueLeniency());
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }
@@ -72,16 +78,22 @@ class JdbcHttpClient {
     }
 
     InfoResponse serverInfo() throws SQLException {
-        if (serverInfo == null) {
-            serverInfo = fetchServerInfo();
-        }
         return serverInfo;
     }
 
     private InfoResponse fetchServerInfo() throws SQLException {
         MainResponse mainResponse = httpClient.serverInfo();
         Version version = Version.fromString(mainResponse.getVersion());
-        return new InfoResponse(mainResponse.getClusterName(), version.major, version.minor);
+        return new InfoResponse(mainResponse.getClusterName(), version.major, version.minor, version.revision);
+    }
+    
+    private void checkServerVersion() throws SQLException {
+        if (serverInfo.majorVersion != Version.CURRENT.major
+                || serverInfo.minorVersion != Version.CURRENT.minor
+                || serverInfo.revisionVersion != Version.CURRENT.revision) {
+            throw new SQLException("This version of the JDBC driver is only compatible with Elasticsearch version " +
+                    Version.CURRENT.toString() + ", attempting to connect to a server version " + serverInfo.versionString());
+        }
     }
 
     /**

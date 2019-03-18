@@ -185,7 +185,6 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("delimited_payload", org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory.class);
         filters.put("dutch_stem", SnowballPorterFilterFactory.class);
         filters.put("edge_ngram", null);
-        filters.put("edgeNGram", null);
         filters.put("elision", null);
         filters.put("french_stem", SnowballPorterFilterFactory.class);
         filters.put("german_stem", null);
@@ -197,7 +196,6 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("length", null);
         filters.put("limit", LimitTokenCountFilterFactory.class);
         filters.put("ngram", null);
-        filters.put("nGram", null);
         filters.put("persian_normalization", null);
         filters.put("porter_stem", null);
         filters.put("reverse", ReverseStringFilterFactory.class);

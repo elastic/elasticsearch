@@ -23,7 +23,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionCollection
+import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
@@ -127,40 +127,25 @@ class ClusterFormationTasks {
             nodes.add(node)
             Closure<Map> writeConfigSetup
             Object dependsOn
-            if (node.nodeVersion.onOrAfter("6.5.0")) {
-                writeConfigSetup = { Map esConfig ->
-                    if (config.getAutoSetHostsProvider()) {
-                        // Don't force discovery provider if one is set by the test cluster specs already
-                        if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
-                            esConfig['discovery.zen.hosts_provider'] = 'file'
+            writeConfigSetup = { Map esConfig ->
+                if (config.getAutoSetHostsProvider()) {
+                    if (esConfig.containsKey("discovery.seed_providers") == false) {
+                        esConfig["discovery.seed_providers"] = 'file'
+                    }
+                    esConfig["discovery.seed_hosts"] = []
+                }
+                if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes()) {
+                    esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
+                        if (n.config.settings['node.name'] == null) {
+                            return "node-" + n.nodeNum
+                        } else {
+                            return n.config.settings['node.name']
                         }
-                        esConfig['discovery.zen.ping.unicast.hosts'] = []
-                    }
-                    boolean supportsInitialMasterNodes = hasBwcNodes == false || config.bwcVersion.onOrAfter("7.0.0")
-                    if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes() && supportsInitialMasterNodes) {
-                        esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
-                            if (n.config.settings['node.name'] == null) {
-                                return "node-" + n.nodeNum
-                            } else {
-                                return n.config.settings['node.name']
-                            }
-                        }).collect(Collectors.toList())
-                    }
-                    esConfig
+                    }).collect(Collectors.toList())
                 }
-                dependsOn = startDependencies
-            } else {
-                dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
-                writeConfigSetup = { Map esConfig ->
-                    String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.createAntBuilder())
-                    if (unicastTransportUri == null) {
-                        esConfig['discovery.zen.ping.unicast.hosts'] = []
-                    } else {
-                        esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
-                    }
-                    esConfig
-                }
+                esConfig
             }
+            dependsOn = startDependencies
             startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, writeConfigSetup))
         }
 
@@ -172,10 +157,20 @@ class ClusterFormationTasks {
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro, Configuration configuration, String elasticsearchVersion) {
+        boolean internalBuild = project.hasProperty('bwcVersions')
         if (distro.equals("integ-test-zip")) {
             // short circuit integ test so it doesn't complicate the rest of the distribution setup below
-            project.dependencies.add(configuration.name,
-                    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${elasticsearchVersion}@zip")
+            if (internalBuild) {
+                project.dependencies.add(
+                        configuration.name,
+                        project.dependencies.project(path: ":distribution", configuration: 'integ-test-zip')
+                )
+            } else {
+                project.dependencies.add(
+                        configuration.name,
+                        "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${elasticsearchVersion}@zip"
+                )
+            }
             return
         }
         // TEMP HACK
@@ -191,25 +186,40 @@ class ClusterFormationTasks {
             throw new GradleException("Unknown distribution: ${distro} in project ${project.path}")
         }
         Version version = Version.fromString(elasticsearchVersion)
-        String group = "downloads.zip" // dummy group, does not matter except for integ-test-zip, it is ignored by the fake ivy repo
+        String os = getOs()
+        String classifier = "${os}-x86_64"
+        String packaging = os.equals('windows') ? 'zip' : 'tar.gz'
         String artifactName = 'elasticsearch'
         if (distro.equals('oss') && Version.fromString(elasticsearchVersion).onOrAfter('6.3.0')) {
             artifactName += '-oss'
         }
-        String snapshotProject = distro == 'oss' ? 'oss-zip' : 'zip'
         Object dependency
-        boolean internalBuild = project.hasProperty('bwcVersions')
-        VersionCollection.UnreleasedVersionInfo unreleasedInfo = null
+        String snapshotProject = "${os}-${os.equals('windows') ? 'zip' : 'tar'}"
+        if (version.before("7.0.0")) {
+            snapshotProject = "zip"
+        }
+        if (distro.equals("oss")) {
+            snapshotProject = "oss-" + snapshotProject
+        }
+        
+        BwcVersions.UnreleasedVersionInfo unreleasedInfo = null
+
         if (project.hasProperty('bwcVersions')) {
             // NOTE: leniency is needed for external plugin authors using build-tools. maybe build the version compat info into build-tools?
             unreleasedInfo = project.bwcVersions.unreleasedInfo(version)
         }
         if (unreleasedInfo != null) {
-            dependency = project.dependencies.project(path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: snapshotProject)
+            dependency = project.dependencies.project(
+                    path: unreleasedInfo.gradleProjectPath, configuration: snapshotProject
+            )
         } else if (internalBuild && elasticsearchVersion.equals(VersionProperties.elasticsearch)) {
             dependency = project.dependencies.project(path: ":distribution:archives:${snapshotProject}")
         } else {
-            dependency = "${group}:${artifactName}:${elasticsearchVersion}@zip"
+            if (version.before('7.0.0')) {
+                classifier = "" // for bwc, before we had classifiers
+            }
+            // group does not matter as it is not used when we pull from the ivy repo that points to the download service
+            dependency = "dnm:${artifactName}:${elasticsearchVersion}-${classifier}@${packaging}"
         }
         project.dependencies.add(configuration.name, dependency)
     }
@@ -259,7 +269,7 @@ class ClusterFormationTasks {
         }
         setup = configureCheckPreviousTask(taskName(prefix, node, 'checkPrevious'), project, setup, node)
         setup = configureStopTask(taskName(prefix, node, 'stopPrevious'), project, setup, node)
-        setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, distribution)
+        setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, distribution, config.distribution)
         setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node, writeConfig)
         setup = configureCreateKeystoreTask(taskName(prefix, node, 'createKeystore'), project, setup, node)
         setup = configureAddKeystoreSettingTasks(prefix, project, setup, node)
@@ -288,6 +298,12 @@ class ClusterFormationTasks {
         // sets up any extra config files that need to be copied over to the ES instance;
         // its run after plugins have been installed, as the extra config files may belong to plugins
         setup = configureExtraConfigFilesTask(taskName(prefix, node, 'extraConfig'), project, setup, node)
+
+        // If the node runs in a FIPS 140-2 JVM, the BCFKS default keystore will be password protected
+        if (project.inFipsJvm){
+            node.config.systemProperties.put('javax.net.ssl.trustStorePassword', 'password')
+            node.config.systemProperties.put('javax.net.ssl.keyStorePassword', 'password')
+        }
 
         // extra setup commands
         for (Map.Entry<String, Object[]> command : node.config.setupCommands.entrySet()) {
@@ -328,15 +344,23 @@ class ClusterFormationTasks {
     }
 
     /** Adds a task to extract the elasticsearch distribution */
-    static Task configureExtractTask(String name, Project project, Task setup, NodeInfo node, Configuration configuration) {
+    static Task configureExtractTask(String name, Project project, Task setup, NodeInfo node,
+                                     Configuration configuration, String distribution) {
         List extractDependsOn = [configuration, setup]
         /* configuration.singleFile will be an external artifact if this is being run by a plugin not living in the
           elasticsearch source tree. If this is a plugin built in the elasticsearch source tree or this is a distro in
           the elasticsearch source tree then this should be the version of elasticsearch built by the source tree.
           If it isn't then Bad Things(TM) will happen. */
         Task extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
-            from {
-                project.zipTree(configuration.singleFile)
+            if (getOs().equals("windows") || distribution.equals("integ-test-zip")) {
+                from {
+                    project.zipTree(configuration.singleFile)
+                }
+            } else {
+                // macos and linux use tar
+                from {
+                    project.tarTree(project.resources.gzip(configuration.singleFile))
+                }
             }
             into node.baseDir
         }
@@ -353,24 +377,10 @@ class ClusterFormationTasks {
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
-                'node.attr.testattr'           : 'test'
+                'node.attr.testattr'           : 'test',
+                // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
+                'discovery.initial_state_timeout' : '0s'
         ]
-        int minimumMasterNodes = node.config.minimumMasterNodes.call()
-        if (minimumMasterNodes > 0) {
-            esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes
-        }
-        if (minimumMasterNodes > 1) {
-            // don't wait for state.. just start up quickly
-            // this will also allow new and old nodes in the BWC case to become the master
-            esConfig['discovery.initial_state_timeout'] = '0s'
-        }
-        if (esConfig.containsKey('discovery.zen.master_election.wait_for_joins_timeout') == false) {
-            // If a node decides to become master based on partial information from the pinging, don't let it hang for 30 seconds to correct
-            // its mistake. Instead, only wait 5s to do another round of pinging.
-            // This is necessary since we use 30s as the default timeout in REST requests waiting for cluster formation
-            // so we need to bail quicker than the default 30s for the cluster to form in time.
-            esConfig['discovery.zen.master_election.wait_for_joins_timeout'] = '5s'
-        }
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
         esConfig['transport.tcp.port'] =  node.config.transportPort
@@ -648,7 +658,14 @@ class ClusterFormationTasks {
     static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs) {
         return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) { Exec exec ->
             exec.workingDir node.cwd
-            exec.environment 'JAVA_HOME', node.getJavaHome()
+            // TODO: this must change to 7.0.0 after bundling java has been backported
+            if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("8.0.0")) ||
+                node.config.distribution == 'integ-test-zip') {
+                exec.environment.put('JAVA_HOME', project.runtimeJavaHome)
+            } else {
+                // force JAVA_HOME to *not* be set
+                exec.environment.remove('JAVA_HOME')
+            }
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 exec.executable 'cmd'
                 exec.args '/C', 'call'
@@ -665,9 +682,21 @@ class ClusterFormationTasks {
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
-            ant.exec(executable: node.executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
+            ant.exec(executable: node.executable, spawn: node.config.daemonize, newenvironment: true,
+                     dir: node.cwd, taskname: 'elasticsearch') {
                 node.env.each { key, value -> env(key: key, value: value) }
+                if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("8.0.0")) ||
+                    node.config.distribution == 'integ-test-zip') {
+                    env(key: 'JAVA_HOME', value: project.runtimeJavaHome)
+                }
                 node.args.each { arg(value: it) }
+                if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                    // Having no TMP on Windows defaults to C:\Windows and permission errors
+                    // Since we configure ant to run with a new  environment above, we need to set this to a dir we have access to
+                    File tmpDir = new File(node.baseDir, "tmp")
+                    tmpDir.mkdirs()
+                    env(key: "TMP", value: tmpDir.absolutePath)
+                }
             }
         }
 
@@ -947,5 +976,16 @@ class ClusterFormationTasks {
     static String findPluginName(Project pluginProject) {
         PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin')
         return extension.name
+    }
+
+    /** Find the current OS */
+    static String getOs() {
+        String os = "linux"
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            os = "windows"
+        } else if (Os.isFamily(Os.FAMILY_MAC)) {
+            os = "darwin"
+        }
+        return os
     }
 }

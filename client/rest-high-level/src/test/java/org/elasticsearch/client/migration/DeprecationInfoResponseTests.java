@@ -65,6 +65,12 @@ public class DeprecationInfoResponseTests extends ESTestCase {
                 }
             }
             builder.endObject();
+
+            builder.startArray("ml_settings");
+            for (DeprecationInfoResponse.DeprecationIssue issue : response.getMlSettingsIssues()) {
+                toXContent(issue, builder);
+            }
+            builder.endArray();
         }
         builder.endObject();
     }
@@ -105,12 +111,14 @@ public class DeprecationInfoResponseTests extends ESTestCase {
     }
 
     private DeprecationInfoResponse createInstance() {
-        return new DeprecationInfoResponse(createRandomIssues(true), createRandomIssues(true), createIndexSettingsIssues());
+        return new DeprecationInfoResponse(createRandomIssues(true), createRandomIssues(true), createIndexSettingsIssues(),
+            createRandomIssues(true));
     }
 
     private DeprecationInfoResponse copyInstance(DeprecationInfoResponse req) {
         return new DeprecationInfoResponse(new ArrayList<>(req.getClusterSettingsIssues()),
-            new ArrayList<>(req.getNodeSettingsIssues()), new HashMap<>(req.getIndexSettingsIssues()));
+            new ArrayList<>(req.getNodeSettingsIssues()), new HashMap<>(req.getIndexSettingsIssues()),
+            new ArrayList<>(req.getMlSettingsIssues()));
     }
 
     private DeprecationInfoResponse mutateInstance(DeprecationInfoResponse req) {
@@ -128,16 +136,21 @@ public class DeprecationInfoResponseTests extends ESTestCase {
     }
 
     public void testNullFailedIndices() {
-        NullPointerException exception =
-            expectThrows(NullPointerException.class, () -> new DeprecationInfoResponse(null, null, null));
+        NullPointerException exception = expectThrows(NullPointerException.class,
+            () -> new DeprecationInfoResponse(null, null, null, null));
         assertEquals("cluster settings issues cannot be null", exception.getMessage());
 
-        exception = expectThrows(NullPointerException.class, () -> new DeprecationInfoResponse(Collections.emptyList(), null, null));
+        exception = expectThrows(NullPointerException.class,
+            () -> new DeprecationInfoResponse(Collections.emptyList(), null, null, null));
         assertEquals("node settings issues cannot be null", exception.getMessage());
 
         exception = expectThrows(NullPointerException.class,
-            () -> new DeprecationInfoResponse(Collections.emptyList(), Collections.emptyList(), null));
+            () -> new DeprecationInfoResponse(Collections.emptyList(), Collections.emptyList(), null, null));
         assertEquals("index settings issues cannot be null", exception.getMessage());
+
+        exception = expectThrows(NullPointerException.class,
+            () -> new DeprecationInfoResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyMap(), null));
+        assertEquals("ml settings issues cannot be null", exception.getMessage());
     }
 
     public void testEqualsAndHashCode() {

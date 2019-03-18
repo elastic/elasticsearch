@@ -39,13 +39,13 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader");
 
-        final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
-        client().execute(PutFollowAction.INSTANCE, followRequest).get();
-
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < firstBatchNumDocs; i++) {
             client().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
         }
+
+        final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         assertBusy(() -> {
             assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs));
@@ -85,7 +85,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         followRequest.setFollowerIndex("follower-index");
         PutFollowAction.Request putFollowRequest = getPutFollowRequest("leader", "follower");
         putFollowRequest.setLeaderIndex("leader-index");
-        putFollowRequest.setFollowRequest(followRequest);
+        putFollowRequest.setFollowerIndex("follower-index");
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
             () -> client().execute(PutFollowAction.INSTANCE, putFollowRequest).actionGet());
         assertThat(error.getMessage(), equalTo("leader index [leader-index] does not have soft deletes enabled"));
@@ -98,7 +98,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         request.setRemoteCluster("local");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
-        request.setReadPollTimeout(TimeValue.timeValueMillis(10));
+        request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
         assertTrue(client().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
         long previousNumberOfSuccessfulFollowedIndices = getAutoFollowStats().getNumberOfSuccessfulFollowIndices();
 

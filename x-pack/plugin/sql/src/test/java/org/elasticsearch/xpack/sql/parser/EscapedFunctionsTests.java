@@ -144,9 +144,9 @@ public class EscapedFunctionsTests extends ESTestCase {
     public void testFunctionWithFunctionWithArgAndParams() {
         String e = "POWER(?, {fn POWER({fn ABS(?)}, {fN ABS(?)})})";
         Function f = (Function) parser.createExpression(e,
-                asList(new SqlTypedParamValue(DataType.LONG.esType, 1),
-                       new SqlTypedParamValue(DataType.LONG.esType, 1),
-                       new SqlTypedParamValue(DataType.LONG.esType, 1)));
+                asList(new SqlTypedParamValue(DataType.LONG.typeName, 1),
+                       new SqlTypedParamValue(DataType.LONG.typeName, 1),
+                       new SqlTypedParamValue(DataType.LONG.typeName, 1)));
 
         assertEquals(e, f.sourceText());
         assertEquals(2, f.arguments().size());
@@ -175,7 +175,8 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testDateLiteralValidation() {
         ParsingException ex = expectThrows(ParsingException.class, () -> dateLiteral("2012-13-01"));
-        assertEquals("line 1:2: Invalid date received; Cannot parse \"2012-13-01\": Value 13 for monthOfYear must be in the range [1,12]",
+        assertEquals("line 1:2: Invalid date received; Text '2012-13-01' could not be parsed: " +
+                "Invalid value for MonthOfYear (valid values 1 - 12): 13",
                 ex.getMessage());
     }
 
@@ -186,7 +187,8 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     public void testTimeLiteralValidation() {
         ParsingException ex = expectThrows(ParsingException.class, () -> timeLiteral("10:10:65"));
-        assertEquals("line 1:2: Invalid time received; Cannot parse \"10:10:65\": Value 65 for secondOfMinute must be in the range [0,59]",
+        assertEquals("line 1:2: Invalid time received; Text '10:10:65' could not be parsed: " +
+                "Invalid value for SecondOfMinute (valid values 0 - 59): 65",
                 ex.getMessage());
     }
 
@@ -198,7 +200,7 @@ public class EscapedFunctionsTests extends ESTestCase {
     public void testTimestampLiteralValidation() {
         ParsingException ex = expectThrows(ParsingException.class, () -> timestampLiteral("2012-01-01T10:01:02.3456"));
         assertEquals(
-                "line 1:2: Invalid timestamp received; Invalid format: \"2012-01-01T10:01:02.3456\" is malformed at \"T10:01:02.3456\"",
+                "line 1:2: Invalid timestamp received; Text '2012-01-01T10:01:02.3456' could not be parsed at index 10",
                 ex.getMessage());
     }
 

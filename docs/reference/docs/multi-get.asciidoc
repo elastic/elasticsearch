@@ -1,7 +1,7 @@
 [[docs-multi-get]]
 == Multi Get API
 
-Multi GET API allows to get multiple documents based on an index, type
+Multi Get API allows to get multiple documents based on an index, type,
 (optional) and id (and possibly routing). The response includes a `docs` array
 with all the fetched documents in order corresponding to the original multi-get
 request (if there was a failure for a specific get, an object containing this
@@ -89,7 +89,7 @@ GET /test/_doc/_mget
 By default, the `_source` field will be returned for every document (if stored).
 Similar to the <<get-source-filtering,get>> API, you can retrieve only parts of
 the `_source` (or not at all) by using the `_source` parameter. You can also use
-the url parameters `_source`,`_source_includes` & `_source_excludes` to specify defaults,
+the url parameters `_source`, `_source_includes`, and `_source_excludes` to specify defaults,
 which will be used when there are no per-document instructions.
 
 For example:
@@ -181,7 +181,7 @@ GET /test/_doc/_mget?stored_fields=field1,field2
 [[mget-routing]]
 === Routing
 
-You can also specify routing value as a parameter:
+You can also specify a routing value as a parameter:
 
 [source,js]
 --------------------------------------------------
@@ -204,11 +204,11 @@ GET /_mget?routing=key1
 --------------------------------------------------
 // CONSOLE
 
-In this example, document `test/_doc/2` will be fetch from shard corresponding to routing key `key1` but
-document `test/_doc/1` will be fetch from shard corresponding to routing key `key2`.
+In this example, document `test/_doc/2` will be fetched from the shard corresponding to routing key `key1` but
+document `test/_doc/1` will be fetched from the shard corresponding to routing key `key2`.
 
 [float]
 [[mget-security]]
 === Security
 
-See <<url-access-control>>
+See <<url-access-control>>.

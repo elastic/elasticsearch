@@ -2,6 +2,73 @@
 // Date
 //
 
+currentDateKeywordWithDivision
+SELECT YEAR(CURRENT_DATE) / 1000 AS result;
+
+    result
+---------------
+2
+;
+
+currentDateFunctionNoArgsWithDivision
+SELECT YEAR(CURRENT_DATE()) / 1000 AS result;
+
+    result
+---------------
+2
+;
+
+todayWithDivision
+SELECT YEAR(TODAY()) / 1000 AS result;
+
+    result
+---------------
+2
+;
+
+todayIntervalSubstraction
+SELECT TRUNCATE(YEAR(TODAY() - INTERVAL 50 YEARS) / 1000) AS result;
+
+    result
+---------------
+1
+;
+
+
+currentDateFilter
+SELECT first_name FROM test_emp WHERE hire_date > CURRENT_DATE() - INTERVAL 25 YEARS ORDER BY first_name ASC LIMIT 10;
+
+    first_name
+-----------------
+Kazuhito
+Kenroku
+Lillian
+Mayumi
+Mingsen
+Sailaja
+Saniya
+Shahaf
+Suzette
+Tuval
+;
+
+currentDateFilterScript
+SELECT first_name, TRUNCATE(YEAR(hire_date) - YEAR(TODAY()) / 1000) AS filter FROM test_emp
+WHERE TRUNCATE(YEAR(hire_date) - YEAR(TODAY()) / 1000) > 1990 ORDER BY first_name ASC LIMIT 10;
+
+  first_name   |  filter
+Cristinel      |1991
+Kazuhito       |1993
+Kenroku        |1992
+Lillian        |1997
+Magy           |1991
+Mayumi         |1993
+Mingsen        |1992
+Sailaja        |1994
+Saniya         |1992
+Shahaf         |1993
+;
+
 dateExtractDateParts
 SELECT
 DAY(CAST(birth_date AS DATE)) d,
@@ -74,4 +141,24 @@ SELECT YEAR(CAST('2019-01-21' AS DATE) + INTERVAL '1-2' YEAR TO MONTH) AS y, MON
 
 y:i       | m:i
 2020      | 3
+;
+
+orderByCurrentDate
+SELECT first_name FROM test_emp ORDER BY TODAY(), first_name LIMIT 5;
+
+  first_name
+---------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+;
+
+groupByCurrentDate
+SELECT MAX(salary) FROM test_emp GROUP BY TODAY();
+
+  MAX(salary)
+---------------
+74999
 ;

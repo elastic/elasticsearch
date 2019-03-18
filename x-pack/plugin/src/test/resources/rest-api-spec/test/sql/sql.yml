@@ -26,7 +26,7 @@ setup:
 ---
 "Execute some SQL":
   - do:
-      xpack.sql.query:
+      sql.query:
         format: json
         body:
           query: "SELECT * FROM test ORDER BY int asc"
@@ -42,7 +42,7 @@ setup:
 ---
 "Paging through results":
   - do:
-      xpack.sql.query:
+      sql.query:
         format: json
         body:
           query: "SELECT * FROM test ORDER BY int asc"
@@ -57,7 +57,7 @@ setup:
   - set: { cursor: cursor }
 
   - do:
-      xpack.sql.query:
+      sql.query:
         format: json
         body:
           cursor: "$cursor"
@@ -68,7 +68,7 @@ setup:
   - set: { cursor: cursor }
 
   - do:
-      xpack.sql.query:
+      sql.query:
         format: json
         body:
           cursor: "$cursor"
@@ -79,7 +79,7 @@ setup:
 ---
 "Getting textual representation":
   - do:
-      xpack.sql.query:
+      sql.query:
         format: txt
         body:
           query: "SELECT * FROM test ORDER BY int asc"
@@ -95,7 +95,7 @@ setup:
 ---
 "Clean cursor":
   - do:
-      xpack.sql.query:
+      sql.query:
         format: json
         body:
           query: "SELECT * FROM test ORDER BY int asc"
@@ -108,7 +108,7 @@ setup:
   - set: { cursor: cursor}
 
   - do:
-      xpack.sql.clear_cursor:
+      sql.clear_cursor:
         body:
           cursor: "$cursor"
   - match: { "succeeded": true }

@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -211,7 +210,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         int size = in.readVInt();
         fieldsBoosts = new TreeMap<>();
         for (int i = 0; i < size; i++) {
-            fieldsBoosts.put(in.readString(), in.readFloat());
+            String field = in.readString();
+            float boost = in.readFloat();
+            checkNegativeBoost(boost);
+            fieldsBoosts.put(field, boost);
         }
         type = Type.readFromStream(in);
         operator = Operator.readFromStream(in);
@@ -222,21 +224,12 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         maxExpansions = in.readVInt();
         minimumShouldMatch = in.readOptionalString();
         fuzzyRewrite = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readOptionalBoolean(); // unused use_dis_max flag
-        }
         tieBreaker = in.readOptionalFloat();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            lenient = in.readOptionalBoolean();
-        } else {
-            lenient = in.readBoolean();
-        }
+        lenient = in.readOptionalBoolean();
         cutoffFrequency = in.readOptionalFloat();
         zeroTermsQuery = MatchQuery.ZeroTermsQuery.readFromStream(in);
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            autoGenerateSynonymsPhraseQuery = in.readBoolean();
-            fuzzyTranspositions = in.readBoolean();
-        }
+        autoGenerateSynonymsPhraseQuery = in.readBoolean();
+        fuzzyTranspositions = in.readBoolean();
     }
 
     @Override
@@ -256,21 +249,12 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         out.writeVInt(maxExpansions);
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(fuzzyRewrite);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalBoolean(null);
-        }
         out.writeOptionalFloat(tieBreaker);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeOptionalBoolean(lenient);
-        } else {
-            out.writeBoolean(lenient == null ? MatchQuery.DEFAULT_LENIENCY : lenient);
-        }
+        out.writeOptionalBoolean(lenient);
         out.writeOptionalFloat(cutoffFrequency);
         zeroTermsQuery.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeBoolean(autoGenerateSynonymsPhraseQuery);
-            out.writeBoolean(fuzzyTranspositions);
-        }
+        out.writeBoolean(autoGenerateSynonymsPhraseQuery);
+        out.writeBoolean(fuzzyTranspositions);
     }
 
     public Object value() {
@@ -295,6 +279,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         if (Strings.isEmpty(field)) {
             throw new IllegalArgumentException("supplied field is null or empty.");
         }
+        checkNegativeBoost(boost);
         this.fieldsBoosts.put(field, boost);
         return this;
     }
@@ -303,6 +288,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * Add several fields to run the query against with a specific boost.
      */
     public MultiMatchQueryBuilder fields(Map<String, Float> fields) {
+        for (float fieldBoost : fields.values()) {
+            checkNegativeBoost(fieldBoost);
+        }
         this.fieldsBoosts.putAll(fields);
         return this;
     }
@@ -609,7 +597,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         Operator operator = DEFAULT_OPERATOR;
         String minimumShouldMatch = null;
         String fuzzyRewrite = null;
-        Boolean useDisMax = null;
         Float tieBreaker = null;
         Float cutoffFrequency = null;
         Boolean lenient = null;

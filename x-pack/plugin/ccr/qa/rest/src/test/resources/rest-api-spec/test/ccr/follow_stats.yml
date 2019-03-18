@@ -28,14 +28,14 @@
               soft_deletes:
                 enabled: true
           mappings:
-            doc:
-              properties:
-                field:
-                  type: keyword
+            properties:
+              field:
+                type: keyword
 
   - do:
       ccr.follow:
         index: bar
+        wait_for_active_shards: 1
         body:
           remote_cluster: local
           leader_index: foo

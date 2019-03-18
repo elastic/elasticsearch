@@ -27,6 +27,7 @@ public class Platforms {
     public static final String OS_NAME = System.getProperty("os.name");
     public static final boolean LINUX = OS_NAME.startsWith("Linux");
     public static final boolean WINDOWS = OS_NAME.startsWith("Windows");
+    public static final boolean DARWIN = OS_NAME.startsWith("Mac OS X");
 
     public static String getOsRelease() {
         if (LINUX) {

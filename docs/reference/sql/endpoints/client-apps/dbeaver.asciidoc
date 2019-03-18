@@ -3,8 +3,6 @@
 [[sql-client-apps-dbeaver]]
 === DBeaver
 
-beta[]
-
 [quote, https://dbeaver.io/]
 ____
 https://dbeaver.io/[DBeaver] DBeaver is free and open source universal database tool for developers and database administrators.

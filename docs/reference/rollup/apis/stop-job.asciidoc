@@ -56,6 +56,7 @@ POST _rollup/job/sensor/_stop
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sensor_started_rollup_job]
+// TEST[s/_stop/_stop?wait_for_completion=true&timeout=10s/]
 
 Which will return the response:
 

@@ -38,6 +38,6 @@ public class UnfollowActionTests extends AbstractXContentTestCase<UnfollowAction
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

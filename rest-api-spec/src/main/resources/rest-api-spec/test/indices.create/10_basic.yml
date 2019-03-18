@@ -6,7 +6,6 @@
       reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
         body:
           mappings:
@@ -26,7 +25,6 @@
       reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
         body:
           settings:
@@ -46,7 +44,6 @@
       reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
 
   - match: { acknowledged: true }
@@ -60,7 +57,6 @@
       reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
         wait_for_active_shards: all
         body:
@@ -78,7 +74,6 @@
       reason:  include_type_name defaults to true before 7.0.0
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
         body:
           mappings:
@@ -112,7 +107,6 @@
       reason: is_write_index is not implemented in ES <= 6.x
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
         body:
           aliases:
@@ -135,10 +129,28 @@
   - do:
       catch: /illegal_argument_exception/
       indices.create:
-        include_type_name: false
         index: test_index
         body:
           mappings:
             properties:
               "":
                 type:     keyword
+
+---
+"Create index with explicit _doc type":
+  - skip:
+      version: " - 6.99.99"
+      reason: include_type_name defaults to true before 7.0
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            _doc:
+              properties:
+                field:
+                  type: keyword
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "The mapping definition cannot be nested under a type [_doc] unless include_type_name is set to true." }

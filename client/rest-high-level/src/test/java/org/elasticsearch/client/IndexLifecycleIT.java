@@ -184,31 +184,37 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
         createIndex("squash", Settings.EMPTY);
 
-        ExplainLifecycleRequest req = new ExplainLifecycleRequest("foo-01", "baz-01", "squash");
-        ExplainLifecycleResponse response = execute(req, highLevelClient().indexLifecycle()::explainLifecycle,
+        // The injected Unfollow step will run pretty rapidly here, so we need
+        // to wait for it to settle into the "stable" step of waiting to be
+        // ready to roll over
+        assertBusy(() -> {
+            ExplainLifecycleRequest req = new ExplainLifecycleRequest("foo-01", "baz-01", "squash");
+            ExplainLifecycleResponse response = execute(req, highLevelClient().indexLifecycle()::explainLifecycle,
                 highLevelClient().indexLifecycle()::explainLifecycleAsync);
-        Map<String, IndexLifecycleExplainResponse> indexResponses = response.getIndexResponses();
-        assertEquals(3, indexResponses.size());
-        IndexLifecycleExplainResponse fooResponse = indexResponses.get("foo-01");
-        assertNotNull(fooResponse);
-        assertTrue(fooResponse.managedByILM());
-        assertEquals("foo-01", fooResponse.getIndex());
-        assertEquals("hot", fooResponse.getPhase());
-        assertEquals("rollover", fooResponse.getAction());
-        assertEquals("check-rollover-ready", fooResponse.getStep());
-        assertEquals(new PhaseExecutionInfo(policy.getName(), new Phase("", hotPhase.getMinimumAge(), hotPhase.getActions()),
+            Map<String, IndexLifecycleExplainResponse> indexResponses = response.getIndexResponses();
+            assertEquals(3, indexResponses.size());
+            IndexLifecycleExplainResponse fooResponse = indexResponses.get("foo-01");
+            assertNotNull(fooResponse);
+            assertTrue(fooResponse.managedByILM());
+            assertEquals("foo-01", fooResponse.getIndex());
+            assertEquals("hot", fooResponse.getPhase());
+            assertEquals("rollover", fooResponse.getAction());
+            assertEquals("check-rollover-ready", fooResponse.getStep());
+            assertEquals(new PhaseExecutionInfo(policy.getName(), new Phase("", hotPhase.getMinimumAge(), hotPhase.getActions()),
                 1L, expectedPolicyModifiedDate), fooResponse.getPhaseExecutionInfo());
-        IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz-01");
-        assertNotNull(bazResponse);
-        assertTrue(bazResponse.managedByILM());
-        assertEquals("baz-01", bazResponse.getIndex());
-        assertEquals("hot", bazResponse.getPhase());
-        assertEquals("rollover", bazResponse.getAction());
-        assertEquals("check-rollover-ready", bazResponse.getStep());
-        IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
-        assertNotNull(squashResponse);
-        assertFalse(squashResponse.managedByILM());
-        assertEquals("squash", squashResponse.getIndex());
+            IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz-01");
+            assertNotNull(bazResponse);
+            assertTrue(bazResponse.managedByILM());
+            assertEquals("baz-01", bazResponse.getIndex());
+            assertEquals("hot", bazResponse.getPhase());
+            assertEquals("rollover", bazResponse.getAction());
+            assertEquals("check-rollover-ready", bazResponse.getStep());
+            IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
+            assertNotNull(squashResponse);
+            assertFalse(squashResponse.managedByILM());
+            assertEquals("squash", squashResponse.getIndex());
+
+        });
     }
 
     public void testDeleteLifecycle() throws IOException {

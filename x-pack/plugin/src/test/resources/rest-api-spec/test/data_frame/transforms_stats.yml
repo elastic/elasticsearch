@@ -1,0 +1,106 @@
+setup:
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-stats"
+        body: >
+          {
+            "source": "airline-data",
+            "dest": "airline-data-by-airline-stats",
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-stats"
+
+---
+teardown:
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-stats"
+
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-stats"
+
+---
+"Test get transform stats":
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-stats"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+  - match: { transforms.0.state.transform_state: "started" }
+  - match: { transforms.0.state.generation: 0 }
+  - match: { transforms.0.stats.pages_processed: 0 }
+  - match: { transforms.0.stats.documents_processed: 0 }
+  - match: { transforms.0.stats.documents_indexed: 0 }
+  - match: { transforms.0.stats.trigger_count: 0 }
+  - match: { transforms.0.stats.index_time_in_ms: 0 }
+  - match: { transforms.0.stats.index_total: 0 }
+  - match: { transforms.0.stats.index_failures: 0 }
+  - match: { transforms.0.stats.search_time_in_ms: 0 }
+  - match: { transforms.0.stats.search_total: 0 }
+  - match: { transforms.0.stats.search_failures: 0 }
+
+---
+"Test get transform stats on missing transform":
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "missing-transform"
+  - match: { count: 0 }
+  - match: { transforms: [] }
+
+---
+"Test get multiple transform stats":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-stats-dos"
+        body: >
+          {
+            "source": "airline-data",
+            "dest": "airline-data-by-airline-stats-dos",
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-stats-dos"
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "*"
+  - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+  - match: { transforms.1.id: "airline-transform-stats-dos" }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "_all"
+  - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+  - match: { transforms.1.id: "airline-transform-stats-dos" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-stats-dos"
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-stats-dos"

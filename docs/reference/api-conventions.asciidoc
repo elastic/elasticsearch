@@ -20,39 +20,40 @@ API, unless otherwise specified.
 
 Most APIs that refer to an `index` parameter support execution across multiple indices,
 using simple `test1,test2,test3` notation (or `_all` for all indices). It also
-support wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the
+supports wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the
 ability to "exclude" (`-`), for example: `test*,-test3`.
 
-All multi indices API support the following url query string parameters:
+All multi indices APIs support the following url query string parameters:
 
+[horizontal]
 `ignore_unavailable`::
 
-Controls whether to ignore if any specified indices are unavailable, this
-includes indices that don't exist or closed indices. Either `true` or `false`
+Controls whether to ignore if any specified indices are unavailable, 
+including indices that don't exist or closed indices. Either `true` or `false`
 can be specified.
 
 `allow_no_indices`::
 
-Controls whether to fail if a wildcard indices expressions results into no
+Controls whether to fail if a wildcard indices expression results in no
 concrete indices. Either `true` or `false` can be specified. For example if
 the wildcard expression `foo*` is specified and no indices are available that
-start with `foo` then depending on this setting the request will fail. This
-setting is also applicable when `_all`, `*` or no index has been specified. This
+start with `foo`, then depending on this setting the request will fail. This
+setting is also applicable when `_all`, `*`, or no index has been specified. This
 settings also applies for aliases, in case an alias points to a closed index.
 
 `expand_wildcards`::
 
-Controls to what kind of concrete indices wildcard indices expression expand
+Controls what kind of concrete indices that wildcard indices expressions can expand
 to. If `open` is specified then the wildcard expression is expanded to only
-open indices and if `closed` is specified then the wildcard expression is
+open indices. If `closed` is specified then the wildcard expression is
 expanded only to closed indices. Also both values (`open,closed`) can be
 specified to expand to all indices.
 +
-If `none` is specified then wildcard expansion will be disabled and if `all`
+If `none` is specified then wildcard expansion will be disabled. If `all`
 is specified, wildcard expressions will expand to all indices (this is equivalent
 to specifying `open,closed`).
 
-The defaults settings for the above parameters depend on the api being used.
+The defaults settings for the above parameters depend on the API being used.
 
 NOTE: Single index APIs such as the <<docs>> and the
 <<indices-aliases,single-index `alias` APIs>> do not support multiple indices.
@@ -67,7 +68,7 @@ execution performance. For example, if you are searching for errors in your
 daily logs, you can use a date math name template to restrict the search to the past
 two days.
 
-Almost all APIs that have an `index` parameter, support date math in the `index` parameter
+Almost all APIs that have an `index` parameter support date math in the `index` parameter
 value.
 
 A date math index name takes the following form:
@@ -82,8 +83,8 @@ Where:
 [horizontal]
 `static_name`:: is the static text part of the name
 `date_math_expr`:: is a dynamic date math expression that computes the date dynamically
-`date_format`:: is the optional format in which the computed date should be rendered. Defaults to `YYYY.MM.dd`.
-`time_zone`:: is the optional time zone . Defaults to `utc`.
+`date_format`:: is the optional format in which the computed date should be rendered. Defaults to `yyyy.MM.dd`. Format should be compatible with java-time https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html
+`time_zone`:: is the optional time zone. Defaults to `utc`.
 
 Date math expressions are resolved locale-independent. Consequently, it is not possible to use any other
 calendars than the Gregorian calendar.
@@ -132,9 +133,9 @@ they resolve to given the current time is 22rd March 2024 noon utc.
 | Expression                                |Resolves to
 | `<logstash-{now/d}>`                      | `logstash-2024.03.22`
 | `<logstash-{now/M}>`                      | `logstash-2024.03.01`
-| `<logstash-{now/M{YYYY.MM}}>`             | `logstash-2024.03`
-| `<logstash-{now/M-1M{YYYY.MM}}>`          | `logstash-2024.02`
-| `<logstash-{now/d{YYYY.MM.dd\|+12:00}}>`  | `logstash-2024.03.23`
+| `<logstash-{now/M{yyyy.MM}}>`             | `logstash-2024.03`
+| `<logstash-{now/M-1M{yyyy.MM}}>`          | `logstash-2024.02`
+| `<logstash-{now/d{yyyy.MM.dd\|+12:00}}>`  | `logstash-2024.03.23`
 |======
 
 To use the characters `{` and `}` in the static part of an index name template, escape them
@@ -180,8 +181,8 @@ to set `?format=yaml` which will cause the result to be returned in the
 === Human readable output
 
 Statistics are returned in a format suitable for humans
-(eg `"exists_time": "1h"` or `"size": "1kb"`) and for computers
-(eg `"exists_time_in_millis": 3600000` or `"size_in_bytes": 1024`).
+(e.g. `"exists_time": "1h"` or `"size": "1kb"`) and for computers
+(e.g. `"exists_time_in_millis": 3600000` or `"size_in_bytes": 1024`).
 The human readable values can be turned off by adding `?human=false`
 to the query string. This makes sense when the stats results are
 being consumed by a monitoring tool, rather than intended for human
@@ -193,7 +194,7 @@ consumption.  The default for the `human` flag is
 === Date Math
 
 Most parameters which accept a formatted date value -- such as `gt` and `lt`
-in <<query-dsl-range-query,range queries>> `range` queries, or `from` and `to`
+in <<query-dsl-range-query,`range` queries>>, or `from` and `to`
 in <<search-aggregations-bucket-daterange-aggregation,`daterange`
 aggregations>> -- understand date maths.
 
@@ -201,28 +202,29 @@ The expression starts with an anchor date, which can either be `now`, or a
 date string ending with `||`. This anchor date can optionally be followed by
 one or more maths expressions:
 
-* `+1h` - add one hour
-* `-1d` - subtract one day
-* `/d`  - round down to the nearest day
+* `+1h`: Add one hour
+* `-1d`: Subtract one day
+* `/d`: Round down to the nearest day
 
 The supported time units differ from those supported by <<time-units, time units>> for durations.
 The supported units are:
 
 [horizontal]
-`y`:: years
-`M`:: months
-`w`:: weeks
-`d`:: days
-`h`:: hours
-`H`:: hours
-`m`:: minutes
-`s`:: seconds
+`y`:: Years
+`M`:: Months
+`w`:: Weeks
+`d`:: Days
+`h`:: Hours
+`H`:: Hours
+`m`:: Minutes
+`s`:: Seconds
 
 Assuming `now` is `2001-01-01 12:00:00`, some examples are:
 
+[horizontal]
 `now+1h`:: `now` in milliseconds plus one hour. Resolves to: `2001-01-01 13:00:00`
 `now-1h`:: `now` in milliseconds minus one hour. Resolves to: `2001-01-01 11:00:00`
-`now-1h/d`:: `now` in milliseconds minus one hour, rounded down to UTC 00:00. Resolves to: `2001-01-01 00:00:00``
+`now-1h/d`:: `now` in milliseconds minus one hour, rounded down to UTC 00:00. Resolves to: `2001-01-01 00:00:00`
  `2001.02.01\|\|+1M/d`:: `2001-02-01` in milliseconds plus one month. Resolves to: `2001-03-01 00:00:00`
 
 [float]
@@ -396,8 +398,8 @@ GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
 [float]
 === Flat Settings
 
-The `flat_settings` flag affects rendering of the lists of settings. When
-`flat_settings` flag is `true` settings are returned in a flat format:
+The `flat_settings` flag affects rendering of the lists of settings. When the 
+`flat_settings` flag is `true`, settings are returned in a flat format:
 
 [source,js]
 --------------------------------------------------
@@ -427,7 +429,7 @@ Returns:
 // TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index\\\\.uuid/]
 // TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.twitter.settings.index\\\\.version\\\\.created/]
 
-When the `flat_settings` flag is `false` settings are returned in a more
+When the `flat_settings` flag is `false`, settings are returned in a more
 human readable structured format:
 
 [source,js]
@@ -462,7 +464,7 @@ Returns:
 // TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index.uuid/]
 // TESTRESPONSE[s/"created": \.\.\./"created": $body.twitter.settings.index.version.created/]
 
-By default the `flat_settings` is set to `false`.
+By default `flat_settings` is set to `false`.
 
 [float]
 === Parameters
@@ -473,7 +475,7 @@ convention of using underscore casing.
 [float]
 === Boolean Values
 
-All REST APIs parameters (both request parameters and JSON body) support
+All REST API parameters (both request parameters and JSON body) support
 providing boolean "false" as the value `false` and boolean "true" as the
 value `true`. All other values will raise an error.
 
@@ -491,19 +493,19 @@ Whenever durations need to be specified, e.g. for a `timeout` parameter, the dur
 the unit, like `2d` for 2 days.  The supported units are:
 
 [horizontal]
-`d`::       days
-`h`::       hours
-`m`::       minutes
-`s`::       seconds
-`ms`::      milliseconds
-`micros`::  microseconds
-`nanos`::   nanoseconds
+`d`::       Days
+`h`::       Hours
+`m`::       Minutes
+`s`::       Seconds
+`ms`::      Milliseconds
+`micros`::  Microseconds
+`nanos`::   Nanoseconds
 
 [[byte-units]]
 [float]
 === Byte size units
 
-Whenever the byte size of data needs to be specified, eg when setting a buffer size
+Whenever the byte size of data needs to be specified, e.g. when setting a buffer size
 parameter, the value must specify the unit, like `10kb` for 10 kilobytes. Note that
 these units use powers of 1024, so `1kb` means 1024 bytes. The supported units are:
 
@@ -525,7 +527,6 @@ If one of these quantities is large we'll print it out like 10m for 10,000,000 o
 when we mean 87 though. These are the supported multipliers:
 
 [horizontal]
-``::   Single
 `k`::  Kilo
 `m`::  Mega
 `g`::  Giga
@@ -537,8 +538,8 @@ when we mean 87 though. These are the supported multipliers:
 === Distance Units
 
 Wherever distances need to be specified, such as the `distance` parameter in
-the <<query-dsl-geo-distance-query>>), the default unit if none is specified is
-the meter. Distances can be specified in other units, such as `"1km"` or
+the <<query-dsl-geo-distance-query>>), the default unit is meters if none is specified.
+Distances can be specified in other units, such as `"1km"` or
 `"2mi"` (2 miles).
 
 The full list of units is listed below:
@@ -552,7 +553,7 @@ Kilometer::     `km` or `kilometers`
 Meter::         `m` or `meters`
 Centimeter::    `cm` or `centimeters`
 Millimeter::    `mm` or `millimeters`
-Nautical mile:: `NM`, `nmi` or `nauticalmiles`
+Nautical mile:: `NM`, `nmi`, or `nauticalmiles`
 
 [[fuzziness]]
 [float]
@@ -568,20 +569,21 @@ make it the same as another string.
 
 The `fuzziness` parameter can be specified as:
 
+[horizontal]
 `0`, `1`, `2`::
 
-the maximum allowed Levenshtein Edit Distance (or number of edits)
+The maximum allowed Levenshtein Edit Distance (or number of edits)
 
 `AUTO`::
 +
 --
-generates an edit distance based on the length of the term.
-Low and high distance arguments may be optionally provided `AUTO:[low],[high]`, if not specified,
+Generates an edit distance based on the length of the term.
+Low and high distance arguments may be optionally provided `AUTO:[low],[high]`. If not specified,
 the default values are 3 and 6, equivalent to `AUTO:3,6` that make for lengths:
 
-`0..2`:: must match exactly
-`3..5`:: one edit allowed
-`>5`:: two edits allowed
+`0..2`:: Must match exactly
+`3..5`:: One edit allowed
+`>5`:: Two edits allowed
 
 `AUTO` should generally be the preferred value for `fuzziness`.
 --
@@ -681,9 +683,9 @@ The type of the content sent in a request body must be specified using
 the `Content-Type` header. The value of this header must map to one of
 the supported formats that the API supports. Most APIs support JSON,
 YAML, CBOR, and SMILE. The bulk and multi-search APIs support NDJSON,
-JSON and SMILE; other types will result in an error response.
+JSON, and SMILE; other types will result in an error response.
 
-Additionally, when using the `source` query string parameter the
+Additionally, when using the `source` query string parameter, the
 content type must be specified using the `source_content_type` query
 string parameter.
 
@@ -692,7 +694,7 @@ string parameter.
 
 Many users use a proxy with URL-based access control to secure access to
 Elasticsearch indices. For <<search-multi-search,multi-search>>,
-<<docs-multi-get,multi-get>> and <<docs-bulk,bulk>> requests, the user has
+<<docs-multi-get,multi-get>>, and <<docs-bulk,bulk>> requests, the user has
 the choice of specifying an index in the URL and on each individual request
 within the request body. This can make URL-based access control challenging.
 

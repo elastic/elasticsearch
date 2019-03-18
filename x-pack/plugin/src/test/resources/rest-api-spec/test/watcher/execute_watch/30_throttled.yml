@@ -7,14 +7,14 @@ setup:
 ---
 teardown:
   - do:
-      xpack.watcher.delete_watch:
+      watcher.delete_watch:
         id: "test_watch"
         ignore: 404
 
 ---
 "Test execute watch api works with throttling":
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "test_watch"
         body:  >
           {
@@ -41,7 +41,7 @@ teardown:
   - match: { created: true }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "test_watch"
         body: >
           {
@@ -60,7 +60,7 @@ teardown:
   - match: { watch_record.status.state.active: true }
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "test_watch"
         body:  >
           {
@@ -87,7 +87,7 @@ teardown:
   - match: { _id: "test_watch" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "test_watch"
         body: >
           {
@@ -103,7 +103,7 @@ teardown:
   - match: { watch_record.status.execution_state: "executed" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "test_watch"
         body: >
           {

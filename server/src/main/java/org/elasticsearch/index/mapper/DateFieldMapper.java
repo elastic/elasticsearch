@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -53,6 +54,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Iterator;
@@ -61,8 +63,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.time.DateUtils.toLong;
+
 /** A {@link FieldMapper} for dates. */
-public class DateFieldMapper extends FieldMapper {
+public final class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
@@ -71,11 +75,62 @@ public class DateFieldMapper extends FieldMapper {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
     }
 
+    public enum Resolution {
+        MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
+            public long convert(Instant instant) {
+                return instant.toEpochMilli();
+            }
+
+            public Instant toInstant(long value) {
+                return Instant.ofEpochMilli(value);
+            }
+        },
+        NANOSECONDS("date_nanos", NumericType.DATE_NANOSECONDS) {
+            public long convert(Instant instant) {
+                return toLong(instant);
+            }
+
+            public Instant toInstant(long value) {
+                return DateUtils.toInstant(value);
+            }
+        };
+
+        private final String type;
+        private final NumericType numericType;
+
+        Resolution(String type, NumericType numericType) {
+            this.type = type;
+            this.numericType = numericType;
+        }
+
+        public String type() {
+            return type;
+        }
+
+        NumericType numericType() {
+            return numericType;
+        }
+
+        public abstract long convert(Instant instant);
+
+        public abstract Instant toInstant(long value);
+
+        public static Resolution ofOrdinal(int ord) {
+            for (Resolution resolution : values()) {
+                if (ord == resolution.ordinal()) {
+                    return resolution;
+                }
+            }
+            throw new IllegalArgumentException("unknown resolution ordinal [" + ord + "]");
+        }
+    }
+
     public static class Builder extends FieldMapper.Builder<Builder, DateFieldMapper> {
 
         private Boolean ignoreMalformed;
         private Explicit<String> format = new Explicit<>(DEFAULT_DATE_TIME_FORMATTER.pattern(), false);
         private Locale locale;
+        private Resolution resolution = Resolution.MILLISECONDS;
 
         public Builder(String name) {
             super(name, new DateFieldType(), new DateFieldType());
@@ -121,6 +176,11 @@ public class DateFieldMapper extends FieldMapper {
             return this;
         }
 
+        Builder withResolution(Resolution resolution) {
+            this.resolution = resolution;
+            return this;
+        }
+
         public boolean isFormatterSet() {
             return format.explicit();
         }
@@ -135,6 +195,8 @@ public class DateFieldMapper extends FieldMapper {
             if (hasPatternChanged || Objects.equals(builder.locale, dateTimeFormatter.locale()) == false) {
                 fieldType().setDateTimeFormatter(DateFormatter.forPattern(pattern).withLocale(locale));
             }
+
+            fieldType().setResolution(resolution);
         }
 
         @Override
@@ -147,12 +209,16 @@ public class DateFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
 
-        public TypeParser() {
+        private final Resolution resolution;
+
+        public TypeParser(Resolution resolution) {
+            this.resolution = resolution;
         }
 
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
+            builder.withResolution(resolution);
             TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -184,18 +250,21 @@ public class DateFieldMapper extends FieldMapper {
     public static final class DateFieldType extends MappedFieldType {
         protected DateFormatter dateTimeFormatter;
         protected DateMathParser dateMathParser;
+        protected Resolution resolution;
 
         DateFieldType() {
             super();
             setTokenized(false);
             setHasDocValues(true);
             setOmitNorms(true);
-            setDateTimeFormatter(DEFAULT_DATE_TIME_FORMATTER);
+            setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+            setResolution(Resolution.MILLISECONDS);
         }
 
         DateFieldType(DateFieldType other) {
             super(other);
             setDateTimeFormatter(other.dateTimeFormatter);
+            setResolution(other.resolution);
         }
 
         @Override
@@ -207,17 +276,17 @@ public class DateFieldMapper extends FieldMapper {
         public boolean equals(Object o) {
             if (!super.equals(o)) return false;
             DateFieldType that = (DateFieldType) o;
-            return Objects.equals(dateTimeFormatter, that.dateTimeFormatter);
+            return Objects.equals(dateTimeFormatter, that.dateTimeFormatter) && Objects.equals(resolution, that.resolution);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), dateTimeFormatter);
+            return Objects.hash(super.hashCode(), dateTimeFormatter, resolution);
         }
 
         @Override
         public String typeName() {
-            return CONTENT_TYPE;
+            return resolution.type();
         }
 
         @Override
@@ -229,6 +298,9 @@ public class DateFieldMapper extends FieldMapper {
             }
             if (Objects.equals(dateTimeFormatter.locale(), other.dateTimeFormatter.locale()) == false) {
                 conflicts.add("mapper [" + name() + "] has different [locale] values");
+            }
+            if (Objects.equals(resolution.type(), other.resolution.type()) == false) {
+                conflicts.add("mapper [" + name() + "] cannot change between milliseconds and nanoseconds");
             }
         }
 
@@ -242,12 +314,17 @@ public class DateFieldMapper extends FieldMapper {
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
         }
 
+        void setResolution(Resolution resolution) {
+            checkIfFrozen();
+            this.resolution = resolution;
+        }
+
         protected DateMathParser dateMathParser() {
             return dateMathParser;
         }
 
         long parse(String value) {
-            return DateFormatters.toZonedDateTime(dateTimeFormatter().parse(value)).toInstant().toEpochMilli();
+            return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value)).toInstant());
         }
 
         @Override
@@ -283,7 +360,7 @@ public class DateFieldMapper extends FieldMapper {
             if (lowerTerm == null) {
                 l = Long.MIN_VALUE;
             } else {
-                l = parseToMilliseconds(lowerTerm, !includeLower, timeZone, parser, context);
+                l = parseToLong(lowerTerm, !includeLower, timeZone, parser, context);
                 if (includeLower == false) {
                     ++l;
                 }
@@ -291,7 +368,7 @@ public class DateFieldMapper extends FieldMapper {
             if (upperTerm == null) {
                 u = Long.MAX_VALUE;
             } else {
-                u = parseToMilliseconds(upperTerm, includeUpper, timeZone, parser, context);
+                u = parseToLong(upperTerm, includeUpper, timeZone, parser, context);
                 if (includeUpper == false) {
                     --u;
                 }
@@ -304,8 +381,8 @@ public class DateFieldMapper extends FieldMapper {
             return query;
         }
 
-        public long parseToMilliseconds(Object value, boolean roundUp,
-                                        @Nullable ZoneId zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
+        public long parseToLong(Object value, boolean roundUp,
+                                @Nullable ZoneId zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
             DateMathParser dateParser = dateMathParser();
             if (forcedDateParser != null) {
                 dateParser = forcedDateParser;
@@ -317,7 +394,8 @@ public class DateFieldMapper extends FieldMapper {
             } else {
                 strValue = value.toString();
             }
-            return dateParser.parse(strValue, context::nowInMillis, roundUp, zone).toEpochMilli();
+            Instant instant = dateParser.parse(strValue, context::nowInMillis, roundUp, zone);
+            return resolution.convert(instant);
         }
 
         @Override
@@ -330,7 +408,7 @@ public class DateFieldMapper extends FieldMapper {
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
-                fromInclusive = parseToMilliseconds(from, !includeLower, timeZone, dateParser, context);
+                fromInclusive = parseToLong(from, !includeLower, timeZone, dateParser, context);
                 if (includeLower == false) {
                     if (fromInclusive == Long.MAX_VALUE) {
                         return Relation.DISJOINT;
@@ -341,7 +419,7 @@ public class DateFieldMapper extends FieldMapper {
 
             long toInclusive = Long.MAX_VALUE;
             if (to != null) {
-                toInclusive = parseToMilliseconds(to, includeUpper, timeZone, dateParser, context);
+                toInclusive = parseToLong(to, includeUpper, timeZone, dateParser, context);
                 if (includeUpper == false) {
                     if (toInclusive == Long.MIN_VALUE) {
                         return Relation.DISJOINT;
@@ -373,7 +451,7 @@ public class DateFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.DATE);
+            return new DocValuesIndexFieldData.Builder().numericType(resolution.numericType());
         }
 
         @Override
@@ -382,7 +460,7 @@ public class DateFieldMapper extends FieldMapper {
             if (val == null) {
                 return null;
             }
-            return dateTimeFormatter().formatMillis(val);
+            return dateTimeFormatter().format(resolution.toInstant(val).atZone(ZoneOffset.UTC));
         }
 
         @Override
@@ -394,7 +472,9 @@ public class DateFieldMapper extends FieldMapper {
             if (timeZone == null) {
                 timeZone = ZoneOffset.UTC;
             }
-            return new DocValueFormat.DateTime(dateTimeFormatter, timeZone);
+            // the resolution here is always set to milliseconds, as aggregations use this formatter mainly and those are always in
+            // milliseconds. The only special case here is docvalue fields, which are handled somewhere else
+            return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, Resolution.MILLISECONDS);
         }
     }
 

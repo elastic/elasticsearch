@@ -793,7 +793,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return query;
     }
 
-    protected QueryBuilder rewriteAndFetch(QueryBuilder builder, QueryRewriteContext context) throws IOException {
+    protected QueryBuilder rewriteAndFetch(QueryBuilder builder, QueryRewriteContext context) {
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(builder, context, future);
         return future.actionGet();

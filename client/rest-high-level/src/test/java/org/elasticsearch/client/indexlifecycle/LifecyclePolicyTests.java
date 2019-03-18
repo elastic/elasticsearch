@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -55,7 +56,13 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // these items all have some specific parsing that does not allow them to have additional objects within them.
+        return (field) -> field.contains("allocate.") || field.equals("phases") || field.endsWith("actions");
     }
 
     @Override

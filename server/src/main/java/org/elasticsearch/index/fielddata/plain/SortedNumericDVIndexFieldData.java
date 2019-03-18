@@ -31,7 +31,9 @@ import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -62,10 +64,15 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         this.numericType = numericType;
     }
 
-    @Override
-    public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+    /**
+     * Returns the {@link SortField} to used for sorting.
+     * Values are casted to the provided <code>targetNumericType</code> type if it doesn't
+     * match the field's <code>numericType</code>.
+     */
+    public SortField sortField(NumericType targetNumericType, Object missingValue, MultiValueMode sortMode, Nested nested,
+                               boolean reverse) {
         final XFieldComparatorSource source;
-        switch (numericType) {
+        switch (targetNumericType) {
             case HALF_FLOAT:
             case FLOAT:
                 source = new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
@@ -76,7 +83,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 break;
 
             default:
-                assert !numericType.isFloatingPoint();
+                assert !targetNumericType.isFloatingPoint();
                 source = new LongValuesComparatorSource(this, missingValue, sortMode, nested);
                 break;
         }
@@ -86,8 +93,9 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
          * returns a custom sort field otherwise.
          */
         if (nested != null
-                || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
-                || numericType == NumericType.HALF_FLOAT) {
+            || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
+            || numericType == NumericType.HALF_FLOAT
+            || targetNumericType != numericType) {
             return new SortField(fieldName, source, reverse);
         }
 
@@ -113,6 +121,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
     }
 
     @Override
+    public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+        return sortField(numericType, missingValue, sortMode, nested, reverse);
+    }
+
+    @Override
     public NumericType getNumericType() {
         return numericType;
     }
@@ -134,8 +147,61 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 return new SortedNumericFloatFieldData(reader, field);
             case DOUBLE:
                 return new SortedNumericDoubleFieldData(reader, field);
+            case DATE_NANOSECONDS:
+                return new NanoSecondFieldData(reader, field, numericType);
             default:
                 return new SortedNumericLongFieldData(reader, field, numericType);
+        }
+    }
+
+    /**
+     * A small helper class that can be configured to load nanosecond field data either in nanosecond resolution retaining the original
+     * values or in millisecond resolution converting the nanosecond values to milliseconds
+     */
+    public final class NanoSecondFieldData extends AtomicLongFieldData {
+
+        private final LeafReader reader;
+        private final String fieldName;
+
+        NanoSecondFieldData(LeafReader reader, String fieldName, NumericType numericType) {
+            super(0L, numericType);
+            this.reader = reader;
+            this.fieldName = fieldName;
+        }
+
+        @Override
+        public SortedNumericDocValues getLongValues() {
+            final SortedNumericDocValues dv = getLongValuesAsNanos();
+            return new AbstractSortedNumericDocValues() {
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return dv.advanceExact(target);
+                }
+
+                @Override
+                public long nextValue() throws IOException {
+                    return DateUtils.toMilliSeconds(dv.nextValue());
+                }
+
+                @Override
+                public int docValueCount() {
+                    return dv.docValueCount();
+                }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    return dv.nextDoc();
+                }
+            };
+        }
+
+        public SortedNumericDocValues getLongValuesAsNanos() {
+            try {
+                return DocValues.getSortedNumeric(reader, fieldName);
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot load doc values", e);
+            }
         }
     }
 

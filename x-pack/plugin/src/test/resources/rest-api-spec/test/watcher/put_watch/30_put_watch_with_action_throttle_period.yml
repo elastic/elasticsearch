@@ -7,14 +7,14 @@ setup:
 ---
 teardown:
   - do:
-      xpack.watcher.delete_watch:
+      watcher.delete_watch:
         id: "my_watch1"
         ignore: 404
 
 ---
 "Test put watch api with action level throttle period":
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch1"
         body:  >
           {
@@ -39,8 +39,7 @@ teardown:
               "test_index": {
                 "throttle_period" : "10s",
                 "index": {
-                  "index": "test",
-                  "doc_type": "test2"
+                  "index": "test"
                 }
               }
             }
@@ -48,7 +47,7 @@ teardown:
   - match: { _id: "my_watch1" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch1"
   - match: { found : true}
   - match: { _id: "my_watch1" }

@@ -5,24 +5,22 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.CachedSupplier;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -43,7 +41,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -66,47 +63,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private static final int TWO_MINS_SECONDS = 2 * SECONDS_IN_MINUTE;
     private static final int TWENTY_MINS_SECONDS = 20 * SECONDS_IN_MINUTE;
     private static final int HALF_DAY_SECONDS = 12 * 60 * SECONDS_IN_MINUTE;
-    static final XContentObjectTransformer<QueryBuilder> QUERY_TRANSFORMER = XContentObjectTransformer.queryBuilderTransformer();
-    static final TriFunction<Map<String, Object>, String, List<String>, QueryBuilder> lazyQueryParser =
-        (objectMap, id, warnings) -> {
-        try {
-            return QUERY_TRANSFORMER.fromMap(objectMap, warnings);
-        } catch (IOException | XContentParseException exception) {
-            // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
-            if (exception.getCause() instanceof IllegalArgumentException) {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT,
-                        id,
-                        exception.getCause().getMessage()),
-                    exception.getCause());
-            } else {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT, exception, id),
-                    exception);
-            }
-        }
-    };
 
-    static final XContentObjectTransformer<AggregatorFactories.Builder> AGG_TRANSFORMER = XContentObjectTransformer.aggregatorTransformer();
-    static final TriFunction<Map<String, Object>, String, List<String>, AggregatorFactories.Builder> lazyAggParser =
-        (objectMap, id, warnings) -> {
-        try {
-            return AGG_TRANSFORMER.fromMap(objectMap, warnings);
-        } catch (IOException | XContentParseException exception) {
-            // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
-            if (exception.getCause() instanceof IllegalArgumentException) {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT,
-                        id,
-                        exception.getCause().getMessage()),
-                    exception.getCause());
-            } else {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, exception.getMessage(), id),
-                    exception);
-            }
-        }
-    };
+    private static final Logger logger = LogManager.getLogger(DatafeedConfig.class);
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("datafeeds");
@@ -164,15 +122,15 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             builder.setQueryDelay(TimeValue.parseTimeValue(val, QUERY_DELAY.getPreferredName())), QUERY_DELAY);
         parser.declareString((builder, val) ->
             builder.setFrequency(TimeValue.parseTimeValue(val, FREQUENCY.getPreferredName())), FREQUENCY);
-        if (ignoreUnknownFields) {
-            parser.declareObject(Builder::setQuery, (p, c) -> p.mapOrdered(), QUERY);
-            parser.declareObject(Builder::setAggregations, (p, c) -> p.mapOrdered(), AGGREGATIONS);
-            parser.declareObject(Builder::setAggregations, (p, c) -> p.mapOrdered(), AGGS);
-        } else {
-            parser.declareObject(Builder::setParsedQuery, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), QUERY);
-            parser.declareObject(Builder::setParsedAggregations, (p, c) -> AggregatorFactories.parseAggregators(p), AGGREGATIONS);
-            parser.declareObject(Builder::setParsedAggregations, (p, c) -> AggregatorFactories.parseAggregators(p), AGGS);
-        }
+        parser.declareObject(Builder::setQueryProvider,
+            (p, c) -> QueryProvider.fromXContent(p, ignoreUnknownFields),
+            QUERY);
+        parser.declareObject(Builder::setAggregationsSafe,
+            (p, c) -> AggProvider.fromXContent(p, ignoreUnknownFields),
+            AGGREGATIONS);
+        parser.declareObject(Builder::setAggregationsSafe,
+            (p, c) -> AggProvider.fromXContent(p, ignoreUnknownFields),
+            AGGS);
         parser.declareObject(Builder::setScriptFields, (p, c) -> {
             List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();
             while (p.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -210,18 +168,16 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private final TimeValue frequency;
 
     private final List<String> indices;
-    private final Map<String, Object> query;
-    private final Map<String, Object> aggregations;
+    private final QueryProvider queryProvider;
+    private final AggProvider aggProvider;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
     private final ChunkingConfig chunkingConfig;
     private final Map<String, String> headers;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
-    private final CachedSupplier<QueryBuilder> querySupplier;
-    private final CachedSupplier<AggregatorFactories.Builder> aggSupplier;
 
     private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices,
-                           Map<String, Object> query, Map<String, Object> aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
+                           QueryProvider queryProvider, AggProvider aggProvider, List<SearchSourceBuilder.ScriptField> scriptFields,
                            Integer scrollSize, ChunkingConfig chunkingConfig, Map<String, String> headers,
                            DelayedDataCheckConfig delayedDataCheckConfig) {
         this.id = id;
@@ -229,15 +185,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.queryDelay = queryDelay;
         this.frequency = frequency;
         this.indices = indices == null ? null : Collections.unmodifiableList(indices);
-        this.query = query == null ? null : Collections.unmodifiableMap(query);
-        this.aggregations = aggregations == null ? null : Collections.unmodifiableMap(aggregations);
+        this.queryProvider = queryProvider == null ? null : new QueryProvider(queryProvider);
+        this.aggProvider = aggProvider == null ? null : new AggProvider(aggProvider);
         this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
         this.headers = Collections.unmodifiableMap(headers);
         this.delayedDataCheckConfig = delayedDataCheckConfig;
-        this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
-        this.aggSupplier = new CachedSupplier<>(() -> lazyAggParser.apply(aggregations, id, new ArrayList<>()));
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {
@@ -256,17 +210,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 in.readStringList();
             }
         }
-        if (in.getVersion().before(Version.V_6_6_0)) {
-            this.query = QUERY_TRANSFORMER.toMap(in.readNamedWriteable(QueryBuilder.class));
-            this.aggregations = AGG_TRANSFORMER.toMap(in.readOptionalWriteable(AggregatorFactories.Builder::new));
-        } else {
-            this.query = in.readMap();
-            if (in.readBoolean()) {
-                this.aggregations = in.readMap();
-            } else {
-                this.aggregations = null;
-            }
-        }
+        // each of these writables are version aware
+        this.queryProvider = QueryProvider.fromStream(in);
+        this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
+
         if (in.readBoolean()) {
             this.scriptFields = Collections.unmodifiableList(in.readList(SearchSourceBuilder.ScriptField::new));
         } else {
@@ -284,8 +231,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         } else {
             delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         }
-        this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
-        this.aggSupplier = new CachedSupplier<>(() -> lazyAggParser.apply(aggregations, id, new ArrayList<>()));
     }
 
     /**
@@ -326,62 +271,116 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return scrollSize;
     }
 
-    public QueryBuilder getParsedQuery() {
-        return querySupplier.get();
+    /**
+     * Get the fully parsed query from the semi-parsed stored {@code Map<String, Object>}
+     *
+     * @param namedXContentRegistry XContent registry to transform the lazily parsed query
+     * @return Fully parsed query
+     */
+    public QueryBuilder getParsedQuery(NamedXContentRegistry namedXContentRegistry) {
+        return queryProvider == null ? null : parseQuery(namedXContentRegistry, new ArrayList<>());
+    }
+
+    // TODO Remove in v8.0.0
+    // We only need this NamedXContentRegistry object if getParsedQuery() == null and getParsingException() == null
+    // This situation only occurs in past versions that contained the lazy parsing support but not the providers (6.6.x)
+    // We will still need `NamedXContentRegistry` for getting deprecations, but that is a special situation
+    private QueryBuilder parseQuery(NamedXContentRegistry namedXContentRegistry, List<String> deprecations) {
+        try {
+            return queryProvider == null || queryProvider.getQuery() == null ?
+                null :
+                XContentObjectTransformer.queryBuilderTransformer(namedXContentRegistry).fromMap(queryProvider.getQuery(), deprecations);
+        } catch (Exception exception) {
+            // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
+            if (exception.getCause() instanceof IllegalArgumentException) {
+                exception = (Exception)exception.getCause();
+            }
+            throw ExceptionsHelper.badRequestException(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT, exception);
+        }
+    }
+
+    Exception getQueryParsingException() {
+        return queryProvider == null ? null : queryProvider.getParsingException();
     }
 
     /**
-     * Calls the lazy parser and returns any gathered deprecations
+     * Calls the parser and returns any gathered deprecations
+     *
+     * @param namedXContentRegistry XContent registry to transform the lazily parsed query
      * @return The deprecations from parsing the query
      */
-    public List<String> getQueryDeprecations() {
-        return getQueryDeprecations(lazyQueryParser);
-    }
-
-    List<String> getQueryDeprecations(TriFunction<Map<String, Object>, String, List<String>, QueryBuilder> parser) {
+    public List<String> getQueryDeprecations(NamedXContentRegistry namedXContentRegistry) {
         List<String> deprecations = new ArrayList<>();
-        parser.apply(query, id, deprecations);
+        parseQuery(namedXContentRegistry, deprecations);
         return deprecations;
     }
 
     public Map<String, Object> getQuery() {
-        return query;
-    }
-
-    public AggregatorFactories.Builder getParsedAggregations() {
-        return aggSupplier.get();
+        return queryProvider == null ? null : queryProvider.getQuery();
     }
 
     /**
-     * Calls the lazy parser and returns any gathered deprecations
-     * @return The deprecations from parsing the aggregations
+     * Fully parses the semi-parsed {@code Map<String, Object>} aggregations
+     *
+     * @param namedXContentRegistry XContent registry to transform the lazily parsed aggregations
+     * @return The fully parsed aggregations
      */
-    public List<String> getAggDeprecations() {
-        return getAggDeprecations(lazyAggParser);
+    public AggregatorFactories.Builder getParsedAggregations(NamedXContentRegistry namedXContentRegistry) {
+        return aggProvider == null ? null : parseAggregations(namedXContentRegistry, new ArrayList<>());
     }
 
-    List<String> getAggDeprecations(TriFunction<Map<String, Object>, String, List<String>, AggregatorFactories.Builder> parser) {
+    // TODO refactor in v8.0.0
+    // We only need this NamedXContentRegistry object if getParsedQuery() == null and getParsingException() == null
+    // This situation only occurs in past versions that contained the lazy parsing support but not the providers (6.6.x)
+    // We will still need `NamedXContentRegistry` for getting deprecations, but that is a special situation
+    private AggregatorFactories.Builder parseAggregations(NamedXContentRegistry namedXContentRegistry, List<String> deprecations) {
+        try {
+            return aggProvider == null || aggProvider.getAggs() == null ?
+                null :
+                XContentObjectTransformer.aggregatorTransformer(namedXContentRegistry).fromMap(aggProvider.getAggs(), deprecations);
+        } catch (Exception exception) {
+            // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
+            if (exception.getCause() instanceof IllegalArgumentException) {
+                exception = (Exception)exception.getCause();
+            }
+            throw ExceptionsHelper.badRequestException(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, exception);
+        }
+    }
+
+    Exception getAggParsingException() {
+        return aggProvider == null ? null : aggProvider.getParsingException();
+    }
+
+    /**
+     * Calls the parser and returns any gathered deprecations
+     *
+     * @param namedXContentRegistry XContent registry to transform the lazily parsed aggregations
+     * @return The deprecations from parsing the aggregations
+     */
+    public List<String> getAggDeprecations(NamedXContentRegistry namedXContentRegistry) {
         List<String> deprecations = new ArrayList<>();
-        parser.apply(aggregations, id, deprecations);
+        parseAggregations(namedXContentRegistry, deprecations);
         return deprecations;
     }
 
     public Map<String, Object> getAggregations() {
-        return aggregations;
+        return aggProvider == null ? null : aggProvider.getAggs();
     }
 
     /**
      * Returns the histogram's interval as epoch millis.
+     *
+     * @param namedXContentRegistry XContent registry to transform the lazily parsed aggregations
      */
-    public long getHistogramIntervalMillis() {
-        return ExtractorUtils.getHistogramIntervalMillis(getParsedAggregations());
+    public long getHistogramIntervalMillis(NamedXContentRegistry namedXContentRegistry) {
+        return ExtractorUtils.getHistogramIntervalMillis(getParsedAggregations(namedXContentRegistry));
     }
 
     /**
      * @return {@code true} when there are non-empty aggregations, {@code false} otherwise
      */
     public boolean hasAggregations() {
-        return aggregations != null && aggregations.size() > 0;
+        return aggProvider != null && aggProvider.getAggs() != null && aggProvider.getAggs().size() > 0;
     }
 
     public List<SearchSourceBuilder.ScriptField> getScriptFields() {
@@ -418,16 +417,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             out.writeBoolean(true);
             out.writeStringCollection(Collections.emptyList());
         }
-        if (out.getVersion().before(Version.V_6_6_0)) {
-            out.writeNamedWriteable(getParsedQuery());
-            out.writeOptionalWriteable(getParsedAggregations());
-        } else {
-            out.writeMap(query);
-            out.writeBoolean(aggregations != null);
-            if (aggregations != null) {
-                out.writeMap(aggregations);
-            }
-        }
+
+        // Each of these writables are version aware
+        queryProvider.writeTo(out); // never null
+        out.writeOptionalWriteable(aggProvider);
+
         if (scriptFields != null) {
             out.writeBoolean(true);
             out.writeList(scriptFields);
@@ -457,9 +451,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
         builder.field(INDICES.getPreferredName(), indices);
-        builder.field(QUERY.getPreferredName(), query);
-        if (aggregations != null) {
-            builder.field(AGGREGATIONS.getPreferredName(), aggregations);
+        builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
+        if (aggProvider != null) {
+            builder.field(AGGREGATIONS.getPreferredName(), aggProvider.getAggs());
         }
         if (scriptFields != null) {
             builder.startObject(SCRIPT_FIELDS.getPreferredName());
@@ -504,9 +498,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 && Objects.equals(this.frequency, that.frequency)
                 && Objects.equals(this.queryDelay, that.queryDelay)
                 && Objects.equals(this.indices, that.indices)
-                && Objects.equals(this.query, that.query)
+                && Objects.equals(this.queryProvider, that.queryProvider)
                 && Objects.equals(this.scrollSize, that.scrollSize)
-                && Objects.equals(this.aggregations, that.aggregations)
+                && Objects.equals(this.aggProvider, that.aggProvider)
                 && Objects.equals(this.scriptFields, that.scriptFields)
                 && Objects.equals(this.chunkingConfig, that.chunkingConfig)
                 && Objects.equals(this.headers, that.headers)
@@ -515,7 +509,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, jobId, frequency, queryDelay, indices, query, scrollSize, aggregations, scriptFields, chunkingConfig,
+        return Objects.hash(id, jobId, frequency, queryDelay, indices, queryProvider, scrollSize, aggProvider, scriptFields, chunkingConfig,
                 headers, delayedDataCheckConfig);
     }
 
@@ -541,10 +535,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
      * @param bucketSpan the bucket span
      * @return the default frequency
      */
-    public TimeValue defaultFrequency(TimeValue bucketSpan) {
+    public TimeValue defaultFrequency(TimeValue bucketSpan, NamedXContentRegistry xContentRegistry) {
         TimeValue defaultFrequency = defaultFrequencyTarget(bucketSpan);
         if (hasAggregations()) {
-            long histogramIntervalMillis = getHistogramIntervalMillis();
+            long histogramIntervalMillis = getHistogramIntervalMillis(xContentRegistry);
             long targetFrequencyMillis = defaultFrequency.millis();
             long defaultFrequencyMillis = histogramIntervalMillis > targetFrequencyMillis ? histogramIntervalMillis
                     : (targetFrequencyMillis / histogramIntervalMillis) * histogramIntervalMillis;
@@ -582,19 +576,15 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private TimeValue queryDelay;
         private TimeValue frequency;
         private List<String> indices = Collections.emptyList();
-        private Map<String, Object> query;
-        private Map<String, Object> aggregations;
+        private QueryProvider queryProvider = QueryProvider.defaultQuery();
+        private AggProvider aggProvider;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
         private Integer scrollSize = DEFAULT_SCROLL_SIZE;
         private ChunkingConfig chunkingConfig;
         private Map<String, String> headers = Collections.emptyMap();
         private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
 
-        public Builder() {
-            try {
-                this.query = QUERY_TRANSFORMER.toMap(QueryBuilders.matchAllQuery());
-            } catch (IOException ex) { /*Should never happen*/ }
-        }
+        public Builder() { }
 
         public Builder(String id, String jobId) {
             this();
@@ -608,8 +598,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.queryDelay = config.queryDelay;
             this.frequency = config.frequency;
             this.indices = new ArrayList<>(config.indices);
-            this.query = config.query == null ? null : new LinkedHashMap<>(config.query);
-            this.aggregations = config.aggregations == null ? null : new LinkedHashMap<>(config.aggregations);
+            this.queryProvider = config.queryProvider == null ? null : new QueryProvider(config.queryProvider);
+            this.aggProvider = config.aggProvider == null ? null : new AggProvider(config.aggProvider);
             this.scriptFields = config.scriptFields == null ? null : new ArrayList<>(config.scriptFields);
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
@@ -647,48 +637,39 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.frequency = frequency;
         }
 
-        public void setParsedQuery(QueryBuilder query) {
+        public void setQueryProvider(QueryProvider queryProvider) {
+            this.queryProvider = ExceptionsHelper.requireNonNull(queryProvider, QUERY.getPreferredName());
+        }
+
+        // For testing only
+        public void setParsedQuery(QueryBuilder queryBuilder) {
             try {
-                setQuery(QUERY_TRANSFORMER.toMap(ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName())));
-            } catch (IOException | XContentParseException exception) {
-                if (exception.getCause() instanceof IllegalArgumentException) {
-                    // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT,
-                            id,
-                            exception.getCause().getMessage()),
-                        exception.getCause());
-                } else {
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT, id, exception.getMessage()), exception);
-                }
+                this.queryProvider = ExceptionsHelper.requireNonNull(QueryProvider.fromParsedQuery(queryBuilder), QUERY.getPreferredName());
+            } catch (IOException exception) {
+                // eat exception as it should never happen
+                logger.error("Exception trying to setParsedQuery", exception);
             }
         }
 
-        void setQuery(Map<String, Object> query) {
-            this.query = ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName());
-        }
-
+        // For testing only
         public void setParsedAggregations(AggregatorFactories.Builder aggregations) {
             try {
-                setAggregations(AGG_TRANSFORMER.toMap(aggregations));
-            } catch (IOException | XContentParseException exception) {
-                // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
-                if (exception.getCause() instanceof IllegalArgumentException) {
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT,
-                            id,
-                            exception.getCause().getMessage()),
-                        exception.getCause());
-                } else {
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, id, exception.getMessage()), exception);
-                }
+                this.aggProvider = AggProvider.fromParsedAggs(aggregations);
+            } catch (IOException exception) {
+                // eat exception as it should never happen
+                logger.error("Exception trying to setParsedAggregations", exception);
             }
         }
 
-        void setAggregations(Map<String, Object> aggregations) {
-            this.aggregations = aggregations;
+        private void setAggregationsSafe(AggProvider aggProvider) {
+            if (this.aggProvider != null) {
+                throw ExceptionsHelper.badRequestException("Found two aggregation definitions: [aggs] and [aggregations]");
+            }
+            this.aggProvider = aggProvider;
+        }
+
+        public void setAggProvider(AggProvider aggProvider) {
+            this.aggProvider = aggProvider;
         }
 
         public void setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
@@ -731,12 +712,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             setDefaultChunkingConfig();
 
             setDefaultQueryDelay();
-            return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, query, aggregations, scriptFields, scrollSize,
+            return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, queryProvider, aggProvider, scriptFields, scrollSize,
                     chunkingConfig, headers, delayedDataCheckConfig);
         }
 
         void validateScriptFields() {
-            if (aggregations == null) {
+            if (aggProvider == null) {
                 return;
             }
             if (scriptFields != null && !scriptFields.isEmpty()) {
@@ -782,11 +763,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
         private void setDefaultChunkingConfig() {
             if (chunkingConfig == null) {
-                if (aggregations == null) {
+                if (aggProvider == null || aggProvider.getParsedAggs() == null) {
                     chunkingConfig = ChunkingConfig.newAuto();
                 } else {
-                    long histogramIntervalMillis =
-                        ExtractorUtils.getHistogramIntervalMillis(lazyAggParser.apply(aggregations, id, new ArrayList<>()));
+                    long histogramIntervalMillis = ExtractorUtils.getHistogramIntervalMillis(aggProvider.getParsedAggs());
+                    if (histogramIntervalMillis <= 0) {
+                        throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
+                    }
                     chunkingConfig = ChunkingConfig.newManual(TimeValue.timeValueMillis(
                             DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
                 }

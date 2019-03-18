@@ -813,7 +813,7 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(0, input.available());
     }
 
-    private void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
+    private static void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeTimeValue(value);
         assertEquals(expectedSize, out.size());

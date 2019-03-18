@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import java.io.IOException;
 
@@ -67,10 +67,11 @@ public interface ServerTransportFilter {
         private final DestructiveOperations destructiveOperations;
         private final boolean reservedRealmEnabled;
         private final SecurityContext securityContext;
+        private final XPackLicenseState licenseState;
 
         NodeProfile(AuthenticationService authcService, AuthorizationService authzService,
                     ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
-                    boolean reservedRealmEnabled, SecurityContext securityContext) {
+                    boolean reservedRealmEnabled, SecurityContext securityContext, XPackLicenseState licenseState) {
             this.authcService = authcService;
             this.authzService = authzService;
             this.threadContext = threadContext;
@@ -78,6 +79,7 @@ public interface ServerTransportFilter {
             this.destructiveOperations = destructiveOperations;
             this.reservedRealmEnabled = reservedRealmEnabled;
             this.securityContext = securityContext;
+            this.licenseState = licenseState;
         }
 
         @Override
@@ -117,24 +119,20 @@ public interface ServerTransportFilter {
 
             final Version version = transportChannel.getVersion();
             authcService.authenticate(securityAction, request, (User)null, ActionListener.wrap((authentication) -> {
-                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
-                    SystemUser.is(authentication.getUser()) == false) {
-                    securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
-                        final Authentication replaced = Authentication.getAuthentication(threadContext);
-                        final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                            new AuthorizationUtils.AsyncAuthorizer(replaced, listener, (userRoles, runAsRoles) -> {
-                                authzService.authorize(replaced, securityAction, request, userRoles, runAsRoles);
-                                listener.onResponse(null);
-                            });
-                        asyncAuthorizer.authorize(authzService);
-                    }, version);
+                if (authentication != null) {
+                    if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
+                        SystemUser.is(authentication.getUser()) == false) {
+                        securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
+                            final Authentication replaced = Authentication.getAuthentication(threadContext);
+                            authzService.authorize(replaced, securityAction, request, listener);
+                        }, version);
+                    } else {
+                        authzService.authorize(authentication, securityAction, request, listener);
+                    }
+                } else if (licenseState.isAuthAllowed() == false) {
+                    listener.onResponse(null);
                 } else {
-                    final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                        new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {
-                            authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
-                            listener.onResponse(null);
-                        });
-                    asyncAuthorizer.authorize(authzService);
+                    listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
                 }
             }, listener::onFailure));
         }
@@ -150,9 +148,9 @@ public interface ServerTransportFilter {
 
         ClientProfile(AuthenticationService authcService, AuthorizationService authzService,
                              ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
-                             boolean reservedRealmEnabled, SecurityContext securityContext) {
+                             boolean reservedRealmEnabled, SecurityContext securityContext, XPackLicenseState licenseState) {
             super(authcService, authzService, threadContext, extractClientCert, destructiveOperations, reservedRealmEnabled,
-                    securityContext);
+                securityContext, licenseState);
         }
 
         @Override

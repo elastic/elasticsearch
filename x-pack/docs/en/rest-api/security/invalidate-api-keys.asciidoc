@@ -1,0 +1,140 @@
+[role="xpack"]
+[[security-api-invalidate-api-key]]
+=== Invalidate API Key API
+++++
+<titleabbrev>Invalidate API key</titleabbrev>
+++++
+
+Invalidates one or more API keys.
+
+==== Request
+
+`DELETE /_security/api_key`
+
+==== Description
+
+The API keys created by <<security-api-create-api-key,create API Key>> can be invalidated
+using this API.
+
+==== Request Body
+
+The following parameters can be specified in the body of a DELETE request and
+pertain to invalidating api keys:
+
+`id` (optional)::
+(string) An API key id. This parameter cannot be used with any of `name`, `realm_name` or
+         `username` are used.
+
+`name` (optional)::
+(string) An API key name. This parameter cannot be used with any of `id`, `realm_name` or
+                          `username` are used.
+
+`realm_name` (optional)::
+(string) The name of an authentication realm. This parameter cannot be used with either `api_key_id` or `api_key_name`.
+
+`username` (optional)::
+(string) The username of a user. This parameter cannot be used with either `api_key_id` or `api_key_name`.
+
+NOTE: While all parameters are optional, at least one of them is required.
+
+==== Examples
+
+The following example invalidates the API key identified by specified `id` immediately:
+
+[source,js]
+--------------------------------------------------
+DELETE /_security/api_key
+{
+  "id" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ=="
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+whereas the following example invalidates the API key identified by specified `name` immediately:
+
+[source,js]
+--------------------------------------------------
+DELETE /_security/api_key
+{
+  "name" : "hadoop_myuser_key"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The following example invalidates all API keys for the `native1` realm immediately:
+
+[source,js]
+--------------------------------------------------
+DELETE /_security/api_key
+{
+  "realm_name" : "native1"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The following example invalidates all API keys for the user `myuser` in all realms immediately:
+
+[source,js]
+--------------------------------------------------
+DELETE /_security/api_key
+{
+  "username" : "myuser"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Finally, the following example invalidates all API keys for the user `myuser` in
+ the `native1` realm immediately:
+
+[source,js]
+--------------------------------------------------
+DELETE /_security/api_key
+{
+  "username" : "myuser",
+  "realm_name" : "native1"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+A successful call returns a JSON structure that contains the ids of the API keys that were invalidated, the ids
+of the API keys that had already been invalidated, and potentially a list of errors encountered while invalidating
+specific api keys.
+
+[source,js]
+--------------------------------------------------
+{
+  "invalidated_api_keys": [ <1>
+    "api-key-id-1"
+  ],
+  "previously_invalidated_api_keys": [ <2>
+    "api-key-id-2",
+    "api-key-id-3"
+  ],
+  "error_count": 2, <3>
+  "error_details": [ <4>
+    {
+      "type": "exception",
+      "reason": "error occurred while invalidating api keys",
+      "caused_by": {
+        "type": "illegal_argument_exception",
+        "reason": "invalid api key id"
+      }
+    },
+    {
+      "type": "exception",
+      "reason": "error occurred while invalidating api keys",
+      "caused_by": {
+        "type": "illegal_argument_exception",
+        "reason": "invalid api key id"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> The ids of the API keys that were invalidated as part of this request.
+<2> The ids of the API keys that were already invalidated.
+<3> The number of errors that were encountered when invalidating the API keys.
+<4> Details about these errors. This field is not present in the response when
+    `error_count` is 0.

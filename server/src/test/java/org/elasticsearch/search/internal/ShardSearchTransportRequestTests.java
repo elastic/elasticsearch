@@ -63,7 +63,6 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         assertArrayEquals(deserializedRequest.indices(), shardSearchTransportRequest.indices());
         assertArrayEquals(deserializedRequest.types(), shardSearchTransportRequest.types());
         assertEquals(deserializedRequest.indicesOptions(), shardSearchTransportRequest.indicesOptions());
-        assertEquals(deserializedRequest.isProfile(), shardSearchTransportRequest.isProfile());
         assertEquals(deserializedRequest.nowInMillis(), shardSearchTransportRequest.nowInMillis());
         assertEquals(deserializedRequest.source(), shardSearchTransportRequest.source());
         assertEquals(deserializedRequest.searchType(), shardSearchTransportRequest.searchType());
@@ -76,6 +75,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
         assertEquals(deserializedRequest.indexBoost(), shardSearchTransportRequest.indexBoost(), 0.0f);
         assertEquals(deserializedRequest.getClusterAlias(), shardSearchTransportRequest.getClusterAlias());
+        assertEquals(shardSearchTransportRequest.allowPartialSearchResults(), deserializedRequest.allowPartialSearchResults());
     }
 
     private ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {

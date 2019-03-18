@@ -70,7 +70,7 @@ public class Archives {
         final Path baseInstallPath = fullInstallPath.getParent();
         final Path extractedPath = baseInstallPath.resolve("elasticsearch-" + version);
 
-        assertThat("distribution file must exist", Files.exists(distributionFile), is(true));
+        assertThat("distribution file must exist: " + distributionFile.toString(), Files.exists(distributionFile), is(true));
         assertThat("elasticsearch must not already be installed", lsGlob(baseInstallPath, "elasticsearch*"), empty());
 
         if (distribution.packaging == Distribution.Packaging.TAR) {
@@ -253,10 +253,6 @@ public class Archives {
             "role_mapping.yml",
             "log4j2.properties"
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
-    }
-
-    public static void runElasticsearch(Installation installation) throws IOException {
-        runElasticsearch(installation, new Shell());
     }
 
     public static void runElasticsearch(Installation installation, Shell sh) throws IOException {

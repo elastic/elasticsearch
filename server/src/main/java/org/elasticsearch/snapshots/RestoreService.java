@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -226,13 +227,6 @@ public class RestoreService implements ClusterStateApplier {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
-                    if (currentState.getNodes().getMinNodeVersion().before(Version.V_7_0_0)) {
-                        // Check if another restore process is already running - cannot run two restore processes at the
-                        // same time in versions prior to 7.0
-                        if (restoreInProgress != null && restoreInProgress.isEmpty() == false) {
-                            throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process is already running in this cluster");
-                        }
-                    }
                     // Check if the snapshot to restore is currently being deleted
                     SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
                     if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
@@ -314,6 +308,12 @@ public class RestoreService implements ClusterStateApplier {
                                                                         currentIndexMetaData.getMappingVersion() + 1));
                                 indexMdBuilder.settingsVersion(Math.max(snapshotIndexMetaData.getSettingsVersion(),
                                                                         currentIndexMetaData.getSettingsVersion() + 1));
+
+                                for (int shard = 0; shard < snapshotIndexMetaData.getNumberOfShards(); shard++) {
+                                    indexMdBuilder.primaryTerm(shard,
+                                        Math.max(snapshotIndexMetaData.primaryTerm(shard), currentIndexMetaData.primaryTerm(shard)));
+                                }
+
                                 if (!request.includeAliases()) {
                                     // Remove all snapshot aliases
                                     if (!snapshotIndexMetaData.getAliases().isEmpty()) {
@@ -467,9 +467,6 @@ public class RestoreService implements ClusterStateApplier {
                  * merging them with settings in changeSettings.
                  */
                 private IndexMetaData updateIndexSettings(IndexMetaData indexMetaData, Settings changeSettings, String[] ignoreSettings) {
-                    if (changeSettings.names().isEmpty() && ignoreSettings.length == 0) {
-                        return indexMetaData;
-                    }
                     Settings normalizedChangeSettings = Settings.builder()
                                                                 .put(changeSettings)
                                                                 .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX)
@@ -513,6 +510,7 @@ public class RestoreService implements ClusterStateApplier {
                                 return true;
                             }
                         }));
+                    settingsBuilder.remove(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey());
                     return builder.settings(settingsBuilder).build();
                 }
 

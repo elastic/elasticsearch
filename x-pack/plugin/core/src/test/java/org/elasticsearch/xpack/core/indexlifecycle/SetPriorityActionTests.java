@@ -38,9 +38,8 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
         return SetPriorityAction::new;
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/37652")
     public void testNonPositivePriority() {
-        Exception e = expectThrows(Exception.class, () -> new SetPriorityAction(randomIntBetween(-100, 0)));
+        Exception e = expectThrows(Exception.class, () -> new SetPriorityAction(randomIntBetween(-100, -1)));
         assertThat(e.getMessage(), equalTo("[priority] must be 0 or greater"));
     }
 

@@ -43,6 +43,7 @@ PUT music
 
 Mapping supports the following parameters:
 
+[horizontal]
 `analyzer`::
     The index analyzer to use, defaults to `simple`.
     In case you are wondering why we did not opt for the `standard`
@@ -70,7 +71,7 @@ Mapping supports the following parameters:
     Limits the length of a single input, defaults to `50` UTF-16 code points.
     This limit is only used at index time to reduce the total number of
     characters per input string in order to prevent massive inputs from
-    bloating the underlying datastructure. Most usecases won't be influenced
+    bloating the underlying datastructure. Most use cases won't be influenced
     by the default value since prefix completions seldom grow beyond prefixes longer
     than a handful of characters.
 
@@ -97,6 +98,7 @@ PUT music/_doc/1?refresh
 
 The following parameters are supported:
 
+[horizontal]
 `input`::
     The input to store, this can be an array of strings or just
     a string. This field is mandatory.
@@ -285,6 +287,7 @@ Which should look like:
 
 The basic completion suggester query supports the following parameters:
 
+[horizontal]
 `field`:: The name of the field on which to run the query (required).
 `size`::  The number of suggestions to return (defaults to `5`).
 `skip_duplicates`:: Whether duplicate suggestions should be filtered out (defaults to `false`).
@@ -326,13 +329,13 @@ POST music/_search?pretty
 --------------------------------------------------
 // CONSOLE
 
-WARNING: when set to true this option can slow down search because more suggestions
+WARNING: When set to true, this option can slow down search because more suggestions
 need to be visited to find the top N.
 
 [[fuzzy]]
 ==== Fuzzy queries
 
-The completion suggester also supports fuzzy queries - this means,
+The completion suggester also supports fuzzy queries -- this means
 you can have a typo in your search and still get results back.
 
 [source,js]

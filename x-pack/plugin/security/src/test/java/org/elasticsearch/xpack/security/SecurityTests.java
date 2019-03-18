@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -65,7 +66,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
-import static org.elasticsearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.containsString;
@@ -252,7 +252,7 @@ public class SecurityTests extends ESTestCase {
         int numIters = randomIntBetween(1, 10);
         for (int i = 0; i < numIters; i++) {
             boolean tlsOn = randomBoolean();
-            String discoveryType = randomFrom("single-node", ZEN_DISCOVERY_TYPE, ZEN2_DISCOVERY_TYPE, randomAlphaOfLength(4));
+            String discoveryType = randomFrom("single-node", ZEN2_DISCOVERY_TYPE, randomAlphaOfLength(4));
             Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn, discoveryType);
             MetaData.Builder builder = MetaData.builder();
             License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
@@ -380,13 +380,13 @@ public class SecurityTests extends ESTestCase {
         FieldPermissions permissions = new FieldPermissions(
             new FieldPermissionsDefinition(new String[] { "field_granted" }, Strings.EMPTY_ARRAY));
         IndicesAccessControl.IndexAccessControl indexGrantedAccessControl = new IndicesAccessControl.IndexAccessControl(true, permissions,
-            Collections.emptySet());
+                DocumentPermissions.allowAll());
         permissionsMap.put("index_granted", indexGrantedAccessControl);
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(false,
-            FieldPermissions.DEFAULT, Collections.emptySet());
+                FieldPermissions.DEFAULT, DocumentPermissions.allowAll());
         permissionsMap.put("index_not_granted", indexAccessControl);
         IndicesAccessControl.IndexAccessControl nullFieldPermissions =
-            new IndicesAccessControl.IndexAccessControl(true, null, Collections.emptySet());
+                new IndicesAccessControl.IndexAccessControl(true, null, DocumentPermissions.allowAll());
         permissionsMap.put("index_null", nullFieldPermissions);
         IndicesAccessControl index = new IndicesAccessControl(true, permissionsMap);
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, index);

@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -456,7 +455,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             @Override
             public void onFailure(String source, Exception e) {
                 latch.countDown();
-                fail("Excepted proper response " + ExceptionsHelper.detailedMessage(e));
+                throw new AssertionError("Expected a proper response", e);
             }
         });
         latch.await();

@@ -151,8 +151,14 @@ Produces intervals that are contained by an interval from the filter rule
 Produces intervals that do not contain an interval from the filter rule
 `not_contained_by`::
 Produces intervals that are not contained by an interval from the filter rule
+`overlapping`::
+Produces intervals that overlap with an interval from the filter rule
 `not_overlapping`::
 Produces intervals that do not overlap with an interval from the filter rule
+`before`::
+Produces intervals that appear before an interval from the filter role
+`after`::
+Produces intervals that appear after an interval from the filter role
 
 [[interval-script-filter]]
 ==== Script filters

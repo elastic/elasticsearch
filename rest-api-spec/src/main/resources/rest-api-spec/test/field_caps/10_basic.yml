@@ -5,101 +5,104 @@ setup:
           index: test1
           body:
               mappings:
-                t:
-                  properties:
-                    text:
-                      type:     text
-                    keyword:
-                      type:     keyword
-                    number:
-                      type:     double
-                    geo:
-                      type:     geo_point
-                    object:
-                      type: object
-                      properties:
-                        nested1 :
-                          type : text
-                          index: false
-                        nested2:
-                          type: float
-                          doc_values: false
-                    level1:
-                      type: nested
-                      properties:
-                        level2:
-                          type: object
-                          properties:
-                            leaf1:
-                              type: text
-                              index: false
+                properties:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     double
+                  geo:
+                    type:     geo_point
+                  date:
+                    type:     date
+                  object:
+                    type: object
+                    properties:
+                      nested1 :
+                        type : text
+                        index: false
+                      nested2:
+                        type: float
+                        doc_values: false
+                  level1:
+                    type: nested
+                    properties:
+                      level2:
+                        type: object
+                        properties:
+                          leaf1:
+                            type: text
+                            index: false
 
   - do:
         indices.create:
           index: test2
           body:
               mappings:
-                t:
-                  properties:
-                    text:
-                      type:     text
-                    keyword:
-                      type:     keyword
-                    number:
-                      type:     double
-                    geo:
-                      type:     geo_point
-                    object:
-                      type: object
-                      properties:
-                        nested1 :
-                          type : text
-                          index: true
-                        nested2:
-                          type: float
-                          doc_values: true
-                    level1:
-                      type: nested
-                      properties:
-                        level2:
-                          type: object
-                          properties:
-                            leaf1:
-                              type: text
-                              index: false
+                properties:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     double
+                  date:
+                    type:     date
+                  geo:
+                    type:     geo_point
+                  object:
+                    type: object
+                    properties:
+                      nested1 :
+                        type : text
+                        index: true
+                      nested2:
+                        type: float
+                        doc_values: true
+                  level1:
+                    type: nested
+                    properties:
+                      level2:
+                        type: object
+                        properties:
+                          leaf1:
+                            type: text
+                            index: false
   - do:
         indices.create:
           index: test3
           body:
               mappings:
-                t:
-                  properties:
-                    text:
-                      type:     text
-                    keyword:
-                      type:     keyword
-                    number:
-                      type:     long
-                    geo:
-                      type:     keyword
-                    object:
-                      type: nested
-                      properties:
-                        nested1 :
-                          type : long
-                          index: false
-                        nested2:
-                          type: keyword
-                          doc_values: false
-                    level1:
-                      type: object
-                      properties:
-                        level2:
-                          type: object
-                          properties:
-                            leaf1:
-                              type: text
-                              index: false
+                properties:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     long
+                  date:
+                    type:     date
+                  geo:
+                    type:     keyword
+                  object:
+                    type: nested
+                    properties:
+                      nested1 :
+                        type : long
+                        index: false
+                      nested2:
+                        type: keyword
+                        doc_values: false
+                  level1:
+                    type: object
+                    properties:
+                      level2:
+                        type: object
+                        properties:
+                          leaf1:
+                            type: text
+                            index: false
 
 ---
 "Get simple field caps":
@@ -107,7 +110,7 @@ setup:
   - do:
       field_caps:
         index: 'test1,test2,test3'
-        fields: [text, keyword, number, geo]
+        fields: [text, keyword, number, date, geo]
 
   - match: {fields.text.text.searchable:                true}
   - match: {fields.text.text.aggregatable:              false}
@@ -129,6 +132,11 @@ setup:
   - match: {fields.number.long.indices:                 ["test3"]}
   - is_false: fields.number.long.non_searchable_indices
   - is_false: fields.number.long.non_aggregatable_indices
+  - match: {fields.date.date.searchable:                true}
+  - match: {fields.date.date.aggregatable:              true}
+  - is_false: fields.date.date.indices
+  - is_false: fields.date.date.non_searchable_indices
+  - is_false: fields.date.date.non_aggregatable_indices
   - match: {fields.geo.geo_point.searchable:            true}
   - match: {fields.geo.geo_point.aggregatable:          true}
   - match: {fields.geo.geo_point.indices:               ["test1", "test2"]}
@@ -139,6 +147,33 @@ setup:
   - match: {fields.geo.keyword.indices:                 ["test3"]}
   - is_false: fields.geo.keyword.non_searchable_indices
   - is_false: fields.geo.keyword.on_aggregatable_indices
+---
+"Get date_nanos field caps":
+  - skip:
+      version: " - 6.99.99"
+      reason: date_nanos field mapping type has been introcued in 7.0
+
+  - do:
+        indices.create:
+          include_type_name: false
+          index: test_nanos
+          body:
+              mappings:
+                properties:
+                  date_nanos:
+                    type:     date_nanos
+
+  - do:
+      field_caps:
+        index: 'test_nanos'
+        fields: [date_nanos]
+
+  - match: {fields.date_nanos.date_nanos.searchable:                true}
+  - match: {fields.date_nanos.date_nanos.aggregatable:              true}
+  - is_false: fields.date_nanos.date_nanos.indices
+  - is_false: fields.date_nanos.date_nanos.non_searchable_indices
+  - is_false: fields.date_nanos.date_nanos.non_aggregatable_indices
+
 ---
 "Get leaves field caps":
 

@@ -6,7 +6,7 @@
 
   - do:
       catch: bad_request
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_exe_watch"
         body:  >
           {
@@ -42,7 +42,7 @@
           wait_for_status: green
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body:  >
           {
             "watch" : {
@@ -80,7 +80,7 @@
 
   - do:
       catch: bad_request
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body: >
           {
             "watch": {

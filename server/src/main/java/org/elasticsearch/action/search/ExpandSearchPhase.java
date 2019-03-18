@@ -129,7 +129,8 @@ final class ExpandSearchPhase extends SearchPhase {
             options.getSorts().forEach(groupSource::sort);
         }
         if (options.getFetchSourceContext() != null) {
-            if (options.getFetchSourceContext().includes() == null && options.getFetchSourceContext().excludes() == null) {
+            if (options.getFetchSourceContext().includes().length == 0 &&
+                    options.getFetchSourceContext().excludes().length == 0) {
                 groupSource.fetchSource(options.getFetchSourceContext().fetchSource());
             } else {
                 groupSource.fetchSource(options.getFetchSourceContext().includes(),

@@ -57,6 +57,10 @@ public class AttributeSet implements Set<Attribute> {
         delegate.addAll(other.delegate);
     }
 
+    public AttributeSet combine(AttributeSet other) {
+        return new AttributeSet(delegate.combine(other.delegate));
+    }
+
     public AttributeSet subtract(AttributeSet other) {
         return new AttributeSet(delegate.subtract(other.delegate));
     }

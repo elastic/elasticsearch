@@ -16,9 +16,11 @@ public class PutWatchResponseTests extends
     @Override
     protected PutWatchResponse createTestInstance() {
         String id = randomAlphaOfLength(10);
+        long seqNo = randomNonNegativeLong();
+        long primaryTerm = randomLongBetween(1, 20);
         long version = randomLongBetween(1, 10);
         boolean created = randomBoolean();
-        return new PutWatchResponse(id, version, created);
+        return new PutWatchResponse(id, version, seqNo, primaryTerm, created);
     }
 
     @Override
@@ -33,7 +35,8 @@ public class PutWatchResponseTests extends
 
     @Override
     public PutWatchResponse convertHlrcToInternal(org.elasticsearch.client.watcher.PutWatchResponse instance) {
-        return new PutWatchResponse(instance.getId(), instance.getVersion(), instance.isCreated());
+        return new PutWatchResponse(instance.getId(), instance.getVersion(), instance.getSeqNo(), instance.getPrimaryTerm(),
+            instance.isCreated());
     }
 
     @Override

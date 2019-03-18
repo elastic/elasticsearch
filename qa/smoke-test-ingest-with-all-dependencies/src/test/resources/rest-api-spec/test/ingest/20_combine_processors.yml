@@ -1,8 +1,8 @@
 ---
-"Test logging":
+"Test with date processor":
   - skip:
       version: " - 6.9.99"
-      reason: pre-7.0.0 will send no warnings
+      reason: pre-7.0.0 requires the 8 prefix for Java time formats, so would treat the format in this test as a Joda time format
       features: "warnings"
 
   - do:
@@ -33,7 +33,7 @@
                 "date" : {
                   "field" : "timestamp",
                   "target_field" : "timestamp",
-                  "formats" : ["dd/MMM/YYYY:HH:mm:ss Z"]
+                  "formats" : ["dd/MMM/yyyy:HH:mm:ss xx"]
                 }
               },
               {
@@ -46,8 +46,6 @@
   - match: { acknowledged: true }
 
   - do:
-      warnings:
-        - "Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier."
       index:
         index: test
         type: test

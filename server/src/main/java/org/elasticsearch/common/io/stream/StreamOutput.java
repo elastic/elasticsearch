@@ -56,6 +56,7 @@ import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.time.ZoneId;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
@@ -570,6 +571,26 @@ public abstract class StreamOutput extends OutputStream {
         for (final Map.Entry<K, V> entry : map.entrySet()) {
             keyWriter.write(this, entry.getKey());
             valueWriter.write(this, entry.getValue());
+        }
+    }
+
+    /**
+     * Writes an {@link Instant} to the stream with nanosecond resolution
+     */
+    public final void writeInstant(Instant instant) throws IOException {
+        writeLong(instant.getEpochSecond());
+        writeInt(instant.getNano());
+    }
+
+    /**
+     * Writes an {@link Instant} to the stream, which could possibly be null
+     */
+    public final void writeOptionalInstant(@Nullable Instant instant) throws IOException {
+        if (instant == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeInstant(instant);
         }
     }
 
@@ -1094,7 +1115,7 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an enum with type E that by serialized it based on it's ordinal value
+     * Writes an enum with type E based on its ordinal value
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
         writeVInt(enumValue.ordinal());

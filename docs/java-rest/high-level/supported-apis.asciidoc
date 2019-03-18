@@ -295,6 +295,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-update-model-snapshot>>
 * <<{upid}-get-ml-info>>
 * <<{upid}-delete-expired-data>>
+* <<{upid}-set-upgrade-mode>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -338,6 +339,7 @@ include::ml/revert-model-snapshot.asciidoc[]
 include::ml/update-model-snapshot.asciidoc[]
 include::ml/get-info.asciidoc[]
 include::ml/delete-expired-data.asciidoc[]
+include::ml/set-upgrade-mode.asciidoc[]
 
 == Migration APIs
 
@@ -346,12 +348,8 @@ include::ml/delete-expired-data.asciidoc[]
 
 The Java High Level REST Client supports the following Migration APIs:
 
-* <<java-rest-high-migration-get-assistance>>
-* <<{upid}-upgrade>>
 * <<{upid}-get-deprecation-info>>
 
-include::migration/get-assistance.asciidoc[]
-include::migration/upgrade.asciidoc[]
 include::migration/get-deprecation-info.asciidoc[]
 
 == Rollup APIs
@@ -409,6 +407,9 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-get-privileges>>
 * <<{upid}-put-privileges>>
 * <<{upid}-delete-privileges>>
+* <<{upid}-create-api-key>>
+* <<{upid}-get-api-key>>
+* <<{upid}-invalidate-api-key>>
 
 include::security/put-user.asciidoc[]
 include::security/get-users.asciidoc[]
@@ -433,6 +434,9 @@ include::security/delete-role-mapping.asciidoc[]
 include::security/create-token.asciidoc[]
 include::security/invalidate-token.asciidoc[]
 include::security/put-privileges.asciidoc[]
+include::security/create-api-key.asciidoc[]
+include::security/get-api-key.asciidoc[]
+include::security/invalidate-api-key.asciidoc[]
 
 == Watcher APIs
 
@@ -494,21 +498,25 @@ The Java High Level REST Client supports the following CCR APIs:
 * <<{upid}-ccr-pause-follow>>
 * <<{upid}-ccr-resume-follow>>
 * <<{upid}-ccr-unfollow>>
+* <<{upid}-ccr-forget-follower>>
 * <<{upid}-ccr-put-auto-follow-pattern>>
 * <<{upid}-ccr-delete-auto-follow-pattern>>
 * <<{upid}-ccr-get-auto-follow-pattern>>
 * <<{upid}-ccr-get-stats>>
 * <<{upid}-ccr-get-follow-stats>>
+* <<{upid}-ccr-get-follow-info>>
 
 include::ccr/put_follow.asciidoc[]
 include::ccr/pause_follow.asciidoc[]
 include::ccr/resume_follow.asciidoc[]
 include::ccr/unfollow.asciidoc[]
+include::ccr/forget_follower.asciidoc[]
 include::ccr/put_auto_follow_pattern.asciidoc[]
 include::ccr/delete_auto_follow_pattern.asciidoc[]
 include::ccr/get_auto_follow_pattern.asciidoc[]
 include::ccr/get_stats.asciidoc[]
 include::ccr/get_follow_stats.asciidoc[]
+include::ccr/get_follow_info.asciidoc[]
 
 == Index Lifecycle Management APIs
 
@@ -538,3 +546,16 @@ include::ilm/stop_lifecycle_management.asciidoc[]
 include::ilm/lifecycle_management_status.asciidoc[]
 include::ilm/retry_lifecycle_policy.asciidoc[]
 include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
+
+== Data Frame APIs
+
+:upid: {mainid}-dataframe
+:doc-tests-file: {doc-tests}/DataFrameTransformDocumentationIT.java
+
+The Java High Level REST Client supports the following Data Frame APIs:
+
+* <<{upid}-put-data-frame-transform>>
+* <<{upid}-delete-data-frame-transform>>
+
+include::dataframe/put_data_frame.asciidoc[]
+include::dataframe/delete_data_frame.asciidoc[]

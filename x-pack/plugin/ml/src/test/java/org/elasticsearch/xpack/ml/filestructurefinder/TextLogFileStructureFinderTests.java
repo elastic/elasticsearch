@@ -357,7 +357,7 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
 
     public void testMostLikelyTimestampGivenExceptionTraceAndTimestampFormatOverride() {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampFormat("YYYY-MM-dd HH:mm:ss").build();
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampFormat("yyyy-MM-dd HH:mm:ss").build();
 
         Tuple<TimestampMatch, Set<String>> mostLikelyMatch =
             TextLogFileStructureFinder.mostLikelyTimestamp(EXCEPTION_TRACE_SAMPLE.split("\n"), overrides, NOOP_TIMEOUT_CHECKER);

@@ -76,8 +76,8 @@ public class RecoveriesCollection {
         assert existingTarget == null : "found two RecoveryStatus instances with the same id";
         logger.trace("{} started recovery from {}, id [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode(),
             recoveryTarget.recoveryId());
-        threadPool.schedule(activityTimeout, ThreadPool.Names.GENERIC,
-                new RecoveryMonitor(recoveryTarget.recoveryId(), recoveryTarget.lastAccessTime(), activityTimeout));
+        threadPool.schedule(new RecoveryMonitor(recoveryTarget.recoveryId(), recoveryTarget.lastAccessTime(), activityTimeout),
+            activityTimeout, ThreadPool.Names.GENERIC);
     }
 
     /**
@@ -289,7 +289,7 @@ public class RecoveriesCollection {
             }
             lastSeenAccessTime = accessTime;
             logger.trace("[monitor] rescheduling check for [{}]. last access time is [{}]", recoveryId, lastSeenAccessTime);
-            threadPool.schedule(checkInterval, ThreadPool.Names.GENERIC, this);
+            threadPool.schedule(this, checkInterval, ThreadPool.Names.GENERIC);
         }
     }
 

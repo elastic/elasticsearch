@@ -7,22 +7,15 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.util.DateUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.time.ZonedDateTime;
-
-import static org.junit.Assert.assertEquals;
 
 public class DateTimeTestUtils {
 
     private DateTimeTestUtils() {}
 
     public static ZonedDateTime dateTime(int year, int month, int day, int hour, int minute) {
-        DateTime dateTime = new DateTime(year, month, day, hour, minute, DateTimeZone.UTC);
-        ZonedDateTime zdt = ZonedDateTime.of(year, month, day, hour, minute, 0, 0, DateUtils.UTC);
-        assertEquals(dateTime.getMillis() / 1000, zdt.toEpochSecond());
-        return zdt;
+        return ZonedDateTime.of(year, month, day, hour, minute, 0, 0, DateUtils.UTC);
     }
 
     public static ZonedDateTime dateTime(long millisSinceEpoch) {

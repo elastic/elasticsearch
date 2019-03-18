@@ -198,6 +198,9 @@ public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygon, Multi
                 shapes.add((org.elasticsearch.geo.geometry.Polygon)poly);
             }
         }
+        if (shapes.isEmpty()) {
+            return MultiPolygon.EMPTY;
+        }
         return new MultiPolygon(shapes);
     }
 

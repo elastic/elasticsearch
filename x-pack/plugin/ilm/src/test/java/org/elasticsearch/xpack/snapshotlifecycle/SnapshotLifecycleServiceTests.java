@@ -67,14 +67,17 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             snapMeta = new SnapshotLifecycleMetadata(policies);
             ClusterState state = createState(snapMeta);
             ClusterChangedEvent event = new ClusterChangedEvent("1", state, previousState);
+            trigger.set(e -> {
+                fail("trigger should not be invoked");
+            });
             sls.clusterChanged(event);
 
-            // Since the service does not think it is master, it should not be triggered
-            assertThat(triggerCount.get(), equalTo(0));
+            // Since the service does not think it is master, it should not be triggered or scheduled
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
 
             // Change the service to think it's on the master node, events should be scheduled now
             sls.onMaster();
+            trigger.set(e -> triggerCount.incrementAndGet());
             sls.clusterChanged(event);
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.singleton("foo-1")));
 

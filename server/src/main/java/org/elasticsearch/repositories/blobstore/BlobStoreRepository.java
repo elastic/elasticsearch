@@ -470,34 +470,46 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Now delete all indices
         if (snapshot != null) {
             final List<String> indices = snapshot.indices();
+            if (indices.isEmpty()) {
+                deleteUnreferencedIndices(repositoryData, updatedRepositoryData, listener);
+                return;
+            }
+            final AtomicInteger outstandingIndices = new AtomicInteger(indices.size());
             for (String index : indices) {
-                final IndexId indexId = repositoryData.resolveIndexId(index);
-
-                IndexMetaData indexMetaData = null;
-                try {
-                    indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
-                } catch (ElasticsearchParseException | IOException ex) {
-                    logger.warn(() ->
-                        new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index), ex);
-                }
-
-                deleteIndexMetaDataBlobIgnoringErrors(snapshot, indexId);
-
-                if (indexMetaData != null) {
-                    for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
-                        try {
-                            final ShardId sid = new ShardId(indexMetaData.getIndex(), shardId);
-                            new Context(snapshotId, indexId, sid, sid).delete();
-                        } catch (SnapshotException ex) {
-                            final int finalShardId = shardId;
-                            logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
-                                snapshotId, index, finalShardId), ex);
+                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                    final IndexId indexId = repositoryData.resolveIndexId(index);
+                    IndexMetaData indexMetaData = null;
+                    try {
+                        indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
+                    } catch (Exception ex) {
+                        logger.warn(() ->
+                            new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index), ex);
+                    }
+                    deleteIndexMetaDataBlobIgnoringErrors(snapshot, indexId);
+                    if (indexMetaData != null) {
+                        for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
+                            try {
+                                final ShardId sid = new ShardId(indexMetaData.getIndex(), shardId);
+                                new Context(snapshotId, indexId, sid, sid).delete();
+                            } catch (SnapshotException ex) {
+                                final int finalShardId = shardId;
+                                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
+                                    snapshotId, index, finalShardId), ex);
+                            }
                         }
                     }
-                }
+                    if (outstandingIndices.decrementAndGet() == 0) {
+                        deleteUnreferencedIndices(repositoryData, updatedRepositoryData, listener);
+                    }
+                });
             }
+        } else {
+            deleteUnreferencedIndices(repositoryData, updatedRepositoryData, listener);
         }
+    }
 
+    private void deleteUnreferencedIndices(RepositoryData repositoryData, RepositoryData updatedRepositoryData,
+            ActionListener<Void> listener) {
         // cleanup indices that are no longer part of the repository
         final Collection<IndexId> indicesToCleanUp = Sets.newHashSet(repositoryData.getIndices().values());
         indicesToCleanUp.removeAll(updatedRepositoryData.getIndices().values());

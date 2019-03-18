@@ -151,7 +151,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener) {
-
+            listener.onResponse(null);
         }
 
         @Override

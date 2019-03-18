@@ -161,8 +161,7 @@ public class AggregatorFactories {
         }
     }
 
-    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory<?>[0],
-            new ArrayList<PipelineAggregationBuilder>());
+    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory<?>[0], new ArrayList<>());
 
     private AggregatorFactory<?>[] factories;
     private List<PipelineAggregationBuilder> pipelineAggregatorFactories;

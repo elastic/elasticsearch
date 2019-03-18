@@ -118,9 +118,10 @@ subprojects {
   }
 
   String output = "${buildDir}/generated-resources/${project.name}"
-  task copyTestNodeKeystore(type: Copy) {
-    from project(':x-pack:plugin:core')
-            .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+  task copyTestNodeKeyMaterial(type: Copy) {
+    from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
     into outputDir
   }
 
@@ -132,7 +133,7 @@ subprojects {
     }
 
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-      dependsOn copyTestNodeKeystore
+      dependsOn copyTestNodeKeyMaterial
       if (version.before('6.3.0')) {
           String depVersion = version;
           if (project.bwcVersions.unreleased.contains(version)) {
@@ -156,10 +157,18 @@ subprojects {
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.security.authc.token.enabled', 'true'
       setting 'xpack.security.audit.enabled', 'true'
-      setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
-      setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
-      dependsOn copyTestNodeKeystore
+      if (project.inFipsJvm) {
+        setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+        setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+        keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'   
+      } else {
+        setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+        setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+      }
+      dependsOn copyTestNodeKeyMaterial
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+      extraConfigFile 'testnode.pem', new File(outputDir + '/testnode.pem')
+      extraConfigFile 'testnode.crt', new File(outputDir + '/testnode.crt')
       if (version.onOrAfter('7.0.0')) {
           setting 'xpack.security.authc.realms.file.file1.order', '0'
           setting 'xpack.security.authc.realms.native.native1.order', '1'
@@ -222,14 +231,22 @@ subprojects {
         setting 'xpack.license.self_generated.type', 'trial'
         setting 'xpack.security.enabled', 'true'
         setting 'xpack.security.transport.ssl.enabled', 'true'
-        setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
-        keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'testnode'
+        if (project.inFipsJvm) {
+          setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+          setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+          keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+        } else {
+          setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+          setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+        }
         setting 'node.attr.upgraded', 'true'
         setting 'xpack.security.authc.token.enabled', 'true'
         setting 'xpack.security.audit.enabled', 'true'
         setting 'node.name', "upgraded-node-${stopNode}"
-        dependsOn copyTestNodeKeystore
+        dependsOn copyTestNodeKeyMaterial
         extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+        extraConfigFile 'testnode.pem', new File(outputDir + '/testnode.pem')
+        extraConfigFile 'testnode.crt', new File(outputDir + '/testnode.crt')
         if (version.onOrAfter('7.0.0')) {
           setting 'xpack.security.authc.realms.file.file1.order', '0'
           setting 'xpack.security.authc.realms.native.native1.order', '1'

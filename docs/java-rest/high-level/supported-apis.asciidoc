@@ -348,12 +348,8 @@ include::ml/set-upgrade-mode.asciidoc[]
 
 The Java High Level REST Client supports the following Migration APIs:
 
-* <<java-rest-high-migration-get-assistance>>
-* <<{upid}-upgrade>>
 * <<{upid}-get-deprecation-info>>
 
-include::migration/get-assistance.asciidoc[]
-include::migration/upgrade.asciidoc[]
 include::migration/get-deprecation-info.asciidoc[]
 
 == Rollup APIs

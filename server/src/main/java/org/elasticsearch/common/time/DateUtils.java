@@ -87,7 +87,7 @@ public class DateUtils {
         return ZoneId.of(zoneId).normalized();
     }
 
-    private static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
+    static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
 
     /**
      * convert a java time instant to a long value which is stored in lucene
@@ -117,7 +117,7 @@ public class DateUtils {
      */
     public static Instant toInstant(long nanoSecondsSinceEpoch) {
         if (nanoSecondsSinceEpoch < 0) {
-            throw new IllegalArgumentException("nanoseconds are [" + nanoSecondsSinceEpoch + "] are before the epoch in 1970 and cannot " +
+            throw new IllegalArgumentException("nanoseconds [" + nanoSecondsSinceEpoch + "] are before the epoch in 1970 and cannot " +
                 "be processed in nanosecond resolution");
         }
         if (nanoSecondsSinceEpoch == 0) {
@@ -132,12 +132,33 @@ public class DateUtils {
     /**
      * Convert a nanosecond timestamp in milliseconds
      *
+     * @param milliSecondsSinceEpoch the millisecond since the epoch
+     * @return                      the nanoseconds since the epoch
+     */
+    public static long toNanoSeconds(long milliSecondsSinceEpoch) {
+        if (milliSecondsSinceEpoch < 0) {
+            throw new IllegalArgumentException("milliSeconds [" + milliSecondsSinceEpoch + "] are before the epoch in 1970 and cannot " +
+                "be converted to nanoseconds");
+        } else if (milliSecondsSinceEpoch > MAX_NANOSECOND_INSTANT.toEpochMilli()) {
+            throw new IllegalArgumentException("milliSeconds [" + milliSecondsSinceEpoch + "] are after 2262-04-11T23:47:16.854775807 " +
+                "and cannot be converted to nanoseconds");
+        }
+
+        if (milliSecondsSinceEpoch == 0) {
+            return 0;
+        }
+        return milliSecondsSinceEpoch * 1_000_000;
+    }
+
+    /**
+     * Convert a nanosecond timestamp in milliseconds
+     *
      * @param nanoSecondsSinceEpoch the nanoseconds since the epoch
      * @return                      the milliseconds since the epoch
      */
     public static long toMilliSeconds(long nanoSecondsSinceEpoch) {
         if (nanoSecondsSinceEpoch < 0) {
-            throw new IllegalArgumentException("nanoseconds are [" + nanoSecondsSinceEpoch + "] are before the epoch in 1970 and will " +
+            throw new IllegalArgumentException("nanoseconds are [" + nanoSecondsSinceEpoch + "] are before the epoch in 1970 and cannot " +
                 "be converted to milliseconds");
         }
 

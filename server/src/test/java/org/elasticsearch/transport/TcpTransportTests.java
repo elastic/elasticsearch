@@ -164,7 +164,7 @@ public class TcpTransportTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(TcpTransportTests.class.getName());
         AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
         try {
-            TcpTransport transport = new TcpTransport("test", Settings.EMPTY, Version.CURRENT, threadPool,
+            TcpTransport transport = new TcpTransport(Settings.EMPTY, Version.CURRENT, threadPool,
                 PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(), null, null) {
 
                 @Override

@@ -38,7 +38,7 @@ exceeded a error is thrown only for new indices. For existing pre-7.0 indices, a
 warning is logged.
 
 [float]
-==== Limit to the difference between max_size and min_size in ShingleTokenFilter
+==== Limit to the difference between max_shingle_size and min_shingle_size in ShingleTokenFilter
 
 To safeguard against creating too many tokens, the difference between `max_shingle_size` and
 `min_shingle_size` in `ShingleTokenFilter` has been limited to 3. This default

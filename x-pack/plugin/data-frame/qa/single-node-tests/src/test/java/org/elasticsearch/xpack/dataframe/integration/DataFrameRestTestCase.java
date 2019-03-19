@@ -218,8 +218,11 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
     protected static String getDataFrameIndexerState(String transformId) throws IOException {
         Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + transformId + "/_stats"));
-
-        Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
+        List<?> transforms = ((List<?>) entityAsMap(statsResponse).get("transforms"));
+        if (transforms.isEmpty()) {
+            return null;
+        }
+        Map<?, ?> transformStatsAsMap = (Map<?, ?>) transforms.get(0);
         return (String) XContentMapValues.extractValue("state.transform_state", transformStatsAsMap);
     }
 
@@ -234,7 +237,6 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
     protected static void wipeDataFrameTransforms() throws IOException, InterruptedException {
         List<Map<String, Object>> transformConfigs = getDataFrameTransforms();
-
         for (Map<String, Object> transformConfig : transformConfigs) {
             String transformId = (String) transformConfig.get("id");
             Request request = new Request("POST", DATAFRAME_ENDPOINT + transformId + "/_stop");
@@ -242,7 +244,10 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
             request.addParameter("timeout", "10s");
             request.addParameter("ignore", "404");
             adminClient().performRequest(request);
-            assertEquals("stopped", getDataFrameIndexerState(transformId));
+            String state = getDataFrameIndexerState(transformId);
+            if (state != null) {
+                assertEquals("stopped", getDataFrameIndexerState(transformId));
+            }
         }
 
         for (Map<String, Object> transformConfig : transformConfigs) {

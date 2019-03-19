@@ -8,17 +8,15 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -121,60 +119,20 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Response> {
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        private QueryPage<DatafeedConfig> datafeeds;
+    public static class Response extends AbstractGetResourcesResponse<DatafeedConfig> implements ToXContentObject {
 
         public Response(QueryPage<DatafeedConfig> datafeeds) {
-            this.datafeeds = datafeeds;
+            super(datafeeds);
         }
 
         public Response() {}
 
         public QueryPage<DatafeedConfig> getResponse() {
-            return datafeeds;
+            return getResources();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeeds = new QueryPage<>(in, DatafeedConfig::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            datafeeds.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            datafeeds.doXContentBody(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(datafeeds);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return Objects.equals(datafeeds, other.datafeeds);
-        }
-
-        @Override
-        public final String toString() {
-            return Strings.toString(this);
+        protected Reader<DatafeedConfig> getReader() {
+            return DatafeedConfig::new;
         }
     }
 

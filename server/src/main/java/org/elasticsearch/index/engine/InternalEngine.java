@@ -1256,18 +1256,8 @@ public class InternalEngine extends Engine {
                         plan.versionOfDeletion, getPrimaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
                 }
             }
-            if (delete.origin().isFromTranslog() == false) {
-                final Translog.Location location;
-                if (deleteResult.getResultType() == Result.Type.SUCCESS) {
-                    location = translog.add(new Translog.Delete(delete, deleteResult));
-                } else if (deleteResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                    // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
-                    final NoOp noOp = new NoOp(deleteResult.getSeqNo(), delete.primaryTerm(), delete.origin(),
-                        delete.startTime(), deleteResult.getFailure().toString());
-                    location = innerNoOp(noOp).getTranslogLocation();
-                } else {
-                    location = null;
-                }
+            if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
+                final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
                 deleteResult.setTranslogLocation(location);
             }
             localCheckpointTracker.markSeqNoAsCompleted(deleteResult.getSeqNo());
@@ -1275,7 +1265,7 @@ public class InternalEngine extends Engine {
             deleteResult.freeze();
         } catch (RuntimeException | IOException e) {
             try {
-                maybeFailEngine("index", e);
+                maybeFailEngine("delete", e);
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }
@@ -1395,12 +1385,9 @@ public class InternalEngine extends Engine {
                 plan.versionOfDeletion, getPrimaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
-                // there is no tragic event and such it must be a document level failure
-                return new DeleteResult(
-                        ex, plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
-            } else {
-                throw ex;
+                throw new AssertionError("delete operation should never fail at document level", ex);
             }
+            throw ex;
         }
     }
 

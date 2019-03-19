@@ -39,6 +39,7 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -106,24 +107,30 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             workQueue.add(uncachedEffectiveRoleDescriptors);
             if (false == workerBusy) {
                 workerBusy = true;
-                // spawn another worker on the generic thread pool
-                threadPool.generic().execute(() -> {
-                    while (true) {
-                        // synchronize access for the next work item
-                        final Collection<RoleDescriptor> workItem;
-                        synchronized (this) {
-                            workItem = workQueue.poll();
-                            if (workItem == null) {
-                                workerBusy = false;
-                                break;
+                try {
+                    // spawn another worker on the generic thread pool
+                    threadPool.generic().execute(() -> {
+                        while (true) {
+                            // synchronize access for the next work item
+                            final Collection<RoleDescriptor> workItem;
+                            synchronized (this) {
+                                workItem = workQueue.poll();
+                                if (workItem == null) {
+                                    workerBusy = false;
+                                    break;
+                                }
                             }
+                            // executing the check asynchronously will not conserve the generated deprecation response headers (which is
+                            // what we want, because it's not the request that uses deprecated features, but rather the role definition.
+                            // Furthermore, due to caching, we can't reliably associate response headers to every request).
+                            logDeprecatedPermission(workItem);
                         }
-                        // executing the check asynchronously will not conserve the generated deprecation response headers (which is what we
-                        // want, because it's not the request that uses deprecated features, but rather the role definition. Furthermore,
-                        // due to caching, we can't reliably associate response headers to every request).
-                        logDeprecatedPermission(workItem);
-                    }
-                });
+                    });
+                } catch (RejectedExecutionException e) {
+                    workerBusy = false;
+                    logger.warn("Failed enqueue work for role deprecation messages");
+                    throw e;
+                }
             }
         }
     }

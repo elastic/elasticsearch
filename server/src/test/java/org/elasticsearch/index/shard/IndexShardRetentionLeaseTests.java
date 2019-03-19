@@ -309,7 +309,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         assertThat(expectThrows(AssertionError.class, () -> shard.removeRetentionLease(
             randomAlphaOfLength(10), ActionListener.wrap(() -> {}))).getMessage(),
             equalTo("retention leases requires soft deletes but [index] does not have soft deletes enabled"));
-        assertThat(expectThrows(AssertionError.class, shard::syncRetentionLeases).getMessage(),
+        assertThat(expectThrows(AssertionError.class, () -> shard.syncRetentionLeases(ActionListener.wrap(() -> {}))).getMessage(),
             equalTo("retention leases requires soft deletes but [index] does not have soft deletes enabled"));
         closeShards(shard);
     }

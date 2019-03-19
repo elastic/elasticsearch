@@ -533,8 +533,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // tag::get-data-frame-transform-execute
             GetDataFrameTransformResponse response =
-                    client.dataFrame()
-                            .getDataFrameTransform(request, RequestOptions.DEFAULT);
+                client.dataFrame()
+                    .getDataFrameTransform(request, RequestOptions.DEFAULT);
             // end::get-data-frame-transform-execute
 
             // tag::get-data-frame-transform-response
@@ -547,17 +547,17 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         {
             // tag::get-data-frame-transform-execute-listener
             ActionListener<GetDataFrameTransformResponse> listener =
-                    new ActionListener<GetDataFrameTransformResponse>() {
-                        @Override
-                        public void onResponse(GetDataFrameTransformResponse response) {
-                            // <1>
-                        }
+                new ActionListener<GetDataFrameTransformResponse>() {
+                    @Override
+                    public void onResponse(GetDataFrameTransformResponse response) {
+                        // <1>
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            // <2>
-                        }
-                    };
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
             // end::get-data-frame-transform-execute-listener
 
             // Replace the empty listener by a blocking listener in test

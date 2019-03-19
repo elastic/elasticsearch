@@ -53,6 +53,7 @@ import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.junit.After;
@@ -68,6 +69,7 @@ import java.util.Optional;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
@@ -192,18 +194,37 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertEquals(transform, getResponse.getTransformConfigurations().get(0));
     }
 
-    public void testGetMissingTransform() throws IOException {
+    public void testGetAllTransforms() throws IOException {
+        String sourceIndex = "transform-source";
+        createIndex(sourceIndex);
+
         DataFrameClient client = highLevelClient().dataFrame();
 
-//        ElasticsearchStatusException missingError = expectThrows(ElasticsearchStatusException.class,
-//                () -> execute(new GetDataFrameTransformRequest("unknown"), client::getDataFrameTransform,
-//                        client::getDataFrameTransformAsync));
-//        assertThat(missingError.status(), equalTo(RestStatus.NOT_FOUND));
+        DataFrameTransformConfig transform = validDataFrameTransformConfig("test-get-all-1", sourceIndex, "pivot-dest-1");
+        AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
+                client::putDataFrameTransformAsync);
+        assertTrue(ack.isAcknowledged());
 
-        GetDataFrameTransformResponse getResponse = execute(new GetDataFrameTransformRequest("unknown"), client::getDataFrameTransform,
+        transform = validDataFrameTransformConfig("test-get-all-2", sourceIndex, "pivot-dest-2");
+        ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
+                client::putDataFrameTransformAsync);
+        assertTrue(ack.isAcknowledged());
+
+        GetDataFrameTransformRequest getRequest = new GetDataFrameTransformRequest("_all");
+        GetDataFrameTransformResponse getResponse = execute(getRequest, client::getDataFrameTransform,
                 client::getDataFrameTransformAsync);
-        assertEquals(getResponse.getTransformConfigurations().size(), 0);
-//        System.out.println("RES: " + Strings.toString(getResponse));
+        assertNull(getResponse.getInvalidTransforms());
+        assertThat(getResponse.getTransformConfigurations(), hasSize(2));
+        assertEquals(transform, getResponse.getTransformConfigurations().get(1));
+    }
+
+    public void testGetMissingTransform() {
+        DataFrameClient client = highLevelClient().dataFrame();
+
+        ElasticsearchStatusException missingError = expectThrows(ElasticsearchStatusException.class,
+                () -> execute(new GetDataFrameTransformRequest("unknown"), client::getDataFrameTransform,
+                        client::getDataFrameTransformAsync));
+        assertThat(missingError.status(), equalTo(RestStatus.NOT_FOUND));
     }
 
     public void testStartStop() throws IOException {

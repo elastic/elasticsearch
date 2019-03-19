@@ -10,7 +10,7 @@ The Get Data Frame Transform API is used get one or more {dataframe-transform}.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put Data Frame Request
+==== Get Data Frame Request
 
 A +{request}+ requires a data frame transform id or the special wildcard `_all`
 to get all {dataframe-transform}s

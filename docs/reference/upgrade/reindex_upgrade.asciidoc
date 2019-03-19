@@ -112,6 +112,14 @@ indices from the previous major version to be upgraded to the
 current major version. Skipping a major version means that you must
 resolve any backward compatibility issues yourself.
 
+ifdef::include-xpack[]
+If you use {ml-features} and you're migrating indices from a 6.5 or earlier
+cluster, the job and {dfeed} configuration information are not stored in an
+index. You must recreate your {ml} jobs in the new cluster. If you are migrating from a 6.6 or later cluster, it is a good idea to temporarily halt the tasks associated with your {ml} jobs and {dfeeds} and prevent new jobs from opening
+during the reindex. Use the <<ml-set-upgrade-mode,set upgrade mode API>> or 
+{stack-ov}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs].
+endif::include-xpack[]
+
 =============================================
 
 To migrate your indices:

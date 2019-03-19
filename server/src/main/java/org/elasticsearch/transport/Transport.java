@@ -55,7 +55,7 @@ public interface Transport extends LifecycleComponent {
 
     void addMessageListener(TransportMessageListener listener);
 
-    boolean removeMessageListener(TransportMessageListener listener);
+    void removeMessageListener(TransportMessageListener listener);
 
     /**
      * The address the transport is bound on.

@@ -55,7 +55,8 @@ public class OutboundHandlerTests extends ESTestCase {
         super.setUp();
         TransportLogger transportLogger = new TransportLogger();
         fakeTcpChannel = new FakeTcpChannel(randomBoolean());
-        handler = new OutboundHandler(threadPool, BigArrays.NON_RECYCLING_INSTANCE, transportLogger);
+        handler = new OutboundHandler("node", Version.CURRENT, new String[0], threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+            transportLogger);
     }
 
     @After

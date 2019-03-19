@@ -272,12 +272,10 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
-    public boolean removeMessageListener(TransportMessageListener listener) {
+    public void removeMessageListener(TransportMessageListener listener) {
         if (listener == this.listener) {
             this.listener = null;
-            return true;
         }
-        return false;
     }
 
     protected NamedWriteableRegistry writeableRegistry() {

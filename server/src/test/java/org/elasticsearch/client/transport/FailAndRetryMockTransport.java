@@ -234,7 +234,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public boolean removeMessageListener(TransportMessageListener listener) {
+    public void removeMessageListener(TransportMessageListener listener) {
         throw new UnsupportedOperationException();
     }
 

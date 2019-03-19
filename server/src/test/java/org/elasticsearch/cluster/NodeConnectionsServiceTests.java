@@ -391,7 +391,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public boolean removeMessageListener(TransportMessageListener listener) {
+        public void removeMessageListener(TransportMessageListener listener) {
             throw new UnsupportedOperationException();
         }
 

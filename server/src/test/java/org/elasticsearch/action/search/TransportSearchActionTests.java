@@ -331,7 +331,7 @@ public class TransportSearchActionTests extends ESTestCase {
         assertEquals(successful, clusters.getSuccessful());
         assertEquals(skipped, clusters.getSkipped());
     }
-
+    
     private static OriginalIndices randomOriginalIndices() {
         int numLocalIndices = randomIntBetween(0, 5);
         String[] localIndices = new String[numLocalIndices];

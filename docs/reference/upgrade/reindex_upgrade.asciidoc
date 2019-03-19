@@ -7,6 +7,11 @@ before upgrading to {version}. {es} nodes will fail to start if
 incompatible indices are present. Snapshots of 5.x or earlier indices cannot be
 restored to a 7.x cluster even if they were created by a 6.x cluster.
 
+This restriction also applies to the internal indices that are used by
+{kib} and the {xpack} features. Therefore, before you can use {kib} and
+{xpack} features in {version}, you must ensure the internal indices have a
+compatible index structure.
+
 You have two options for reindexing old indices:
 
 * <<reindex-upgrade-inplace, Reindex in place>> on your 6.x cluster before upgrading.
@@ -49,6 +54,48 @@ modifications to the document data and metadata during reindexing.
 .. Delete the old index.
 .. Add an alias with the old index name to the new index.
 .. Add any aliases that existed on the old index to the new index.
+
+ifdef::include-xpack[]
+[TIP]
+====
+If you use {ml-features} and your {ml} indices were created before
+{prev-major-version}, you must
+{stack-ov}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs] before
+you reindex the indices.
+
+If you use {es} {security-features}, before you reindex `.security*` internal
+indices it is a good idea to create a temporary superuser account in the `file`
+realm.
+
+. On a single node, add a temporary superuser account to the `file` realm. For
+example, run the <<users-command,elasticsearch-users useradd>> command:
++
+--
+[source,sh]
+----------------------------------------------------------
+bin/elasticsearch-users useradd <user_name> \
+-p <password> -r superuser
+----------------------------------------------------------
+--
+
+. Use these credentials when you reindex the `.security*` index. That is to say,
+use them to log into {kib} and run the Upgrade Assistant or to call the
+reindex API. You can use your regular administration credentials to
+reindex the other internal indices.
+
+. Delete the temporary superuser account from the file realm. For
+example, run the {ref}/users-command.html[elasticsearch-users userdel] command:
++
+--
+[source,sh]
+----------------------------------------------------------
+bin/elasticsearch-users userdel <user_name>
+----------------------------------------------------------
+--
+
+For more information, see <<configuring-file-realm>>.
+====
+endif::include-xpack[]
 
 [[reindex-upgrade-remote]]
 === Reindex from a remote cluster

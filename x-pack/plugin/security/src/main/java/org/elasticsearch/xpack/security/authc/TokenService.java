@@ -228,7 +228,7 @@ public final class TokenService {
 
     /**
      * Creates an access token and optionally a refresh token as well, based on the provided authentication and metadata with an
-     * auto-generated token document id. The created tokens are be stored in the security index.
+     * auto-generated token document id. The created tokens are stored in the security index.
      */
     public void createOAuth2Tokens(Authentication authentication, Authentication originatingClientAuth,
                                    Map<String, Object> metadata, boolean includeRefreshToken,

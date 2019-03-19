@@ -242,7 +242,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     private Long dateTime(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        EsType type = cursor.columns().get(columnIndex - 1).type;
+        EsType type = getEsType(columnIndex);
         try {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
@@ -266,6 +266,10 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         }
     }
 
+    private EsType getEsType(int columnIndex) {
+        return cursor.columns().get(columnIndex - 1).type;
+    }
+
     private Calendar safeCalendar(Calendar calendar) {
         return calendar == null ? defaultCalendar : calendar;
     }
@@ -282,6 +286,10 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Time getTime(int columnIndex, Calendar cal) throws SQLException {
+        EsType type = getEsType(columnIndex);
+        if (type == EsType.DATE) {
+            return new Time(0L);
+        }
         return TypeConverter.convertTime(dateTime(columnIndex), safeCalendar(cal));
     }
 
@@ -336,7 +344,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return null;
         }
 
-        EsType columnType = cursor.columns().get(columnIndex - 1).type;
+        EsType columnType = getEsType(columnIndex);
         String typeString = type != null ? type.getSimpleName() : columnType.getName();
 
         return TypeConverter.convert(val, columnType, type, typeString);

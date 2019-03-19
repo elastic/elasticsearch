@@ -157,6 +157,6 @@ public final class InternalAggregations extends Aggregations implements Streamab
     @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteableList((List<InternalAggregation>)aggregations);
-            out.writeNamedWriteableList(topLevelPipelineAggregators);
+        out.writeNamedWriteableList(topLevelPipelineAggregators);
     }
 }

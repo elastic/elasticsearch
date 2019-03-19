@@ -890,7 +890,7 @@ public class NumberFieldMapper extends FieldMapper {
             this.type = Objects.requireNonNull(type);
             setTokenized(false);
             setHasDocValues(true);
-            setDocValuesType(DocValuesType.NUMERIC);
+            setDocValuesType(DocValuesType.SORTED_NUMERIC);
             setOmitNorms(true);
         }
 

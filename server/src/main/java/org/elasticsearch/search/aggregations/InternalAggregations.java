@@ -22,13 +22,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 
@@ -48,23 +52,56 @@ public final class InternalAggregations extends Aggregations implements Streamab
         }
     };
 
+    private List<SiblingPipelineAggregator> topLevelPipelineAggregators = Collections.emptyList();
+
     private InternalAggregations() {
     }
 
     /**
-     * Constructs a new addAggregation.
+     * Constructs a new aggregation.
      */
     public InternalAggregations(List<InternalAggregation> aggregations) {
         super(aggregations);
     }
 
     /**
-     * Reduces the given lists of addAggregation.
-     *
-     * @param aggregationsList  A list of aggregation to reduce
-     * @return                  The reduced addAggregation
+     * Constructs a new aggregation providing its {@link InternalAggregation}s and {@link SiblingPipelineAggregator}s
      */
-    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
+    public InternalAggregations(List<InternalAggregation> aggregations, List<SiblingPipelineAggregator> topLevelPipelineAggregators) {
+        super(aggregations);
+        this.topLevelPipelineAggregators = Objects.requireNonNull(topLevelPipelineAggregators);
+    }
+
+    /**
+     * Returns the top-level pipeline aggregators.
+     * Note that top-level pipeline aggregators become normal aggregation once the final reduction has been performed, after which they
+     * become part of the list of {@link InternalAggregation}s.
+     */
+    List<SiblingPipelineAggregator> getTopLevelPipelineAggregators() {
+        return topLevelPipelineAggregators;
+    }
+
+    /**
+     * Reduces the given list of aggregations as well as the top-level pipeline aggregators extracted from the first
+     * {@link InternalAggregations} object found in the list.
+     * Note that top-level pipeline aggregators are reduced only as part of the final reduction phase, otherwise they are left untouched.
+     */
+    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList,
+                                              ReduceContext context) {
+        if (aggregationsList.isEmpty()) {
+            return null;
+        }
+        InternalAggregations first = aggregationsList.get(0);
+        return reduce(aggregationsList, first.topLevelPipelineAggregators, context);
+    }
+
+    /**
+     * Reduces the given list of aggregations as well as the provided top-level pipeline aggregators.
+     * Note that top-level pipeline aggregators are reduced only as part of the final reduction phase, otherwise they are left untouched.
+     */
+    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList,
+                                              List<SiblingPipelineAggregator> topLevelPipelineAggregators,
+                                              ReduceContext context) {
         if (aggregationsList.isEmpty()) {
             return null;
         }
@@ -89,7 +126,15 @@ public final class InternalAggregations extends Aggregations implements Streamab
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
             reducedAggregations.add(first.reduce(aggregations, context));
         }
-        return new InternalAggregations(reducedAggregations);
+
+        if (context.isFinalReduce()) {
+            for (SiblingPipelineAggregator pipelineAggregator : topLevelPipelineAggregators) {
+                InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(reducedAggregations), context);
+                reducedAggregations.add(newAgg);
+            }
+            return new InternalAggregations(reducedAggregations);
+        }
+        return new InternalAggregations(reducedAggregations, topLevelPipelineAggregators);
     }
 
     public static InternalAggregations readAggregations(StreamInput in) throws IOException {
@@ -104,11 +149,14 @@ public final class InternalAggregations extends Aggregations implements Streamab
         if (aggregations.isEmpty()) {
             aggregationsAsMap = emptyMap();
         }
+        this.topLevelPipelineAggregators = in.readList(
+                stream -> (SiblingPipelineAggregator)in.readNamedWriteable(PipelineAggregator.class));
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteableList((List<InternalAggregation>)aggregations);
+        out.writeNamedWriteableList(topLevelPipelineAggregators);
     }
 }

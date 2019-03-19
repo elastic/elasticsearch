@@ -60,6 +60,8 @@ pagination taking place on the **root nested document and not on its inner hits*
 
 Array fields are not supported due to the "invisible" way in which {es} handles an array of values: the mapping doesn't indicate whether
 a field is an array (has multiple values) or not, so without reading all the data, {es-sql} cannot know whether a field is a single or multi value.
+When multiple values are returned for a field, by default, {es-sql} will throw an exception. However, it is possible to change this behavior through `field_multi_value_leniency` parameter in REST (disabled by default) or
+`field.multi.value.leniency` in drivers (enabled by default).
 
 [float]
 === Sorting by aggregation

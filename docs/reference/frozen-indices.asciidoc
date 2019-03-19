@@ -9,8 +9,9 @@ Elasticsearch indices can require a significant amount of memory available in or
 to be writable at the same time and have different access patterns over time. For example, indices in the time series or logging use cases
 are unlikely to be queried once they age out but still need to be kept around for retention policy purposes.
 
-In order to keep indices available and queryable for a longer period but at the same time reduce their hardware requirements they can be transitioned
-into a frozen state. Once an index is frozen, all of its transient shard memory (aside from mappings and analyzers)
+To reduce hardware requiements but keep an index available and queryable, you can freeze the index using the <<freeze-index-api, Freeze Index API>>.
+
+Once an index is frozen, all of its transient shard memory (aside from mappings and analyzers)
 is moved to persistent storage. This allows for a much higher disk to heap storage ratio on individual nodes. Once an index is
 frozen, it is made read-only and drops its transient data structures from memory.  These data structures will need to be reloaded on demand (and subsequently dropped) for each search request that targets the frozen index.  A search request that hits
 one or more frozen shards will be executed on a throttled threadpool that ensures that we never search more than
@@ -19,6 +20,8 @@ one or more frozen shards will be executed on a throttled threadpool that ensure
 In contrast to ordinary open indices, frozen indices are expected to execute slowly and are not designed for high query load. Parallelism is
 gained only on a per-node level and loading data-structures on demand is expected to be one or more orders of a magnitude slower than query
 execution on a per shard level. Depending on the data in an index, a frozen index may execute searches in the seconds to minutes range, when the same index in an unfrozen state may execute the same search request in milliseconds.
+
+To make a frozen index writable again, use the <<unfreeze-index-api, Unfreeze Index API>>.
 --
 
 == Best Practices

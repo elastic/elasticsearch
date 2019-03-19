@@ -52,8 +52,6 @@
                     merges.total_time                .+   \n
                     refresh.total                    .+   \n
                     refresh.time                     .+   \n
-                    refresh.external_total           .+   \n
-                    refresh.external_time            .+   \n
                     refresh.listeners                .+   \n
                     search.fetch_current             .+   \n
                     search.fetch_time                .+   \n

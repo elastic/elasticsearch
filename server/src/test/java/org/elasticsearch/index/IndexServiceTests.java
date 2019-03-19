@@ -40,6 +40,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -51,6 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.InternalSettingsPlugin.TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.junit.Assert.assertNull;
 
 /** Unit test(s) for IndexService */
 public class IndexServiceTests extends ESSingleNodeTestCase {
@@ -400,12 +402,16 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             .build();
         IndexService indexService = createIndex("test", settings);
         ensureGreen("test");
+        assertNull(indexService.getFsyncTask());
+
+        Settings.Builder builder = Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "5s")
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC.name());
 
         client()
             .admin()
             .indices()
             .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "5s"))
+            .setSettings(builder)
             .get();
 
         assertNotNull(indexService.getFsyncTask());

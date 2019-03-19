@@ -199,7 +199,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
-        rescheduleFsyncTask(indexSettings.getTranslogDurability());
+        updateFsyncTaskIfNecessary();
     }
 
     public int numberOfShards() {
@@ -640,9 +640,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     @Override
     public synchronized void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
-        final Translog.Durability oldTranslogDurability = indexSettings.getTranslogDurability();
-        final TimeValue oldSyncInterval = indexSettings.getTranslogSyncInterval();
-
         final boolean updateIndexMetaData = indexSettings.updateIndexMetaData(newIndexMetaData);
 
         if (Assertions.ENABLED
@@ -694,28 +691,23 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 });
                 rescheduleRefreshTasks();
             }
-            final Translog.Durability durability = indexSettings.getTranslogDurability();
-            final TimeValue syncInterval = indexSettings.getTranslogSyncInterval();
-            if (syncInterval.equals(oldSyncInterval) == false) {
-                rescheduleFsyncTask(() -> new AsyncTranslogFSync(IndexService.this));
-            }
-            else if (durability != oldTranslogDurability) {
-                rescheduleFsyncTask(durability);
-            }
+            updateFsyncTaskIfNecessary();
         }
     }
 
-    private void rescheduleFsyncTask(Translog.Durability durability) {
-        rescheduleFsyncTask(() -> durability == Translog.Durability.REQUEST ? null : new AsyncTranslogFSync(IndexService.this));
-    }
-
-    private void rescheduleFsyncTask(Supplier<AsyncTranslogFSync> fsyncTaskSupplier) {
-        try {
-            if (fsyncTask != null) {
-                fsyncTask.close();
+    private void updateFsyncTaskIfNecessary() {
+        if (indexSettings.getTranslogDurability() == Translog.Durability.REQUEST) {
+            try {
+                if (fsyncTask != null) {
+                    fsyncTask.close();
+                }
+            } finally {
+                fsyncTask = null;
             }
-        } finally {
-            fsyncTask = fsyncTaskSupplier.get();
+        } else if (fsyncTask == null) {
+            fsyncTask = new AsyncTranslogFSync(this);
+        } else {
+            fsyncTask.updateIfNeeded();
         }
     }
 
@@ -875,6 +867,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Override
         protected void runInternal() {
             indexService.maybeFSyncTranslogs();
+        }
+
+        void updateIfNeeded() {
+            final TimeValue newInterval = indexService.getIndexSettings().getTranslogSyncInterval();
+            if (newInterval.equals(getInterval()) == false) {
+                setInterval(newInterval);
+            }
         }
 
         @Override

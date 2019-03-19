@@ -27,6 +27,7 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -889,6 +890,7 @@ public class NumberFieldMapper extends FieldMapper {
             this.type = Objects.requireNonNull(type);
             setTokenized(false);
             setHasDocValues(true);
+            setDocValuesType(DocValuesType.NUMERIC);
             setOmitNorms(true);
         }
 

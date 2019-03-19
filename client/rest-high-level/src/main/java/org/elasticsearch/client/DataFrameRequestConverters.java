@@ -20,9 +20,12 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 
 import java.io.IOException;
 
@@ -49,5 +52,36 @@ final class DataFrameRequestConverters {
                 .addPathPart(request.getId())
                 .build();
         return new Request(HttpDelete.METHOD_NAME, endpoint);
+    }
+
+    static Request startDataFrameTransform(StartDataFrameTransformRequest startRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_data_frame", "transforms")
+                .addPathPart(startRequest.getId())
+                .addPathPartAsIs("_start")
+                .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (startRequest.getTimeout() != null) {
+            params.withTimeout(startRequest.getTimeout());
+        }
+        return request;
+    }
+
+    static Request stopDataFrameTransform(StopDataFrameTransformRequest stopRequest) {
+            String endpoint = new RequestConverters.EndpointBuilder()
+                    .addPathPartAsIs("_data_frame", "transforms")
+                    .addPathPart(stopRequest.getId())
+                    .addPathPartAsIs("_stop")
+                    .build();
+            Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+            RequestConverters.Params params = new RequestConverters.Params(request);
+            if (stopRequest.getWaitForCompletion() != null) {
+                params.withWaitForCompletion(stopRequest.getWaitForCompletion());
+            }
+            if (stopRequest.getTimeout() != null) {
+                params.withTimeout(stopRequest.getTimeout());
+            }
+            return request;
     }
 }

@@ -20,12 +20,16 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -65,5 +69,57 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/foo"));
+    }
+
+    public void testStartDataFrameTransform() {
+        String id = randomAlphaOfLength(10);
+        TimeValue timeValue = null;
+        if (randomBoolean()) {
+            timeValue = TimeValue.parseTimeValue(randomTimeValue(), "timeout");
+        }
+        StartDataFrameTransformRequest startRequest = new StartDataFrameTransformRequest(id, timeValue);
+
+        Request request = DataFrameRequestConverters.startDataFrameTransform(startRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/" + startRequest.getId() + "/_start"));
+
+        if (timeValue != null) {
+            assertTrue(request.getParameters().containsKey("timeout"));
+            assertEquals(startRequest.getTimeout(), TimeValue.parseTimeValue(request.getParameters().get("timeout"), "timeout"));
+        } else {
+            assertFalse(request.getParameters().containsKey("timeout"));
+        }
+    }
+
+    public void testStopDataFrameTransform() {
+        String id = randomAlphaOfLength(10);
+        Boolean waitForCompletion = null;
+        if (randomBoolean()) {
+            waitForCompletion = randomBoolean();
+        }
+        TimeValue timeValue = null;
+        if (randomBoolean()) {
+            timeValue = TimeValue.parseTimeValue(randomTimeValue(), "timeout");
+        }
+        StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id, waitForCompletion, timeValue);
+
+
+        Request request = DataFrameRequestConverters.stopDataFrameTransform(stopRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/" + stopRequest.getId() + "/_stop"));
+
+        if (waitForCompletion != null) {
+            assertTrue(request.getParameters().containsKey("wait_for_completion"));
+            assertEquals(stopRequest.getWaitForCompletion(), Boolean.parseBoolean(request.getParameters().get("wait_for_completion")));
+        } else {
+            assertFalse(request.getParameters().containsKey("wait_for_completion"));
+        }
+
+        if (timeValue != null) {
+            assertTrue(request.getParameters().containsKey("timeout"));
+            assertEquals(stopRequest.getTimeout(), TimeValue.parseTimeValue(request.getParameters().get("timeout"), "timeout"));
+        } else {
+            assertFalse(request.getParameters().containsKey("timeout"));
+        }
     }
 }

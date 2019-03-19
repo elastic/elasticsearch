@@ -128,7 +128,11 @@ public final class NodeEnvironment  implements Closeable {
          * ${data.paths}/nodes/{node.id}/indices/{index.uuid}
          */
         public Path resolve(Index index) {
-            return indicesPath.resolve(index.getUUID());
+            return resolve(index.getUUID());
+        }
+
+        Path resolve(String uuid) {
+            return indicesPath.resolve(uuid);
         }
 
         @Override
@@ -1050,28 +1054,48 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     private void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
-        List<Path> shardDataPaths = collectIndexSubPaths(nodePaths, this::isShardPath);
+        List<Path> shardDataPaths = collectShardDataPaths(nodePaths);
         if (shardDataPaths.isEmpty() == false) {
             throw new IllegalStateException("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
                 + "=false, but has shard data: "
-                + shardDataPaths);
+                + shardDataPaths
+                + ". Use 'elasticsearch-node repurpose' tool to clean up"
+            );
         }
     }
 
     private void ensureNoIndexMetaData(final NodePath[] nodePaths) throws IOException {
-        List<Path> indexMetaDataPaths = collectIndexSubPaths(nodePaths, this::isIndexMetaDataPath);
+        List<Path> indexMetaDataPaths = collectIndexMetaDataPaths(nodePaths);
         if (indexMetaDataPaths.isEmpty() == false) {
             throw new IllegalStateException("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
                 + "=false and "
                 + Node.NODE_MASTER_SETTING.getKey()
                 + "=false, but has index metadata: "
-                + indexMetaDataPaths);
+                + indexMetaDataPaths
+                + ". Use 'elasticsearch-node repurpose' tool to clean up"
+            );
         }
     }
 
-    private List<Path> collectIndexSubPaths(NodePath[] nodePaths, Predicate<Path> subPathPredicate) throws IOException {
+    /**
+     * Collect the paths containing shard data in the indicated node paths. The returned paths will point to the shard data folder.
+     */
+    static List<Path> collectShardDataPaths(NodePath[] nodePaths) throws IOException {
+        return collectIndexSubPaths(nodePaths, NodeEnvironment::isShardPath);
+    }
+
+
+    /**
+     * Collect the paths containing index meta data in the indicated node paths. The returned paths will point to the
+     * {@link MetaDataStateFormat#STATE_DIR_NAME} folder
+     */
+    static List<Path> collectIndexMetaDataPaths(NodePath[] nodePaths) throws IOException {
+        return collectIndexSubPaths(nodePaths, NodeEnvironment::isIndexMetaDataPath);
+    }
+
+    private static List<Path> collectIndexSubPaths(NodePath[] nodePaths, Predicate<Path> subPathPredicate) throws IOException {
         List<Path> indexSubPaths = new ArrayList<>();
         for (NodePath nodePath : nodePaths) {
             Path indicesPath = nodePath.indicesPath;
@@ -1093,12 +1117,12 @@ public final class NodeEnvironment  implements Closeable {
         return indexSubPaths;
     }
 
-    private boolean isShardPath(Path path) {
+    private static boolean isShardPath(Path path) {
         return Files.isDirectory(path)
             && path.getFileName().toString().chars().allMatch(Character::isDigit);
     }
 
-    private boolean isIndexMetaDataPath(Path path) {
+    private static boolean isIndexMetaDataPath(Path path) {
         return Files.isDirectory(path)
             && path.getFileName().toString().equals(MetaDataStateFormat.STATE_DIR_NAME);
     }

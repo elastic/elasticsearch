@@ -354,7 +354,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         Platforms.PlatformAction action = () -> {
             final Result result = sh.run(bin.elasticsearchNode + " -h");
             assertThat(result.stdout,
-                    containsString("A CLI tool to unsafely recover a cluster after the permanent loss of too many master-eligible nodes"));
+                    containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
         };
 
         if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
@@ -369,10 +369,11 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
 
-        Archives.runElasticsearch(installation);
-        Archives.stopElasticsearch(installation);
+        final Shell sh = newShell();
+        sh.setWorkingDirectory(getTempDir());
 
-        final Shell sh = new Shell(getTempDir());
+        Archives.runElasticsearch(installation, sh);
+        Archives.stopElasticsearch(installation);
 
         Result result = sh.run("echo y | " + installation.executables().elasticsearchNode + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));

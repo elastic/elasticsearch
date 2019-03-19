@@ -57,6 +57,8 @@ include::settings/license-settings.asciidoc[]
 
 include::settings/ml-settings.asciidoc[]
 
+include::settings/monitoring-settings.asciidoc[]
+
 include::settings/security-settings.asciidoc[]
 
 include::settings/sql-settings.asciidoc[]

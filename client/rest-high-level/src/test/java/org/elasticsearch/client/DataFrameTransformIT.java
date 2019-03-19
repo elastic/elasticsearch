@@ -219,7 +219,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
-        DataFrameTransformConfig transform = new DataFrameTransformConfig(null, sourceIndex, null, queryConfig, pivotConfig);
+        DataFrameTransformConfig transform = new DataFrameTransformConfig("test-preview", sourceIndex, null, queryConfig, pivotConfig);
 
         DataFrameClient client = highLevelClient().dataFrame();
         PreviewDataFrameTransformResponse preview = execute(new PreviewDataFrameTransformRequest(transform),

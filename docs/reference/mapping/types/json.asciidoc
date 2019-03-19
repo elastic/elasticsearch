@@ -24,7 +24,7 @@ the following advantages:
 
 However, `json` fields present a trade-off in terms of search functionality.
 Only basic queries are allowed, with no support for numeric range queries or
-aggregations. Further information on the limitations can be found in the
+highlighting. Further information on the limitations can be found in the
 <<supported-operations, Supported operations>> section.
 
 NOTE: The `json` mapping type should **not** be used for indexing all JSON
@@ -107,9 +107,13 @@ Currently, `json` fields can be used with the following query types:
 
 When querying, it is not possible to refer to field keys using wildcards, as in
 `{ "term": {"labels.time*": 1541457010}}`. Note that all queries, including
-`range`, treat the values as string keywords.
+`range`, treat the values as string keywords. Highlighting is not supported on
+`json` fields.
 
-Aggregating, highlighting, or sorting on a `json` field is not supported.
+It is possible to sort on a `json` field, as well as perform simple
+keyword-style aggregations such as `terms`. As with queries, there is no
+special support for numerics -- all values in the JSON object are treated as
+keywords. WHen sorting, this implies that values are compared lexicographically.
 
 Finally, because of the way leaf values are stored in the index, the null
 character `\0` is not allowed to appear in the keys of the JSON object.

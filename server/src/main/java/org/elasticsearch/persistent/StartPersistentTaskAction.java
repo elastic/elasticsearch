@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -85,11 +84,7 @@ public class StartPersistentTaskAction extends Action<PersistentTaskResponse> {
             super.readFrom(in);
             taskId = in.readString();
             taskName = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-                params = in.readNamedWriteable(PersistentTaskParams.class);
-            } else {
-                params = in.readOptionalNamedWriteable(PersistentTaskParams.class);
-            }
+            params = in.readNamedWriteable(PersistentTaskParams.class);
         }
 
         @Override
@@ -97,11 +92,7 @@ public class StartPersistentTaskAction extends Action<PersistentTaskResponse> {
             super.writeTo(out);
             out.writeString(taskId);
             out.writeString(taskName);
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-                out.writeNamedWriteable(params);
-            } else {
-                out.writeOptionalNamedWriteable(params);
-            }
+            out.writeNamedWriteable(params);
         }
 
         @Override

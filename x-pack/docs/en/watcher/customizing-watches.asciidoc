@@ -202,7 +202,7 @@ Actions are associated with a watch and are executed as part of the watch execut
 only when the watch condition is met.
 
 {watcher} supports the following action types: <<actions-email, email>>,
-<<actions-slack, slack>>, <<actions-hipchat, hipchat>>, <<actions-pagerduty, pagerduty>>,
+<<actions-slack, slack>>, <<actions-pagerduty, pagerduty>>,
 <<actions-index, index>>, <<actions-logging, logging>>, and <<actions-webhook, webhook>>.
 
 To use the `email` action, you need to <<configuring-email, configure an email account>>

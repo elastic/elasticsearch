@@ -181,7 +181,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         }
     }
 
-    final class CloseableDirectory implements Closeable {
+    static final class CloseableDirectory implements Closeable {
         private final BaseDirectoryWrapper dir;
         private final TestRuleMarkFailure failureMarker;
 

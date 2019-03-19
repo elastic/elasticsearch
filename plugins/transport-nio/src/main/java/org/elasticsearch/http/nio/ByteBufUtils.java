@@ -91,6 +91,17 @@ class ByteBufUtils {
         }
 
         @Override
+        public int getInt(int index) {
+            return buffer.getInt(offset + index);
+        }
+
+        @Override
+        public int indexOf(byte marker, int from) {
+            final int start = offset + from;
+            return buffer.forEachByte(start, length - start, value -> value != marker);
+        }
+
+        @Override
         public int length() {
             return length;
         }

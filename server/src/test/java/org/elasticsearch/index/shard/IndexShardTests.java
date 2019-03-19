@@ -263,7 +263,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
         // but index can't be opened for a failed shard
         assertThat("store index should be corrupted", StoreUtils.canOpenIndex(logger, shardPath.resolveIndex(), shard.shardId(),
-            (shardId, lockTimeoutMS) -> new DummyShardLock(shardId)),
+            (shardId, lockTimeoutMS, details) -> new DummyShardLock(shardId)),
             equalTo(false));
     }
 
@@ -2427,8 +2427,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
         recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
-            }) {
+            new RecoveryTarget(shard, discoveryNode, recoveryListener) {
                 @Override
                 public void indexTranslogOperations(
                         final List<Translog.Operation> operations,
@@ -2443,7 +2442,13 @@ public class IndexShardTests extends IndexShardTestCase {
                             maxSeenAutoIdTimestamp,
                             maxSeqNoOfUpdatesOrDeletes,
                             retentionLeases,
-                            ActionListener.runAfter(listener, () -> assertFalse(replica.isSyncNeeded())));
+                            ActionListener.wrap(
+                                r -> {
+                                    assertFalse(replica.isSyncNeeded());
+                                    listener.onResponse(r);
+                                },
+                                listener::onFailure
+                            ));
                 }
             }, true, true);
 
@@ -2544,8 +2549,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
         recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
-            }) {
+            new RecoveryTarget(shard, discoveryNode, recoveryListener) {
                 @Override
                 public void indexTranslogOperations(
                         final List<Translog.Operation> operations,
@@ -2599,13 +2603,16 @@ public class IndexShardTests extends IndexShardTestCase {
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         assertListenerCalled.accept(replica);
         recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
-            }) {
+            new RecoveryTarget(shard, discoveryNode, recoveryListener) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
                 public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
-                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener);
-                    assertListenerCalled.accept(replica);
+                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps,
+                        ActionListener.wrap(
+                            r -> {
+                                assertListenerCalled.accept(replica);
+                                listener.onResponse(r);
+                            }, listener::onFailure));
                 }
 
                 @Override
@@ -2623,16 +2630,20 @@ public class IndexShardTests extends IndexShardTestCase {
                             maxSeqNoOfUpdatesOrDeletes,
                             retentionLeases,
                             ActionListener.wrap(
-                                    checkpoint -> {
-                                        assertListenerCalled.accept(replica);
-                                        listener.onResponse(checkpoint);
-                                    },
-                                    listener::onFailure));
+                                r -> {
+                                    assertListenerCalled.accept(replica);
+                                    listener.onResponse(r);
+                                }, listener::onFailure));
                 }
 
                 @Override
                 public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
-                    super.finalizeRecovery(globalCheckpoint, ActionListener.runAfter(listener, () -> assertListenerCalled.accept(replica)));
+                    super.finalizeRecovery(globalCheckpoint,
+                        ActionListener.wrap(
+                            r -> {
+                                assertListenerCalled.accept(replica);
+                                listener.onResponse(r);
+                            }, listener::onFailure));
                 }
             }, false, true);
 
@@ -3316,7 +3327,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"foo\"}");
         primary.refresh("forced refresh");
 
-        SegmentsStats ss = primary.segmentStats(randomBoolean());
+        SegmentsStats ss = primary.segmentStats(randomBoolean(), randomBoolean());
         CircuitBreaker breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(ss.getMemoryInBytes(), equalTo(breaker.getUsed()));
         final long preRefreshBytes = ss.getMemoryInBytes();
@@ -3325,13 +3336,13 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"baz\"}");
         indexDoc(primary, "_doc", "3", "{\"foo\" : \"eggplant\"}");
 
-        ss = primary.segmentStats(randomBoolean());
+        ss = primary.segmentStats(randomBoolean(), randomBoolean());
         breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(preRefreshBytes, equalTo(breaker.getUsed()));
 
         primary.refresh("refresh");
 
-        ss = primary.segmentStats(randomBoolean());
+        ss = primary.segmentStats(randomBoolean(), randomBoolean());
         breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(breaker.getUsed(), equalTo(ss.getMemoryInBytes()));
         assertThat(breaker.getUsed(), greaterThan(preRefreshBytes));
@@ -3341,7 +3352,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Forces a refresh with the INTERNAL scope
         ((InternalEngine) primary.getEngine()).writeIndexingBuffer();
 
-        ss = primary.segmentStats(randomBoolean());
+        ss = primary.segmentStats(randomBoolean(), randomBoolean());
         breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(breaker.getUsed(), equalTo(ss.getMemoryInBytes()));
         assertThat(breaker.getUsed(), greaterThan(preRefreshBytes));
@@ -3358,7 +3369,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         primary.refresh("force refresh");
 
-        ss = primary.segmentStats(randomBoolean());
+        ss = primary.segmentStats(randomBoolean(), randomBoolean());
         breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(breaker.getUsed(), lessThan(postRefreshBytes));
 
@@ -3449,7 +3460,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IOUtils.close(searchers);
         primary.refresh("test");
 
-        SegmentsStats ss = primary.segmentStats(randomBoolean());
+        SegmentsStats ss = primary.segmentStats(randomBoolean(), randomBoolean());
         CircuitBreaker breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         long segmentMem = ss.getMemoryInBytes();
         long breakerMem = breaker.getUsed();

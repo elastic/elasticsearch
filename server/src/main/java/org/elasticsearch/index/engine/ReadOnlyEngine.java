@@ -322,10 +322,6 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void waitForOpsToComplete(long seqNo) {
-    }
-
-    @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         return new SeqNoStats(seqNoStats.getMaxSeqNo(), seqNoStats.getLocalCheckpoint(), globalCheckpoint);
     }
@@ -349,6 +345,11 @@ public class ReadOnlyEngine extends Engine {
     public void refresh(String source) {
         // we could allow refreshes if we want down the road the searcher manager will then reflect changes to a rw-engine
         // opened side-by-side
+    }
+
+    @Override
+    public boolean maybeRefresh(String source) throws EngineException {
+        return false;
     }
 
     @Override

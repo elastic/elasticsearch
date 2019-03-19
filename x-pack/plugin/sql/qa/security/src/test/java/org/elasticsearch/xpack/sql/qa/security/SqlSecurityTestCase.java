@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -640,8 +641,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                          * SQL drops them from the interface. So we might have access to them, but we
                                          * don't show them.
                                          */
-                                        indices.remove(".security");
-                                        indices.remove(".security-6");
+                                        indices.removeAll(RestrictedIndicesNames.RESTRICTED_NAMES);
                                     }
                                 }
                                 // Use a sorted list for indices for consistent error reporting

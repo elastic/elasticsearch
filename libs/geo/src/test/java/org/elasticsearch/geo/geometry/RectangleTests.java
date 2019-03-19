@@ -26,7 +26,8 @@ import java.text.ParseException;
 
 public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
     @Override
-    protected Rectangle createTestInstance() {
+    protected Rectangle createTestInstance(boolean hasAlt) {
+        assumeFalse("3rd dimension is not supported yet", hasAlt);
         return randomRectangle();
     }
 
@@ -47,5 +48,8 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
 
         ex = expectThrows(IllegalArgumentException.class, () -> new Rectangle(2, 1, 2, 3));
         assertEquals("max lat cannot be less than min lat", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> new Rectangle(1, 2, 2, 3, 5, Double.NaN));
+        assertEquals("only one altitude value is specified", ex.getMessage());
     }
 }

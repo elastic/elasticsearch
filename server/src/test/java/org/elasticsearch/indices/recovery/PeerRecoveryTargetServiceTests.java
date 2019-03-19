@@ -61,7 +61,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             // Empty store
             {
                 recoveryEmptyReplica(replica, true);
-                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
+                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
                 assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(0L));
                 recoveryTarget.decRef();
             }
@@ -77,7 +77,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 flushShard(replica);
                 replica.updateGlobalCheckpointOnReplica(initDocs - 1, "test");
                 replica.sync();
-                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
+                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
                 assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs));
                 recoveryTarget.decRef();
             }
@@ -91,7 +91,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     }
                 }
                 flushShard(replica);
-                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
+                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
                 assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs));
                 recoveryTarget.decRef();
             }
@@ -99,7 +99,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             {
                 replica.updateGlobalCheckpointOnReplica(initDocs + moreDocs - 1, "test");
                 replica.sync();
-                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
+                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
                 assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs + moreDocs));
                 recoveryTarget.decRef();
             }
@@ -118,7 +118,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     writer.setLiveCommitData(userData.entrySet());
                     writer.commit();
                 }
-                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
+                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
                 assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
                 recoveryTarget.decRef();
             }
@@ -143,7 +143,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         final DiscoveryNode pNode = getFakeDiscoNode(sourceShard.routingEntry().currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(targetShard.routingEntry().currentNodeId());
         targetShard.markAsRecovering("test-peer-recovery", new RecoveryState(targetShard.routingEntry(), rNode, pNode));
-        final RecoveryTarget recoveryTarget = new RecoveryTarget(targetShard, null, null, null);
+        final RecoveryTarget recoveryTarget = new RecoveryTarget(targetShard, null, null);
         recoveryTarget.receiveFileInfo(
             mdFiles.stream().map(StoreFileMetaData::name).collect(Collectors.toList()),
             mdFiles.stream().map(StoreFileMetaData::length).collect(Collectors.toList()),

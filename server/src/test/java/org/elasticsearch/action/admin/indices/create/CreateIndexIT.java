@@ -34,6 +34,10 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -50,6 +54,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
@@ -60,6 +65,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -419,11 +425,20 @@ public class CreateIndexIT extends ESIntegTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
-        ensureGreen(metaData.getIndex().getName()); // we have to wait for the index to show up in the metadata or we will fail in a race
-        final ClusterState stateAfterRestart = client().admin().cluster().prepareState().get().getState();
 
-        // the index should not be open after we restart and recover the broken index metadata
-        assertThat(stateAfterRestart.getMetaData().index(metaData.getIndex()).getState(), equalTo(IndexMetaData.State.CLOSE));
+        // check that the cluster does not keep reallocating shards
+        assertBusy(() -> {
+            final RoutingTable routingTable = client().admin().cluster().prepareState().get().getState().routingTable();
+            final IndexRoutingTable indexRoutingTable = routingTable.index("test");
+            assertNotNull(indexRoutingTable);
+            for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+                assertTrue(shardRoutingTable.primaryShard().unassigned());
+                assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_NO,
+                    shardRoutingTable.primaryShard().unassignedInfo().getLastAllocationStatus());
+                assertThat(shardRoutingTable.primaryShard().unassignedInfo().getNumFailedAllocations(), greaterThan(0));
+            }
+        }, 60, TimeUnit.SECONDS);
+        client().admin().indices().prepareClose("test").get();
 
         // try to open the index
         final ElasticsearchException e =

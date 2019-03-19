@@ -21,13 +21,15 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction.Request;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction.Response;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Request;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.dataframe.persistence.DataFramePersistentTaskUtils;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
-import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,8 +50,9 @@ public class TransportGetDataFrameTransformsStatsAction extends
     protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,
             List<FailedNodeException> failedNodeExceptions) {
         List<DataFrameTransformStateAndStats> responses = tasks.stream()
-                .map(GetDataFrameTransformsStatsAction.Response::getTransformsStateAndStats).flatMap(Collection::stream)
-                .collect(Collectors.toList());
+            .flatMap(r -> r.getTransformsStateAndStats().stream())
+            .sorted(Comparator.comparing(DataFrameTransformStateAndStats::getId))
+            .collect(Collectors.toList());
         return new Response(responses, taskOperationFailures, failedNodeExceptions);
     }
 
@@ -70,6 +73,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
     }
 
     @Override
+    // TODO gather stats from docs when moved out of allocated task
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
         final DiscoveryNodes nodes = state.nodes();

@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-create-api-key]]
 === Create API Key API
+++++
+<titleabbrev>Create API keys</titleabbrev>
+++++
 
 Creates an API key for access without requiring basic authentication.
 

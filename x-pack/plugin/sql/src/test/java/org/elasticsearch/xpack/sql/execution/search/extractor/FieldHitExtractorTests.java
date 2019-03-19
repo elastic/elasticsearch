@@ -28,6 +28,7 @@ import java.util.StringJoiner;
 import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.is;
 
@@ -35,7 +36,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     public static FieldHitExtractor randomFieldHitExtractor() {
         String hitName = randomAlphaOfLength(5);
         String name = randomAlphaOfLength(5) + "." + hitName;
-        return new FieldHitExtractor(name, null, randomBoolean(), hitName);
+        return new FieldHitExtractor(name, null, randomBoolean(), hitName, false);
     }
 
     @Override
@@ -50,7 +51,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     @Override
     protected FieldHitExtractor mutateInstance(FieldHitExtractor instance) {
-        return new FieldHitExtractor(instance.fieldName() + "mutated", null, true, instance.hitName());
+        return new FieldHitExtractor(instance.fieldName() + "mutated", null, true, instance.hitName(), false);
     }
 
     public void testGetDottedValueWithDocValues() {
@@ -173,7 +174,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testToString() {
-        assertEquals("hit.field@hit", new FieldHitExtractor("hit.field", null, true, "hit").toString());
+        assertEquals("hit.field@hit", new FieldHitExtractor("hit.field", null, true, "hit", false).toString());
     }
 
     public void testMultiValuedDocValue() {
@@ -239,6 +240,14 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
     }
 
+    public void testMultiValuedSourceAllowed() {
+        FieldHitExtractor fe = new FieldHitExtractor("a", null, false, true);
+        Object valueA = randomValue();
+        Object valueB = randomValue();
+        Map<String, Object> map = singletonMap("a", asList(valueA, valueB));
+        assertEquals(valueA, fe.extractFromSource(map));
+    }
+
     public void testFieldWithDots() {
         FieldHitExtractor fe = new FieldHitExtractor("a.b", null, false);
         Object value = randomValue();
@@ -267,6 +276,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         assertEquals(value, fe.extractFromSource(map));
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void testNestedFieldsWithDotsAndRandomHiearachy() {
         String[] path = new String[100];
         StringJoiner sj = new StringJoiner(".");
@@ -288,12 +298,42 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             start = end;
         }
 
+        /*
+         * Randomize how many values the field to look for will have (1 - 3). It's not really relevant how many values there are in the list
+         * but that the list has one element or more than one.
+         * If it has one value, then randomize the way it's indexed: as a single-value array or not e.g.: "a":"value" or "a":["value"].
+         * If it has more than one value, it will always be an array e.g.: "a":["v1","v2","v3"].
+         */
+        int valuesCount = randomIntBetween(1, 3);
         Object value = randomValue();
-        Map<String, Object> map = singletonMap(paths.get(paths.size() - 1), value);
-        for (int i = paths.size() - 2; i >= 0; i--) {
-            map = singletonMap(paths.get(i), map);
+        if (valuesCount == 1) {
+            value = randomBoolean() ? singletonList(value) : value;
+        } else {
+            value = new ArrayList(valuesCount);
+            for(int i = 0; i < valuesCount; i++) {
+                ((List) value).add(randomValue());
+            }
         }
-        assertEquals(value, fe.extractFromSource(map));
+
+        // the path to the randomly generated fields path
+        StringBuilder expected = new StringBuilder(paths.get(paths.size() - 1));
+        // the actual value we will be looking for in the test at the end
+        Map<String, Object> map = singletonMap(paths.get(paths.size() - 1), value);
+        // build the rest of the path and the expected path to check against in the error message
+        for (int i = paths.size() - 2; i >= 0; i--) {
+            map = singletonMap(paths.get(i), randomBoolean() ? singletonList(map) : map);
+            expected.insert(0, paths.get(i) + ".");
+        }
+
+        if (valuesCount == 1) {
+            // if the number of generated values is 1, just check we return the correct value
+            assertEquals(value instanceof List ? ((List) value).get(0) : value, fe.extractFromSource(map));
+        } else {
+            // if we have an array with more than one value in it, check that we throw the correct exception and exception message
+            final Map<String, Object> map2 = Collections.unmodifiableMap(map);
+            SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map2));
+            assertThat(ex.getMessage(), is("Arrays (returned by [" + expected + "]) are not supported"));
+        }
     }
 
     public void testExtractSourceIncorrectPathWithFieldWithDots() {
@@ -334,6 +374,51 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         map.put("a", singletonMap("b.c", singletonMap("d.e", singletonMap("f", singletonMap("g", value)))));
         SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Multiple values (returned by [a.b.c.d.e.f.g]) are not supported"));
+    }
+    
+    public void testFieldsWithSingleValueArrayAsSubfield() {
+        FieldHitExtractor fe = new FieldHitExtractor("a.b", null, false);
+        Object value = randomNonNullValue();
+        Map<String, Object> map = new HashMap<>();
+        // "a" : [{"b" : "value"}]
+        map.put("a", singletonList(singletonMap("b", value)));
+        assertEquals(value, fe.extractFromSource(map));
+    }
+    
+    public void testFieldsWithMultiValueArrayAsSubfield() {
+        FieldHitExtractor fe = new FieldHitExtractor("a.b", null, false);
+        Map<String, Object> map = new HashMap<>();
+        // "a" : [{"b" : "value1"}, {"b" : "value2"}]
+        map.put("a", asList(singletonMap("b", randomNonNullValue()), singletonMap("b", randomNonNullValue())));
+        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        assertThat(ex.getMessage(), is("Arrays (returned by [a.b]) are not supported"));
+    }
+    
+    public void testFieldsWithSingleValueArrayAsSubfield_TwoNestedLists() {
+        FieldHitExtractor fe = new FieldHitExtractor("a.b.c", null, false);
+        Object value = randomNonNullValue();
+        Map<String, Object> map = new HashMap<>();
+        // "a" : [{"b" : [{"c" : "value"}]}]
+        map.put("a", singletonList(singletonMap("b", singletonList(singletonMap("c", value)))));
+        assertEquals(value, fe.extractFromSource(map));
+    }
+    
+    public void testFieldsWithMultiValueArrayAsSubfield_ThreeNestedLists() {
+        FieldHitExtractor fe = new FieldHitExtractor("a.b.c", null, false);
+        Map<String, Object> map = new HashMap<>();
+        // "a" : [{"b" : [{"c" : ["value1", "value2"]}]}]
+        map.put("a", singletonList(singletonMap("b", singletonList(singletonMap("c", asList("value1", "value2"))))));
+        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
+        assertThat(ex.getMessage(), is("Arrays (returned by [a.b.c]) are not supported"));
+    }
+    
+    public void testFieldsWithSingleValueArrayAsSubfield_TwoNestedLists2() {
+        FieldHitExtractor fe = new FieldHitExtractor("a.b.c", null, false);
+        Object value = randomNonNullValue();
+        Map<String, Object> map = new HashMap<>();
+        // "a" : [{"b" : {"c" : ["value"]}]}]
+        map.put("a", singletonList(singletonMap("b", singletonMap("c", singletonList(value)))));
+        assertEquals(value, fe.extractFromSource(map));
     }
 
     public void testObjectsForSourceValue() throws IOException {

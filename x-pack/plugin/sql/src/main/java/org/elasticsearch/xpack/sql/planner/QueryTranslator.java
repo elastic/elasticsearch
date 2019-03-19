@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.GroupByValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MatrixStatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MaxAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.MedianAbsoluteDeviationAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MinAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.OrAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.PercentileRanksAgg;
@@ -144,7 +146,8 @@ final class QueryTranslator {
             new CountAggs(),
             new DateTimes(),
             new Firsts(),
-            new Lasts()
+            new Lasts(), 
+            new MADs()
             );
 
     static class QueryTranslation {
@@ -257,10 +260,7 @@ final class QueryTranslator {
 
                 // change analyzed to non non-analyzed attributes
                 if (exp instanceof FieldAttribute) {
-                    FieldAttribute fa = (FieldAttribute) exp;
-                    if (fa.isInexact()) {
-                        ne = fa.exactAttribute();
-                    }
+                    ne = ((FieldAttribute) exp).exactAttribute();
                 }
 
                 // handle functions differently
@@ -448,7 +448,7 @@ final class QueryTranslator {
             // COUNT(DISTINCT) uses cardinality aggregation which works on exact values (not changed by analyzers or normalizers)
             if (af instanceof Count && ((Count) af).distinct()) {
                 // use the `keyword` version of the field, if there is one
-                return field.isInexact() ? field.exactAttribute().name() : field.name();
+                return field.exactAttribute().name();
             }
             return field.name();
         }
@@ -481,9 +481,7 @@ final class QueryTranslator {
             String target = null;
 
             if (e.field() instanceof FieldAttribute) {
-                FieldAttribute fa = (FieldAttribute) e.field();
-                inexact = fa.isInexact();
-                target = nameOf(inexact ? fa : fa.exactAttribute());
+                target = nameOf(((FieldAttribute) e.field()).exactAttribute());
             } else {
                 throw new SqlIllegalArgumentException("Scalar function ({}) not allowed (yet) as arguments for LIKE",
                         Expressions.name(e.field()));
@@ -683,12 +681,9 @@ final class QueryTranslator {
             }
             if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
                 if (bc.left() instanceof FieldAttribute) {
-                    FieldAttribute fa = (FieldAttribute) bc.left();
                     // equality should always be against an exact match
                     // (which is important for strings)
-                    if (fa.isInexact()) {
-                        name = fa.exactAttribute().name();
-                    }
+                    name = ((FieldAttribute) bc.left()).exactAttribute().name();
                 }
                 Query query = new TermQuery(source, name, value);
                 if (bc instanceof NotEquals) {
@@ -726,7 +721,7 @@ final class QueryTranslator {
                     if (in.value() instanceof FieldAttribute) {
                         FieldAttribute fa = (FieldAttribute) in.value();
                         // equality should always be against an exact match (which is important for strings)
-                        q = new TermsQuery(in.source(), fa.isInexact() ? fa.exactAttribute().name() : fa.name(), in.list());
+                        q = new TermsQuery(in.source(), fa.exactAttribute().name(), in.list());
                     } else {
                         q = new ScriptQuery(in.source(), in.asScript());
                     }
@@ -838,6 +833,13 @@ final class QueryTranslator {
         @Override
         protected LeafAgg toAgg(String id, Min m) {
             return new MinAgg(id, field(m));
+        }
+    }
+
+    static class MADs extends SingleValueAggTranslator<MedianAbsoluteDeviation> {
+        @Override
+        protected LeafAgg toAgg(String id, MedianAbsoluteDeviation m) {
+            return new MedianAbsoluteDeviationAgg(id, field(m));
         }
     }
 

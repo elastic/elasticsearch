@@ -30,9 +30,10 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -94,6 +95,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private volatile ElasticsearchException fatalException;
 
+    private Scheduler.Cancellable renewable;
+
+    synchronized Scheduler.Cancellable getRenewable() {
+        return renewable;
+    }
+
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
                         ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
         super(id, type, action, description, parentTask, headers);
@@ -121,7 +128,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         final long followerMaxSeqNo) {
         /*
          * While this should only ever be called once and before any other threads can touch these fields, we use synchronization here to
-         * avoid the need to declare these fields as volatile. That is, we are ensuring thesefields are always accessed under the same lock.
+         * avoid the need to declare these fields as volatile. That is, we are ensuring these fields are always accessed under the same
+         * lock.
          */
         synchronized (this) {
             this.followerHistoryUUID = followerHistoryUUID;
@@ -130,6 +138,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.followerGlobalCheckpoint = followerGlobalCheckpoint;
             this.followerMaxSeqNo = followerMaxSeqNo;
             this.lastRequestedSeqNo = followerGlobalCheckpoint;
+            renewable = scheduleBackgroundRetentionLeaseRenewal(() -> {
+                synchronized (ShardFollowNodeTask.this) {
+                    return this.followerGlobalCheckpoint;
+                }
+            });
         }
 
         // updates follower mapping, this gets us the leader mapping version and makes sure that leader and follower mapping are identical
@@ -507,8 +520,16 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     protected abstract void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
                                                          Consumer<Exception> errorHandler);
 
+    protected abstract Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(LongSupplier followerGlobalCheckpoint);
+
     @Override
     protected void onCancelled() {
+        synchronized (this) {
+            if (renewable != null) {
+                renewable.cancel();
+                renewable = null;
+            }
+        }
         markAsCompleted();
     }
 

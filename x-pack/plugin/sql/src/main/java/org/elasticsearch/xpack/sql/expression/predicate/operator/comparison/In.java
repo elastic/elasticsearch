@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
-import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Nullability;
+import org.elasticsearch.xpack.sql.expression.TypeResolutions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
@@ -109,13 +108,9 @@ public class In extends ScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (value instanceof FieldAttribute) {
-            try {
-                ((FieldAttribute) value).exactAttribute();
-            } catch (MappingException e) {
-                return new TypeResolution(format(null, "[{}] cannot operate on field of data type [{}]: {}",
-                    functionName(), value().dataType().esType, e.getMessage()));
-            }
+        TypeResolution resolution = TypeResolutions.isExact(value, functionName(), Expressions.ParamOrdinal.DEFAULT);
+        if (resolution != TypeResolution.TYPE_RESOLVED) {
+            return resolution;
         }
 
         for (Expression ex : list) {

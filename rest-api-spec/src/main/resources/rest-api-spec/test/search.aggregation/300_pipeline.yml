@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      version: " - 7.99.99" #TODO change this after backport
+      reason:  These new error messages were added in 7.1
+
   - do:
       indices.create:
           index: test_1

@@ -37,13 +37,14 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
     private static final Logger LOGGER = LogManager.getLogger(BatchedDataIterator.class);
 
     private static final String CONTEXT_ALIVE_DURATION = "5m";
-    private static final int BATCH_SIZE = 10000;
+    private static final int BATCH_SIZE = 10_000;
 
     private final Client client;
     private final String index;
     private volatile long count;
     private volatile long totalHits;
     private volatile String scrollId;
+    private volatile boolean isScrollInitialised;
 
     protected BatchedDataIterator(Client client, String index) {
         this.client = Objects.requireNonNull(client);
@@ -60,7 +61,7 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
      * @return {@code true} if the iteration has more elements
      */
     public boolean hasNext() {
-        return scrollId == null || count != totalHits;
+        return !isScrollInitialised || count != totalHits;
     }
 
     /**
@@ -75,16 +76,26 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
         if (!hasNext()) {
             listener.onFailure(new NoSuchElementException());
         }
-        ActionListener<SearchResponse> wrappedListener = ActionListener.wrap(
-            searchResponse -> {
-                scrollId = searchResponse.getScrollId();
-                mapHits(searchResponse, listener);
-            },
-            listener::onFailure
-        );
-        if (scrollId == null) {
+
+        if (!isScrollInitialised) {
+            ActionListener<SearchResponse> wrappedListener = ActionListener.wrap(
+                searchResponse -> {
+                    isScrollInitialised = true;
+                    totalHits = searchResponse.getHits().getTotalHits().value;
+                    scrollId = searchResponse.getScrollId();
+                    mapHits(searchResponse, listener);
+                },
+                listener::onFailure
+            );
             initScroll(wrappedListener);
         } else {
+            ActionListener<SearchResponse> wrappedListener = ActionListener.wrap(
+                searchResponse -> {
+                    scrollId = searchResponse.getScrollId();
+                    mapHits(searchResponse, listener);
+                },
+                listener::onFailure
+            );
             SearchScrollRequest searchScrollRequest = new SearchScrollRequest(scrollId).scroll(CONTEXT_ALIVE_DURATION);
             ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
                 ClientHelper.DATA_FRAME_ORIGIN,
@@ -102,25 +113,15 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
         searchRequest.scroll(CONTEXT_ALIVE_DURATION);
         searchRequest.source(new SearchSourceBuilder()
             .fetchSource(getFetchSourceContext())
-            .size(BATCH_SIZE)
+            .size(getBatchSize())
             .query(getQuery())
             .trackTotalHits(true)
             .sort(sortField(), sortOrder()));
 
-
-        ActionListener<SearchResponse> wrappedListener = ActionListener.wrap(
-            searchResponse -> {
-                totalHits = searchResponse.getHits().getTotalHits().value;
-                scrollId = searchResponse.getScrollId();
-                listener.onResponse(searchResponse);
-            },
-            listener::onFailure
-        );
-
         ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             ClientHelper.DATA_FRAME_ORIGIN,
             searchRequest,
-            wrappedListener,
+            listener,
             client::search);
     }
 
@@ -179,4 +180,7 @@ public abstract class BatchedDataIterator<T, E extends Collection<T>> {
         return FetchSourceContext.FETCH_SOURCE;
     }
 
+    protected int getBatchSize() {
+        return BATCH_SIZE;
+    }
 }

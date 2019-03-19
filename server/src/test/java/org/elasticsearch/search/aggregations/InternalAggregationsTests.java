@@ -26,23 +26,19 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.elasticsearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 
@@ -136,18 +132,13 @@ public class InternalAggregationsTests extends ESTestCase {
                 if (aggregations.getTopLevelPipelineAggregators() == null) {
                     assertEquals(0, deserialized.getTopLevelPipelineAggregators().size());
                 } else {
-                    //TODO update version after backport
-                    if (version.before(Version.V_8_0_0)) {
-                        assertEquals(0, deserialized.getTopLevelPipelineAggregators().size());
-                    } else {
-                        assertEquals(aggregations.getTopLevelPipelineAggregators().size(),
-                            deserialized.getTopLevelPipelineAggregators().size());
-                        for (int i = 0; i < aggregations.getTopLevelPipelineAggregators().size(); i++) {
-                            SiblingPipelineAggregator siblingPipelineAggregator1 = aggregations.getTopLevelPipelineAggregators().get(i);
-                            SiblingPipelineAggregator siblingPipelineAggregator2 = deserialized.getTopLevelPipelineAggregators().get(i);
-                            assertArrayEquals(siblingPipelineAggregator1.bucketsPaths(), siblingPipelineAggregator2.bucketsPaths());
-                            assertEquals(siblingPipelineAggregator1.name(), siblingPipelineAggregator2.name());
-                        }
+                    assertEquals(aggregations.getTopLevelPipelineAggregators().size(),
+                        deserialized.getTopLevelPipelineAggregators().size());
+                    for (int i = 0; i < aggregations.getTopLevelPipelineAggregators().size(); i++) {
+                        SiblingPipelineAggregator siblingPipelineAggregator1 = aggregations.getTopLevelPipelineAggregators().get(i);
+                        SiblingPipelineAggregator siblingPipelineAggregator2 = deserialized.getTopLevelPipelineAggregators().get(i);
+                        assertArrayEquals(siblingPipelineAggregator1.bucketsPaths(), siblingPipelineAggregator2.bucketsPaths());
+                        assertEquals(siblingPipelineAggregator1.name(), siblingPipelineAggregator2.name());
                     }
                 }
                 if (iteration < 2) {
@@ -155,26 +146,6 @@ public class InternalAggregationsTests extends ESTestCase {
                     writeToAndReadFrom(deserialized, iteration + 1);
                 }
             }
-        }
-    }
-
-    //TODO update version and rename after backport
-    public void testSerializationFromPre_8_0_0() throws IOException {
-        String aggsString = "AwZzdGVybXMFb0F0Q0EKCQVsZG5ncgAFeG56RWcFeUFxVmcABXBhQVVpBUtYc2VIAAVaclRESwVqUkxySAAFelp5d1AFRUREcEYABW1" +
-            "sckF0BU5wWWVFAAVJYVJmZgVURlJVbgAFT0RiU04FUWNwSVoABU1sb09HBUNzZHFlAAVWWmJHaQABAwGIDgNyYXcFAQAADmRhdGVfaGlzdG9ncmFt" +
-            "BVhHbVl4/wADAAKAurcDA1VUQwABAQAAAWmOhukAAQAAAWmR9dEAAAAAAAAAAAAAAANyYXcACAAAAWmQrDoAUQAAAAFpkRoXAEMAAAABaZGH9AAtA" +
-            "AAAAWmR9dEAJwAAAAFpkmOuAFwAAAABaZLRiwAYAAAAAWmTP2gAKgAAAAFpk61FABsADHNpbXBsZV92YWx1ZQVsWVNLVv8AB2RlY2ltYWwGIyMjLi" +
-            "MjQLZWZVy5zBYAAAAAAAAAAAAAAAAAAAAAAAAA";
-
-        byte[] aggsBytes = Base64.getDecoder().decode(aggsString);
-        try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(aggsBytes), registry)) {
-            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(),
-                Version.max(Version.CURRENT.minimumCompatibilityVersion(), VersionUtils.getPreviousVersion(Version.CURRENT))));
-            InternalAggregations deserialized = InternalAggregations.readAggregations(in);
-            assertEquals(3, deserialized.aggregations.size());
-            assertThat(deserialized.aggregations.get(0), Matchers.instanceOf(StringTerms.class));
-            assertThat(deserialized.aggregations.get(1), Matchers.instanceOf(InternalDateHistogram.class));
-            assertThat(deserialized.aggregations.get(2), Matchers.instanceOf(InternalSimpleValue.class));
         }
     }
 }

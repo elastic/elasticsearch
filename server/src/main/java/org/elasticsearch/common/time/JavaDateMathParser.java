@@ -47,9 +47,9 @@ import java.util.function.LongSupplier;
  */
 public class JavaDateMathParser implements DateMathParser {
 
-    private  JavaDateFormatter formatter;
-    private  DateTimeFormatter roundUpFormatter;
-    private  String format;
+    private final JavaDateFormatter formatter;
+    private final DateTimeFormatter roundUpFormatter;
+    private final String format;
 
     JavaDateMathParser(String format, JavaDateFormatter formatter, DateTimeFormatter roundUpFormatter) {
         this.format = format;

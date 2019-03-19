@@ -68,8 +68,11 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     private final DeprecationLogger deprecationLogger;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+    
+    // synchronized by this
     private final Set<String> dailyRoleCache;
     private final Queue<Collection<RoleDescriptor>> workQueue;
+    private volatile boolean workerBusy;
 
     public DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool) {
         this(clusterService, threadPool, new DeprecationLogger(logger));
@@ -88,6 +91,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             }
         });
         this.workQueue = new LinkedList<>();
+        this.workerBusy = false;
     }
 
     @Override
@@ -100,29 +104,28 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
         }
         if (false == uncachedEffectiveRoleDescriptors.isEmpty()) {
             workQueue.add(uncachedEffectiveRoleDescriptors);
-            if (workQueue.size() == 1) {
+            if (false == workerBusy) {
+                workerBusy = true;
+                // spawn another worker on the generic thread pool
                 threadPool.generic().execute(() -> {
-                    // executing the check asynchronously will not conserve the generated deprecation response headers (which is what we
-                    // want, because it's not the request that uses deprecated features, but rather the role definition. Furthermore, due to
-                    // caching, we can't reliably associate response headers to every request).
-                    logDeprecatedPermission(uncachedEffectiveRoleDescriptors);
-                    // this thread will continue to pop work items
                     while (true) {
                         // synchronize access for the next work item
-                        final Collection<RoleDescriptor> workItem = tryGetNextWorkItem();
-                        if (workItem == null) {
-                            break;
+                        final Collection<RoleDescriptor> workItem;
+                        synchronized (this) {
+                            workItem = workQueue.poll();
+                            if (workItem == null) {
+                                workerBusy = false;
+                                break;
+                            }
                         }
+                        // executing the check asynchronously will not conserve the generated deprecation response headers (which is what we
+                        // want, because it's not the request that uses deprecated features, but rather the role definition. Furthermore,
+                        // due to caching, we can't reliably associate response headers to every request).
                         logDeprecatedPermission(workItem);
                     }
                 });
             }
         }
-    }
-
-    private synchronized Collection<RoleDescriptor> tryGetNextWorkItem() {
-        assert workQueue.poll() != null; // this was the processed item
-        return workQueue.peek();
     }
 
     private void logDeprecatedPermission(Collection<RoleDescriptor> effectiveRoleDescriptors) {

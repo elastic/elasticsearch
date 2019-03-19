@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.rest.action;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -29,7 +30,9 @@ public class RestStartDataFrameTransformAction extends BaseRestHandler {
         String id = restRequest.param(DataFrameField.ID.getPreferredName());
         boolean force = restRequest.paramAsBoolean(DataFrameField.FORCE.getPreferredName(), false);
         StartDataFrameTransformAction.Request request = new StartDataFrameTransformAction.Request(id, force);
-
+        if (restRequest.hasParam(DataFrameField.TIMEOUT.getPreferredName())) {
+            request.timeout(restRequest.paramAsTime(DataFrameField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT));
+        }
         return channel -> client.execute(StartDataFrameTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

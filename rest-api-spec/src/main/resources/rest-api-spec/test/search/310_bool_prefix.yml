@@ -17,14 +17,14 @@ setup:
         index: test
         id: 1
         body:
-          my_field: "red fox jump"
+          my_field: "brown fox jump"
 
   - do:
       index:
         index: test
         id: 2
         body:
-          my_field: "red fox"
+          my_field: "brown fox"
 
   - do:
       index:
@@ -53,11 +53,11 @@ setup:
         body:
           query:
             bool_prefix:
-              my_field: "red fox jump"
+              my_field: "brown fox jump"
 
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._source.my_field: "red fox jump" }
-  - match: { hits.hits.1._source.my_field: "red fox" }
+  - match: { hits.hits.0._source.my_field: "brown fox jump" }
+  - match: { hits.hits.1._source.my_field: "brown fox" }
   - match: { hits.hits.2._source.my_field: "jumparound" }
 
 ---
@@ -71,11 +71,11 @@ setup:
           query:
             bool_prefix:
               my_field:
-                query: "red fox jump"
+                query: "brown fox jump"
                 minimum_should_match: 3
 
   - match: { hits.total: 1 }
-  - match: { hits.hits.0._source.my_field: "red fox jump" }
+  - match: { hits.hits.0._source.my_field: "brown fox jump" }
 
 ---
 "analyzer":
@@ -89,7 +89,7 @@ setup:
           query:
             bool_prefix:
               my_field:
-                query: "RED dog"
+                query: "BROWN dog"
                 analyzer: whitespace
 
   - match: { hits.total: 1 }

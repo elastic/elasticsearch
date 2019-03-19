@@ -582,7 +582,7 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
         queryShardContext.getMapperService().merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         final MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder(
-            "quick red fox lazy brown dog",
+            "quick brown fox jump lazy dog",
             "a_field",
             "a_field._2gram",
             "a_field._3gram",
@@ -596,13 +596,13 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(disMaxQuery.getDisjuncts(), hasSize(4));
         assertThat(disMaxQuery.getDisjuncts(), containsInAnyOrder(
             buildBoolPrefixQuery(
-                "a_field", "a_field._index_prefix", asList("quick", "red", "fox", "lazy", "brown", "dog")),
-            buildBoolPrefixQuery(
-                "a_field._2gram", "a_field._index_prefix", asList("quick red", "red fox", "fox lazy", "lazy brown", "brown dog")),
-            buildBoolPrefixQuery(
-                "a_field._3gram", "a_field._index_prefix", asList("quick red fox", "red fox lazy", "fox lazy brown", "lazy brown dog")),
-            buildBoolPrefixQuery(
-                "a_field._4gram", "a_field._index_prefix", asList("quick red fox lazy", "red fox lazy brown", "fox lazy brown dog"))));
+                "a_field", "a_field._index_prefix", asList("quick", "brown", "fox", "jump", "lazy", "dog")),
+            buildBoolPrefixQuery("a_field._2gram", "a_field._index_prefix",
+                asList("quick brown", "brown fox", "fox jump", "jump lazy", "lazy dog")),
+            buildBoolPrefixQuery("a_field._3gram", "a_field._index_prefix",
+                asList("quick brown fox", "brown fox jump", "fox jump lazy", "jump lazy dog")),
+            buildBoolPrefixQuery("a_field._4gram", "a_field._index_prefix",
+                asList("quick brown fox jump", "brown fox jump lazy", "fox jump lazy dog"))));
     }
 
     private void documentParsingTestCase(Collection<String> values) throws IOException {

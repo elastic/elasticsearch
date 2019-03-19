@@ -111,7 +111,7 @@ root field `my_field`.
 --------------------------------------------------
 PUT my_index/_doc/1?refresh
 {
-  "my_field": "quick red fox lazy brown dog"
+  "my_field": "quick brown fox jump lazy dog"
 }
 --------------------------------------------------
 // CONSOLE
@@ -126,7 +126,7 @@ GET my_index/_search
 {
   "query": {
     "match_phrase_prefix": {
-      "my_field": "red f"
+      "my_field": "brown f"
     }
   }
 }
@@ -158,7 +158,7 @@ GET my_index/_search
         "_id" : "1",
         "_score" : 0.8630463,
         "_source" : {
-          "my_field" : "quick red fox lazy brown dog"
+          "my_field" : "quick brown fox jump lazy dog"
         }
       }
     ]
@@ -260,8 +260,8 @@ terms in the `._index_prefix` subfield.
 The analyzer of the `._index_prefix` subfield slightly modifies the
 shingle-building behavior to also index prefixes of the terms at the end of the
 field's value that normally would not be produced as shingles. For example, if
-the value `quick red fox` is indexed into a `search_as_you_type` field with
-`max_shingle_size` of 3, prefixes for `red fox` and `fox` are also indexed into
+the value `quick brown fox` is indexed into a `search_as_you_type` field with
+`max_shingle_size` of 3, prefixes for `brown fox` and `fox` are also indexed into
 the `._index_prefix` subfield even though they do not appear as terms in the
 `._3gram` subfield. This allows for completion of all the terms in the field's
 input.

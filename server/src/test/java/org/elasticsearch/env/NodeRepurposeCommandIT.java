@@ -19,6 +19,7 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -80,6 +81,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         assertTrue(indexExists(indexName));
+        expectThrows(NoShardAvailableActionException.class, () -> client().prepareGet(indexName, "type1", "1").get());
 
         logger.info("--> Restarting and repurposing other node");
 
@@ -88,12 +90,14 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
 
         executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, 0, 0);
 
+        // by restarting as master and data node, we can check that the index definition was really deleted and also that the tool
+        // does not mess things up so much that the nodes cannot boot as master or data node any longer.
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
 
         ensureGreen();
 
-        // indexes gone.
+        // index is gone.
         assertFalse(indexExists(indexName));
     }
 

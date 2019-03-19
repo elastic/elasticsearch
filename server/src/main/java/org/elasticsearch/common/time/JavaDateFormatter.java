@@ -31,6 +31,7 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -77,7 +78,7 @@ class JavaDateFormatter implements DateFormatter {
         this.format = format;
 
         if (parsers.length == 0) {
-            this.parsers = Arrays.asList(printer);
+            this.parsers = Collections.singletonList(printer);
         } else {
             this.parsers = Arrays.asList(parsers);
         }
@@ -142,8 +143,7 @@ class JavaDateFormatter implements DateFormatter {
         try {
             ParsePosition pp = new ParsePosition(0);
             formatter.parseUnresolved(input, pp);
-            int len = input.length();
-            if (pp.getErrorIndex() == -1 && pp.getIndex() == len) {
+            if (pp.getErrorIndex() == -1 && pp.getIndex() == input.length()) {
                 return true;
             }
         } catch (RuntimeException ex) {
@@ -165,7 +165,6 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public DateFormatter withLocale(Locale locale) {
-        //TODO not sure that we can keep that shortcut, and the one above
         // shortcurt to not create new objects unnecessarily
         if (locale.equals(firstParser().getLocale())) {
             return this;
@@ -222,7 +221,7 @@ class JavaDateFormatter implements DateFormatter {
         return String.format(Locale.ROOT, "format[%s] locale[%s]", format, locale());
     }
 
-    public Collection<DateTimeFormatter> getParsers() {
+    Collection<DateTimeFormatter> getParsers() {
         return parsers;
     }
 }

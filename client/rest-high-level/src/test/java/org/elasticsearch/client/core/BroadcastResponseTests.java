@@ -64,20 +64,20 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
     }
 
     @Override
-    protected BroadcastResponse doParseInstance(XContentParser parser) throws IOException {
+    protected BroadcastResponse doParseToClientInstance(XContentParser parser) throws IOException {
         return BroadcastResponse.fromXContent(parser);
     }
 
     @Override
     protected void assertInstances(org.elasticsearch.action.support.broadcast.BroadcastResponse serverTestInstance,
-                                   BroadcastResponse hlrcInstance) {
-        assertThat(hlrcInstance.shards().total(), equalTo(serverTestInstance.getTotalShards()));
-        assertThat(hlrcInstance.shards().successful(), equalTo(serverTestInstance.getSuccessfulShards()));
-        assertThat(hlrcInstance.shards().skipped(), equalTo(0));
-        assertThat(hlrcInstance.shards().failed(), equalTo(serverTestInstance.getFailedShards()));
-        assertThat(hlrcInstance.shards().failures(), hasSize(hlrcInstance.shards().failed() == 0 ? 0 : 1)); // failures are grouped
-        if (hlrcInstance.shards().failed() > 0) {
-            final DefaultShardOperationFailedException groupedFailure = hlrcInstance.shards().failures().iterator().next();
+                                   BroadcastResponse clientInstance) {
+        assertThat(clientInstance.shards().total(), equalTo(serverTestInstance.getTotalShards()));
+        assertThat(clientInstance.shards().successful(), equalTo(serverTestInstance.getSuccessfulShards()));
+        assertThat(clientInstance.shards().skipped(), equalTo(0));
+        assertThat(clientInstance.shards().failed(), equalTo(serverTestInstance.getFailedShards()));
+        assertThat(clientInstance.shards().failures(), hasSize(clientInstance.shards().failed() == 0 ? 0 : 1)); // failures are grouped
+        if (clientInstance.shards().failed() > 0) {
+            final DefaultShardOperationFailedException groupedFailure = clientInstance.shards().failures().iterator().next();
             assertThat(groupedFailure.index(), equalTo(index));
             assertThat(groupedFailure.shardId(), isIn(shardIds));
             assertThat(groupedFailure.reason(), containsString("reason=retention lease with ID [" + id + "] not found"));

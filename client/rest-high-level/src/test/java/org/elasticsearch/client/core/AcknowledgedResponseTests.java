@@ -35,14 +35,14 @@ public class AcknowledgedResponseTests extends AbstractResponseTestCase<org.elas
     }
 
     @Override
-    protected AcknowledgedResponse doParseInstance(XContentParser parser) throws IOException {
+    protected AcknowledgedResponse doParseToClientInstance(XContentParser parser) throws IOException {
         return AcknowledgedResponse.fromXContent(parser);
     }
 
     @Override
     protected void assertInstances(org.elasticsearch.action.support.master.AcknowledgedResponse serverTestInstance,
-                                   AcknowledgedResponse hlrcInstance) {
-        assertThat(hlrcInstance.isAcknowledged(), is(serverTestInstance.isAcknowledged()));
+                                   AcknowledgedResponse clientInstance) {
+        assertThat(clientInstance.isAcknowledged(), is(serverTestInstance.isAcknowledged()));
     }
 
     // Still needed for StopRollupJobResponseTests and StartRollupJobResponseTests test classes

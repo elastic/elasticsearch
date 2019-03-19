@@ -38,9 +38,9 @@ import java.io.IOException;
  * verifies that they are correctly parsed into HLRC response instances.
  *
  * @param <S> The class representing the response on the server side.
- * @param <H> The HLRC response class.
+ * @param <C> The class representing the response on the client side.
  */
-public abstract class AbstractResponseTestCase<S extends ToXContent, H> extends ESTestCase {
+public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends ESTestCase {
 
     private static final int NUMBER_OF_TEST_RUNS = 20;
 
@@ -56,15 +56,15 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, H> extends 
                 new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
                 LoggingDeprecationHandler.INSTANCE,
                 bytes.streamInput());
-            final H hlrcInstance = doParseInstance(parser);
-            assertInstances(serverTestInstance, hlrcInstance);
+            final C clientInstance = doParseToClientInstance(parser);
+            assertInstances(serverTestInstance, clientInstance);
         }
     }
 
     protected abstract S createServerTestInstance();
 
-    protected abstract H doParseInstance(XContentParser parser) throws IOException;
+    protected abstract C doParseToClientInstance(XContentParser parser) throws IOException;
 
-    protected abstract void assertInstances(S serverTestInstance, H hlrcInstance);
+    protected abstract void assertInstances(S serverTestInstance, C clientInstance);
 
 }

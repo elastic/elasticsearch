@@ -65,7 +65,7 @@ The following example invalidates all API keys for the `native1` realm immediate
 
 [source,js]
 --------------------------------------------------
-DELETE /_xpack/api_key
+DELETE /_security/api_key
 {
   "realm_name" : "native1"
 }
@@ -76,7 +76,7 @@ The following example invalidates all API keys for the user `myuser` in all real
 
 [source,js]
 --------------------------------------------------
-DELETE /_xpack/api_key
+DELETE /_security/api_key
 {
   "username" : "myuser"
 }
@@ -88,7 +88,7 @@ Finally, the following example invalidates all API keys for the user `myuser` in
 
 [source,js]
 --------------------------------------------------
-DELETE /_xpack/api_key
+DELETE /_security/api_key
 {
   "username" : "myuser",
   "realm_name" : "native1"

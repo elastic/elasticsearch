@@ -120,7 +120,7 @@ public final class ThreadContext implements Closeable, Writeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         threadLocal.close();
     }
 
@@ -578,10 +578,6 @@ public final class ThreadContext implements Closeable, Writeable {
                 throw new IllegalArgumentException("value for key [" + key + "] already present");
             }
             return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);
-        }
-
-        boolean isEmpty() {
-            return requestHeaders.isEmpty() && responseHeaders.isEmpty() && transientHeaders.isEmpty();
         }
 
         private ThreadContextStruct copyHeaders(Iterable<Map.Entry<String, String>> headers) {

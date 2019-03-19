@@ -51,7 +51,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@TestLogging(value = "org.elasticsearch.indices.IndicesRequestCache:TRACE")
+@TestLogging(value = "org.elasticsearch.indices.IndicesRequestCache:TRACE,org.elasticsearch.index.engine.Engine:DEBUG")
 public class IndicesRequestCacheIT extends ESIntegTestCase {
 
     // One of the primary purposes of the query cache is to cache aggs results

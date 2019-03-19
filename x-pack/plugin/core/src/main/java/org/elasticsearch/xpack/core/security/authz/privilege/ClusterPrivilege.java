@@ -40,11 +40,13 @@ public final class ClusterPrivilege extends Privilege {
     private static final Automaton MANAGE_TOKEN_AUTOMATON = patterns("cluster:admin/xpack/security/token/*");
     private static final Automaton MONITOR_AUTOMATON = patterns("cluster:monitor/*");
     private static final Automaton MONITOR_ML_AUTOMATON = patterns("cluster:monitor/xpack/ml/*");
+    private static final Automaton MONITOR_DATA_FRAME_AUTOMATON = patterns("cluster:monitor/data_frame/*");
     private static final Automaton MONITOR_WATCHER_AUTOMATON = patterns("cluster:monitor/xpack/watcher/*");
     private static final Automaton MONITOR_ROLLUP_AUTOMATON = patterns("cluster:monitor/xpack/rollup/*");
     private static final Automaton ALL_CLUSTER_AUTOMATON = patterns("cluster:*", "indices:admin/template/*");
     private static final Automaton MANAGE_AUTOMATON = minusAndMinimize(ALL_CLUSTER_AUTOMATON, MANAGE_SECURITY_AUTOMATON);
     private static final Automaton MANAGE_ML_AUTOMATON = patterns("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*");
+    private static final Automaton MANAGE_DATA_FRAME_AUTOMATON = patterns("cluster:admin/data_frame/*", "cluster:monitor/data_frame/*");
     private static final Automaton MANAGE_WATCHER_AUTOMATON = patterns("cluster:admin/xpack/watcher/*", "cluster:monitor/xpack/watcher/*");
     private static final Automaton TRANSPORT_CLIENT_AUTOMATON = patterns("cluster:monitor/nodes/liveness", "cluster:monitor/state");
     private static final Automaton MANAGE_IDX_TEMPLATE_AUTOMATON = patterns("indices:admin/template/*");
@@ -62,10 +64,14 @@ public final class ClusterPrivilege extends Privilege {
     public static final ClusterPrivilege ALL =                   new ClusterPrivilege("all",                 ALL_CLUSTER_AUTOMATON);
     public static final ClusterPrivilege MONITOR =               new ClusterPrivilege("monitor",             MONITOR_AUTOMATON);
     public static final ClusterPrivilege MONITOR_ML =            new ClusterPrivilege("monitor_ml",          MONITOR_ML_AUTOMATON);
+    public static final ClusterPrivilege MONITOR_DATA_FRAME =
+            new ClusterPrivilege("monitor_data_frame_transforms", MONITOR_DATA_FRAME_AUTOMATON);
     public static final ClusterPrivilege MONITOR_WATCHER =       new ClusterPrivilege("monitor_watcher",     MONITOR_WATCHER_AUTOMATON);
     public static final ClusterPrivilege MONITOR_ROLLUP =        new ClusterPrivilege("monitor_rollup",      MONITOR_ROLLUP_AUTOMATON);
     public static final ClusterPrivilege MANAGE =                new ClusterPrivilege("manage",              MANAGE_AUTOMATON);
     public static final ClusterPrivilege MANAGE_ML =             new ClusterPrivilege("manage_ml",           MANAGE_ML_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_DATA_FRAME =
+            new ClusterPrivilege("manage_data_frame_transforms", MANAGE_DATA_FRAME_AUTOMATON);
     public static final ClusterPrivilege MANAGE_TOKEN =          new ClusterPrivilege("manage_token",        MANAGE_TOKEN_AUTOMATON);
     public static final ClusterPrivilege MANAGE_WATCHER =        new ClusterPrivilege("manage_watcher",      MANAGE_WATCHER_AUTOMATON);
     public static final ClusterPrivilege MANAGE_ROLLUP =         new ClusterPrivilege("manage_rollup",       MANAGE_ROLLUP_AUTOMATON);
@@ -90,10 +96,12 @@ public final class ClusterPrivilege extends Privilege {
             .put("all", ALL)
             .put("monitor", MONITOR)
             .put("monitor_ml", MONITOR_ML)
+            .put("monitor_data_frame_transforms", MONITOR_DATA_FRAME)
             .put("monitor_watcher", MONITOR_WATCHER)
             .put("monitor_rollup", MONITOR_ROLLUP)
             .put("manage", MANAGE)
             .put("manage_ml", MANAGE_ML)
+            .put("manage_data_frame_transforms", MANAGE_DATA_FRAME)
             .put("manage_token", MANAGE_TOKEN)
             .put("manage_watcher", MANAGE_WATCHER)
             .put("manage_index_templates", MANAGE_IDX_TEMPLATES)

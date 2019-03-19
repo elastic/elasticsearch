@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -69,8 +70,8 @@ public class TransportAckWatchActionTests extends ESTestCase {
         String watchId = "my_watch_id";
         doAnswer(invocation -> {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[1];
-            listener.onResponse(new GetResponse(new GetResult(Watch.INDEX, Watch.DOC_TYPE, watchId, UNASSIGNED_SEQ_NO, 0, -1, false,
-                    BytesArray.EMPTY, Collections.emptyMap())));
+            listener.onResponse(new GetResponse(new GetResult(Watch.INDEX, MapperService.SINGLE_MAPPING_NAME, watchId, UNASSIGNED_SEQ_NO,
+                0, -1, false, BytesArray.EMPTY, Collections.emptyMap())));
             return null;
         }).when(client).get(anyObject(), anyObject());
 

@@ -30,6 +30,7 @@ public class Installation {
     public final Path home;
     public final Path bin; // this isn't a first-class installation feature but we include it for convenience
     public final Path lib; // same
+    public final Path bundledJdk;
     public final Path config;
     public final Path data;
     public final Path logs;
@@ -42,7 +43,7 @@ public class Installation {
         this.home = home;
         this.bin = home.resolve("bin");
         this.lib = home.resolve("lib");
-
+        this.bundledJdk = home.resolve("jdk");
         this.config = config;
         this.data = data;
         this.logs = logs;

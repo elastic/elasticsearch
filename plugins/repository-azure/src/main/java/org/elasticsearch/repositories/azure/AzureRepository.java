@@ -75,21 +75,18 @@ public class AzureRepository extends BlobStoreRepository {
                 s -> LocationMode.PRIMARY_ONLY.toString(), s -> LocationMode.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope);
         public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
             Setting.byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope);
-        public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
         public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting("readonly", false, Property.NodeScope);
     }
 
     private final BlobPath basePath;
     private final ByteSizeValue chunkSize;
-    private final Environment environment;
     private final AzureStorageService storageService;
     private final boolean readonly;
 
     public AzureRepository(RepositoryMetaData metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
             AzureStorageService storageService) {
-        super(metadata, environment.settings(), Repository.COMPRESS_SETTING.get(metadata.settings()), namedXContentRegistry);
+        super(metadata, environment.settings(), namedXContentRegistry);
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
-        this.environment = environment;
         this.storageService = storageService;
 
         final String basePath = Strings.trimLeadingCharacter(Repository.BASE_PATH_SETTING.get(metadata.settings()), '/');

@@ -109,6 +109,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.time.Clock;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -122,6 +123,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -785,23 +787,18 @@ public final class TokenService {
                               Iterator<TimeValue> backoff, Instant refreshRequested, ActionListener<Tuple<UserToken, String>> listener) {
         logger.debug("Attempting to refresh token stored in token document [{}]", tokenDocId);
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
-        final RefreshTokenStatus refreshTokenStatus;
+        final Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkRefreshResult;
         try {
-            checkTokenDocumentExpired(clock.instant(), source);
-            refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
-            if (refreshTokenStatus.isInvalidated()) {
-                throw invalidGrantException("token has been invalidated");
+            checkRefreshResult = checkTokenDocumentForRefresh(clock.instant(), clientAuth, source);
+            if (checkRefreshResult.v2().isPresent()) {
+                onFailure.accept(checkRefreshResult.v2().get());
+                return;
             }
-            checkClientCanRefresh(refreshTokenStatus, clientAuth);
-            final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
-            checkMultipleRefreshes(clock.instant(), refreshTokenStatus, userToken);
-        } catch (IOException | IllegalStateException e) {
+        } catch (IOException | DateTimeException | IllegalStateException e) {
             onFailure.accept(new ElasticsearchSecurityException("invalid token document", e));
             return;
-        } catch (ElasticsearchSecurityException e) {
-            onFailure.accept(e);
-            return;
         }
+        final RefreshTokenStatus refreshTokenStatus = checkRefreshResult.v1();
         if (refreshTokenStatus.isRefreshed()) {
             logger.debug("Token document [{}] was recently refreshed, when a new token document [{}] was generated. Reusing that result.",
                     tokenDocId, refreshTokenStatus.getSupersedingDocId());
@@ -953,29 +950,61 @@ public final class TokenService {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get);
     }
 
-    private static void checkTokenDocumentExpired(Instant now, Map<String, Object> source) {
+    /**
+     * A refresh token has a hardcoded maximum lifetime of 24h. This checks if the token document represents a valid token wrt this time
+     * interval.
+     */
+    private static Optional<ElasticsearchSecurityException> checkTokenDocumentExpired(Instant now, Map<String, Object> source) {
         final Long creationEpochMilli = (Long) source.get("creation_time");
         if (creationEpochMilli == null) {
             throw new IllegalStateException("token document is missing creation time value");
         } else {
             final Instant creationTime = Instant.ofEpochMilli(creationEpochMilli);
             if (now.isAfter(creationTime.plus(24L, ChronoUnit.HOURS))) {
-                throw invalidGrantException("token document has expired");
+                return Optional.of(invalidGrantException("token document has expired"));
+            } else {
+                return Optional.empty();
             }
         }
     }
 
-    private static void checkClientCanRefresh(RefreshTokenStatus refreshToken, Authentication clientAuthentication) {
+    /**
+     * Parses the {@code RefreshTokenStatus} from the token document and throws an exception if the document is malformed. Returns the
+     * parsed {@code RefreshTokenStatus} together with an {@code Optional} validation exception that encapsulates the various logic about
+     * when and by who a token can be refreshed.
+     */
+    private static Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkTokenDocumentForRefresh(Instant now,
+            Authentication clientAuth, Map<String, Object> source) throws IOException {
+        final RefreshTokenStatus refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
+        final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
+        final ElasticsearchSecurityException validationException = checkTokenDocumentExpired(now, source).orElseGet(() -> {
+            if (refreshTokenStatus.isInvalidated()) {
+                return invalidGrantException("token has been invalidated");
+            } else {
+                return checkClientCanRefresh(refreshTokenStatus, clientAuth)
+                        .orElse(checkMultipleRefreshes(now, refreshTokenStatus, userToken).orElse(null));
+            }
+        });
+        return new Tuple<>(refreshTokenStatus, Optional.ofNullable(validationException));
+    }
+
+    /**
+     * Refresh tokens are bound to be used only by the client that originally created them. This check validates this condition, given the
+     * {@code Authentication} of the client that attempted the refresh operation.
+     */
+    private static Optional<ElasticsearchSecurityException> checkClientCanRefresh(RefreshTokenStatus refreshToken,
+                                                                                  Authentication clientAuthentication) {
         if (clientAuthentication.getUser().principal().equals(refreshToken.getAssociatedUser()) == false) {
             logger.warn("Token was originally created by [{}] but [{}] attempted to refresh it", refreshToken.getAssociatedUser(),
                     clientAuthentication.getUser().principal());
-            throw invalidGrantException("tokens must be refreshed by the creating client");
-        }
-        if (clientAuthentication.getAuthenticatedBy().getName().equals(refreshToken.getAssociatedRealm()) == false) {
+            return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
+        } else if (clientAuthentication.getAuthenticatedBy().getName().equals(refreshToken.getAssociatedRealm()) == false) {
             logger.warn("[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
                     refreshToken.getAssociatedUser(), refreshToken.getAssociatedRealm(),
                     clientAuthentication.getAuthenticatedBy().getName());
-            throw invalidGrantException("tokens must be refreshed by the creating client");
+            return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
+        } else {
+            return Optional.empty();
         }
     }
 
@@ -999,19 +1028,29 @@ public final class TokenService {
         return userTokenSource;
     }
 
-    private static void checkMultipleRefreshes(Instant now, RefreshTokenStatus refreshToken, UserToken userToken) {
+    /**
+     * Checks if the token can be refreshed once more. If a token has previously been refreshed, it can only by refreshed again inside a
+     * short span of time (30 s).
+     * 
+     * @return An {@code Optional} containing the exception in case this refresh token cannot be reused, or an empty <b>Optional</b> if
+     *         refreshing is allowed.
+     */
+    private static Optional<ElasticsearchSecurityException> checkMultipleRefreshes(Instant now, RefreshTokenStatus refreshToken,
+                                                                                   UserToken userToken) {
         if (refreshToken.isRefreshed()) {
             if (userToken.getVersion().onOrAfter(Version.V_7_1_0)) {
                 if (now.isAfter(refreshToken.getRefreshInstant().plus(30L, ChronoUnit.SECONDS))) {
-                    throw invalidGrantException("token has already been refreshed more than 30 seconds in the past");
+                    return Optional.of(invalidGrantException("token has already been refreshed more than 30 seconds in the past"));
                 }
                 if (now.isBefore(refreshToken.getRefreshInstant().minus(30L, ChronoUnit.SECONDS))) {
-                    throw invalidGrantException("token has been refreshed more than 30 seconds in the future. clock skew too great.");
+                    return Optional
+                            .of(invalidGrantException("token has been refreshed more than 30 seconds in the future, clock skew too great"));
                 }
             } else {
-                throw invalidGrantException("token has already been refreshed");
+                return Optional.of(invalidGrantException("token has already been refreshed"));
             }
         }
+        return Optional.empty();
     }
 
     /**

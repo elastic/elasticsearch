@@ -19,8 +19,11 @@
 
 package org.elasticsearch.client.dataframe;
 
+import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.client.dataframe.transforms.QueryConfigTests;
+import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,6 +32,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -58,6 +62,20 @@ public class PreviewDataFrameTransformRequestTests extends AbstractXContentTestC
         assertFalse(new PreviewDataFrameTransformRequest(DataFrameTransformConfigTests.randomDataFrameTransformConfig())
                 .validate().isPresent());
         assertThat(new PreviewDataFrameTransformRequest(null).validate().get().getMessage(),
-                containsString("preview requires a non-null Data Frame config"));
+                containsString("preview requires a non-null data frame config"));
+
+        // null id and destination is valid
+        DataFrameTransformConfig config = new DataFrameTransformConfig(null, "source", null,
+                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+
+        assertFalse(new PreviewDataFrameTransformRequest(config).validate().isPresent());
+
+        // null source is not valid
+        config = new DataFrameTransformConfig(null, null, null,
+                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+
+        Optional<ValidationException> error = new PreviewDataFrameTransformRequest(config).validate();
+        assertTrue(error.isPresent());
+        assertThat(error.get().getMessage(), containsString("data frame transform source cannot be null"));
     }
 }

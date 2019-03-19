@@ -49,12 +49,20 @@ public class PreviewDataFrameTransformRequest implements ToXContentObject, Valid
 
     @Override
     public Optional<ValidationException> validate() {
+        ValidationException validationException = new ValidationException();
         if (config == null) {
-            ValidationException validationException = new ValidationException();
-            validationException.addValidationError("preview requires a non-null Data Frame config");
+            validationException.addValidationError("preview requires a non-null data frame config");
             return Optional.of(validationException);
         } else {
+            if (config.getSource() == null) {
+                validationException.addValidationError("data frame transform source cannot be null");
+            }
+        }
+
+        if (validationException.validationErrors().isEmpty()) {
             return Optional.empty();
+        } else {
+            return Optional.of(validationException);
         }
     }
 

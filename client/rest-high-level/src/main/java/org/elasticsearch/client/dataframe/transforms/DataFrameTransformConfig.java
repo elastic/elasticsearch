@@ -78,7 +78,7 @@ public class DataFrameTransformConfig implements ToXContentObject {
                                     final QueryConfig queryConfig,
                                     final PivotConfig pivotConfig) {
         this.id = id;
-        this.source = Objects.requireNonNull(source);
+        this.source = source;
         this.dest = dest;
         this.queryConfig = queryConfig;
         this.pivotConfig = pivotConfig;
@@ -102,18 +102,6 @@ public class DataFrameTransformConfig implements ToXContentObject {
 
     public QueryConfig getQueryConfig() {
         return queryConfig;
-    }
-
-    public boolean isValid() {
-        if (queryConfig != null && queryConfig.isValid() == false) {
-            return false;
-        }
-
-        if (pivotConfig == null || pivotConfig.isValid() == false) {
-            return false;
-        }
-
-        return true;
     }
 
     @Override

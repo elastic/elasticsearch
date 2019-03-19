@@ -3,4 +3,11 @@
 
 Also see <<breaking-changes-5.6>>.
 
-coming[5.6.16]
+[[bug-5.6.16]]
+[float]
+=== Bug fixes
+
+Indices APIs::
+* Add pre-upgrade check to test cluster routing allocation is enabled {pull}39340[#39340] (issue: {issue}39339[#39339])
+
+

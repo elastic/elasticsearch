@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
@@ -62,8 +64,17 @@ public class PreviewDataFrameTransformActionRequestTests extends AbstractStreama
 
     @Override
     protected Request createTestInstance() {
+        Map<String, String> mappingOverrides = null;
+        if (randomBoolean()) {
+            mappingOverrides = new HashMap<>();
+            int kvCount = randomInt(10);
+            for (int i = 0; i < kvCount; i++) {
+                mappingOverrides.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
+            }
+        }
         DataFrameTransformConfig config = new DataFrameTransformConfig("transform-preview", randomAlphaOfLength(10),
-                "unused-transform-preview-index", null, QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+                "unused-transform-preview-index", null, QueryConfigTests.randomQueryConfig(),
+            PivotConfigTests.randomPivotConfig(), mappingOverrides);
         return new Request(config);
     }
 

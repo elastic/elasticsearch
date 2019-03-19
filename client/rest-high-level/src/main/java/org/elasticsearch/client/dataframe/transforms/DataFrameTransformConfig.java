@@ -28,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -39,6 +41,7 @@ public class DataFrameTransformConfig implements ToXContentObject {
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DEST = new ParseField("dest");
     public static final ParseField QUERY = new ParseField("query");
+    public static final ParseField MAPPING_OVERRIDE = new ParseField("mapping_override");
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
 
@@ -47,6 +50,7 @@ public class DataFrameTransformConfig implements ToXContentObject {
     private final String dest;
     private final QueryConfig queryConfig;
     private final PivotConfig pivotConfig;
+    private final Map<String, String> mappingOverride;
 
     public static final ConstructingObjectParser<DataFrameTransformConfig, String> PARSER =
             new ConstructingObjectParser<>("data_frame_transform", true,
@@ -56,7 +60,9 @@ public class DataFrameTransformConfig implements ToXContentObject {
                     String dest = (String) args[2];
                     QueryConfig queryConfig = (QueryConfig) args[3];
                     PivotConfig pivotConfig = (PivotConfig) args[4];
-                    return new DataFrameTransformConfig(id, source, dest, queryConfig, pivotConfig);
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> mappingOverrides = (Map<String, String>) args[5];
+                    return new DataFrameTransformConfig(id, source, dest, queryConfig, pivotConfig, mappingOverrides);
                 });
 
     static {
@@ -65,23 +71,25 @@ public class DataFrameTransformConfig implements ToXContentObject {
         PARSER.declareString(constructorArg(), DEST);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> QueryConfig.fromXContent(p), QUERY);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p), PIVOT_TRANSFORM);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), MAPPING_OVERRIDE);
     }
 
     public static DataFrameTransformConfig fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-
     public DataFrameTransformConfig(final String id,
                                     final String source,
                                     final String dest,
                                     final QueryConfig queryConfig,
-                                    final PivotConfig pivotConfig) {
+                                    final PivotConfig pivotConfig,
+                                    final Map<String, String> mappingOverride) {
         this.id = Objects.requireNonNull(id);
         this.source = Objects.requireNonNull(source);
         this.dest = Objects.requireNonNull(dest);
         this.queryConfig = queryConfig;
         this.pivotConfig = pivotConfig;
+        this.mappingOverride = mappingOverride == null ? null : Collections.unmodifiableMap(mappingOverride);
     }
 
     public String getId() {
@@ -102,6 +110,10 @@ public class DataFrameTransformConfig implements ToXContentObject {
 
     public QueryConfig getQueryConfig() {
         return queryConfig;
+    }
+
+    public Map<String, String> getMappingOverrides() {
+        return mappingOverride;
     }
 
     public boolean isValid() {
@@ -128,6 +140,9 @@ public class DataFrameTransformConfig implements ToXContentObject {
         if (pivotConfig != null) {
             builder.field(PIVOT_TRANSFORM.getPreferredName(), pivotConfig);
         }
+        if (mappingOverride != null) {
+            builder.field(MAPPING_OVERRIDE.getPreferredName(), mappingOverride);
+        }
         builder.endObject();
         return builder;
     }
@@ -148,12 +163,13 @@ public class DataFrameTransformConfig implements ToXContentObject {
                 && Objects.equals(this.source, that.source)
                 && Objects.equals(this.dest, that.dest)
                 && Objects.equals(this.queryConfig, that.queryConfig)
-                && Objects.equals(this.pivotConfig, that.pivotConfig);
+                && Objects.equals(this.pivotConfig, that.pivotConfig)
+                && Objects.equals(this.mappingOverride, that.mappingOverride);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, queryConfig, pivotConfig);
+        return Objects.hash(id, source, dest, queryConfig, pivotConfig, mappingOverride);
     }
 
     @Override

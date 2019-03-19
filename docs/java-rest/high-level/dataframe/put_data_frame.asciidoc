@@ -36,6 +36,7 @@ include-tagged::{doc-tests-file}[{api}-config]
 <3> The destination index
 <4> Optionally a QueryConfig
 <5> The PivotConfig
+<6> The provided `Map<String, String>` values to override deduced destination index mappings.
 
 [id="{upid}-{api}-query-config"]
 ==== QueryConfig
@@ -83,6 +84,19 @@ Defines the aggregations for the group fields.
 include-tagged::{doc-tests-file}[{api}-agg-config]
 --------------------------------------------------
 <1> Aggregate the average star rating
+
+==== Overriding Deduced Destination Mapping Field Types
+
+When creating the destination index for the {dataframe-transform}, a best
+effort mapping is created. This option allows overriding specific mapped
+field types.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-mapping-override]
+--------------------------------------------------
+<1> Override the deduced mapping for field `avg_rating` to be a type of
+`keyword`
 
 include::../execution.asciidoc[]
 

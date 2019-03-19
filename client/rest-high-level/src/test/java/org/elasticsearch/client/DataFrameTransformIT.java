@@ -84,7 +84,12 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
         String id = "test-crud";
-        DataFrameTransformConfig transform = new DataFrameTransformConfig(id, sourceIndex, "pivot-dest", queryConfig, pivotConfig);
+        DataFrameTransformConfig transform = new DataFrameTransformConfig(id,
+            sourceIndex,
+            "pivot-dest",
+            queryConfig,
+            pivotConfig,
+            Collections.emptyMap());
 
         DataFrameClient client = highLevelClient().dataFrame();
         AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
@@ -114,7 +119,12 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
         String id = "test-stop-start";
-        DataFrameTransformConfig transform = new DataFrameTransformConfig(id, sourceIndex, "pivot-dest", queryConfig, pivotConfig);
+        DataFrameTransformConfig transform = new DataFrameTransformConfig(id,
+            sourceIndex,
+            "pivot-dest",
+            queryConfig,
+            pivotConfig,
+            Collections.emptyMap());
 
         DataFrameClient client = highLevelClient().dataFrame();
         AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,

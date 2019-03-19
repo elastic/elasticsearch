@@ -105,3 +105,46 @@ setup:
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform" }
   - match: { transforms.1.id: "airline-transform-dos" }
+---
+"Verify put transform creates destination index with appropriate mapping":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": "airline-data",
+            "dest": "airline-data-by-airline",
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}, "time": {"max": {"field": "time"}}}
+            }
+          }
+  - match: { acknowledged: true }
+  - do:
+      indices.get_mapping:
+        index: airline-data-by-airline
+  - match: { airline-data-by-airline.mappings.properties.airline.type: keyword }
+  - match: { airline-data-by-airline.mappings.properties.avg_response.type: double }
+  - match: { airline-data-by-airline.mappings.properties.time.type: date }
+
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-with-string-avg"
+        body: >
+          {
+            "source": "airline-data",
+            "dest": "airline-data-by-airline-string-avg",
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}, "time": {"max": {"field": "time"}}}
+            },
+            "mapping_override": { "avg_response": "keyword" }
+          }
+  - match: { acknowledged: true }
+  - do:
+      indices.get_mapping:
+        index: airline-data-by-airline-string-avg
+  - match: { airline-data-by-airline-string-avg.mappings.properties.airline.type: keyword }
+  - match: { airline-data-by-airline-string-avg.mappings.properties.avg_response.type: keyword }
+  - match: { airline-data-by-airline-string-avg.mappings.properties.time.type: date }
+

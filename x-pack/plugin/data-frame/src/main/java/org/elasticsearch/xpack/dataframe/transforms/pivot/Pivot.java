@@ -43,12 +43,14 @@ public class Pivot {
     // objects for re-using
     private final CompositeAggregationBuilder cachedCompositeAggregation;
     private final SearchRequest cachedSearchRequest;
+    private final Map<String, String> mappingOverrides;
 
-    public Pivot(String source, QueryBuilder query, PivotConfig config) {
+    public Pivot(String source, QueryBuilder query, PivotConfig config, Map<String, String> mappingOverrides) {
         this.source = source;
         this.config = config;
         this.cachedCompositeAggregation = createCompositeAggregation(config);
         this.cachedSearchRequest = createSearchRequest(source, query, cachedCompositeAggregation);
+        this.mappingOverrides = mappingOverrides;
     }
 
     public void validate(Client client, final ActionListener<Boolean> listener) {
@@ -65,7 +67,7 @@ public class Pivot {
     }
 
     public void deduceMappings(Client client, final ActionListener<Map<String, String>> listener) {
-        SchemaUtil.deduceMappings(client, config, source, listener);
+        SchemaUtil.deduceMappings(client, config, source, mappingOverrides, listener);
     }
 
     public SearchRequest buildSearchRequest(Map<String, Object> position) {
@@ -77,12 +79,17 @@ public class Pivot {
     }
 
     public Stream<Map<String, Object>> extractResults(CompositeAggregation agg,
-            DataFrameIndexerTransformStats dataFrameIndexerTransformStats) {
+                                                      Map<String, String> fieldTypeMap,
+                                                      DataFrameIndexerTransformStats dataFrameIndexerTransformStats) {
 
         GroupConfig groups = config.getGroupConfig();
         Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
 
-        return AggregationResultUtils.extractCompositeAggregationResults(agg, groups, aggregationBuilders, dataFrameIndexerTransformStats);
+        return AggregationResultUtils.extractCompositeAggregationResults(agg,
+            groups,
+            aggregationBuilders,
+            fieldTypeMap,
+            dataFrameIndexerTransformStats);
     }
 
     private void runTestQuery(Client client, final ActionListener<Boolean> listener) {
@@ -99,7 +106,7 @@ public class Pivot {
             }
             listener.onResponse(true);
         }, e->{
-            listener.onFailure(new RuntimeException("Failed to test query",e));
+            listener.onFailure(new RuntimeException("Failed to test query", e));
         }));
     }
 

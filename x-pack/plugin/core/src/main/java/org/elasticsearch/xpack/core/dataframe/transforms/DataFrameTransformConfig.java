@@ -39,6 +39,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
     public static final ParseField QUERY = new ParseField("query");
+    public static final ParseField MAPPING_OVERRIDES = new ParseField("mapping_override");
 
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
@@ -56,6 +57,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
 
     private final QueryConfig queryConfig;
     private final PivotConfig pivotConfig;
+    private final Map<String, String> mappingOverrides;
 
     private static ConstructingObjectParser<DataFrameTransformConfig, String> createParser(boolean lenient) {
         ConstructingObjectParser<DataFrameTransformConfig, String> parser = new ConstructingObjectParser<>(NAME, lenient,
@@ -93,7 +95,10 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                     }
 
                     PivotConfig pivotConfig = (PivotConfig) args[6];
-                    return new DataFrameTransformConfig(id, source, dest, headers, queryConfig, pivotConfig);
+
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> mappingOverrides = (Map<String, String>) args[7];
+                    return new DataFrameTransformConfig(id, source, dest, headers, queryConfig, pivotConfig, mappingOverrides);
                 });
 
         parser.declareString(optionalConstructorArg(), DataFrameField.ID);
@@ -104,6 +109,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), HEADERS);
         parser.declareObject(optionalConstructorArg(), (p, c) -> QueryConfig.fromXContent(p, lenient), QUERY);
         parser.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p, lenient), PIVOT_TRANSFORM);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), MAPPING_OVERRIDES);
 
         return parser;
     }
@@ -117,13 +123,15 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                                     final String dest,
                                     final Map<String, String> headers,
                                     final QueryConfig queryConfig,
-                                    final PivotConfig pivotConfig) {
+                                    final PivotConfig pivotConfig,
+                                    final Map<String, String> mappingOverrides) {
         this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
         this.source = ExceptionsHelper.requireNonNull(source, DataFrameField.SOURCE.getPreferredName());
         this.dest = ExceptionsHelper.requireNonNull(dest, DataFrameField.DESTINATION.getPreferredName());
         this.queryConfig = ExceptionsHelper.requireNonNull(queryConfig, QUERY.getPreferredName());
         this.setHeaders(headers == null ? Collections.emptyMap() : headers);
         this.pivotConfig = pivotConfig;
+        this.mappingOverrides = mappingOverrides == null ? Collections.emptyMap() : Collections.unmodifiableMap(mappingOverrides);
 
         // at least one function must be defined
         if (this.pivotConfig == null) {
@@ -138,6 +146,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         queryConfig = in.readOptionalWriteable(QueryConfig::new);
         pivotConfig = in.readOptionalWriteable(PivotConfig::new);
+        mappingOverrides = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
     }
 
     public String getId() {
@@ -168,6 +177,10 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         return queryConfig;
     }
 
+    public Map<String, String> getMappingOverrides() {
+        return mappingOverrides;
+    }
+
     public boolean isValid() {
         // collect validation results from all child objects
         if (queryConfig != null && queryConfig.isValid() == false) {
@@ -189,6 +202,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeOptionalWriteable(queryConfig);
         out.writeOptionalWriteable(pivotConfig);
+        out.writeMap(mappingOverrides, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     @Override
@@ -208,6 +222,9 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         }
         if (headers.isEmpty() == false && params.paramAsBoolean(DataFrameField.FOR_INTERNAL_STORAGE, false) == true) {
             builder.field(HEADERS.getPreferredName(), headers);
+        }
+        if (mappingOverrides.isEmpty() == false) {
+            builder.field(MAPPING_OVERRIDES.getPreferredName(), mappingOverrides);
         }
 
         builder.endObject();
@@ -231,12 +248,13 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                 && Objects.equals(this.dest, that.dest)
                 && Objects.equals(this.headers, that.headers)
                 && Objects.equals(this.queryConfig, that.queryConfig)
-                && Objects.equals(this.pivotConfig, that.pivotConfig);
+                && Objects.equals(this.pivotConfig, that.pivotConfig)
+                && Objects.equals(this.mappingOverrides, that.mappingOverrides);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, headers, queryConfig, pivotConfig);
+        return Objects.hash(id, source, dest, headers, queryConfig, pivotConfig, mappingOverrides);
     }
 
     @Override

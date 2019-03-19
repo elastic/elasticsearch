@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTask
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction.Response;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -227,6 +228,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
         private final String transformId;
+        private Map<String, String> fieldMappings = null;
 
         private DataFrameTransformConfig transformConfig = null;
 
@@ -241,6 +243,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected DataFrameTransformConfig getConfig() {
             return transformConfig;
+        }
+
+        @Override
+        protected Map<String, String> getFieldMappings() {
+            return fieldMappings;
         }
 
         @Override
@@ -272,6 +279,27 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             if (transformConfig.isValid() == false) {
                 throw new RuntimeException(
                         DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_INVALID, transformId));
+            }
+
+            if (fieldMappings == null) {
+                CountDownLatch latch = new CountDownLatch(1);
+                SchemaUtil.getDestinationFieldMappings(client, transformConfig.getDestination(), new LatchedActionListener<>(
+                    ActionListener.wrap(
+                        destinationMappings -> fieldMappings = destinationMappings,
+                        e -> {
+                            throw new RuntimeException(
+                                DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,
+                                    transformConfig.getDestination()),
+                                e);
+                        }), latch));
+                try {
+                    latch.await(LOAD_TRANSFORM_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                   throw new RuntimeException(
+                                DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,
+                                    transformConfig.getDestination()),
+                                e);
+                }
             }
 
             return super.maybeTriggerAsyncJob(now);

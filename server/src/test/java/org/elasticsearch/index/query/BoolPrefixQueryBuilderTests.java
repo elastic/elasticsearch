@@ -190,8 +190,8 @@ public class BoolPrefixQueryBuilderTests extends AbstractQueryTestCase<BoolPrefi
     }
 
     public void testAnalysis() throws Exception {
-        final MatchQuery matchQuery = new MatchQuery(createShardContext());
-        final Query query = matchQuery.parse(MatchQuery.Type.BOOLEAN_PREFIX, STRING_FIELD_NAME, "foo bar baz");
+        final BoolPrefixQueryBuilder builder = new BoolPrefixQueryBuilder(STRING_FIELD_NAME, "foo bar baz");
+        final Query query = builder.toQuery(createShardContext());
 
         assertBooleanQuery(query, asList(
             new TermQuery(new Term(STRING_FIELD_NAME, "foo")),
@@ -200,7 +200,7 @@ public class BoolPrefixQueryBuilderTests extends AbstractQueryTestCase<BoolPrefi
         ));
     }
 
-    public void testAnalysisGraph() throws Exception {
+    public void testAnalysisSynonym() throws Exception {
         final MatchQuery matchQuery = new MatchQuery(createShardContext());
         matchQuery.setAnalyzer(new MockSynonymAnalyzer());
         final Query query = matchQuery.parse(MatchQuery.Type.BOOLEAN_PREFIX, STRING_FIELD_NAME, "fox dogs red");
@@ -210,6 +210,12 @@ public class BoolPrefixQueryBuilderTests extends AbstractQueryTestCase<BoolPrefi
             new SynonymQuery(new Term(STRING_FIELD_NAME, "dogs"), new Term(STRING_FIELD_NAME, "dog")),
             new PrefixQuery(new Term(STRING_FIELD_NAME, "red"))
         ));
+    }
+
+    public void testAnalysisSingleTerm() throws Exception {
+        final BoolPrefixQueryBuilder builder = new BoolPrefixQueryBuilder(STRING_FIELD_NAME, "foo");
+        final Query query = builder.toQuery(createShardContext());
+        assertThat(query, equalTo(new PrefixQuery(new Term(STRING_FIELD_NAME, "foo"))));
     }
 
     private static void assertBooleanQuery(Query actual, List<Query> expectedClauseQueries) {

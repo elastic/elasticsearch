@@ -39,8 +39,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -84,7 +86,26 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 return FileVisitResult.CONTINUE;
             }
         });
-        assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
+        // filtering out delete tombstones
+        final Set<Path> tombstones =
+            found.stream().filter(p -> p.getFileName().toString().endsWith(".tombstone")).collect(Collectors.toSet());
+        final Set<Path> marked = tombstones.stream().map(
+            p -> p.getParent().resolve(p.getFileName().toString().replaceAll("\\.tombstone$", ""))
+        ).collect(Collectors.toSet());
+        final List<Path> filtered = found.stream().filter(p -> {
+            if(tombstones.contains(p)) {
+                return false;
+            }
+            Path path = p;
+            while (path != null) {
+                if (marked.contains(path)) {
+                    return false;
+                }
+                path = path.getParent();
+            }
+            return true;
+        }).collect(Collectors.toList());
+        assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, filtered.size());
     }
 
     public static int numberOfFiles(Path dir) throws IOException {

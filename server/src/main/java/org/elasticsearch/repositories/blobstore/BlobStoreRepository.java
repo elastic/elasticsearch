@@ -429,6 +429,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try {
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
             final RepositoryData updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
+            // cleanup indices that are no longer part of the repository
+            final Collection<IndexId> indicesToCleanUp = Sets.newHashSet(repositoryData.getIndices().values());
+            indicesToCleanUp.removeAll(updatedRepositoryData.getIndices().values());
+            final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
+            final BytesReference tombstoneBytes = new BytesArray(" ");
+            for (final IndexId indexId : indicesToCleanUp) {
+                indicesBlobContainer.writeBlobAtomic(
+                    indexId.getId() + ".tombstone", tombstoneBytes.streamInput(), tombstoneBytes.length(), false);
+            }
             writeIndexGen(updatedRepositoryData, repositoryStateId);
 
             // delete the snapshot file
@@ -466,11 +475,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             }
 
-            // cleanup indices that are no longer part of the repository
-            final Collection<IndexId> indicesToCleanUp = Sets.newHashSet(repositoryData.getIndices().values());
-            indicesToCleanUp.removeAll(updatedRepositoryData.getIndices().values());
-            final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
             for (final IndexId indexId : indicesToCleanUp) {
+                IOException deleteException = null;
                 try {
                     indicesBlobContainer.deleteBlob(indexId.getId());
                 } catch (DirectoryNotEmptyException dnee) {
@@ -480,10 +486,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // snapshotting indices of the same name
                     logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
                         "but failed to clean up its index folder due to the directory not being empty.", metadata.name(), indexId), dnee);
+                    deleteException = dnee;
                 } catch (IOException ioe) {
                     // a different IOException occurred while trying to delete - will just log the issue for now
                     logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
                         "but failed to clean up its index folder.", metadata.name(), indexId), ioe);
+                    deleteException = ioe;
+                }
+                if (deleteException == null) {
+                    indicesBlobContainer.deleteBlob(indexId.getId() + ".tombstone");
                 }
             }
         } catch (IOException | ResourceNotFoundException ex) {

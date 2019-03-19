@@ -98,11 +98,11 @@ public class DateUtilsTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toInstant(-1));
         assertThat(e.getMessage(),
-            is("nanoseconds are [-1] are before the epoch in 1970 and cannot be processed in nanosecond resolution"));
+            is("nanoseconds [-1] are before the epoch in 1970 and cannot be processed in nanosecond resolution"));
 
         e = expectThrows(IllegalArgumentException.class, () -> toInstant(Long.MIN_VALUE));
         assertThat(e.getMessage(),
-            is("nanoseconds are [" + Long.MIN_VALUE + "] are before the epoch in 1970 and cannot be processed in nanosecond resolution"));
+            is("nanoseconds [" + Long.MIN_VALUE + "] are before the epoch in 1970 and cannot be processed in nanosecond resolution"));
 
         assertThat(toInstant(Long.MAX_VALUE),
             is(ZonedDateTime.parse("2262-04-11T23:47:16.854775807Z").toInstant()));
@@ -127,7 +127,7 @@ public class DateUtilsTests extends ESTestCase {
             expectThrows(IllegalArgumentException.class, () -> toNanoSeconds(-1));
         assertThat(exc.getMessage(), containsString("before the epoch"));
 
-        long millis = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() + randomLongBetween(0, 1000000);
+        long millis = DateUtils.MAX_NANOSECOND_IN_MILLIS + randomLongBetween(0, 1000000);
         exc = expectThrows(IllegalArgumentException.class, () -> toNanoSeconds(millis));
         assertThat(exc.getMessage(), containsString("after 2262"));
     }

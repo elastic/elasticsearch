@@ -87,7 +87,9 @@ public class DateUtils {
         return ZoneId.of(zoneId).normalized();
     }
 
-    static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
+    private static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
+
+    static final long MAX_NANOSECOND_IN_MILLIS = MAX_NANOSECOND_INSTANT.toEpochMilli();
 
     /**
      * convert a java time instant to a long value which is stored in lucene
@@ -139,14 +141,11 @@ public class DateUtils {
         if (milliSecondsSinceEpoch < 0) {
             throw new IllegalArgumentException("milliSeconds [" + milliSecondsSinceEpoch + "] are before the epoch in 1970 and cannot " +
                 "be converted to nanoseconds");
-        } else if (milliSecondsSinceEpoch > MAX_NANOSECOND_INSTANT.toEpochMilli()) {
+        } else if (milliSecondsSinceEpoch > MAX_NANOSECOND_IN_MILLIS) {
             throw new IllegalArgumentException("milliSeconds [" + milliSecondsSinceEpoch + "] are after 2262-04-11T23:47:16.854775807 " +
                 "and cannot be converted to nanoseconds");
         }
 
-        if (milliSecondsSinceEpoch == 0) {
-            return 0;
-        }
         return milliSecondsSinceEpoch * 1_000_000;
     }
 

@@ -85,6 +85,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
 
             case DATE:
                 if (numericType == NumericType.DATE_NANOSECONDS) {
+                    // converts date values to nanosecond resolution
                     source = new LongValuesComparatorSource(this, missingValue,
                         sortMode, nested, dvs -> convertNanosToMillis(dvs));
                 } else {
@@ -94,6 +95,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
 
             case DATE_NANOSECONDS:
                 if (numericType == NumericType.DATE) {
+                    // converts date_nanos values to millisecond resolution
                     source = new LongValuesComparatorSource(this, missingValue,
                         sortMode, nested, dvs -> convertMillisToNanos(dvs));
                 } else {
@@ -112,9 +114,9 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
          * returns a custom sort field otherwise.
          */
         if (nested != null
-            || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
-            || numericType == NumericType.HALF_FLOAT
-            || targetNumericType != numericType) {
+                || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
+                || numericType == NumericType.HALF_FLOAT
+                || targetNumericType != numericType) {
             return new SortField(fieldName, source, reverse);
         }
 

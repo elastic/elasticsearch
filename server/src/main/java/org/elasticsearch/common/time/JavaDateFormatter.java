@@ -22,6 +22,7 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.common.Strings;
 
 import java.text.ParsePosition;
+import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -127,6 +128,7 @@ class JavaDateFormatter implements DateFormatter {
                     return formatter.parse(input);
                 }
             }
+            throw new DateTimeParseException("Failed to parse with all parsers from a composite parser", input, 0);
         }
         return firstParser().parse(input);
     }

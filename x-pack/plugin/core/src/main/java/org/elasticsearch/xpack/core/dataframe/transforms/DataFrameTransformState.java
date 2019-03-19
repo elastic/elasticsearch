@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
@@ -51,9 +50,10 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataFrameTransformState, Void> PARSER = new ConstructingObjectParser<>(NAME,
+            true,
             args -> new DataFrameTransformState((DataFrameTransformTaskState) args[0],
                 (IndexerState) args[1],
-                (HashMap<String, Object>) args[2],
+                (Map<String, Object>) args[2],
                 (long) args[3],
                 (String) args[4]));
 
@@ -80,7 +80,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, CURRENT_POSITION, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), GENERATION);
+        PARSER.declareLong(constructorArg(), GENERATION);
         PARSER.declareString(optionalConstructorArg(), REASON);
     }
 

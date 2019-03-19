@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class DataFrameTransformStateTests extends AbstractSerializingTestCase<DataFrameTransformState> {
 
@@ -56,5 +57,15 @@ public class DataFrameTransformStateTests extends AbstractSerializingTestCase<Da
             position.put(randomAlphaOfLengthBetween(3, 10), value);
         }
         return position;
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> !field.isEmpty();
     }
 }

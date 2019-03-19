@@ -51,14 +51,14 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
                     "\n" +
                     "    WARNING: Elasticsearch MUST be stopped before running this tool." +
                     "\n";
-    static final String FAILED_TO_OBTAIN_NODE_LOCK_MSG = "failed to lock node's directory, is Elasticsearch still running?";
+    protected static final String FAILED_TO_OBTAIN_NODE_LOCK_MSG = "failed to lock node's directory, is Elasticsearch still running?";
     static final String NO_NODE_FOLDER_FOUND_MSG = "no node folder is found in data folder(s), node has not been started yet?";
     static final String NO_MANIFEST_FILE_FOUND_MSG = "no manifest file is found, do you run pre 7.0 Elasticsearch?";
-    static final String GLOBAL_GENERATION_MISSING_MSG = "no metadata is referenced from the manifest file, cluster has never been " +
-            "bootstrapped?";
+    protected static final String GLOBAL_GENERATION_MISSING_MSG =
+        "no metadata is referenced from the manifest file, cluster has never been bootstrapped?";
     static final String NO_GLOBAL_METADATA_MSG = "failed to find global metadata, metadata corrupted?";
     static final String WRITE_METADATA_EXCEPTION_MSG = "exception occurred when writing new metadata to disk";
-    static final String ABORTED_BY_USER_MSG = "aborted by user";
+    protected static final String ABORTED_BY_USER_MSG = "aborted by user";
     final OptionSpec<Integer> nodeOrdinalOption;
 
     public ElasticsearchNodeCommand(String description) {
@@ -80,7 +80,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
             if (dataPaths.length == 0) {
                 throw new ElasticsearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
-            processNodePaths(terminal, dataPaths);
+            processNodePaths(terminal, dataPaths, env);
         } catch (LockObtainFailedException ex) {
             throw new ElasticsearchException(
                     FAILED_TO_OBTAIN_NODE_LOCK_MSG + " [" + ex.getMessage() + "]");
@@ -116,11 +116,31 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         terminal.println(STOP_WARNING_MSG);
+        if (validateBeforeLock(terminal, env)) {
+            processNodePathsWithLock(terminal, options, env);
+        }
     }
 
-    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths) throws IOException;
+    /**
+     * Validate that the command can run before taking any locks.
+     * @param terminal the terminal to print to
+     * @param env the env to validate.
+     * @return true to continue, false to stop (must print message in validate).
+     */
+    protected boolean validateBeforeLock(Terminal terminal, Environment env) {
+        return true;
+    }
+
+
+    /**
+     * Process the paths. Locks for the paths is held during this method invocation.
+     * @param terminal the terminal to use for messages
+     * @param dataPaths the paths of the node to process
+     * @param env the env of the node to process
+     */
+    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException;
 
 
     protected void writeNewMetaData(Terminal terminal, Manifest oldManifest, long newCurrentTerm,

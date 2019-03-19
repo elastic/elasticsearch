@@ -1252,7 +1252,7 @@ public final class TokenService {
                         // if the index or the shard is not there / available we assume that
                         // the token is not valid
                         if (isShardNotAvailableException(e)) {
-                            logger.warn("failed to get access token because index is not available", userToken.getId());
+                            logger.warn("failed to get access token because index is not available");
                             listener.onResponse(null);
                         } else {
                             logger.error(new ParameterizedMessage("failed to get token [{}]", userToken.getId()), e);

@@ -35,10 +35,11 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
@@ -53,7 +54,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private DocValueFormat[] sortValueFormats;
     private InternalAggregations aggregations;
     private boolean hasAggs;
-    private List<SiblingPipelineAggregator> pipelineAggregators;
+    private List<SiblingPipelineAggregator> pipelineAggregators = Collections.emptyList();
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
@@ -78,7 +79,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
     public QuerySearchResult queryResult() {
         return this;
     }
-
 
     public void searchTimedOut(boolean searchTimedOut) {
         this.searchTimedOut = searchTimedOut;
@@ -203,7 +203,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void pipelineAggregators(List<SiblingPipelineAggregator> pipelineAggregators) {
-        this.pipelineAggregators = pipelineAggregators;
+        this.pipelineAggregators = Objects.requireNonNull(pipelineAggregators);
     }
 
     public Suggest suggest() {
@@ -332,7 +332,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             out.writeBoolean(true);
             aggregations.writeTo(out);
         }
-        out.writeNamedWriteableList(pipelineAggregators == null ? emptyList() : pipelineAggregators);
+        out.writeNamedWriteableList(pipelineAggregators);
         if (suggest == null) {
             out.writeBoolean(false);
         } else {

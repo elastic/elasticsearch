@@ -1807,8 +1807,8 @@ public final class TokenService {
         @Nullable private final Instant refreshInstant;
         @Nullable private final String supersededByDocId;
 
-        private RefreshTokenStatus(String token, boolean invalidated, String associatedUser, String associatedRealm, Instant refreshInstant,
-                String supersededByDocId) {
+        private RefreshTokenStatus(boolean invalidated, String associatedUser, String associatedRealm, Instant refreshInstant,
+                                   String supersededByDocId) {
             this.invalidated = invalidated;
             this.associatedUser = associatedUser;
             this.associatedRealm = associatedRealm;
@@ -1841,10 +1841,6 @@ public final class TokenService {
         }
 
         static RefreshTokenStatus fromSourceMap(Map<String, Object> refreshTokenSource) {
-            final String token = (String) refreshTokenSource.get("token");
-            if (token == null) {
-                throw new IllegalStateException("token document is missing the \"token\" field");
-            }
             final Boolean invalidated = (Boolean) refreshTokenSource.get("invalidated");
             if (invalidated == null) {
                 throw new IllegalStateException("token document is missing the \"invalidated\" field");
@@ -1874,7 +1870,7 @@ public final class TokenService {
             if (refreshed && null == supersededBy) {
                 throw new IllegalStateException("token document is missing the \"superseded_by\" field");
             }
-            return new RefreshTokenStatus(token, invalidated, associatedUser, associatedRealm, refreshInstant, supersededBy);
+            return new RefreshTokenStatus(invalidated, associatedUser, associatedRealm, refreshInstant, supersededBy);
         }
     }
 

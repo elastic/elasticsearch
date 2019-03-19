@@ -63,11 +63,11 @@ public  class ServiceManagerTestCase extends PackagingTestCase {
         assumeTrue(isSystemd());
     }
 
-    public void test10Install() {
+    public void test10Install() throws IOException {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
     }
 
     public void test20StartServer() throws IOException {
@@ -85,7 +85,7 @@ public  class ServiceManagerTestCase extends PackagingTestCase {
         startElasticsearch();
 
         runElasticsearchTests();
-        verifyPackageInstallation(installation, distribution()); // check startup script didn't change permissions
+        verifyPackageInstallation(installation, distribution(), newShell()); // check startup script didn't change permissions
     }
 
     public void test30RestartServer() throws IOException {
@@ -126,7 +126,7 @@ public  class ServiceManagerTestCase extends PackagingTestCase {
 //    /*todo
 //     * @test "[SYSTEMD] start Elasticsearch with custom JVM options" {
 //     */
-    public void test60SystemdMask() {
+    public void test60SystemdMask() throws IOException {
         cleanup();
 
         maskSysctl();

@@ -27,7 +27,8 @@ reduce the data.
 
 ==== Examples
 
-The following example obtains a preview of the `datafeed-farequote` {dfeed}:
+The following example obtains a preview of a {dataframe-transform} on the {kib}
+eCommerce sample data:
 
 [source,js]
 --------------------------------------------------

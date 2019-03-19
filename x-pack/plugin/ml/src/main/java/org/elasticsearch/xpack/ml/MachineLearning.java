@@ -399,10 +399,18 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         Auditor auditor = new Auditor(client, clusterService.getNodeName());
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
-        JobConfigProvider jobConfigProvider = new JobConfigProvider(client);
+        JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
-        JobManager jobManager = new JobManager(env, settings, jobResultsProvider, clusterService, auditor, threadPool, client, notifier);
+        JobManager jobManager = new JobManager(env,
+            settings,
+            jobResultsProvider,
+            clusterService,
+            auditor,
+            threadPool,
+            client,
+            notifier,
+            xContentRegistry);
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
         JobManagerHolder jobManagerHolder = new JobManagerHolder(jobManager);

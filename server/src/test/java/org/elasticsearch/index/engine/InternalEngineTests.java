@@ -3259,22 +3259,6 @@ public class InternalEngineTests extends EngineTestCase {
                 assertNotNull(indexResult.getTranslogLocation());
                 engine.index(indexForDoc(doc2));
 
-                // test failure while deleting
-                // all these simulated exceptions are not fatal to the IW so we treat them as document failures
-                final Engine.DeleteResult deleteResult;
-                if (randomBoolean()) {
-                    throwingIndexWriter.get().setThrowFailure(() -> new IOException("simulated"));
-                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1), primaryTerm.get()));
-                    assertThat(deleteResult.getFailure(), instanceOf(IOException.class));
-                } else {
-                    throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
-                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1), primaryTerm.get()));
-                    assertThat(deleteResult.getFailure(),
-                        instanceOf(IllegalArgumentException.class));
-                }
-                assertThat(deleteResult.getVersion(), equalTo(2L));
-                assertThat(deleteResult.getSeqNo(), equalTo(3L));
-
                 // test non document level failure is thrown
                 if (randomBoolean()) {
                     // simulate close by corruption
@@ -3304,6 +3288,40 @@ public class InternalEngineTests extends EngineTestCase {
                     new Engine.NoOp(engine.getLocalCheckpointTracker().generateSeqNo(),
                         engine.config().getPrimaryTermSupplier().getAsLong(),
                         randomFrom(Engine.Operation.Origin.values()), randomNonNegativeLong(), "test")));
+            }
+        }
+    }
+
+    public void testDeleteWithFatalError() throws Exception {
+        final IllegalStateException tragicException = new IllegalStateException("fail to store tombstone");
+        try (Store store = createStore()) {
+            EngineConfig.TombstoneDocSupplier tombstoneDocSupplier = new EngineConfig.TombstoneDocSupplier() {
+                @Override
+                public ParsedDocument newDeleteTombstoneDoc(String type, String id) {
+                    ParsedDocument parsedDocument = tombstoneDocSupplier().newDeleteTombstoneDoc(type, id);
+                    parsedDocument.rootDoc().add(new StoredField("foo", "bar") {
+                        // this is a hack to add a failure during store document which triggers a tragic event
+                        // and in turn fails the engine
+                        @Override
+                        public BytesRef binaryValue() {
+                            throw tragicException;
+                        }
+                    });
+                    return parsedDocument;
+                }
+
+                @Override
+                public ParsedDocument newNoopTombstoneDoc(String reason) {
+                    return tombstoneDocSupplier().newNoopTombstoneDoc(reason);
+                }
+            };
+            try (InternalEngine engine = createEngine(null, null, null, config(this.engine.config(), store, tombstoneDocSupplier))) {
+                final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+                engine.index(indexForDoc(doc));
+                expectThrows(IllegalStateException.class,
+                    () -> engine.delete(new Engine.Delete("test", "1", newUid("1"), primaryTerm.get())));
+                assertTrue(engine.isClosed.get());
+                assertSame(tragicException, engine.failedEngine.get());
             }
         }
     }

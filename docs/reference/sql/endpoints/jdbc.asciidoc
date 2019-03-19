@@ -123,6 +123,10 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 `proxy.socks`:: SOCKS proxy host name
 
 [float]
+==== Mapping
+`field.multi.value.leniency` (default `true`):: Whether to be lenient and return the first value for fields with multiple values (true) or throw an exception.
+
+[float]
 ==== Additional
 
 `validate.properties` (default true):: If disabled, it will ignore any misspellings or unrecognizable properties. When enabled, an exception

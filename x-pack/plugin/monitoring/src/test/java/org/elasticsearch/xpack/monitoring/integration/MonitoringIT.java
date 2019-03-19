@@ -105,13 +105,13 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     }
 
     private String createBulkEntity() {
-        return "{\"index\":{}}\n" +
-               "{\"foo\":{\"bar\":0}}\n" +
-               "{\"index\":{}}\n" +
-               "{\"foo\":{\"bar\":1}}\n" +
-               "{\"index\":{}}\n" +
-               "{\"foo\":{\"bar\":2}}\n" +
-               "\n";
+        return  "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":0}}\n" +
+                "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":1}}\n" +
+                "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":2}}\n" +
+                "\n";
     }
 
     /**
@@ -128,7 +128,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             final MonitoringBulkResponse bulkResponse =
                     new MonitoringBulkRequestBuilder(client())
-                            .add(system, "monitoring_data_type", new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
+                            .add(system, new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
                                  System.currentTimeMillis(), interval.millis())
                     .get();
 

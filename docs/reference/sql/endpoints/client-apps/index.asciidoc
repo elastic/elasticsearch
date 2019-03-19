@@ -18,7 +18,9 @@ as long as the app can use the {es-sql} driver, it can use {es-sql}.
 * <<sql-client-apps-workbench, SQL Workbench>>
 * <<sql-client-apps-tableau, Tableau Desktop>>
 
-NOTE: Each application has its own requirements and license; these are outside the scope of this documentation
+IMPORTANT: Elastic does not endorse, promote or provide support for any of the applications listed.
+
+NOTE: Each application has its own requirements and license these are outside the scope of this documentation
 which covers only the configuration aspect with {es-sql}.
 
 WARNING: The support for applications implementing the ODBC 2.x standard and prior is currently limited.

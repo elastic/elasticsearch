@@ -205,8 +205,11 @@ public class ReplicationOperationTests extends ESTestCase {
             shardActionFailure = new NodeClosedException(new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT));
         } else if (randomBoolean()) {
             shardActionFailure = new SendRequestTransportException(
-                new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT), "internal:cluster/shard/failure",
+                new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT), ShardStateAction.SHARD_FAILED_ACTION_NAME,
                 new TransportException("TransportService is closed stopped can't send request"));
+        } else if (randomBoolean()) {
+            shardActionFailure = new TransportException(
+                "transport stopped, action: " + ShardStateAction.SHARD_FAILED_ACTION_NAME);
         } else {
             shardActionFailure = new ShardStateAction.NoLongerPrimaryShardException(failedReplica.shardId(), "the king is dead");
         }

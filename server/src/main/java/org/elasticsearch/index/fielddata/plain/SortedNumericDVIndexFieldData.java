@@ -64,10 +64,15 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         this.numericType = numericType;
     }
 
-    @Override
-    public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+    /**
+     * Returns the {@link SortField} to used for sorting.
+     * Values are casted to the provided <code>targetNumericType</code> type if it doesn't
+     * match the field's <code>numericType</code>.
+     */
+    public SortField sortField(NumericType targetNumericType, Object missingValue, MultiValueMode sortMode, Nested nested,
+                               boolean reverse) {
         final XFieldComparatorSource source;
-        switch (numericType) {
+        switch (targetNumericType) {
             case HALF_FLOAT:
             case FLOAT:
                 source = new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
@@ -78,7 +83,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 break;
 
             default:
-                assert !numericType.isFloatingPoint();
+                assert !targetNumericType.isFloatingPoint();
                 source = new LongValuesComparatorSource(this, missingValue, sortMode, nested);
                 break;
         }
@@ -88,8 +93,9 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
          * returns a custom sort field otherwise.
          */
         if (nested != null
-                || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
-                || numericType == NumericType.HALF_FLOAT) {
+            || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
+            || numericType == NumericType.HALF_FLOAT
+            || targetNumericType != numericType) {
             return new SortField(fieldName, source, reverse);
         }
 
@@ -112,6 +118,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         }
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
         return sortField;
+    }
+
+    @Override
+    public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+        return sortField(numericType, missingValue, sortMode, nested, reverse);
     }
 
     @Override
